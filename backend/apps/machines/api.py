@@ -97,9 +97,11 @@ class SourceSchema(Schema):
 class ClaimSchema(Schema):
     source_name: str
     source_slug: str
+    field_name: str
     value: object
     citation: str
     created_at: str
+    is_winner: bool
 
 
 class DesignCreditSchema(Schema):
@@ -162,7 +164,7 @@ class PinballModelDetailSchema(Schema):
     sources_notes: str
     extra_data: dict
     credits: list[DesignCreditSchema]
-    provenance: dict[str, list[ClaimSchema]]
+    activity: list[ClaimSchema]
     thumbnail_url: Optional[str] = None
     hero_image_url: Optional[str] = None
     features: list[str] = []
@@ -330,22 +332,31 @@ def _serialize_model_detail(pm) -> dict:
         for c in pm.credits.select_related("person").all()
     ]
 
-    # Group active claims by field_name for provenance.
-    provenance: dict[str, list[dict]] = {}
+    # Build flat activity list from active claims, marking winners.
+    # Claims are ordered by field_name then priority; first per field wins.
+    winners: set[str] = set()
+    activity: list[dict] = []
     for claim in (
         pm.claims.filter(is_active=True)
         .select_related("source")
         .order_by("field_name", "-source__priority", "-created_at")
     ):
-        provenance.setdefault(claim.field_name, []).append(
+        is_winner = claim.field_name not in winners
+        if is_winner:
+            winners.add(claim.field_name)
+        activity.append(
             {
                 "source_name": claim.source.name,
                 "source_slug": claim.source.slug,
+                "field_name": claim.field_name,
                 "value": claim.value,
                 "citation": claim.citation,
                 "created_at": claim.created_at.isoformat(),
+                "is_winner": is_winner,
             }
         )
+    # Re-sort by most recent first for the timeline view.
+    activity.sort(key=lambda c: c["created_at"], reverse=True)
 
     thumbnail_url, hero_image_url = _extract_image_urls(pm.extra_data or {})
     features = _extract_features(pm.extra_data or {})
@@ -384,7 +395,7 @@ def _serialize_model_detail(pm) -> dict:
         "sources_notes": pm.sources_notes,
         "extra_data": pm.extra_data or {},
         "credits": credits,
-        "provenance": provenance,
+        "activity": activity,
         "thumbnail_url": thumbnail_url,
         "hero_image_url": hero_image_url,
         "features": features,
