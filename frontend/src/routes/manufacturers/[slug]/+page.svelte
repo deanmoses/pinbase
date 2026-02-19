@@ -3,6 +3,10 @@
 
 	let { data } = $props();
 	let mfr = $derived(data.manufacturer);
+	let ipdbId = $derived(
+		mfr.entities.find((e: { ipdb_manufacturer_id?: number | null }) => e.ipdb_manufacturer_id)
+			?.ipdb_manufacturer_id
+	);
 </script>
 
 <svelte:head>
@@ -45,10 +49,10 @@
 		</section>
 	{/if}
 
-	{#if mfr.ipdb_manufacturer_id}
+	{#if ipdbId}
 		<footer class="external-ids">
 			<a
-				href="https://www.ipdb.org/search.pl?any=&searchtype=advanced&mfgid={mfr.ipdb_manufacturer_id}"
+				href="https://www.ipdb.org/search.pl?any=&searchtype=advanced&mfgid={ipdbId}"
 				target="_blank"
 				rel="noopener"
 			>
