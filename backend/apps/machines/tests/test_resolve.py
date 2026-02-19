@@ -1,6 +1,12 @@
 import pytest
 
-from apps.machines.models import Claim, Manufacturer, PinballModel, Source
+from apps.machines.models import (
+    Claim,
+    Manufacturer,
+    ManufacturerEntity,
+    PinballModel,
+    Source,
+)
 from apps.machines.resolve import resolve_model
 
 
@@ -60,9 +66,19 @@ class TestResolveModel:
         assert resolved.extra_data["model_number"] == "20021"
         assert resolved.extra_data["abbreviation"] == "MM"
 
-    def test_manufacturer_resolution_by_id(self, pm, ipdb):
-        mfr = Manufacturer.objects.create(name="Williams", ipdb_manufacturer_id=42)
+    def test_manufacturer_resolution_by_ipdb_id(self, pm, ipdb):
+        mfr = Manufacturer.objects.create(name="Williams")
+        ManufacturerEntity.objects.create(
+            manufacturer=mfr, name="Williams Manufacturing", ipdb_manufacturer_id=42
+        )
         Claim.objects.assert_claim(pm, ipdb, "manufacturer", 42)
+
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == mfr
+
+    def test_manufacturer_resolution_by_opdb_id(self, pm, opdb):
+        mfr = Manufacturer.objects.create(name="Williams", opdb_manufacturer_id=7)
+        Claim.objects.assert_claim(pm, opdb, "manufacturer", 7)
 
         resolved = resolve_model(pm)
         assert resolved.manufacturer == mfr
@@ -82,6 +98,25 @@ class TestResolveModel:
 
         resolved = resolve_model(pm)
         assert resolved.manufacturer == mfr
+
+    def test_manufacturer_resolution_disambiguates_opdb_from_ipdb(self, pm, ipdb, opdb):
+        """OPDB manufacturer_id that collides with an IPDB entity ID resolves correctly."""
+        colliding_id = 7
+        # IPDB entity with the same numeric ID
+        ipdb_mfr = Manufacturer.objects.create(name="Some IPDB Brand")
+        ManufacturerEntity.objects.create(
+            manufacturer=ipdb_mfr,
+            name="Some IPDB Corp",
+            ipdb_manufacturer_id=colliding_id,
+        )
+        # OPDB manufacturer with the same numeric ID
+        opdb_mfr = Manufacturer.objects.create(
+            name="Stern", opdb_manufacturer_id=colliding_id
+        )
+        # OPDB claim should resolve to the OPDB manufacturer, not the IPDB entity.
+        Claim.objects.assert_claim(pm, opdb, "manufacturer", colliding_id)
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == opdb_mfr
 
     def test_manufacturer_resolution_unknown(self, pm, ipdb):
         Claim.objects.assert_claim(pm, ipdb, "manufacturer", "NonexistentCorp")

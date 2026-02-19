@@ -115,7 +115,12 @@ class Claim(models.Model):
 
 
 class Manufacturer(models.Model):
-    """A pinball machine manufacturer."""
+    """A pinball machine brand (user-facing grouping).
+
+    Corporate incarnations are tracked separately in ManufacturerEntity.
+    For example, "Gottlieb" is one Manufacturer with four ManufacturerEntity
+    records spanning different ownership eras.
+    """
 
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
@@ -123,12 +128,6 @@ class Manufacturer(models.Model):
         max_length=200,
         blank=True,
         help_text='Brand name if different (e.g., "Bally" for Midway Manufacturing)',
-    )
-    ipdb_manufacturer_id = models.PositiveIntegerField(
-        unique=True,
-        null=True,
-        blank=True,
-        help_text="IPDB's ManufacturerId for cross-referencing",
     )
     opdb_manufacturer_id = models.PositiveIntegerField(
         unique=True,
@@ -157,6 +156,45 @@ class Manufacturer(models.Model):
         super().save(*args, **kwargs)
 
 
+class ManufacturerEntity(models.Model):
+    """A specific corporate incarnation of a manufacturer brand.
+
+    IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
+    across its ownership eras). Each entity maps to one brand-level Manufacturer.
+    """
+
+    manufacturer = models.ForeignKey(
+        Manufacturer,
+        on_delete=models.CASCADE,
+        related_name="entities",
+    )
+    name = models.CharField(
+        max_length=300,
+        help_text='Full corporate name, e.g., "D. Gottlieb & Company"',
+    )
+    ipdb_manufacturer_id = models.PositiveIntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="IPDB's ManufacturerId for cross-referencing",
+    )
+    years_active = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Operating period, e.g., "1931-1977"',
+    )
+
+    class Meta:
+        ordering = ["manufacturer", "years_active"]
+        verbose_name = "manufacturer entity"
+        verbose_name_plural = "manufacturer entities"
+
+    def __str__(self) -> str:
+        if self.years_active:
+            return f"{self.name} ({self.years_active})"
+        return self.name
+
+
 class PinballModel(models.Model):
     """A pinball machine title/design — the resolved/materialized view.
 
@@ -174,6 +212,7 @@ class PinballModel(models.Model):
         LIGHTS = "lights", "Backglass Lights"
         ALPHA = "alpha", "Alpha-Numeric"
         DMD = "dmd", "Dot Matrix Display"
+        CGA = "cga", "CGA (Color Graphics)"
         LCD = "lcd", "LCD Screen"
 
     # Identity

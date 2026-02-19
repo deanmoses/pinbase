@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import models
 from django.db.models import F
 
-from .models import Claim, Manufacturer, PinballModel
+from .models import Claim, Manufacturer, ManufacturerEntity, PinballModel
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +61,14 @@ def _coerce(field_name: str, value):
     if field_name in _INT_FIELDS:
         try:
             return int(value)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             logger.warning("Cannot coerce %r to int for field %s", value, field_name)
             return None
 
     if field_name in _DECIMAL_FIELDS:
         try:
             return Decimal(str(value))
-        except InvalidOperation, ValueError, TypeError:
+        except (InvalidOperation, ValueError, TypeError):
             logger.warning(
                 "Cannot coerce %r to Decimal for field %s", value, field_name
             )
@@ -77,26 +77,39 @@ def _coerce(field_name: str, value):
     return value
 
 
-def _resolve_manufacturer(value) -> Manufacturer | None:
+def _resolve_manufacturer(value, source_slug: str = "") -> Manufacturer | None:
     """Resolve a manufacturer claim value to a Manufacturer instance.
 
     The value can be:
-    - An int/string matching ipdb_manufacturer_id or opdb_manufacturer_id
+    - An int/string matching ipdb_manufacturer_id (on ManufacturerEntity)
+      or opdb_manufacturer_id (on Manufacturer)
     - A manufacturer name string
+
+    ``source_slug`` disambiguates numeric IDs: "ipdb" looks up via
+    ManufacturerEntity, "opdb" via Manufacturer.opdb_manufacturer_id.
+    Without a slug, both are tried (IPDB first, then OPDB).
     """
     if value is None or value == "":
         return None
 
-    # Try numeric ID lookups first.
+    # Try numeric ID lookups, scoped by source when known.
     try:
         numeric_id = int(value)
-        mfr = Manufacturer.objects.filter(ipdb_manufacturer_id=numeric_id).first()
-        if mfr:
-            return mfr
-        mfr = Manufacturer.objects.filter(opdb_manufacturer_id=numeric_id).first()
-        if mfr:
-            return mfr
-    except ValueError, TypeError:
+
+        if source_slug != "opdb":
+            entity = (
+                ManufacturerEntity.objects.filter(ipdb_manufacturer_id=numeric_id)
+                .select_related("manufacturer")
+                .first()
+            )
+            if entity:
+                return entity.manufacturer
+
+        if source_slug != "ipdb":
+            mfr = Manufacturer.objects.filter(opdb_manufacturer_id=numeric_id).first()
+            if mfr:
+                return mfr
+    except (ValueError, TypeError):
         pass
 
     # Fall back to name match (case-insensitive).
@@ -152,7 +165,9 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
     # Apply winners to the model.
     for field_name, claim in winners.items():
         if field_name == "manufacturer":
-            pinball_model.manufacturer = _resolve_manufacturer(claim.value)
+            pinball_model.manufacturer = _resolve_manufacturer(
+                claim.value, source_slug=claim.source.slug
+            )
         elif field_name in DIRECT_FIELDS:
             attr = DIRECT_FIELDS[field_name]
             setattr(pinball_model, attr, _coerce(field_name, claim.value))
