@@ -9,7 +9,7 @@ from apps.machines.api import (
 )
 
 api = NinjaAPI(
-    title="svel-djang API",
+    title="Pinbase API",
     urls_namespace="api",
 )
 
