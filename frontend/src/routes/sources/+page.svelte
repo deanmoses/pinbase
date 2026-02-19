@@ -101,12 +101,6 @@
 	}
 
 	a {
-		color: var(--color-link);
-		text-decoration: none;
 		word-break: break-all;
-	}
-
-	a:hover {
-		text-decoration: underline;
 	}
 </style>

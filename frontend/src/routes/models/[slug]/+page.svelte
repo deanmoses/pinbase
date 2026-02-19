@@ -10,6 +10,12 @@
 </svelte:head>
 
 <article>
+	{#if model.hero_image_url}
+		<div class="hero-image">
+			<img src={model.hero_image_url} alt="{model.name} backglass" />
+		</div>
+	{/if}
+
 	<header>
 		<h1>{model.name}</h1>
 		<div class="meta">
@@ -27,7 +33,19 @@
 			{/if}
 			<span>{model.machine_type}</span>
 			<span>{model.display_type}</span>
+			{#if model.group_slug}
+				<span>
+					<a href={resolve(`/groups/${model.group_slug}`)}>{model.group_name}</a>
+				</span>
+			{/if}
 		</div>
+		{#if model.features.length > 0}
+			<div class="features">
+				{#each model.features as feature (feature)}
+					<span class="chip">{feature}</span>
+				{/each}
+			</div>
+		{/if}
 	</header>
 
 	<section class="specs">
@@ -55,6 +73,22 @@
 			{/if}
 		</dl>
 	</section>
+
+	{#if model.aliases.length > 0}
+		<section class="variants">
+			<h2>Variants</h2>
+			<ul>
+				{#each model.aliases as alias (alias.slug)}
+					<li>
+						<a href={resolve(`/models/${alias.slug}`)}>{alias.name}</a>
+						{#if alias.features.length > 0}
+							<span class="alias-features">{alias.features.join(', ')}</span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 
 	{#if model.ipdb_rating || model.pinside_rating}
 		<section class="ratings">
@@ -144,6 +178,18 @@
 		max-width: 48rem;
 	}
 
+	.hero-image {
+		margin-bottom: var(--size-5);
+	}
+
+	.hero-image img {
+		width: 100%;
+		max-height: 24rem;
+		object-fit: contain;
+		border-radius: var(--radius-2);
+		background-color: var(--color-surface);
+	}
+
 	header {
 		margin-bottom: var(--size-6);
 	}
@@ -166,6 +212,23 @@
 	.meta span:not(:last-child)::after {
 		content: '·';
 		margin-left: var(--size-2);
+	}
+
+	.features {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--size-2);
+		margin-top: var(--size-3);
+	}
+
+	.chip {
+		display: inline-block;
+		padding: var(--size-1) var(--size-3);
+		font-size: var(--font-size-0);
+		background-color: var(--color-surface);
+		border: 1px solid var(--color-border-soft);
+		border-radius: var(--radius-round);
+		color: var(--color-text-muted);
 	}
 
 	h2 {
@@ -194,6 +257,24 @@
 	dd {
 		font-size: var(--font-size-1);
 		color: var(--color-text-primary);
+	}
+
+	.variants ul {
+		list-style: none;
+		padding: 0;
+	}
+
+	.variants li {
+		display: flex;
+		justify-content: space-between;
+		padding: var(--size-2) 0;
+		border-bottom: 1px solid var(--color-border-soft);
+		font-size: var(--font-size-1);
+	}
+
+	.alias-features {
+		color: var(--color-text-muted);
+		font-size: var(--font-size-0);
 	}
 
 	.rating-cards {
@@ -280,14 +361,5 @@
 		gap: var(--size-4);
 		padding-top: var(--size-4);
 		border-top: 1px solid var(--color-border-soft);
-	}
-
-	a {
-		color: var(--color-link);
-		text-decoration: none;
-	}
-
-	a:hover {
-		text-decoration: underline;
 	}
 </style>

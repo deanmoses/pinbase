@@ -4,12 +4,25 @@ from django.test import Client
 from apps.machines.models import (
     Claim,
     DesignCredit,
+    MachineGroup,
     Manufacturer,
     ManufacturerEntity,
     Person,
     PinballModel,
     Source,
 )
+
+SAMPLE_IMAGES = [
+    {
+        "primary": True,
+        "type": "backglass",
+        "urls": {
+            "small": "https://img.opdb.org/sm.jpg",
+            "medium": "https://img.opdb.org/md.jpg",
+            "large": "https://img.opdb.org/lg.jpg",
+        },
+    }
+]
 
 
 @pytest.fixture
@@ -114,6 +127,30 @@ class TestModelsAPI:
         data = resp.json()
         assert data["items"][0]["name"] == "The Mandalorian"
 
+    def test_list_models_excludes_aliases(self, client, pinball_model):
+        PinballModel.objects.create(
+            name="Medieval Madness (LE)",
+            machine_type="SS",
+            display_type="dmd",
+            alias_of=pinball_model,
+        )
+        resp = client.get("/api/models/")
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["items"][0]["name"] == "Medieval Madness"
+
+    def test_list_models_thumbnail(self, client, manufacturer, db):
+        PinballModel.objects.create(
+            name="With Image",
+            manufacturer=manufacturer,
+            machine_type="SS",
+            display_type="dmd",
+            extra_data={"images": SAMPLE_IMAGES},
+        )
+        resp = client.get("/api/models/")
+        data = resp.json()
+        assert data["items"][0]["thumbnail_url"] == "https://img.opdb.org/md.jpg"
+
     def test_get_model_detail(self, client, pinball_model, person, source):
         DesignCredit.objects.create(model=pinball_model, person=person, role="design")
         Claim.objects.assert_claim(
@@ -129,8 +166,169 @@ class TestModelsAPI:
         assert "year" in data["provenance"]
         assert data["provenance"]["year"][0]["source_name"] == "IPDB"
 
+    def test_get_model_detail_images(self, client, manufacturer, db):
+        pm = PinballModel.objects.create(
+            name="With Image",
+            manufacturer=manufacturer,
+            machine_type="SS",
+            display_type="dmd",
+            extra_data={"images": SAMPLE_IMAGES},
+        )
+        resp = client.get(f"/api/models/{pm.slug}")
+        data = resp.json()
+        assert data["thumbnail_url"] == "https://img.opdb.org/md.jpg"
+        assert data["hero_image_url"] == "https://img.opdb.org/lg.jpg"
+
+    def test_get_model_detail_no_images(self, client, pinball_model):
+        resp = client.get(f"/api/models/{pinball_model.slug}")
+        data = resp.json()
+        assert data["thumbnail_url"] is None
+        assert data["hero_image_url"] is None
+
+    def test_get_model_detail_features(self, client, manufacturer, db):
+        pm = PinballModel.objects.create(
+            name="With Features",
+            manufacturer=manufacturer,
+            machine_type="SS",
+            display_type="dmd",
+            extra_data={"features": ["Castle attack", "Gold trim"]},
+        )
+        resp = client.get(f"/api/models/{pm.slug}")
+        data = resp.json()
+        assert data["features"] == ["Castle attack", "Gold trim"]
+
+    def test_get_model_detail_aliases(self, client, pinball_model):
+        PinballModel.objects.create(
+            name="Medieval Madness (LE)",
+            machine_type="SS",
+            display_type="dmd",
+            alias_of=pinball_model,
+            extra_data={"features": ["Gold trim"]},
+        )
+        resp = client.get(f"/api/models/{pinball_model.slug}")
+        data = resp.json()
+        assert len(data["aliases"]) == 1
+        assert data["aliases"][0]["name"] == "Medieval Madness (LE)"
+        assert data["aliases"][0]["features"] == ["Gold trim"]
+
+    def test_get_model_detail_group(self, client, pinball_model, db):
+        group = MachineGroup.objects.create(
+            name="Medieval Madness", opdb_id="G5pe4", shortname="MM"
+        )
+        pinball_model.group = group
+        pinball_model.save()
+        resp = client.get(f"/api/models/{pinball_model.slug}")
+        data = resp.json()
+        assert data["group_name"] == "Medieval Madness"
+        assert data["group_slug"] == group.slug
+
+    def test_get_model_detail_no_group(self, client, pinball_model):
+        resp = client.get(f"/api/models/{pinball_model.slug}")
+        data = resp.json()
+        assert data["group_name"] is None
+        assert data["group_slug"] is None
+
     def test_get_model_404(self, client, db):
         resp = client.get("/api/models/nonexistent")
+        assert resp.status_code == 404
+
+
+class TestGroupsAPI:
+    @pytest.fixture
+    def group(self, db):
+        return MachineGroup.objects.create(
+            name="Medieval Madness", opdb_id="G5pe4", shortname="MM"
+        )
+
+    @pytest.fixture
+    def group_with_machines(self, group, manufacturer):
+        PinballModel.objects.create(
+            name="Medieval Madness",
+            manufacturer=manufacturer,
+            year=1997,
+            machine_type="SS",
+            display_type="dmd",
+            group=group,
+            extra_data={"images": SAMPLE_IMAGES},
+        )
+        PinballModel.objects.create(
+            name="Medieval Madness (Remake)",
+            manufacturer=manufacturer,
+            year=2015,
+            machine_type="SS",
+            display_type="dmd",
+            group=group,
+        )
+        return group
+
+    def test_list_groups(self, client, group_with_machines):
+        resp = client.get("/api/groups/")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        item = data["items"][0]
+        assert item["name"] == "Medieval Madness"
+        assert item["shortname"] == "MM"
+        assert item["machine_count"] == 2
+
+    def test_list_groups_search(self, client, group_with_machines, db):
+        MachineGroup.objects.create(
+            name="Attack From Mars", opdb_id="G1234", shortname="AFM"
+        )
+        resp = client.get("/api/groups/?search=MM")
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["items"][0]["shortname"] == "MM"
+
+    def test_list_groups_thumbnail(self, client, group_with_machines):
+        resp = client.get("/api/groups/")
+        data = resp.json()
+        assert data["items"][0]["thumbnail_url"] == "https://img.opdb.org/md.jpg"
+
+    def test_list_groups_empty_group(self, client, group):
+        resp = client.get("/api/groups/")
+        data = resp.json()
+        assert data["items"][0]["machine_count"] == 0
+        assert data["items"][0]["thumbnail_url"] is None
+
+    def test_get_group_detail(self, client, group_with_machines):
+        resp = client.get(f"/api/groups/{group_with_machines.slug}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Medieval Madness"
+        assert len(data["machines"]) == 2
+
+    def test_get_group_detail_excludes_aliases(self, client, group_with_machines):
+        parent = PinballModel.objects.get(name="Medieval Madness")
+        PinballModel.objects.create(
+            name="Medieval Madness (LE)",
+            machine_type="SS",
+            display_type="dmd",
+            group=group_with_machines,
+            alias_of=parent,
+        )
+        resp = client.get(f"/api/groups/{group_with_machines.slug}")
+        data = resp.json()
+        # Only non-alias machines should appear.
+        assert len(data["machines"]) == 2
+        names = [m["name"] for m in data["machines"]]
+        assert "Medieval Madness (LE)" not in names
+
+    def test_machine_count_excludes_aliases(self, client, group_with_machines):
+        parent = PinballModel.objects.get(name="Medieval Madness")
+        PinballModel.objects.create(
+            name="Medieval Madness (LE)",
+            machine_type="SS",
+            display_type="dmd",
+            group=group_with_machines,
+            alias_of=parent,
+        )
+        resp = client.get("/api/groups/")
+        data = resp.json()
+        assert data["items"][0]["machine_count"] == 2
+
+    def test_get_group_404(self, client, db):
+        resp = client.get("/api/groups/nonexistent")
         assert resp.status_code == 404
 
 

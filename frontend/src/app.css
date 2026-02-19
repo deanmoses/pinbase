@@ -97,10 +97,12 @@ html {
 
 a {
 	color: var(--color-link);
+	text-decoration: none;
 }
 
 a:hover {
 	color: var(--color-accent-hover);
+	text-decoration: underline;
 }
 
 /* ========================================

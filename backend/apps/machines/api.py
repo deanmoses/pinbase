@@ -1,6 +1,6 @@
 """API endpoints for the machines app.
 
-Four routers: models, manufacturers, people, sources.
+Five routers: models, groups, manufacturers, people, sources.
 Wired into the main NinjaAPI instance in config/api.py.
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.db.models.functions import Cast
 from django.db.models import TextField
 from django.shortcuts import get_object_or_404
@@ -32,6 +32,7 @@ class ManufacturerModelSchema(Schema):
     slug: str
     year: Optional[int] = None
     machine_type: str
+    thumbnail_url: str | None = None
 
 
 class ManufacturerEntitySchema(Schema):
@@ -60,6 +61,7 @@ class PersonCreditSchema(Schema):
     model_slug: str
     role: str
     role_display: str
+    thumbnail_url: str | None = None
 
 
 class PersonDetailSchema(Schema):
@@ -93,6 +95,12 @@ class DesignCreditSchema(Schema):
     role_display: str
 
 
+class AliasSchema(Schema):
+    name: str
+    slug: str
+    features: list[str] = []
+
+
 class PinballModelListSchema(Schema):
     name: str
     slug: str
@@ -105,6 +113,7 @@ class PinballModelListSchema(Schema):
     ipdb_rating: Optional[float] = None
     pinside_rating: Optional[float] = None
     theme: str
+    thumbnail_url: Optional[str] = None
 
 
 class PinballModelDetailSchema(Schema):
@@ -131,11 +140,83 @@ class PinballModelDetailSchema(Schema):
     extra_data: dict
     credits: list[DesignCreditSchema]
     provenance: dict[str, list[ClaimSchema]]
+    thumbnail_url: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    features: list[str] = []
+    aliases: list[AliasSchema] = []
+    group_name: Optional[str] = None
+    group_slug: Optional[str] = None
+
+
+class GroupMachineSchema(Schema):
+    name: str
+    slug: str
+    year: Optional[int] = None
+    manufacturer_name: Optional[str] = None
+    manufacturer_slug: Optional[str] = None
+    machine_type: str
+    thumbnail_url: Optional[str] = None
+
+
+class GroupListSchema(Schema):
+    name: str
+    slug: str
+    shortname: str
+    machine_count: int = 0
+    thumbnail_url: Optional[str] = None
+
+
+class GroupDetailSchema(Schema):
+    name: str
+    slug: str
+    shortname: str
+    machines: list[GroupMachineSchema]
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _extract_image_urls(extra_data: dict) -> tuple[str | None, str | None]:
+    """Return (thumbnail_url, hero_image_url) from extra_data.
+
+    Tries OPDB structured images first (with size variants), then falls back
+    to IPDB flat URL list (same URL used for both thumbnail and hero).
+    """
+    # Try OPDB structured images first (have size variants).
+    images = extra_data.get("images")
+    if images and isinstance(images, list):
+        img = None
+        for candidate in images:
+            if isinstance(candidate, dict) and candidate.get("primary"):
+                img = candidate
+                break
+        if img is None:
+            img = images[0] if images else None
+        if isinstance(img, dict):
+            urls = img.get("urls") or {}
+            thumbnail = urls.get("medium") or urls.get("small")
+            hero = urls.get("large") or urls.get("medium")
+            if thumbnail or hero:
+                return thumbnail, hero
+
+    # Fall back to IPDB flat URL list.
+    image_urls = extra_data.get("image_urls")
+    if image_urls and isinstance(image_urls, list):
+        first = image_urls[0]
+        if isinstance(first, str) and first:
+            return first, first
+
+    return None, None
+
+
+def _extract_features(extra_data: dict) -> list[str]:
+    """Return feature list from extra_data features claim."""
+    features = extra_data.get("features")
+    if not features or not isinstance(features, list):
+        return []
+    return [str(f) for f in features]
 
 
 def _build_model_list_qs(
@@ -146,11 +227,13 @@ def _build_model_list_qs(
     year_min: int | None = None,
     year_max: int | None = None,
     person: str = "",
-    ordering: str = "name",
+    ordering: str = "-year",
 ):
     from .models import PinballModel
 
-    qs = PinballModel.objects.select_related("manufacturer")
+    qs = PinballModel.objects.select_related("manufacturer").filter(
+        alias_of__isnull=True
+    )
 
     if search:
         text_q = (
@@ -188,12 +271,13 @@ def _build_model_list_qs(
     if ordering in allowed_orderings:
         qs = qs.order_by(ordering)
     else:
-        qs = qs.order_by("name")
+        qs = qs.order_by("-year")
 
     return qs
 
 
 def _serialize_model_list(pm) -> dict:
+    thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
     return {
         "name": pm.name,
         "slug": pm.slug,
@@ -208,6 +292,7 @@ def _serialize_model_list(pm) -> dict:
         if pm.pinside_rating is not None
         else None,
         "theme": pm.theme,
+        "thumbnail_url": thumbnail_url,
     }
 
 
@@ -239,6 +324,18 @@ def _serialize_model_detail(pm) -> dict:
             }
         )
 
+    thumbnail_url, hero_image_url = _extract_image_urls(pm.extra_data or {})
+    features = _extract_features(pm.extra_data or {})
+
+    aliases = [
+        {
+            "name": alias.name,
+            "slug": alias.slug,
+            "features": _extract_features(alias.extra_data or {}),
+        }
+        for alias in pm.aliases.all()
+    ]
+
     return {
         "name": pm.name,
         "slug": pm.slug,
@@ -265,6 +362,49 @@ def _serialize_model_detail(pm) -> dict:
         "extra_data": pm.extra_data or {},
         "credits": credits,
         "provenance": provenance,
+        "thumbnail_url": thumbnail_url,
+        "hero_image_url": hero_image_url,
+        "features": features,
+        "aliases": aliases,
+        "group_name": pm.group.name if pm.group else None,
+        "group_slug": pm.group.slug if pm.group else None,
+    }
+
+
+def _serialize_group_list(group) -> dict:
+    thumbnail_url = None
+    machines = list(group.machines.all())
+    if machines:
+        thumbnail_url, _ = _extract_image_urls(machines[0].extra_data or {})
+    return {
+        "name": group.name,
+        "slug": group.slug,
+        "shortname": group.shortname,
+        "machine_count": group.machine_count,
+        "thumbnail_url": thumbnail_url,
+    }
+
+
+def _serialize_group_detail(group) -> dict:
+    machines = []
+    for pm in group.machines.all():
+        thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
+        machines.append(
+            {
+                "name": pm.name,
+                "slug": pm.slug,
+                "year": pm.year,
+                "manufacturer_name": pm.manufacturer.name if pm.manufacturer else None,
+                "manufacturer_slug": pm.manufacturer.slug if pm.manufacturer else None,
+                "machine_type": pm.machine_type,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+    return {
+        "name": group.name,
+        "slug": group.slug,
+        "shortname": group.shortname,
+        "machines": machines,
     }
 
 
@@ -286,7 +426,7 @@ def list_models(
     year_min: int | None = None,
     year_max: int | None = None,
     person: str = "",
-    ordering: str = "name",
+    ordering: str = "-year",
 ):
     qs = _build_model_list_qs(
         search=search,
@@ -306,9 +446,58 @@ def get_model(request, slug: str):
     from .models import PinballModel
 
     pm = get_object_or_404(
-        PinballModel.objects.select_related("manufacturer"), slug=slug
+        PinballModel.objects.select_related("manufacturer", "group").prefetch_related(
+            "aliases"
+        ),
+        slug=slug,
     )
     return _serialize_model_detail(pm)
+
+
+# ---------------------------------------------------------------------------
+# Groups router
+# ---------------------------------------------------------------------------
+
+groups_router = Router(tags=["groups"])
+
+
+@groups_router.get("/", response=list[GroupListSchema])
+@paginate(PageNumberPagination, page_size=25)
+def list_groups(request, search: str = ""):
+    from .models import MachineGroup, PinballModel
+
+    qs = MachineGroup.objects.annotate(
+        machine_count=Count("machines", filter=Q(machines__alias_of__isnull=True))
+    ).prefetch_related(
+        Prefetch(
+            "machines",
+            queryset=PinballModel.objects.filter(alias_of__isnull=True).order_by(
+                "year", "name"
+            ),
+        )
+    )
+    if search:
+        qs = qs.filter(Q(name__icontains=search) | Q(shortname__icontains=search))
+    qs = qs.order_by("name")
+    return [_serialize_group_list(g) for g in qs]
+
+
+@groups_router.get("/{slug}", response=GroupDetailSchema)
+def get_group(request, slug: str):
+    from .models import MachineGroup, PinballModel
+
+    group = get_object_or_404(
+        MachineGroup.objects.prefetch_related(
+            Prefetch(
+                "machines",
+                queryset=PinballModel.objects.filter(
+                    alias_of__isnull=True
+                ).select_related("manufacturer"),
+            )
+        ),
+        slug=slug,
+    )
+    return _serialize_group_detail(group)
 
 
 # ---------------------------------------------------------------------------
@@ -346,9 +535,16 @@ def get_manufacturer(request, slug: str):
         "trade_name": mfr.trade_name,
         "opdb_manufacturer_id": mfr.opdb_manufacturer_id,
         "entities": entities,
-        "models": list(
-            mfr.models.order_by("name").values("name", "slug", "year", "machine_type")
-        ),
+        "models": [
+            {
+                "name": m.name,
+                "slug": m.slug,
+                "year": m.year,
+                "machine_type": m.machine_type,
+                "thumbnail_url": _extract_image_urls(m.extra_data or {})[0],
+            }
+            for m in mfr.models.filter(alias_of__isnull=True).order_by("name")
+        ],
     }
 
 
@@ -379,12 +575,14 @@ def get_person(request, slug: str):
     credits_by_role: dict[str, list[dict]] = {}
     for c in person.credits.select_related("model").order_by("role", "model__name"):
         role_display = c.get_role_display()
+        thumbnail_url, _ = _extract_image_urls(c.model.extra_data or {})
         credits_by_role.setdefault(role_display, []).append(
             {
                 "model_name": c.model.name,
                 "model_slug": c.model.slug,
                 "role": c.role,
                 "role_display": role_display,
+                "thumbnail_url": thumbnail_url,
             }
         )
     return {
