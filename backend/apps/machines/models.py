@@ -195,6 +195,49 @@ class ManufacturerEntity(models.Model):
         return self.name
 
 
+class MachineGroup(models.Model):
+    """A franchise/title grouping of related pinball machines.
+
+    OPDB defines groups (e.g., "Medieval Madness" spans the 1997 original,
+    the 2015 remake, and LE/SE variants). Like Manufacturer, this is a direct
+    reference entity — no source contests the group's identity itself.
+    Assignment of machines to groups goes through the claims system.
+    """
+
+    opdb_id = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name="OPDB group ID",
+        help_text='OPDB group identifier, e.g., "G5pe4"',
+    )
+    name = models.CharField(max_length=300)
+    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    shortname = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Common abbreviation, e.g., "MM" for Medieval Madness',
+    )
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        if self.shortname:
+            return f"{self.name} ({self.shortname})"
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name) or "group"
+            slug = base
+            counter = 2
+            while MachineGroup.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+
 class PinballModel(models.Model):
     """A pinball machine title/design — the resolved/materialized view.
 
@@ -228,6 +271,24 @@ class PinballModel(models.Model):
     )
     pinside_id = models.PositiveIntegerField(
         unique=True, null=True, blank=True, verbose_name="Pinside ID"
+    )
+
+    # Hierarchy
+    group = models.ForeignKey(
+        MachineGroup,
+        on_delete=models.SET_NULL,
+        related_name="machines",
+        null=True,
+        blank=True,
+        help_text="Franchise/title grouping (resolved from claims).",
+    )
+    alias_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="aliases",
+        null=True,
+        blank=True,
+        help_text="Parent machine if this is a cosmetic/LE variant.",
     )
 
     # Core filterable fields

@@ -102,8 +102,21 @@ class Command(BaseCommand):
             was_matched = True
             # Set opdb_id if not already set.
             if pm.opdb_id is None and opdb_id:
-                pm.opdb_id = opdb_id
-                pm.save(update_fields=["opdb_id"])
+                # Check no other model already owns this opdb_id.
+                conflict = PinballModel.objects.filter(opdb_id=opdb_id).first()
+                if conflict:
+                    logger.warning(
+                        "Cannot set opdb_id=%s on %r (ipdb_id=%s): "
+                        "already owned by %r (pk=%s)",
+                        opdb_id,
+                        pm.name,
+                        ipdb_id,
+                        conflict.name,
+                        conflict.pk,
+                    )
+                else:
+                    pm.opdb_id = opdb_id
+                    pm.save(update_fields=["opdb_id"])
             elif pm.opdb_id and opdb_id and pm.opdb_id != opdb_id:
                 logger.warning(
                     "PinballModel %r already has opdb_id=%s, skipping %s",
