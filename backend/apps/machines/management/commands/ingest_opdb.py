@@ -103,6 +103,7 @@ class Command(BaseCommand):
         # --- Ingest aliases ---
         alias_linked = 0
         alias_created = 0
+        alias_skipped = 0
         alias_failed = 0
 
         for rec in aliases:
@@ -110,6 +111,8 @@ class Command(BaseCommand):
                 result = self._ingest_alias(rec, source, groups_by_id)
                 if result == "matched":
                     alias_linked += 1
+                elif result == "skipped":
+                    alias_skipped += 1
                 else:
                     alias_created += 1
             except Exception:
@@ -120,7 +123,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             f"  Aliases — Linked: {alias_linked}, Created: {alias_created}, "
-            f"Failed: {alias_failed}"
+            f"Skipped: {alias_skipped}, Failed: {alias_failed}"
         )
 
         if failed_ids:
@@ -299,7 +302,7 @@ class Command(BaseCommand):
                 name,
                 parent_opdb_id,
             )
-            return "matched"  # Don't count as failure
+            return "skipped"
 
         # Try to match existing PinballModel (IPDB may have created it).
         pm = None

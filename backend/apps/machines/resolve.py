@@ -192,6 +192,27 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
             extra_data[field_name] = claim.value
 
     pinball_model.extra_data = extra_data
+
+    # Guard against UNIQUE constraint on opdb_id: if another model already
+    # owns this opdb_id, clear it rather than crashing.
+    if pinball_model.opdb_id:
+        conflict = (
+            PinballModel.objects.filter(opdb_id=pinball_model.opdb_id)
+            .exclude(pk=pinball_model.pk)
+            .first()
+        )
+        if conflict:
+            logger.warning(
+                "Cannot resolve opdb_id=%s onto '%s' (pk=%s): "
+                "already owned by '%s' (pk=%s)",
+                pinball_model.opdb_id,
+                pinball_model.name,
+                pinball_model.pk,
+                conflict.name,
+                conflict.pk,
+            )
+            pinball_model.opdb_id = None
+
     pinball_model.save()
     return pinball_model
 
