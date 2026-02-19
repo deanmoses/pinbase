@@ -1,3 +1,4 @@
+from django.conf import settings
 from ninja import NinjaAPI
 
 from apps.machines.api import (
@@ -16,6 +17,13 @@ api = NinjaAPI(
 
 @api.get("/health")
 def health(request):
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+    if not settings.DEBUG:
+        if not (settings.FRONTEND_BUILD_DIR / "index.html").is_file():
+            raise RuntimeError("Frontend build missing")
     return {"status": "ok"}
 
 

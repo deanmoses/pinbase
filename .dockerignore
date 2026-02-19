@@ -1,0 +1,51 @@
+# Version control
+.git/
+
+# Documentation & config
+docs/
+*.md
+LICENSE
+.pre-commit-config.yaml
+.secrets.baseline
+.coderabbit.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Node (frontend deps rebuilt in container if needed)
+node_modules/
+.pnpm-store/
+
+# SvelteKit build artifacts
+frontend/.svelte-kit/
+
+# Local databases
+*.sqlite3
+db.sqlite3
+
+# Data dumps
+data/
+
+# Django generated files (rebuilt in container)
+backend/staticfiles/
+backend/openapi.json
+
+# Claude / agent config
+.claude/

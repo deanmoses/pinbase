@@ -92,6 +92,57 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ── Frontend static build (SvelteKit) ──────────────────────────────
+# In Docker: /app/frontend_build (copied from multi-stage build)
+# In local dev: ../frontend/build (if it exists; optional for dev)
+FRONTEND_BUILD_DIR = BASE_DIR / "frontend_build"
+if not FRONTEND_BUILD_DIR.is_dir():
+    _local_build = BASE_DIR.parent / "frontend" / "build"
+    if _local_build.is_dir():
+        FRONTEND_BUILD_DIR = _local_build
+
+# Serve SvelteKit build assets at the URL root via WhiteNoise middleware.
+# Only files that physically exist are served; all other requests fall
+# through to Django URL routing (API, admin, and catch-all).
+if FRONTEND_BUILD_DIR.is_dir():
+    WHITENOISE_ROOT = FRONTEND_BUILD_DIR
+elif not DEBUG:
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        f"Frontend build directory not found at {FRONTEND_BUILD_DIR}. "
+        "Run the Docker build or `cd frontend && pnpm build`."
+    )
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{asctime} {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.request": {
+            "level": "ERROR",
+        },
+        "django.db.backends": {
+            "level": "DEBUG" if DEBUG else "WARNING",
+        },
+    },
+}
+
 # CSRF — allow JS to read the cookie for X-CSRFToken header
 CSRF_COOKIE_HTTPONLY = False
 CSRF_TRUSTED_ORIGINS = [
@@ -106,3 +157,4 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "Lax"
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
