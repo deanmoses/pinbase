@@ -51,6 +51,10 @@ docs/             Agent documentation source
 Makefile          Thin wrappers around scripts/
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the PR workflow.
+
 ## AI Agent Docs
 
 `CLAUDE.md` and `AGENTS.md` are **generated** from `docs/AGENTS.src.md`. Never edit them directly — edit the source and run `make agent-docs`.
