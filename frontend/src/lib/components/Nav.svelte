@@ -9,7 +9,8 @@
 	const navItems = [
 		{ href: '/groups' as const, label: 'Groups' },
 		{ href: '/manufacturers' as const, label: 'Manufacturers' },
-		{ href: '/people' as const, label: 'People' }
+		{ href: '/people' as const, label: 'People' },
+		{ href: '/api-docs' as const, label: 'API' }
 	];
 
 	function isActive(href: string) {

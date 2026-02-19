@@ -74,10 +74,16 @@ repos:
         files: ^(CLAUDE|AGENTS)\.md$
         pass_filenames: false
 
-      # Frontend lint
+      # Frontend lint + type check
       - id: frontend-lint
         name: frontend lint
         entry: bash -c 'cd frontend && pnpm lint'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+      - id: frontend-check
+        name: frontend type check
+        entry: bash -c 'cd frontend && pnpm check'
         language: system
         files: ^frontend/
         pass_filenames: false
