@@ -375,9 +375,9 @@ class TestPeopleAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Pat Lawlor"
-        assert "Design" in data["credits_by_role"]
-        assert len(data["credits_by_role"]["Design"]) == 1
-        assert data["credits_by_role"]["Design"][0]["model_name"] == "Medieval Madness"
+        assert len(data["machines"]) == 1
+        assert data["machines"][0]["model_name"] == "Medieval Madness"
+        assert data["machines"][0]["roles"] == ["Design"]
 
 
 class TestSourcesAPI:

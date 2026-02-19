@@ -1,7 +1,8 @@
 <script lang="ts">
 	import DetailPage from '$lib/components/DetailPage.svelte';
-	import CardGrid from '$lib/components/CardGrid.svelte';
+	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
+	import { normalizeText } from '$lib/util';
 
 	let { data } = $props();
 	let person = $derived(data.person);
@@ -14,21 +15,22 @@
 		</section>
 	{/if}
 
-	{#if Object.keys(person.credits_by_role).length > 0}
-		{#each Object.entries(person.credits_by_role) as [role, credits] (role)}
-			<section class="role-group">
-				<h2>{role} ({credits.length})</h2>
-				<CardGrid>
-					{#each credits as credit (credit.model_slug)}
-						<MachineCard
-							slug={credit.model_slug}
-							name={credit.model_name}
-							thumbnailUrl={credit.thumbnail_url}
-						/>
-					{/each}
-				</CardGrid>
-			</section>
-		{/each}
+	{#if person.machines.length > 0}
+		<FilterableGrid
+			items={person.machines}
+			filterFn={(item, q) => normalizeText(item.model_name).includes(q)}
+			placeholder="Search models..."
+			entityName="machine"
+		>
+			{#snippet children(machine)}
+				<MachineCard
+					slug={machine.model_slug}
+					name={machine.model_name}
+					thumbnailUrl={machine.thumbnail_url}
+					roles={machine.roles}
+				/>
+			{/snippet}
+		</FilterableGrid>
 	{:else}
 		<p class="empty">No credits listed.</p>
 	{/if}
@@ -39,10 +41,6 @@
 		font-size: var(--font-size-2);
 		color: var(--color-text-primary);
 		line-height: var(--font-lineheight-3);
-		margin-bottom: var(--size-6);
-	}
-
-	.role-group {
 		margin-bottom: var(--size-6);
 	}
 </style>
