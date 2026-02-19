@@ -20,6 +20,3 @@ watchPatterns = [
 
 [deploy]
 preDeployCommand = ".venv/bin/python manage.py migrate --noinput"
-
-healthcheckPath = "/api/health"
-healthcheckTimeout = 10
