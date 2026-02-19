@@ -19,7 +19,7 @@ watchPatterns = [
 ]
 
 [deploy]
-preDeployCommand = "uv run python manage.py migrate --noinput"
+preDeployCommand = ".venv/bin/python manage.py migrate --noinput"
 
 healthcheckPath = "/api/health"
 healthcheckTimeout = 10
