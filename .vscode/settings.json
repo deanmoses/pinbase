@@ -11,6 +11,7 @@
   "ruff.enable": true,
   "ruff.lint.enable": true,
   "ruff.importStrategy": "fromEnvironment",
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
 
   "[svelte]": {
     "editor.defaultFormatter": "svelte.svelte-vscode",
@@ -37,5 +38,6 @@
 
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
-  "files.trimFinalNewlines": true
+  "files.trimFinalNewlines": true,
+  "python-envs.pythonProjects": []
 }
