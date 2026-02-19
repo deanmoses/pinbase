@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     Claim,
     DesignCredit,
+    MachineGroup,
     Manufacturer,
     ManufacturerEntity,
     Person,
@@ -109,6 +110,17 @@ class ManufacturerAdmin(admin.ModelAdmin):
         return obj.entities.count()
 
 
+@admin.register(MachineGroup)
+class MachineGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "shortname", "opdb_id", "machine_count")
+    search_fields = ("name", "shortname", "opdb_id")
+    prepopulated_fields = {"slug": ("name",)}
+
+    @admin.display(description="Machines")
+    def machine_count(self, obj):
+        return obj.machines.count()
+
+
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
     list_display = ("name", "credit_count")
@@ -132,14 +144,22 @@ class PinballModelAdmin(admin.ModelAdmin):
     )
     list_filter = ("machine_type", "display_type", "manufacturer")
     search_fields = ("name", "ipdb_id", "manufacturer__name")
-    autocomplete_fields = ("manufacturer",)
+    autocomplete_fields = ("manufacturer", "group", "alias_of")
     inlines = (DesignCreditInline, ClaimInline)
 
     fieldsets = (
         (
             None,
             {
-                "fields": ("name", "slug", "manufacturer", "year", "month"),
+                "fields": (
+                    "name",
+                    "slug",
+                    "manufacturer",
+                    "group",
+                    "alias_of",
+                    "year",
+                    "month",
+                ),
             },
         ),
         (
