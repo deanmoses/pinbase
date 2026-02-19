@@ -1,6 +1,21 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 	import FaIcon from '$lib/components/FaIcon.svelte';
+
+	let searchValue = $state('');
+
+	function handleSearch(e: SubmitEvent) {
+		e.preventDefault();
+		const q = searchValue.trim();
+		const target = new URL(resolve('/models'), window.location.origin);
+		if (q) {
+			target.searchParams.set('search', q);
+		}
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() used in URL construction above
+		goto(target);
+	}
 </script>
 
 <svelte:head>
@@ -11,10 +26,15 @@
 	<h1>Every pinball machine ever made.</h1>
 	<p class="subtitle">Search thousands of machines by name, manufacturer, designer, or year.</p>
 
-	<div class="search-box">
+	<form class="search-box" onsubmit={handleSearch}>
 		<FaIcon icon={faMagnifyingGlass} class="search-icon" />
-		<input type="search" placeholder="Search machines..." aria-label="Search machines" />
-	</div>
+		<input
+			type="search"
+			placeholder="Search machines..."
+			aria-label="Search machines"
+			bind:value={searchValue}
+		/>
+	</form>
 </section>
 
 <style>
