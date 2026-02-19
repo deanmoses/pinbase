@@ -7,7 +7,6 @@ function getCsrfToken(): string | undefined {
 }
 
 const client = createClient<paths>({
-	baseUrl: '/api',
 	headers: {
 		'Content-Type': 'application/json'
 	}

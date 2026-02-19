@@ -23,7 +23,9 @@
       "Bash(uv tool run:*)",
       "Bash(git ls-remote:*)",
       "Bash(./scripts/test:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(uv run ruff format:*)",
+      "Bash(uv run ruff:*)"
     ]
   },
   "hooks": {

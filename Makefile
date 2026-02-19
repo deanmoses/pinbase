@@ -12,7 +12,7 @@ test:
 lint:
 	./scripts/lint
 
-quality: lint
+quality: lint api-gen
 	cd frontend && pnpm check
 	@echo "All quality checks passed!"
 
