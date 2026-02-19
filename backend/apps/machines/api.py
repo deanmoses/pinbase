@@ -101,6 +101,15 @@ class AliasSchema(Schema):
     features: list[str] = []
 
 
+class PinballModelGridSchema(Schema):
+    name: str
+    slug: str
+    year: Optional[int] = None
+    manufacturer_name: Optional[str] = None
+    machine_type: str
+    thumbnail_url: Optional[str] = None
+
+
 class PinballModelListSchema(Schema):
     name: str
     slug: str
@@ -441,6 +450,34 @@ def list_models(
     return [_serialize_model_list(pm) for pm in qs]
 
 
+@models_router.get("/all/", response=list[PinballModelGridSchema])
+def list_all_models(request):
+    """Return every non-alias model with minimal fields (no pagination)."""
+    from .models import PinballModel
+
+    qs = (
+        PinballModel.objects.filter(alias_of__isnull=True)
+        .select_related("manufacturer")
+        .order_by("-year")
+    )
+    result = []
+    for pm in qs:
+        thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
+        result.append(
+            {
+                "name": pm.name,
+                "slug": pm.slug,
+                "year": pm.year,
+                "manufacturer_name": (
+                    pm.manufacturer.name if pm.manufacturer else None
+                ),
+                "machine_type": pm.machine_type,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+    return result
+
+
 @models_router.get("/{slug}", response=PinballModelDetailSchema)
 def get_model(request, slug: str):
     from .models import PinballModel
@@ -479,6 +516,28 @@ def list_groups(request, search: str = ""):
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(shortname__icontains=search))
     qs = qs.order_by("name")
+    return [_serialize_group_list(g) for g in qs]
+
+
+@groups_router.get("/all/", response=list[GroupListSchema])
+def list_all_groups(request):
+    """Return every group with minimal fields (no pagination)."""
+    from .models import MachineGroup, PinballModel
+
+    qs = (
+        MachineGroup.objects.annotate(
+            machine_count=Count("machines", filter=Q(machines__alias_of__isnull=True))
+        )
+        .prefetch_related(
+            Prefetch(
+                "machines",
+                queryset=PinballModel.objects.filter(alias_of__isnull=True).order_by(
+                    "year", "name"
+                ),
+            )
+        )
+        .order_by("name")
+    )
     return [_serialize_group_list(g) for g in qs]
 
 
