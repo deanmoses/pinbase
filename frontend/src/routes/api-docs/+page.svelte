@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 
 	let scalarLoaded = $state(false);
@@ -58,8 +57,9 @@
 	<div class="resource-card">
 		<h3>OpenAPI Spec</h3>
 		<p>
-			<a href={resolve('/api/openapi.json')} target="_blank" rel="noopener"> Download </a> the raw OpenAPI
-			3.1 specification to use with any compatible tooling.
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- backend API path, not a SvelteKit route -->
+			<a href="/api/openapi.json" target="_blank" rel="noopener">Download</a> the raw OpenAPI 3.1 specification
+			to use with any compatible tooling.
 		</p>
 	</div>
 
