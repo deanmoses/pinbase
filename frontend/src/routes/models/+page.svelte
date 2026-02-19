@@ -65,6 +65,7 @@
 		<table>
 			<thead>
 				<tr>
+					<th class="img-col"></th>
 					<th>Name</th>
 					<th>Manufacturer</th>
 					<th>Year</th>
@@ -76,6 +77,11 @@
 			<tbody>
 				{#each data.result.items as model (model.slug)}
 					<tr>
+						<td class="img-col">
+							{#if model.thumbnail_url}
+								<img src={model.thumbnail_url} alt="" class="thumbnail" loading="lazy" />
+							{/if}
+						</td>
 						<td><a href={resolve(`/models/${model.slug}`)}>{model.name}</a></td>
 						<td>
 							{#if model.manufacturer_slug}
@@ -199,6 +205,18 @@
 		border-bottom: 1px solid var(--color-border-soft);
 		font-size: var(--font-size-1);
 		color: var(--color-text-primary);
+	}
+
+	.img-col {
+		width: 3.5rem;
+		padding: var(--size-1) var(--size-2);
+	}
+
+	.thumbnail {
+		width: 3rem;
+		height: 2.25rem;
+		object-fit: cover;
+		border-radius: var(--radius-1);
 	}
 
 	.num {
