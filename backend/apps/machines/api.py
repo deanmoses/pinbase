@@ -20,6 +20,14 @@ from ninja.pagination import PageNumberPagination, paginate
 # ---------------------------------------------------------------------------
 
 
+class ManufacturerGridSchema(Schema):
+    name: str
+    slug: str
+    trade_name: str
+    model_count: int = 0
+    thumbnail_url: Optional[str] = None
+
+
 class ManufacturerSchema(Schema):
     name: str
     slug: str
@@ -48,6 +56,13 @@ class ManufacturerDetailSchema(Schema):
     opdb_manufacturer_id: Optional[int] = None
     entities: list[ManufacturerEntitySchema]
     models: list[ManufacturerModelSchema]
+
+
+class PersonGridSchema(Schema):
+    name: str
+    slug: str
+    credit_count: int = 0
+    thumbnail_url: Optional[str] = None
 
 
 class PersonSchema(Schema):
@@ -578,6 +593,40 @@ def list_manufacturers(request):
     )
 
 
+@manufacturers_router.get("/all/", response=list[ManufacturerGridSchema])
+def list_all_manufacturers(request):
+    """Return every manufacturer with model count and thumbnail (no pagination)."""
+    from .models import Manufacturer
+
+    qs = Manufacturer.objects.annotate(
+        model_count=Count("models", filter=Q(models__alias_of__isnull=True))
+    ).order_by("-model_count")
+
+    result = []
+    for mfr in qs:
+        # Thumbnail from most recent machine with image data.
+        thumb = None
+        top = (
+            mfr.models.filter(alias_of__isnull=True)
+            .exclude(extra_data={})
+            .order_by("-year")
+            .values_list("extra_data", flat=True)
+            .first()
+        )
+        if top:
+            thumb, _ = _extract_image_urls(top)
+        result.append(
+            {
+                "name": mfr.name,
+                "slug": mfr.slug,
+                "trade_name": mfr.trade_name,
+                "model_count": mfr.model_count,
+                "thumbnail_url": thumb,
+            }
+        )
+    return result
+
+
 @manufacturers_router.get("/{slug}", response=ManufacturerDetailSchema)
 def get_manufacturer(request, slug: str):
     from .models import Manufacturer
@@ -624,6 +673,37 @@ def list_people(request):
         .order_by("name")
         .values("name", "slug", "credit_count")
     )
+
+
+@people_router.get("/all/", response=list[PersonGridSchema])
+def list_all_people(request):
+    """Return every person with credit count and thumbnail (no pagination)."""
+    from .models import Person
+
+    people = list(
+        Person.objects.annotate(credit_count=Count("credits"))
+        .prefetch_related("credits__model")
+        .order_by("-credit_count")
+    )
+    result = []
+    for p in people:
+        thumb = None
+        # Thumbnail from most recent credited machine with image data.
+        for c in sorted(p.credits.all(), key=lambda c: c.model.year or 0, reverse=True):
+            if c.model.extra_data:
+                t, _ = _extract_image_urls(c.model.extra_data)
+                if t:
+                    thumb = t
+                    break
+        result.append(
+            {
+                "name": p.name,
+                "slug": p.slug,
+                "credit_count": p.credit_count,
+                "thumbnail_url": thumb,
+            }
+        )
+    return result
 
 
 @people_router.get("/{slug}", response=PersonDetailSchema)

@@ -1,35 +1,25 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
-	import ListPage from '$lib/components/ListPage.svelte';
-	import DataTable from '$lib/components/DataTable.svelte';
-	import { PAGE_SIZES } from '$lib/api/pagination';
+	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
+	import PersonCard from '$lib/components/PersonCard.svelte';
+	import { normalizeText } from '$lib/util';
 
 	let { data } = $props();
 </script>
 
-<ListPage
-	title="People"
-	count={data.result.count}
-	pageSize={PAGE_SIZES.people}
+<FilterableGrid
+	items={data.people}
+	filterFn={(item, q) => normalizeText(item.name).includes(q)}
+	title="People — The Flip Pinball DB"
+	placeholder="Search people..."
 	entityName="person"
 	entityNamePlural="people"
 >
-	<DataTable>
-		<table>
-			<thead>
-				<tr>
-					<th>Name</th>
-					<th class="num">Credits</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.result.items as person (person.slug)}
-					<tr>
-						<td><a href={resolve(`/people/${person.slug}`)}>{person.name}</a></td>
-						<td class="num">{person.credit_count}</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</DataTable>
-</ListPage>
+	{#snippet children(person)}
+		<PersonCard
+			slug={person.slug}
+			name={person.name}
+			thumbnailUrl={person.thumbnail_url}
+			creditCount={person.credit_count}
+		/>
+	{/snippet}
+</FilterableGrid>
