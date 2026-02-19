@@ -48,7 +48,6 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm check
       - run: pnpm test
 
   api-types:
@@ -71,3 +70,5 @@ jobs:
       - run: cd frontend && pnpm api:gen
       - name: Verify types were generated
         run: test -f frontend/src/lib/api/schema.d.ts
+      - name: Svelte type check
+        run: cd frontend && pnpm check
