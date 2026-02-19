@@ -32,6 +32,7 @@ class ManufacturerModelSchema(Schema):
     slug: str
     year: Optional[int] = None
     machine_type: str
+    thumbnail_url: str | None = None
 
 
 class ManufacturerEntitySchema(Schema):
@@ -60,6 +61,7 @@ class PersonCreditSchema(Schema):
     model_slug: str
     role: str
     role_display: str
+    thumbnail_url: str | None = None
 
 
 class PersonDetailSchema(Schema):
@@ -177,30 +179,36 @@ class GroupDetailSchema(Schema):
 
 
 def _extract_image_urls(extra_data: dict) -> tuple[str | None, str | None]:
-    """Return (thumbnail_url, hero_image_url) from extra_data images claim.
+    """Return (thumbnail_url, hero_image_url) from extra_data.
 
-    Picks the primary image, falling back to the first image in the list.
-    For thumbnail: medium → small. For hero: large → medium.
+    Tries OPDB structured images first (with size variants), then falls back
+    to IPDB flat URL list (same URL used for both thumbnail and hero).
     """
+    # Try OPDB structured images first (have size variants).
     images = extra_data.get("images")
-    if not images or not isinstance(images, list):
-        return None, None
+    if images and isinstance(images, list):
+        img = None
+        for candidate in images:
+            if isinstance(candidate, dict) and candidate.get("primary"):
+                img = candidate
+                break
+        if img is None:
+            img = images[0] if images else None
+        if isinstance(img, dict):
+            urls = img.get("urls") or {}
+            thumbnail = urls.get("medium") or urls.get("small")
+            hero = urls.get("large") or urls.get("medium")
+            if thumbnail or hero:
+                return thumbnail, hero
 
-    # Find primary image, fall back to first.
-    img = None
-    for candidate in images:
-        if isinstance(candidate, dict) and candidate.get("primary"):
-            img = candidate
-            break
-    if img is None:
-        img = images[0] if images else None
-    if not isinstance(img, dict):
-        return None, None
+    # Fall back to IPDB flat URL list.
+    image_urls = extra_data.get("image_urls")
+    if image_urls and isinstance(image_urls, list):
+        first = image_urls[0]
+        if isinstance(first, str) and first:
+            return first, first
 
-    urls = img.get("urls") or {}
-    thumbnail = urls.get("medium") or urls.get("small")
-    hero = urls.get("large") or urls.get("medium")
-    return thumbnail, hero
+    return None, None
 
 
 def _extract_features(extra_data: dict) -> list[str]:
@@ -219,7 +227,7 @@ def _build_model_list_qs(
     year_min: int | None = None,
     year_max: int | None = None,
     person: str = "",
-    ordering: str = "name",
+    ordering: str = "-year",
 ):
     from .models import PinballModel
 
@@ -263,7 +271,7 @@ def _build_model_list_qs(
     if ordering in allowed_orderings:
         qs = qs.order_by(ordering)
     else:
-        qs = qs.order_by("name")
+        qs = qs.order_by("-year")
 
     return qs
 
@@ -418,7 +426,7 @@ def list_models(
     year_min: int | None = None,
     year_max: int | None = None,
     person: str = "",
-    ordering: str = "name",
+    ordering: str = "-year",
 ):
     qs = _build_model_list_qs(
         search=search,
@@ -527,9 +535,16 @@ def get_manufacturer(request, slug: str):
         "trade_name": mfr.trade_name,
         "opdb_manufacturer_id": mfr.opdb_manufacturer_id,
         "entities": entities,
-        "models": list(
-            mfr.models.order_by("name").values("name", "slug", "year", "machine_type")
-        ),
+        "models": [
+            {
+                "name": m.name,
+                "slug": m.slug,
+                "year": m.year,
+                "machine_type": m.machine_type,
+                "thumbnail_url": _extract_image_urls(m.extra_data or {})[0],
+            }
+            for m in mfr.models.filter(alias_of__isnull=True).order_by("name")
+        ],
     }
 
 
@@ -560,12 +575,14 @@ def get_person(request, slug: str):
     credits_by_role: dict[str, list[dict]] = {}
     for c in person.credits.select_related("model").order_by("role", "model__name"):
         role_display = c.get_role_display()
+        thumbnail_url, _ = _extract_image_urls(c.model.extra_data or {})
         credits_by_role.setdefault(role_display, []).append(
             {
                 "model_name": c.model.name,
                 "model_slug": c.model.slug,
                 "role": c.role,
                 "role_display": role_display,
+                "thumbnail_url": thumbnail_url,
             }
         )
     return {
