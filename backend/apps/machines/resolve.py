@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import models
 from django.db.models import F
 
-from .models import Claim, Manufacturer, ManufacturerEntity, PinballModel
+from .models import Claim, MachineGroup, Manufacturer, ManufacturerEntity, PinballModel
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,19 @@ def _coerce(field_name: str, value):
             return None
 
     return value
+
+
+def _resolve_group(value) -> MachineGroup | None:
+    """Resolve a group claim value to a MachineGroup instance.
+
+    The value is expected to be an OPDB group ID string (e.g., "G5pe4").
+    """
+    if value is None or value == "":
+        return None
+    group = MachineGroup.objects.filter(opdb_id=str(value)).first()
+    if not group:
+        logger.warning("Unmatched group claim value: %r", value)
+    return group
 
 
 def _resolve_manufacturer(value, source_slug: str = "") -> Manufacturer | None:
@@ -152,6 +165,7 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
     # Reset all resolvable fields to defaults before applying winners.
     # This ensures deactivated claims don't leave stale values.
     pinball_model.manufacturer = None
+    pinball_model.group = None
     for attr in DIRECT_FIELDS.values():
         field = pinball_model._meta.get_field(attr)
         if hasattr(field, "default") and field.default is not models.NOT_PROVIDED:
@@ -168,6 +182,8 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
             pinball_model.manufacturer = _resolve_manufacturer(
                 claim.value, source_slug=claim.source.slug
             )
+        elif field_name == "group":
+            pinball_model.group = _resolve_group(claim.value)
         elif field_name in DIRECT_FIELDS:
             attr = DIRECT_FIELDS[field_name]
             setattr(pinball_model, attr, _coerce(field_name, claim.value))
@@ -176,6 +192,27 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
             extra_data[field_name] = claim.value
 
     pinball_model.extra_data = extra_data
+
+    # Guard against UNIQUE constraint on opdb_id: if another model already
+    # owns this opdb_id, clear it rather than crashing.
+    if pinball_model.opdb_id:
+        conflict = (
+            PinballModel.objects.filter(opdb_id=pinball_model.opdb_id)
+            .exclude(pk=pinball_model.pk)
+            .first()
+        )
+        if conflict:
+            logger.warning(
+                "Cannot resolve opdb_id=%s onto '%s' (pk=%s): "
+                "already owned by '%s' (pk=%s)",
+                pinball_model.opdb_id,
+                pinball_model.name,
+                pinball_model.pk,
+                conflict.name,
+                conflict.pk,
+            )
+            pinball_model.opdb_id = None
+
     pinball_model.save()
     return pinball_model
 

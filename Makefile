@@ -1,4 +1,4 @@
-.PHONY: bootstrap dev test lint quality agent-docs api-gen ingest
+.PHONY: bootstrap dev test lint quality agent-docs api-gen ingest superuser
 
 bootstrap:
 	./scripts/bootstrap
@@ -25,3 +25,6 @@ api-gen:
 
 ingest:
 	cd backend && uv run python manage.py ingest_all
+
+superuser:
+	cd backend && DJANGO_SUPERUSER_EMAIL="" uv run python manage.py createsuperuser --noinput

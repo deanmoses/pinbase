@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from html import unescape
 
 from django.core.management.base import BaseCommand
 
@@ -120,7 +121,7 @@ class Command(BaseCommand):
         person_cache: dict[str, Person],
     ) -> str:
         ipdb_id = rec.get("IpdbId")
-        title = TITLE_FIXES.get(ipdb_id, rec.get("Title", "Unknown"))
+        title = unescape(TITLE_FIXES.get(ipdb_id, rec.get("Title", "Unknown")))
 
         pm, was_created = PinballModel.objects.get_or_create(
             ipdb_id=ipdb_id,
@@ -141,6 +142,9 @@ class Command(BaseCommand):
             # Convert production number to string.
             if ipdb_field == "ProductionNumber":
                 value = str(value)
+            # Decode HTML entities in string values from IPDB.
+            if isinstance(value, str):
+                value = unescape(value)
             Claim.objects.assert_claim(
                 model=pm,
                 source=source,

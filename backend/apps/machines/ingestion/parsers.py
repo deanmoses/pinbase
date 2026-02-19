@@ -137,3 +137,21 @@ def map_opdb_display(d: str | None) -> str:
         "cga": "cga",
     }
     return mapping.get(d.strip().lower(), "")
+
+
+def parse_opdb_group_id(opdb_id: str | None) -> str:
+    """Extract the group prefix from an OPDB machine/alias ID.
+
+    OPDB IDs follow the pattern G{group}-M{machine}[-A{alias}].
+    The group prefix is the first segment (before the first '-').
+
+    >>> parse_opdb_group_id("G5pe4-MkPy7")
+    'G5pe4'
+    >>> parse_opdb_group_id("G5pe4-MkPy7-AOPQR")
+    'G5pe4'
+    >>> parse_opdb_group_id(None)
+    ''
+    """
+    if not opdb_id:
+        return ""
+    return opdb_id.split("-")[0]

@@ -28,13 +28,25 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--opdb",
-            default="../data/dump1/data/opdb-20250825.json",
+            default="../data/dump2/opdb_export_machines.json",
             help="Path to OPDB JSON dump.",
+        )
+        parser.add_argument(
+            "--opdb-groups",
+            default="../data/dump2/opdb_export_groups.json",
+            help="Path to OPDB groups JSON dump.",
+        )
+        parser.add_argument(
+            "--opdb-changelog",
+            default="../data/dump2/opdb_changelog.json",
+            help="Path to OPDB changelog JSON dump.",
         )
 
     def handle(self, *args, **options):
         ipdb_path = options["ipdb"]
         opdb_path = options["opdb"]
+        opdb_groups = options["opdb_groups"]
+        opdb_changelog = options["opdb_changelog"]
 
         for step in STEPS:
             self.stdout.write(self.style.MIGRATE_HEADING(f"Running {step}..."))
@@ -44,7 +56,11 @@ class Command(BaseCommand):
             elif step == "ingest_ipdb":
                 kwargs = {"ipdb": ipdb_path}
             elif step == "ingest_opdb":
-                kwargs = {"opdb": opdb_path}
+                kwargs = {
+                    "opdb": opdb_path,
+                    "groups": opdb_groups,
+                    "changelog": opdb_changelog,
+                }
             call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
 
         self.stdout.write(self.style.SUCCESS("Full ingestion pipeline complete."))
