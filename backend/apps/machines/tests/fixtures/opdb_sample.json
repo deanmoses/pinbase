@@ -1,0 +1,66 @@
+[
+  {
+    "opdb_id": "ABC12-test1",
+    "is_machine": true,
+    "name": "Medieval Madness",
+    "ipdb_id": 4000,
+    "manufacture_date": "1997-06-01",
+    "type": "ss",
+    "display": "dmd",
+    "player_count": 4,
+    "features": ["Castle attack"],
+    "keywords": ["medieval"],
+    "description": null,
+    "manufacturer": {
+      "manufacturer_id": 7,
+      "name": "Williams",
+      "full_name": "Williams Electronic Games, Inc.",
+      "created_at": "2018-03-11",
+      "updated_at": "2018-03-11"
+    },
+    "images": [],
+    "created_at": "2018-03-11",
+    "updated_at": "2018-03-11"
+  },
+  {
+    "opdb_id": "DEF34-test2",
+    "is_machine": true,
+    "name": "Stern Exclusive Game",
+    "ipdb_id": null,
+    "manufacture_date": "2023-01-15",
+    "type": "ss",
+    "display": "lcd",
+    "player_count": 4,
+    "features": [],
+    "keywords": [],
+    "description": "A test-only game.",
+    "manufacturer": {
+      "manufacturer_id": 12,
+      "name": "Stern",
+      "full_name": "Stern Pinball, Inc.",
+      "created_at": "2018-03-11",
+      "updated_at": "2018-03-11"
+    },
+    "images": [],
+    "created_at": "2023-01-15",
+    "updated_at": "2023-01-15"
+  },
+  {
+    "opdb_id": "GHI56-alias",
+    "is_machine": null,
+    "is_alias": true,
+    "name": "MM (alias)",
+    "ipdb_id": 4000,
+    "manufacture_date": null,
+    "type": "",
+    "display": "",
+    "player_count": null,
+    "features": [],
+    "keywords": [],
+    "description": null,
+    "manufacturer": null,
+    "images": [],
+    "created_at": "2018-03-11",
+    "updated_at": "2018-03-11"
+  }
+]
