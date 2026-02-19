@@ -2,6 +2,9 @@
 
 Creates PinballModel records, asserts Claims for each field, and creates
 Person/DesignCredit records for design credits.
+
+Claims, Persons, and DesignCredits are collected during the main loop and
+written in bulk after all records are processed.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from html import unescape
 
 from django.core.management.base import BaseCommand
 
+from apps.machines.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.machines.ingestion.ipdb_title_fixes import TITLE_FIXES
 from apps.machines.ingestion.parsers import (
     parse_credit_string,
@@ -82,53 +86,96 @@ class Command(BaseCommand):
         records = data["Data"]
         self.stdout.write(f"Processing {len(records)} IPDB records...")
 
-        # Pre-load person cache for credit lookups.
-        person_cache: dict[str, Person] = {
-            p.name.lower(): p for p in Person.objects.all()
+        # --- Phase 1: Ensure all PinballModels exist ---
+        existing_by_ipdb: dict[int, PinballModel] = {
+            pm.ipdb_id: pm for pm in PinballModel.objects.filter(ipdb_id__isnull=False)
         }
+        existing_slugs: set[str] = set(
+            PinballModel.objects.values_list("slug", flat=True)
+        )
 
-        created = 0
-        updated = 0
-        failed = 0
-        failed_ids = []
+        new_models: list[PinballModel] = []
+        record_models: list[tuple[PinballModel, dict, bool]] = []
+        skipped = 0
 
         for rec in records:
+            ipdb_id = rec.get("IpdbId")
+            if not ipdb_id:
+                skipped += 1
+                continue
+
+            title = unescape(TITLE_FIXES.get(ipdb_id, rec.get("Title", "Unknown")))
+
+            pm = existing_by_ipdb.get(ipdb_id)
+            if pm:
+                record_models.append((pm, rec, False))
+            else:
+                slug = generate_unique_slug(title, existing_slugs)
+                pm = PinballModel(ipdb_id=ipdb_id, name=title, slug=slug)
+                new_models.append(pm)
+                existing_by_ipdb[ipdb_id] = pm
+                record_models.append((pm, rec, True))
+
+        created = len(new_models)
+        matched = len(record_models) - created
+        if new_models:
+            PinballModel.objects.bulk_create(new_models)
+
+        self.stdout.write(
+            f"  Models — Matched: {matched}, Created: {created}, Skipped: {skipped}"
+        )
+        if new_models:
+            self.stdout.write(
+                f"    New: {format_names([pm.name for pm in new_models])}"
+            )
+
+        # --- Phase 2: Collect claims and credits ---
+        pending_claims: list[Claim] = []
+        credit_queue: list[tuple[int, str, str]] = []
+        failed = 0
+        failed_ids: list = []
+
+        for pm, rec, _was_created in record_models:
             try:
-                stats = self._ingest_record(rec, source, person_cache)
-                if stats == "created":
-                    created += 1
-                else:
-                    updated += 1
+                self._collect_record_data(pm, rec, source, pending_claims, credit_queue)
             except Exception:
                 ipdb_id = rec.get("IpdbId", "?")
-                logger.exception("Failed to ingest IPDB record %s", ipdb_id)
+                logger.exception("Failed to collect data for IPDB record %s", ipdb_id)
                 failed += 1
                 failed_ids.append(ipdb_id)
 
-        self.stdout.write(f"  Created: {created}, Updated: {updated}, Failed: {failed}")
         if failed_ids:
             self.stderr.write(f"  Failed IDs: {failed_ids}")
+
+        # --- Bulk-assert all collected claims ---
+        claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
+        self.stdout.write(
+            f"  Claims: {claim_stats['unchanged']} unchanged, "
+            f"{claim_stats['created']} created, "
+            f"{claim_stats['superseded']} superseded, "
+            f"{claim_stats['duplicates_removed']} duplicates removed"
+        )
+
+        # --- Bulk-create Persons and Credits ---
+        self._bulk_create_persons_and_credits(credit_queue)
 
         self.stdout.write(self.style.SUCCESS("IPDB ingestion complete."))
 
         if failed:
             raise SystemExit(1)
 
-    def _ingest_record(
+    def _collect_record_data(
         self,
+        pm: PinballModel,
         rec: dict,
         source: Source,
-        person_cache: dict[str, Person],
-    ) -> str:
+        pending_claims: list[Claim],
+        credit_queue: list[tuple[int, str, str]],
+    ) -> None:
+        """Collect claims and credits for a single IPDB record."""
         ipdb_id = rec.get("IpdbId")
-        title = unescape(TITLE_FIXES.get(ipdb_id, rec.get("Title", "Unknown")))
 
-        pm, was_created = PinballModel.objects.get_or_create(
-            ipdb_id=ipdb_id,
-            defaults={"name": title},
-        )
-
-        # Assert claims for mapped fields.
+        # Collect claims for mapped fields.
         for ipdb_field, claim_field in CLAIM_FIELDS.items():
             value = rec.get(ipdb_field)
             if value is None or value == "":
@@ -145,11 +192,8 @@ class Command(BaseCommand):
             # Decode HTML entities in string values from IPDB.
             if isinstance(value, str):
                 value = unescape(value)
-            Claim.objects.assert_claim(
-                model=pm,
-                source=source,
-                field_name=claim_field,
-                value=value,
+            pending_claims.append(
+                Claim(model_id=pm.pk, field_name=claim_field, value=value)
             )
 
         # Date fields (year + month from a single IPDB field).
@@ -157,12 +201,12 @@ class Command(BaseCommand):
         if date_str:
             year, month = parse_ipdb_date(date_str)
             if year is not None:
-                Claim.objects.assert_claim(
-                    model=pm, source=source, field_name="year", value=year
+                pending_claims.append(
+                    Claim(model_id=pm.pk, field_name="year", value=year)
                 )
             if month is not None:
-                Claim.objects.assert_claim(
-                    model=pm, source=source, field_name="month", value=month
+                pending_claims.append(
+                    Claim(model_id=pm.pk, field_name="month", value=month)
                 )
 
         # Machine type.
@@ -170,8 +214,8 @@ class Command(BaseCommand):
         type_full = rec.get("Type")
         machine_type = parse_ipdb_machine_type(type_short, type_full)
         if machine_type:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="machine_type", value=machine_type
+            pending_claims.append(
+                Claim(model_id=pm.pk, field_name="machine_type", value=machine_type)
             )
 
         # Image URLs → extra_data claim.
@@ -179,26 +223,73 @@ class Command(BaseCommand):
         if image_files:
             urls = [img["Url"] for img in image_files if img.get("Url")]
             if urls:
-                Claim.objects.assert_claim(
-                    model=pm, source=source, field_name="image_urls", value=urls
+                pending_claims.append(
+                    Claim(model_id=pm.pk, field_name="image_urls", value=urls)
                 )
 
-        # Design credits (direct Person + DesignCredit creation, not claims).
+        # Collect design credits for bulk creation later.
         for ipdb_field, role in CREDIT_FIELDS.items():
             raw = rec.get(ipdb_field)
             if not raw:
                 continue
             names = parse_credit_string(raw)
             for name in names:
-                person = self._get_or_create_person(name, person_cache)
-                DesignCredit.objects.get_or_create(model=pm, person=person, role=role)
+                credit_queue.append((pm.pk, name, role))
 
-        return "created" if was_created else "updated"
+    def _bulk_create_persons_and_credits(
+        self, credit_queue: list[tuple[int, str, str]]
+    ) -> None:
+        """Bulk-create Person and DesignCredit records from the credit queue."""
+        if not credit_queue:
+            return
 
-    def _get_or_create_person(self, name: str, cache: dict[str, Person]) -> Person:
-        key = name.lower()
-        if key in cache:
-            return cache[key]
-        person, _ = Person.objects.get_or_create(name=name)
-        cache[key] = person
-        return person
+        # Discover all unique person names needed.
+        existing_persons: dict[str, Person] = {
+            p.name.lower(): p for p in Person.objects.all()
+        }
+        existing_slugs: set[str] = set(Person.objects.values_list("slug", flat=True))
+
+        new_persons: list[Person] = []
+        seen_names: set[str] = set()
+        for _, name, _ in credit_queue:
+            key = name.lower()
+            if key not in existing_persons and key not in seen_names:
+                slug = generate_unique_slug(name, existing_slugs)
+                new_persons.append(Person(name=name, slug=slug))
+                seen_names.add(key)
+
+        persons_created = len(new_persons)
+        if new_persons:
+            Person.objects.bulk_create(new_persons)
+            # Refresh to get PKs.
+            existing_persons = {p.name.lower(): p for p in Person.objects.all()}
+
+        self.stdout.write(
+            f"  Persons: {len(existing_persons) - persons_created} existing, "
+            f"{persons_created} created"
+        )
+
+        # Build DesignCredit objects, skipping duplicates.
+        existing_credits: set[tuple[int, int, str]] = set(
+            DesignCredit.objects.values_list("model_id", "person_id", "role")
+        )
+
+        new_credits: list[DesignCredit] = []
+        for pm_pk, name, role in credit_queue:
+            person = existing_persons[name.lower()]
+            key = (pm_pk, person.pk, role)
+            if key not in existing_credits:
+                new_credits.append(
+                    DesignCredit(model_id=pm_pk, person_id=person.pk, role=role)
+                )
+                existing_credits.add(key)
+
+        credits_created = len(new_credits)
+        if new_credits:
+            DesignCredit.objects.bulk_create(new_credits)
+
+        self.stdout.write(
+            f"  Design credits: "
+            f"{len(existing_credits) - credits_created} existing, "
+            f"{credits_created} created"
+        )

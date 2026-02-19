@@ -74,6 +74,68 @@ class ClaimManager(models.Manager):
                 citation=citation,
             )
 
+    def bulk_assert_claims(
+        self,
+        source: Source,
+        pending_claims: list[Claim],
+    ) -> dict[str, int]:
+        """Bulk-assert claims for a source. Only writes what changed.
+
+        Compares pending claims against existing active claims from the same
+        source. Unchanged claims are skipped, changed claims are superseded
+        (deactivated), and new/changed claims are created in bulk.
+
+        Idempotent: running the same ingest twice writes zero rows the second
+        time.
+
+        ``pending_claims`` is a list of **unsaved** Claim objects with
+        ``model_id``, ``field_name``, ``value``, and ``citation`` set.
+        The ``source`` FK is set here.
+        """
+        # 1. Deduplicate: last-write-wins per (model_id, field_name),
+        #    matching assert_claim() semantics where later calls overwrite.
+        seen: dict[tuple[int, str], Claim] = {}
+        for claim in pending_claims:
+            claim.source = source
+            seen[(claim.model_id, claim.field_name)] = claim
+        deduped = list(seen.values())
+        duplicates_removed = len(pending_claims) - len(deduped)
+
+        # 2. Fetch existing active claims from this source.
+        existing: dict[tuple[int, str], Claim] = {}
+        for claim in self.filter(source=source, is_active=True):
+            existing[(claim.model_id, claim.field_name)] = claim
+
+        # 3. Diff: skip unchanged, collect superseded + new.
+        to_deactivate_ids: list[int] = []
+        to_create: list[Claim] = []
+        for new_claim in deduped:
+            key = (new_claim.model_id, new_claim.field_name)
+            old = existing.get(key)
+            if (
+                old
+                and old.value == new_claim.value
+                and old.citation == new_claim.citation
+            ):
+                continue  # Already correct
+            if old:
+                to_deactivate_ids.append(old.pk)
+            to_create.append(new_claim)
+
+        # 4. Apply delta atomically.
+        with transaction.atomic():
+            if to_deactivate_ids:
+                self.filter(pk__in=to_deactivate_ids).update(is_active=False)
+            if to_create:
+                self.bulk_create(to_create, batch_size=2000)
+
+        return {
+            "unchanged": len(deduped) - len(to_create),
+            "created": len(to_create),
+            "superseded": len(to_deactivate_ids),
+            "duplicates_removed": duplicates_removed,
+        }
+
 
 class Claim(models.Model):
     """A single fact asserted by a single source about a single pinball model."""
