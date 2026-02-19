@@ -1,11 +1,9 @@
 <svelte:head>
-	<title>Dashboard — Pinball DB</title>
+	<title>Manufacturers — The Flip Pinball DB</title>
 </svelte:head>
 
-<h1>Dashboard</h1>
-<p class="description">
-	This page is client-side rendered. Auth gating is UX-only — the backend enforces access control.
-</p>
+<h1>Manufacturers</h1>
+<p class="description">Browse pinball manufacturers.</p>
 
 <style>
 	h1 {

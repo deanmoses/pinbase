@@ -1,0 +1,119 @@
+/* ========================================
+   GLOBAL STYLES
+   Open Props (JIT) + custom semantic tokens
+   ======================================== */
+
+/* Open Props normalize — sets sensible defaults on base elements,
+   provides adaptive --surface-* and --text-* tokens */
+@import 'open-props/normalize';
+
+/* ========================================
+   TYPOGRAPHY
+   ======================================== */
+:root {
+	--font-body: 'Lora', serif;
+	--font-mono: var(--font-mono, monospace);
+}
+
+html {
+	font-family: var(--font-body);
+}
+
+/* ========================================
+   SEMANTIC COLOR TOKENS — Light Theme
+   Warm off-white palette (from flipfix)
+   ======================================== */
+:root {
+	/* Surfaces */
+	--color-background: #fbf7f0;
+	--color-surface: #ffffff;
+	--color-border: #d1d5db;
+	--color-border-soft: #e7e5e4;
+
+	/* Text */
+	--color-text-primary: #333333;
+	--color-text-muted: #6b7280;
+
+	/* Accent */
+	--color-accent: #0078d4;
+	--color-accent-hover: #026ec1;
+
+	/* Semantic */
+	--color-success: #16a34a;
+	--color-error: #dc2626;
+	--color-warning: #b45309;
+	--color-link: #2563eb;
+
+	/* Inputs */
+	--color-input-bg: #ffffff;
+	--color-input-border: #d1d5db;
+	--color-input-focus: #0078d4;
+	--color-input-focus-ring: rgba(59, 130, 246, 0.15);
+}
+
+/* ========================================
+   SEMANTIC COLOR TOKENS — Dark Theme
+   Based on VS Code's "Dark Modern" (exact values)
+   Source: https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+	:root {
+		/* Surfaces */
+		--color-background: #1f1f1f;
+		--color-surface: #252525;
+		--color-border: #616161;
+		--color-border-soft: #2b2b2b;
+
+		/* Text */
+		--color-text-primary: #cccccc;
+		--color-text-muted: #9ca3af;
+
+		/* Accent */
+		--color-accent: #0078d4;
+		--color-accent-hover: #026ec1;
+
+		/* Semantic */
+		--color-success: #2ea043;
+		--color-error: #f85149;
+		--color-warning: #fbbf24;
+		--color-link: #4daafc;
+
+		/* Inputs */
+		--color-input-bg: #2b2b2b;
+		--color-input-border: #404040;
+		--color-input-focus: #0078d4;
+		--color-input-focus-ring: rgba(0, 120, 212, 0.25);
+	}
+}
+
+/* ========================================
+   BASE OVERRIDES
+   Override Open Props normalize with our tokens
+   ======================================== */
+html {
+	background-color: var(--color-background);
+	color: var(--color-text-primary);
+}
+
+a {
+	color: var(--color-link);
+}
+
+a:hover {
+	color: var(--color-accent-hover);
+}
+
+/* ========================================
+   UTILITY
+   ======================================== */
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border-width: 0;
+}
