@@ -5,14 +5,10 @@ import type { PageLoad } from './$types';
 export const prerender = false;
 export const ssr = false;
 
-export const load: PageLoad = async ({ url }) => {
-	const page = url.searchParams.has('page') ? Number(url.searchParams.get('page')) : undefined;
-
-	const { data } = await client.GET('/api/manufacturers/', {
-		params: { query: { page } }
-	});
+export const load: PageLoad = async () => {
+	const { data } = await client.GET('/api/manufacturers/all/');
 
 	if (!data) error(500, 'Failed to load manufacturers');
 
-	return { result: data };
+	return { manufacturers: data };
 };
