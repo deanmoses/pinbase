@@ -34,12 +34,18 @@ class ManufacturerModelSchema(Schema):
     machine_type: str
 
 
+class ManufacturerEntitySchema(Schema):
+    name: str
+    ipdb_manufacturer_id: Optional[int] = None
+    years_active: str
+
+
 class ManufacturerDetailSchema(Schema):
     name: str
     slug: str
     trade_name: str
-    ipdb_manufacturer_id: Optional[int] = None
     opdb_manufacturer_id: Optional[int] = None
+    entities: list[ManufacturerEntitySchema]
     models: list[ManufacturerModelSchema]
 
 
@@ -329,12 +335,17 @@ def get_manufacturer(request, slug: str):
     from .models import Manufacturer
 
     mfr = get_object_or_404(Manufacturer, slug=slug)
+    entities = list(
+        mfr.entities.order_by("years_active").values(
+            "name", "ipdb_manufacturer_id", "years_active"
+        )
+    )
     return {
         "name": mfr.name,
         "slug": mfr.slug,
         "trade_name": mfr.trade_name,
-        "ipdb_manufacturer_id": mfr.ipdb_manufacturer_id,
         "opdb_manufacturer_id": mfr.opdb_manufacturer_id,
+        "entities": entities,
         "models": list(
             mfr.models.order_by("name").values("name", "slug", "year", "machine_type")
         ),

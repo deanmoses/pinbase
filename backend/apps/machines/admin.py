@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Claim, DesignCredit, Manufacturer, Person, PinballModel, Source
+from .models import (
+    Claim,
+    DesignCredit,
+    Manufacturer,
+    ManufacturerEntity,
+    Person,
+    PinballModel,
+    Source,
+)
 
 
 @admin.register(Source)
@@ -78,16 +86,27 @@ class ClaimAdmin(admin.ModelAdmin):
             super().save_model(request, obj, form, change)
 
 
+class ManufacturerEntityInline(admin.TabularInline):
+    model = ManufacturerEntity
+    extra = 0
+    fields = ("name", "ipdb_manufacturer_id", "years_active")
+
+
 @admin.register(Manufacturer)
 class ManufacturerAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "trade_name",
-        "ipdb_manufacturer_id",
         "opdb_manufacturer_id",
+        "entity_count",
     )
     search_fields = ("name", "trade_name")
     prepopulated_fields = {"slug": ("name",)}
+    inlines = (ManufacturerEntityInline,)
+
+    @admin.display(description="Entities")
+    def entity_count(self, obj):
+        return obj.entities.count()
 
 
 @admin.register(Person)

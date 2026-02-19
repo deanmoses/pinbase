@@ -5,6 +5,7 @@ from apps.machines.models import (
     Claim,
     DesignCredit,
     Manufacturer,
+    ManufacturerEntity,
     Person,
     PinballModel,
     Source,
@@ -143,10 +144,19 @@ class TestManufacturersAPI:
         assert data["items"][0]["model_count"] == 1
 
     def test_get_manufacturer_detail(self, client, manufacturer, pinball_model):
+        ManufacturerEntity.objects.create(
+            manufacturer=manufacturer,
+            name="Williams Manufacturing Company",
+            ipdb_manufacturer_id=350,
+            years_active="1943-1985",
+        )
         resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Williams"
+        assert len(data["entities"]) == 1
+        assert data["entities"][0]["name"] == "Williams Manufacturing Company"
+        assert data["entities"][0]["ipdb_manufacturer_id"] == 350
         assert len(data["models"]) == 1
         assert data["models"][0]["name"] == "Medieval Madness"
 
