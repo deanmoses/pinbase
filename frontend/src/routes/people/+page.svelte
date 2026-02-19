@@ -1,13 +1,14 @@
 <script lang="ts">
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import PersonCard from '$lib/components/PersonCard.svelte';
+	import { pageTitle } from '$lib/constants';
 	import { normalizeText } from '$lib/util';
 
 	let { data } = $props();
 </script>
 
 <svelte:head>
-	<title>People — The Flip Pinball DB</title>
+	<title>{pageTitle('People')}</title>
 </svelte:head>
 
 <FilterableGrid

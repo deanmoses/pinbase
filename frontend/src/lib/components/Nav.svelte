@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { faBars, faXmark } from '@fortawesome/free-solid-svg-icons';
 	import FaIcon from './FaIcon.svelte';
+	import { SITE_NAME } from '$lib/constants';
 
 	let mobileNavOpen = $state(false);
 
@@ -22,7 +23,7 @@
 
 <header class="site-header">
 	<div class="header-inner">
-		<a href={resolve('/')} class="site-title">The Flip Pinball DB</a>
+		<a href={resolve('/')} class="site-title">{SITE_NAME}</a>
 
 		<button
 			class="mobile-toggle"

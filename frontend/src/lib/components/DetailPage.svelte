@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { pageTitle } from '$lib/constants';
 
 	let {
 		title,
@@ -13,7 +14,7 @@
 </script>
 
 <svelte:head>
-	<title>{title} — The Flip Pinball DB</title>
+	<title>{pageTitle(title)}</title>
 </svelte:head>
 
 <article class="detail">

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
 	let model = $derived(data.model);
@@ -40,7 +41,7 @@
 </script>
 
 <svelte:head>
-	<title>{model.name} — The Flip Pinball DB</title>
+	<title>{pageTitle(model.name)}</title>
 </svelte:head>
 
 <article>

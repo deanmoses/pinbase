@@ -1,13 +1,14 @@
 <script lang="ts">
 	import CardGrid from '$lib/components/CardGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
+	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
 	let group = $derived(data.group);
 </script>
 
 <svelte:head>
-	<title>{group.name} — The Flip Pinball DB</title>
+	<title>{pageTitle(group.name)}</title>
 </svelte:head>
 
 <article>

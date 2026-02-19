@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SITE_NAME, pageTitle } from '$lib/constants';
 
 	let scalarLoaded = $state(false);
 	let scalarError = $state('');
@@ -45,12 +46,12 @@
 </script>
 
 <svelte:head>
-	<title>API — The Flip Pinball DB</title>
+	<title>{pageTitle('API')}</title>
 </svelte:head>
 
 <section class="hero">
 	<h1>Open Data API</h1>
-	<p>The Flip Pinball DB is open data. Every bit of data is is available through public APIs.</p>
+	<p>{SITE_NAME} is open data. Every bit of data is available through public APIs.</p>
 </section>
 
 <section class="developer-resources">
