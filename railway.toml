@@ -1,0 +1,24 @@
+# Railway platform config
+# https://docs.railway.com/guides/config-as-code
+
+[build]
+dockerfilePath = "Dockerfile"
+# When updating watchPatterns, also update paths-ignore in .github/workflows/ci.yml
+watchPatterns = [
+  "**",
+  "!**/*.md",
+  "!docs/**",
+  "!.github/**",
+  "!.claude/**",
+  "!.vscode/**",
+  "!.coderabbit.yaml",
+  "!.pre-commit-config.yaml",
+  "!.env.example",
+  "!.gitignore",
+  "!LICENSE",
+]
+
+[deploy]
+startCommand = "uv run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 10

@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+set -e
+cd "$(dirname "$0")/.."
+
+echo "==> Installing backend dependencies..."
+(cd backend && uv sync)
+
+echo "==> Running database migrations..."
+(cd backend && uv run python manage.py migrate)
+
+echo "==> Installing frontend dependencies..."
+(cd frontend && pnpm install)
+
+echo "==> Generating agent docs..."
+python3 scripts/build_agent_docs.py
+
+echo "==> Exporting OpenAPI schema..."
+(cd backend && uv run python manage.py export_openapi_schema)
+
+echo "==> Generating TypeScript API types..."
+(cd frontend && pnpm api:gen)
+
+echo "==> Installing pre-commit hooks..."
+if command -v pre-commit >/dev/null 2>&1; then
+  pre-commit install
+else
+  echo "  pre-commit not found, skipping. Install with: uv tool install pre-commit"
+fi
+
+echo ""
+echo "Done! Run 'make dev' to start, or create a superuser:"
+echo "  cd backend && uv run python manage.py createsuperuser"

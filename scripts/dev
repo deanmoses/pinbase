@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -e
+cd "$(dirname "$0")/.."
+trap 'kill 0' EXIT
+
+./scripts/dev-backend &
+./scripts/dev-frontend &
+wait

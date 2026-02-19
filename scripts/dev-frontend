@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+set -e
+cd "$(dirname "$0")/../frontend"
+
+pkill -f "pnpm dev" 2>/dev/null || true
+pnpm dev

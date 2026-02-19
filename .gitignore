@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+
+# uv
+.python-version.tmp
+
+# Node
+node_modules/
+.pnpm-store/
+
+# SvelteKit
+frontend/build/
+frontend/.svelte-kit/
+
+# Generated API types
+frontend/src/lib/api/schema.d.ts
+
+# Generated OpenAPI schema file
+backend/openapi.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# SQLite
+*.sqlite3
+db.sqlite3
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Django
+backend/staticfiles/
+backend/media/

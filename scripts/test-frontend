@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+set -e
+cd "$(dirname "$0")/../frontend"
+
+echo "==> Frontend tests..."
+pnpm test

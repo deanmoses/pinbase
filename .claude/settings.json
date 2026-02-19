@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make api-gen:*)",
+      "Bash(make lint:*)",
+      "Bash(make test:*)",
+      "Bash(pnpm api:gen:*)",
+      "Bash(pnpm check:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm:*)",
+      "Bash(pre-commit install:*)",
+      "Bash(pre-commit run:*)",
+      "Bash(pyenv versions:*)",
+      "Bash(uv run python:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv sync:*)",
+      "Bash(make quality:*)",
+      "Bash(npm view:*)",
+      "Bash(uv pip list:*)",
+      "Bash(uv run pip list:*)",
+      "Bash(detect-secrets scan:*)",
+      "Bash(uv tool run:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(./scripts/test:*)",
+      "Bash(make:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd backend && uv sync"
+          },
+          {
+            "type": "command",
+            "command": "cd backend && uv run python manage.py migrate --no-input || true"
+          },
+          {
+            "type": "command",
+            "command": "cd frontend && pnpm install"
+          }
+        ]
+      }
+    ]
+  }
+}

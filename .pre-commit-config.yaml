@@ -1,0 +1,77 @@
+repos:
+  # Security + basic file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+        exclude: '\.md$'
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '(pnpm-lock\.yaml|uv\.lock)$'
+
+  # Markdown — formatting + linting
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.8.1
+    hooks:
+      - id: prettier
+        types: [markdown]
+        exclude: ^(CLAUDE|AGENTS)\.md$
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.21.0
+    hooks:
+      - id: markdownlint-cli2
+        exclude: ^(CLAUDE|AGENTS)\.md$
+
+  # Python (backend) — ruff for linting + formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # Local hooks
+  - repo: local
+    hooks:
+      # Auto-regenerate agent docs when source or build script changes
+      - id: agent-docs-regen
+        name: regenerate agent docs
+        entry: bash -c 'python3 scripts/build_agent_docs.py && git add CLAUDE.md AGENTS.md'
+        language: system
+        files: ^(docs/AGENTS\.src\.md|scripts/build_agent_docs\.py)$
+        pass_filenames: false
+
+      # Block direct edits to generated agent docs (unless source or script also changed)
+      - id: agent-docs-no-direct-edit
+        name: check agent docs not edited directly
+        entry: scripts/check_agent_docs_edit.sh
+        language: script
+        files: ^(CLAUDE|AGENTS)\.md$
+        pass_filenames: false
+
+      # Frontend lint
+      - id: frontend-lint
+        name: frontend lint
+        entry: bash -c 'cd frontend && pnpm lint'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
