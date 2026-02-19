@@ -3,6 +3,40 @@
 
 	let { data } = $props();
 	let model = $derived(data.model);
+
+	type Claim = (typeof model.activity)[number];
+	type FieldGroup = { field: string; claims: Claim[] };
+
+	let activityGroups = $derived.by(() => {
+		// Group claims by field.
+		const byField: Record<string, Claim[]> = {};
+		for (const claim of model.activity) {
+			(byField[claim.field_name] ??= []).push(claim);
+		}
+
+		const conflicts: FieldGroup[] = [];
+		const agreed: FieldGroup[] = [];
+		const single: FieldGroup[] = [];
+
+		for (const [field, claims] of Object.entries(byField)) {
+			const group = { field, claims };
+			if (claims.length === 1) {
+				single.push(group);
+			} else {
+				const values = claims.map((c) => JSON.stringify(c.value));
+				const allSame = values.every((v) => v === values[0]);
+				if (allSame) agreed.push(group);
+				else conflicts.push(group);
+			}
+		}
+
+		return { conflicts, agreed, single };
+	});
+
+	function formatValue(v: unknown): string {
+		const s = typeof v === 'string' ? v : JSON.stringify(v);
+		return s.length > 100 ? s.slice(0, 100) + '...' : s;
+	}
 </script>
 
 <svelte:head>
@@ -131,24 +165,86 @@
 		</section>
 	{/if}
 
-	{#if Object.keys(model.provenance).length > 0}
-		<section class="provenance">
-			<h2>Data Sources</h2>
-			{#each Object.entries(model.provenance) as [field, claims] (field)}
-				<details>
-					<summary>{field}</summary>
-					<ul>
-						{#each claims as claim (claim.source_slug + claim.created_at)}
-							<li>
-								<strong>{claim.source_name}</strong>: {String(claim.value)}
-								{#if claim.citation}
-									<span class="citation">({claim.citation})</span>
-								{/if}
-							</li>
+	{#if model.activity.length > 0}
+		{@const { conflicts, agreed, single } = activityGroups}
+		{@const sourceNames = [...new Set(model.activity.map((c) => c.source_name))]}
+		<section class="activity">
+			<h2>Activity</h2>
+			<p class="activity-summary">
+				{sourceNames.join(' and ')} contributed to this record.
+			</p>
+
+			{#if conflicts.length > 0}
+				<details class="activity-group">
+					<summary>
+						<h3>
+							Conflicts resolved ({conflicts.length} field{conflicts.length === 1 ? '' : 's'})
+						</h3>
+					</summary>
+					<dl class="field-list">
+						{#each conflicts as { field, claims } (field)}
+							<div class="field-row conflict">
+								<dt>{field}</dt>
+								<dd>
+									{#each claims as claim (claim.source_slug)}
+										<span class="claim" class:used={claim.is_winner}>
+											<span class="source-badge">{claim.source_name}</span>
+											{formatValue(claim.value)}
+											{#if claim.is_winner}
+												<span class="badge-used">used</span>
+											{/if}
+										</span>
+									{/each}
+								</dd>
+							</div>
 						{/each}
-					</ul>
+					</dl>
 				</details>
-			{/each}
+			{/if}
+
+			{#if agreed.length > 0}
+				<details class="activity-group">
+					<summary>
+						<h3>Sources agree ({agreed.length} field{agreed.length === 1 ? '' : 's'})</h3>
+					</summary>
+					<dl class="field-list">
+						{#each agreed as { field, claims } (field)}
+							<div class="field-row">
+								<dt>{field}</dt>
+								<dd>
+									<span class="claim used">
+										{formatValue(claims[0].value)}
+										<span class="source-list">
+											{claims.map((c) => c.source_name).join(', ')}
+										</span>
+									</span>
+								</dd>
+							</div>
+						{/each}
+					</dl>
+				</details>
+			{/if}
+
+			{#if single.length > 0}
+				<details class="activity-group">
+					<summary>
+						<h3>Single source ({single.length} field{single.length === 1 ? '' : 's'})</h3>
+					</summary>
+					<dl class="field-list">
+						{#each single as { field, claims } (field)}
+							<div class="field-row">
+								<dt>{field}</dt>
+								<dd>
+									<span class="claim used">
+										<span class="source-badge">{claims[0].source_name}</span>
+										{formatValue(claims[0].value)}
+									</span>
+								</dd>
+							</div>
+						{/each}
+					</dl>
+				</details>
+			{/if}
 		</section>
 	{/if}
 
@@ -329,31 +425,96 @@
 		line-height: var(--font-lineheight-3);
 	}
 
-	.provenance details {
+	.activity-summary {
+		font-size: var(--font-size-1);
+		color: var(--color-text-muted);
+		margin-bottom: var(--size-4);
+	}
+
+	.activity-group {
+		margin-bottom: var(--size-4);
+	}
+
+	.activity-group h3 {
+		font-size: var(--font-size-1);
+		font-weight: 600;
+		color: var(--color-text-primary);
 		margin-bottom: var(--size-2);
 	}
 
-	.provenance summary {
-		font-size: var(--font-size-1);
-		font-weight: 500;
-		color: var(--color-text-primary);
+	.activity-group summary {
 		cursor: pointer;
-		padding: var(--size-1) 0;
+		list-style: revert;
 	}
 
-	.provenance ul {
-		list-style: none;
-		padding: 0 0 0 var(--size-4);
+	.activity-group summary h3 {
+		display: inline;
 	}
 
-	.provenance li {
+	.field-list {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0;
+	}
+
+	.field-row {
+		display: flex;
+		gap: var(--size-3);
+		padding: var(--size-2) 0;
+		border-bottom: 1px solid var(--color-border-soft);
 		font-size: var(--font-size-0);
-		color: var(--color-text-muted);
-		padding: var(--size-1) 0;
 	}
 
-	.citation {
-		font-style: italic;
+	.field-row dt {
+		min-width: 10rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-0);
+	}
+
+	.field-row dd {
+		display: flex;
+		flex-direction: column;
+		gap: var(--size-1);
+		font-size: var(--font-size-0);
+		color: var(--color-text-primary);
+		word-break: break-word;
+	}
+
+	.claim {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--size-2);
+		opacity: 0.5;
+	}
+
+	.claim.used {
+		opacity: 1;
+	}
+
+	.source-badge {
+		display: inline-block;
+		padding: 1px var(--size-2);
+		font-size: var(--font-size-00, 0.7rem);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		border-radius: var(--radius-1);
+		background-color: var(--color-surface);
+		border: 1px solid var(--color-border-soft);
+		color: var(--color-text-muted);
+	}
+
+	.badge-used {
+		font-size: var(--font-size-00, 0.7rem);
+		font-weight: 600;
+		color: var(--color-accent);
+	}
+
+	.source-list {
+		font-size: var(--font-size-00, 0.7rem);
+		color: var(--color-text-muted);
 	}
 
 	.external-ids {

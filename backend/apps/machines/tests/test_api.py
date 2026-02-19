@@ -163,8 +163,10 @@ class TestModelsAPI:
         assert data["name"] == "Medieval Madness"
         assert len(data["credits"]) == 1
         assert data["credits"][0]["person_name"] == "Pat Lawlor"
-        assert "year" in data["provenance"]
-        assert data["provenance"]["year"][0]["source_name"] == "IPDB"
+        year_claims = [c for c in data["activity"] if c["field_name"] == "year"]
+        assert len(year_claims) == 1
+        assert year_claims[0]["source_name"] == "IPDB"
+        assert year_claims[0]["is_winner"] is True
 
     def test_get_model_detail_images(self, client, manufacturer, db):
         pm = PinballModel.objects.create(
