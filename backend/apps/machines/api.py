@@ -71,11 +71,10 @@ class PersonSchema(Schema):
     credit_count: int = 0
 
 
-class PersonCreditSchema(Schema):
+class PersonMachineSchema(Schema):
     model_name: str
     model_slug: str
-    role: str
-    role_display: str
+    roles: list[str]
     thumbnail_url: str | None = None
 
 
@@ -83,7 +82,7 @@ class PersonDetailSchema(Schema):
     name: str
     slug: str
     bio: str
-    credits_by_role: dict[str, list[PersonCreditSchema]]
+    machines: list[PersonMachineSchema]
 
 
 class SourceSchema(Schema):
@@ -551,7 +550,7 @@ def list_all_groups(request):
                 ),
             )
         )
-        .order_by("name")
+        .order_by("-machine_count")
     )
     return [_serialize_group_list(g) for g in qs]
 
@@ -604,17 +603,17 @@ def list_all_manufacturers(request):
 
     result = []
     for mfr in qs:
-        # Thumbnail from most recent machine with image data.
+        # Thumbnail from most recent machine with a usable image.
         thumb = None
-        top = (
+        for extra in (
             mfr.models.filter(alias_of__isnull=True)
             .exclude(extra_data={})
             .order_by("-year")
             .values_list("extra_data", flat=True)
-            .first()
-        )
-        if top:
-            thumb, _ = _extract_image_urls(top)
+        ):
+            thumb, _ = _extract_image_urls(extra)
+            if thumb:
+                break
         result.append(
             {
                 "name": mfr.name,
@@ -651,7 +650,7 @@ def get_manufacturer(request, slug: str):
                 "machine_type": m.machine_type,
                 "thumbnail_url": _extract_image_urls(m.extra_data or {})[0],
             }
-            for m in mfr.models.filter(alias_of__isnull=True).order_by("name")
+            for m in mfr.models.filter(alias_of__isnull=True).order_by("-year", "name")
         ],
     }
 
@@ -711,24 +710,23 @@ def get_person(request, slug: str):
     from .models import Person
 
     person = get_object_or_404(Person, slug=slug)
-    credits_by_role: dict[str, list[dict]] = {}
-    for c in person.credits.select_related("model").order_by("role", "model__name"):
-        role_display = c.get_role_display()
-        thumbnail_url, _ = _extract_image_urls(c.model.extra_data or {})
-        credits_by_role.setdefault(role_display, []).append(
-            {
+    machines: dict[str, dict] = {}
+    for c in person.credits.select_related("model").order_by("model__name"):
+        slug_key = c.model.slug
+        if slug_key not in machines:
+            thumbnail_url, _ = _extract_image_urls(c.model.extra_data or {})
+            machines[slug_key] = {
                 "model_name": c.model.name,
-                "model_slug": c.model.slug,
-                "role": c.role,
-                "role_display": role_display,
+                "model_slug": slug_key,
+                "roles": [],
                 "thumbnail_url": thumbnail_url,
             }
-        )
+        machines[slug_key]["roles"].append(c.get_role_display())
     return {
         "name": person.name,
         "slug": person.slug,
         "bio": person.bio,
-        "credits_by_role": credits_by_role,
+        "machines": list(machines.values()),
     }
 
 

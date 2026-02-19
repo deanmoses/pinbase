@@ -6,12 +6,15 @@
 	let { data } = $props();
 </script>
 
+<svelte:head>
+	<title>Manufacturers — The Flip Pinball DB</title>
+</svelte:head>
+
 <FilterableGrid
 	items={data.manufacturers}
 	filterFn={(item, q) =>
 		normalizeText(item.name).includes(q) ||
 		(item.trade_name ? normalizeText(item.trade_name).includes(q) : false)}
-	title="Manufacturers — The Flip Pinball DB"
 	placeholder="Search manufacturers..."
 	entityName="manufacturer"
 >

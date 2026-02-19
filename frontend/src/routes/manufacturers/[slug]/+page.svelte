@@ -1,7 +1,8 @@
 <script lang="ts">
 	import DetailPage from '$lib/components/DetailPage.svelte';
-	import CardGrid from '$lib/components/CardGrid.svelte';
+	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
+	import { normalizeText } from '$lib/util';
 
 	let { data } = $props();
 	let mfr = $derived(data.manufacturer);
@@ -23,8 +24,13 @@
 	{:else}
 		<section>
 			<h2>Models ({mfr.models.length})</h2>
-			<CardGrid>
-				{#each mfr.models as model (model.slug)}
+			<FilterableGrid
+				items={mfr.models}
+				filterFn={(item, q) => normalizeText(item.name).includes(q)}
+				placeholder="Search models..."
+				entityName="model"
+			>
+				{#snippet children(model)}
 					<MachineCard
 						slug={model.slug}
 						name={model.name}
@@ -32,8 +38,8 @@
 						year={model.year}
 						machineType={model.machine_type}
 					/>
-				{/each}
-			</CardGrid>
+				{/snippet}
+			</FilterableGrid>
 		</section>
 	{/if}
 
