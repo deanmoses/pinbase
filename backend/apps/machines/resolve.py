@@ -61,14 +61,14 @@ def _coerce(field_name: str, value):
     if field_name in _INT_FIELDS:
         try:
             return int(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning("Cannot coerce %r to int for field %s", value, field_name)
             return None
 
     if field_name in _DECIMAL_FIELDS:
         try:
             return Decimal(str(value))
-        except (InvalidOperation, ValueError, TypeError):
+        except InvalidOperation, ValueError, TypeError:
             logger.warning(
                 "Cannot coerce %r to Decimal for field %s", value, field_name
             )
@@ -109,7 +109,7 @@ def _resolve_manufacturer(value, source_slug: str = "") -> Manufacturer | None:
             mfr = Manufacturer.objects.filter(opdb_manufacturer_id=numeric_id).first()
             if mfr:
                 return mfr
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         pass
 
     # Fall back to name match (case-insensitive).

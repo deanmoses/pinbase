@@ -39,19 +39,25 @@ repos:
       - id: markdownlint-cli2
         exclude: ^(CLAUDE|AGENTS)\.md$
 
-  # Python (backend) — ruff for linting + formatting
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.1
-    hooks:
-      - id: ruff
-        args: [--fix]
-        files: ^backend/
-      - id: ruff-format
-        files: ^backend/
-
   # Local hooks
   - repo: local
     hooks:
+      # Python (backend) — use project's ruff via uv so pre-commit and CI
+      # always run the identical binary (avoids platform formatting drift).
+      # pass_filenames: false so ruff checks all backend files every time,
+      # catching formatting issues from earlier commits too.
+      - id: ruff
+        name: ruff (legacy alias)
+        entry: uv run --directory backend ruff check --fix .
+        language: system
+        files: ^backend/
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --directory backend ruff format .
+        language: system
+        files: ^backend/
+        pass_filenames: false
       # Auto-regenerate agent docs when source or build script changes
       - id: agent-docs-regen
         name: regenerate agent docs
