@@ -362,13 +362,4 @@
 		padding-top: var(--size-4);
 		border-top: 1px solid var(--color-border-soft);
 	}
-
-	a {
-		color: var(--color-link);
-		text-decoration: none;
-	}
-
-	a:hover {
-		text-decoration: underline;
-	}
 </style>
