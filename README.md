@@ -1,8 +1,10 @@
-# svel-djang
+# Pinball Database
 
-Django + SvelteKit monorepo. Django owns the data model, APIs, and admin UI. SvelteKit handles the user-facing frontend.
+An interactive database of pinball machines.
 
 ## Architecture
+
+Django + SvelteKit monorepo. Django owns the data model, APIs, and admin UI. SvelteKit handles the user-facing frontend.
 
 - **Backend**: Django + Django Ninja API at `/api/`, admin at `/admin/`
 - **Frontend**: SvelteKit with static adapter (CSR for authenticated pages, prerendered for public)
