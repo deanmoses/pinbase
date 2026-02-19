@@ -1,6 +1,7 @@
 from ninja import NinjaAPI
 
 from apps.machines.api import (
+    groups_router,
     manufacturers_router,
     models_router,
     people_router,
@@ -19,6 +20,7 @@ def health(request):
 
 
 api.add_router("/models/", models_router)
+api.add_router("/groups/", groups_router)
 api.add_router("/manufacturers/", manufacturers_router)
 api.add_router("/people/", people_router)
 api.add_router("/sources/", sources_router)
