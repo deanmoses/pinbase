@@ -14,6 +14,7 @@ from config.urls import frontend_spa
 
 
 @pytest.mark.django_db
+@override_settings(DEBUG=True)
 def test_api_health_not_intercepted():
     """GET /api/health should reach Django Ninja, not the catch-all."""
     client = Client()
