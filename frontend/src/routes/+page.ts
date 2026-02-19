@@ -6,9 +6,9 @@ export const prerender = false;
 export const ssr = false;
 
 export const load: PageLoad = async () => {
-	const { data } = await client.GET('/api/groups/all/');
+	const { data } = await client.GET('/api/models/all/');
 
-	if (!data) error(500, 'Failed to load groups');
+	if (!data) error(500, 'Failed to load models');
 
-	return { groups: data };
+	return { models: data };
 };
