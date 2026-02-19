@@ -13,8 +13,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "beautifulsoup4>=4.12",
     "djlint>=1.36.4",
     "pytest>=8.3",
     "pytest-django>=4.9",
+    "requests>=2.32",
     "ruff>=0.8",
 ]
