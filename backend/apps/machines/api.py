@@ -11,7 +11,9 @@ from typing import Optional
 from django.db.models import Count, F, Prefetch, Q, TextField
 from django.db.models.functions import Cast
 from django.shortcuts import get_object_or_404
+from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
+from ninja.decorators import decorate_view
 from ninja.pagination import PageNumberPagination, paginate
 
 # ---------------------------------------------------------------------------
@@ -319,6 +321,12 @@ def _serialize_model_list(pm) -> dict:
 
 
 def _serialize_model_detail(pm) -> dict:
+    """Serialize a PinballModel into the detail response dict.
+
+    Expects *pm* to have been fetched with prefetch_related for credits
+    (with select_related("person")) and claims (to_attr="active_claims").
+    See get_model() for the canonical queryset.
+    """
     credits = [
         {
             "person_name": c.person.name,
@@ -326,18 +334,22 @@ def _serialize_model_detail(pm) -> dict:
             "role": c.role,
             "role_display": c.get_role_display(),
         }
-        for c in pm.credits.select_related("person").all()
+        for c in pm.credits.all()
     ]
 
     # Build flat activity list from active claims, marking winners.
     # Claims are ordered by field_name then priority; first per field wins.
+    activity_claims = getattr(pm, "active_claims", None)
+    if activity_claims is None:
+        activity_claims = list(
+            pm.claims.filter(is_active=True)
+            .select_related("source")
+            .order_by("field_name", "-source__priority", "-created_at")
+        )
+
     winners: set[str] = set()
     activity: list[dict] = []
-    for claim in (
-        pm.claims.filter(is_active=True)
-        .select_related("source")
-        .order_by("field_name", "-source__priority", "-created_at")
-    ):
+    for claim in activity_claims:
         is_winner = claim.field_name not in winners
         if is_winner:
             winners.add(claim.field_name)
@@ -473,6 +485,7 @@ def list_models(
 
 
 @models_router.get("/all/", response=list[PinballModelGridSchema])
+@decorate_view(cache_control(public=True, max_age=300))
 def list_all_models(request):
     """Return every non-alias model with minimal fields (no pagination)."""
     qs = _build_model_list_qs()
@@ -495,12 +508,24 @@ def list_all_models(request):
 
 
 @models_router.get("/{slug}", response=PinballModelDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
 def get_model(request, slug: str):
-    from .models import PinballModel
+    from .models import Claim, DesignCredit, PinballModel
 
     pm = get_object_or_404(
         PinballModel.objects.select_related("manufacturer", "group").prefetch_related(
-            "aliases"
+            "aliases",
+            Prefetch(
+                "credits",
+                queryset=DesignCredit.objects.select_related("person"),
+            ),
+            Prefetch(
+                "claims",
+                queryset=Claim.objects.filter(is_active=True)
+                .select_related("source")
+                .order_by("field_name", "-source__priority", "-created_at"),
+                to_attr="active_claims",
+            ),
         ),
         slug=slug,
     )
@@ -536,6 +561,7 @@ def list_groups(request, search: str = ""):
 
 
 @groups_router.get("/all/", response=list[GroupListSchema])
+@decorate_view(cache_control(public=True, max_age=300))
 def list_all_groups(request):
     """Return every group with minimal fields (no pagination)."""
     from .models import MachineGroup, PinballModel
@@ -558,6 +584,7 @@ def list_all_groups(request):
 
 
 @groups_router.get("/{slug}", response=GroupDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
 def get_group(request, slug: str):
     from .models import MachineGroup, PinballModel
 
@@ -595,25 +622,33 @@ def list_manufacturers(request):
 
 
 @manufacturers_router.get("/all/", response=list[ManufacturerGridSchema])
+@decorate_view(cache_control(public=True, max_age=300))
 def list_all_manufacturers(request):
     """Return every manufacturer with model count and thumbnail (no pagination)."""
-    from .models import Manufacturer
+    from .models import Manufacturer, PinballModel
 
-    qs = Manufacturer.objects.annotate(
-        model_count=Count("models", filter=Q(models__alias_of__isnull=True))
-    ).order_by("-model_count")
+    qs = (
+        Manufacturer.objects.annotate(
+            model_count=Count("models", filter=Q(models__alias_of__isnull=True))
+        )
+        .prefetch_related(
+            Prefetch(
+                "models",
+                queryset=PinballModel.objects.filter(alias_of__isnull=True)
+                .exclude(extra_data={})
+                .order_by(F("year").desc(nulls_last=True))
+                .only("id", "manufacturer_id", "year", "extra_data"),
+                to_attr="models_with_images",
+            )
+        )
+        .order_by("-model_count")
+    )
 
     result = []
     for mfr in qs:
-        # Thumbnail from most recent machine with a usable image.
         thumb = None
-        for extra in (
-            mfr.models.filter(alias_of__isnull=True)
-            .exclude(extra_data={})
-            .order_by(F("year").desc(nulls_last=True))
-            .values_list("extra_data", flat=True)
-        ):
-            thumb, _ = _extract_image_urls(extra)
+        for model in mfr.models_with_images:
+            thumb, _ = _extract_image_urls(model.extra_data)
             if thumb:
                 break
         result.append(
@@ -629,15 +664,34 @@ def list_all_manufacturers(request):
 
 
 @manufacturers_router.get("/{slug}", response=ManufacturerDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
 def get_manufacturer(request, slug: str):
-    from .models import Manufacturer
+    from .models import Manufacturer, ManufacturerEntity, PinballModel
 
-    mfr = get_object_or_404(Manufacturer, slug=slug)
-    entities = list(
-        mfr.entities.order_by("years_active").values(
-            "name", "ipdb_manufacturer_id", "years_active"
-        )
+    mfr = get_object_or_404(
+        Manufacturer.objects.prefetch_related(
+            Prefetch(
+                "entities",
+                queryset=ManufacturerEntity.objects.order_by("years_active"),
+            ),
+            Prefetch(
+                "models",
+                queryset=PinballModel.objects.filter(alias_of__isnull=True).order_by(
+                    F("year").desc(nulls_last=True), "name"
+                ),
+                to_attr="non_alias_models",
+            ),
+        ),
+        slug=slug,
     )
+    entities = [
+        {
+            "name": e.name,
+            "ipdb_manufacturer_id": e.ipdb_manufacturer_id,
+            "years_active": e.years_active,
+        }
+        for e in mfr.entities.all()
+    ]
     return {
         "name": mfr.name,
         "slug": mfr.slug,
@@ -652,9 +706,7 @@ def get_manufacturer(request, slug: str):
                 "machine_type": m.machine_type,
                 "thumbnail_url": _extract_image_urls(m.extra_data or {})[0],
             }
-            for m in mfr.models.filter(alias_of__isnull=True).order_by(
-                F("year").desc(nulls_last=True), "name"
-            )
+            for m in mfr.non_alias_models
         ],
     }
 
@@ -679,6 +731,7 @@ def list_people(request):
 
 
 @people_router.get("/all/", response=list[PersonGridSchema])
+@decorate_view(cache_control(public=True, max_age=300))
 def list_all_people(request):
     """Return every person with credit count and thumbnail (no pagination)."""
     from .models import Person
@@ -710,6 +763,7 @@ def list_all_people(request):
 
 
 @people_router.get("/{slug}", response=PersonDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
 def get_person(request, slug: str):
     from .models import Person
 
@@ -742,6 +796,7 @@ sources_router = Router(tags=["sources"])
 
 
 @sources_router.get("/", response=list[SourceSchema])
+@decorate_view(cache_control(public=True, max_age=300))
 def list_sources(request):
     from .models import Source
 
