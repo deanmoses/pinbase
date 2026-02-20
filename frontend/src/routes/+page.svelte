@@ -1,18 +1,37 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import client from '$lib/api/client';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
 	import { SITE_NAME } from '$lib/constants';
 	import { normalizeText } from '$lib/util';
 
-	let { data } = $props();
+	async function fetchModels() {
+		const { data } = await client.GET('/api/models/all/');
+		return data ?? [];
+	}
+
+	type Models = Awaited<ReturnType<typeof fetchModels>>;
+	let models = $state<Models>([]);
+	let loading = $state(true);
+
+	onMount(async () => {
+		try {
+			models = await fetchModels();
+		} finally {
+			loading = false;
+		}
+	});
 </script>
 
 <svelte:head>
 	<title>{SITE_NAME}</title>
+	<link rel="preload" as="fetch" href="/api/models/all/" crossorigin="anonymous" />
 </svelte:head>
 
 <FilterableGrid
-	items={data.models}
+	items={models}
+	{loading}
 	filterFn={(item, q) =>
 		normalizeText(item.name).includes(q) ||
 		(item.manufacturer_name ? normalizeText(item.manufacturer_name).includes(q) : false)}

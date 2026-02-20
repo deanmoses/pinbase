@@ -43,7 +43,7 @@ def frontend_spa(request, path=""):
 
     WhiteNoise handles requests for physical files (JS bundles, CSS, images).
     This catch-all serves HTML for all other routes, trying prerendered pages
-    first, then falling back to the SPA shell (index.html).
+    first, then falling back to the SPA shell (200.html).
     """
     build_dir = settings.FRONTEND_BUILD_DIR
 
@@ -51,6 +51,12 @@ def frontend_spa(request, path=""):
     suffix = PurePosixPath(path).suffix
     if suffix and suffix in _ASSET_EXTENSIONS:
         raise Http404
+
+    # Root path: serve prerendered index.html (homepage)
+    if not path:
+        index = build_dir / "index.html"
+        if index.is_file():
+            return _serve_html(index)
 
     # Try prerendered HTML: path.html (trailingSlash: 'never', the default)
     if path:
@@ -64,9 +70,9 @@ def frontend_spa(request, path=""):
             return _serve_html(prerendered_dir)
 
     # Fall back to SPA shell
-    index = build_dir / "index.html"
-    if index.is_file():
-        return _serve_html(index)
+    spa_shell = build_dir / "200.html"
+    if spa_shell.is_file():
+        return _serve_html(spa_shell)
 
     raise Http404("Frontend not built")
 

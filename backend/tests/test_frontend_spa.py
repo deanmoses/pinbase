@@ -108,6 +108,9 @@ def _make_build_dir(tmp_path, files=None):
     build_dir = tmp_path / "frontend_build"
     build_dir.mkdir()
     (build_dir / "index.html").write_text(
+        "<!doctype html><html><body>Prerendered homepage</body></html>"
+    )
+    (build_dir / "200.html").write_text(
         "<!doctype html><html><body>SPA shell</body></html>"
     )
     for relpath, content in (files or {}).items():
@@ -117,8 +120,8 @@ def _make_build_dir(tmp_path, files=None):
     return build_dir
 
 
-def test_spa_route_serves_index_html(tmp_path):
-    """A generic SPA route should serve the fallback index.html."""
+def test_spa_route_serves_200_html(tmp_path):
+    """A generic SPA route should serve the fallback 200.html."""
     build_dir = _make_build_dir(tmp_path)
     request = RequestFactory().get("/some/spa/route")
     with override_settings(FRONTEND_BUILD_DIR=build_dir):
@@ -202,12 +205,12 @@ def test_path_traversal_blocked(tmp_path):
     assert "SPA shell" in content
 
 
-def test_root_path_serves_index(tmp_path):
-    """GET / should serve the SPA shell index.html."""
+def test_root_path_serves_prerendered_index(tmp_path):
+    """GET / should serve the prerendered index.html (homepage)."""
     build_dir = _make_build_dir(tmp_path)
     request = RequestFactory().get("/")
     with override_settings(FRONTEND_BUILD_DIR=build_dir):
         response = frontend_spa(request, path="")
     assert response.status_code == 200
     content = response.content.decode()
-    assert "SPA shell" in content
+    assert "Prerendered homepage" in content
