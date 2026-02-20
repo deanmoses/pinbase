@@ -142,7 +142,7 @@ LOGGING = {
             "level": "ERROR",
         },
         "django.db.backends": {
-            "level": "DEBUG" if DEBUG else "WARNING",
+            "level": "WARNING",
         },
     },
 }
