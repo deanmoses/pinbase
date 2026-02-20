@@ -51,6 +51,7 @@ Thumbs.db
 # Django
 backend/staticfiles/
 backend/media/
+backend/cache/
 
 # Data dumps (large JSON files, not committed)
 data/

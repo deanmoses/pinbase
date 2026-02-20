@@ -48,19 +48,24 @@ class Command(BaseCommand):
         opdb_groups = options["opdb_groups"]
         opdb_changelog = options["opdb_changelog"]
 
-        for step in STEPS:
-            self.stdout.write(self.style.MIGRATE_HEADING(f"Running {step}..."))
-            kwargs = {}
-            if step == "ingest_manufacturers":
-                kwargs = {"ipdb": ipdb_path, "opdb": opdb_path}
-            elif step == "ingest_ipdb":
-                kwargs = {"ipdb": ipdb_path}
-            elif step == "ingest_opdb":
-                kwargs = {
-                    "opdb": opdb_path,
-                    "groups": opdb_groups,
-                    "changelog": opdb_changelog,
-                }
-            call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
+        from apps.machines.cache import invalidate_all
+
+        try:
+            for step in STEPS:
+                self.stdout.write(self.style.MIGRATE_HEADING(f"Running {step}..."))
+                kwargs = {}
+                if step == "ingest_manufacturers":
+                    kwargs = {"ipdb": ipdb_path, "opdb": opdb_path}
+                elif step == "ingest_ipdb":
+                    kwargs = {"ipdb": ipdb_path}
+                elif step == "ingest_opdb":
+                    kwargs = {
+                        "opdb": opdb_path,
+                        "groups": opdb_groups,
+                        "changelog": opdb_changelog,
+                    }
+                call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
+        finally:
+            invalidate_all()
 
         self.stdout.write(self.style.SUCCESS("Full ingestion pipeline complete."))

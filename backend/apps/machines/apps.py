@@ -5,3 +5,8 @@ class MachinesConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.machines"
     verbose_name = "Pinball Machines"
+
+    def ready(self):
+        from . import signals
+
+        signals.connect()

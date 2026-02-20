@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from django.core.cache import cache
 from django.db.models import Count, F, Prefetch, Q, TextField
 from django.db.models.functions import Cast
 from django.shortcuts import get_object_or_404
@@ -15,6 +16,8 @@ from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.pagination import PageNumberPagination, paginate
+
+from .cache import MANUFACTURERS_ALL_KEY, MODELS_ALL_KEY, PEOPLE_ALL_KEY
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -488,6 +491,9 @@ def list_models(
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_models(request):
     """Return every non-alias model with minimal fields (no pagination)."""
+    result = cache.get(MODELS_ALL_KEY)
+    if result is not None:
+        return result
     qs = _build_model_list_qs()
     result = []
     for pm in qs:
@@ -504,6 +510,7 @@ def list_all_models(request):
                 "thumbnail_url": thumbnail_url,
             }
         )
+    cache.set(MODELS_ALL_KEY, result, timeout=None)
     return result
 
 
@@ -625,6 +632,10 @@ def list_manufacturers(request):
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_manufacturers(request):
     """Return every manufacturer with model count and thumbnail (no pagination)."""
+    result = cache.get(MANUFACTURERS_ALL_KEY)
+    if result is not None:
+        return result
+
     from .models import Manufacturer, PinballModel
 
     qs = (
@@ -660,6 +671,7 @@ def list_all_manufacturers(request):
                 "thumbnail_url": thumb,
             }
         )
+    cache.set(MANUFACTURERS_ALL_KEY, result, timeout=None)
     return result
 
 
@@ -734,6 +746,10 @@ def list_people(request):
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_people(request):
     """Return every person with credit count and thumbnail (no pagination)."""
+    result = cache.get(PEOPLE_ALL_KEY)
+    if result is not None:
+        return result
+
     from .models import Person
 
     people = list(
@@ -759,6 +775,7 @@ def list_all_people(request):
                 "thumbnail_url": thumb,
             }
         )
+    cache.set(PEOPLE_ALL_KEY, result, timeout=None)
     return result
 
 

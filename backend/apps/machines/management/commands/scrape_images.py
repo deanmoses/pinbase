@@ -225,6 +225,11 @@ class Command(BaseCommand):
                     )
                 )
 
+        if not dry_run:
+            from apps.machines.cache import invalidate_all
+
+            invalidate_all()
+
         action = "would be updated" if dry_run else "updated"
         self.stdout.write(
             self.style.SUCCESS(f"\nDone! {found_count}/{total} machines {action}.")
