@@ -31,7 +31,7 @@ Django + SvelteKit monorepo. Django owns the data model, APIs (Django Ninja), an
 ## Requirements
 
 - Python 3.14+
-- Node 22+
+- Node 24+
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - [pnpm](https://pnpm.io/) (Node package manager, or enable via `corepack enable`)
 

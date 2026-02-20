@@ -42,12 +42,9 @@
 	);
 
 	// Reset visible count when search changes
-	let prevQuery = $state(searchQuery);
 	$effect(() => {
-		if (searchQuery !== prevQuery) {
-			prevQuery = searchQuery;
-			visibleCount = BATCH_SIZE;
-		}
+		void searchQuery;
+		visibleCount = BATCH_SIZE;
 	});
 
 	// IntersectionObserver for infinite scroll

@@ -2,7 +2,7 @@
 # Used by Railway for the single production service
 
 # ── Stage 1: Build SvelteKit frontend ──────────────────────────────
-FROM node:22-slim AS frontend-build
+FROM node:24-slim AS frontend-build
 
 RUN corepack enable
 
