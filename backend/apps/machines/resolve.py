@@ -154,6 +154,7 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
     """
     claims = (
         Claim.objects.filter(model=pinball_model, is_active=True)
+        .select_related("source")
         .annotate(source_priority=F("source__priority"))
         .order_by("field_name", "-source_priority", "-created_at")
     )
