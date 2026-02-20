@@ -13,7 +13,7 @@ Django + SvelteKit monorepo. Django owns the data model, APIs, and admin UI. Sve
 
 ## Quickstart
 
-**Requirements**: Python 3.14+, Node 22+, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/) (or enable via `corepack enable`)
+**Requirements**: Python 3.14+, Node 24+, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/) (or enable via `corepack enable`)
 
 ```bash
 cp .env.example .env
