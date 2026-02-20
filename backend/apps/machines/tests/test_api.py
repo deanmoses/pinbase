@@ -381,6 +381,35 @@ class TestManufacturersAPI:
         assert len(data["models"]) == 1
         assert data["models"][0]["name"] == "Medieval Madness"
 
+    def test_get_manufacturer_entities_ordered_by_years(self, client, manufacturer):
+        """Entities are returned ordered by years_active."""
+        # Created in scrambled order to ensure ordering isn't a PK fluke.
+        ManufacturerEntity.objects.create(
+            manufacturer=manufacturer,
+            name="Williams Latest",
+            ipdb_manufacturer_id=352,
+            years_active="1999-2010",
+        )
+        ManufacturerEntity.objects.create(
+            manufacturer=manufacturer,
+            name="Williams Early",
+            ipdb_manufacturer_id=350,
+            years_active="1943-1985",
+        )
+        ManufacturerEntity.objects.create(
+            manufacturer=manufacturer,
+            name="Williams Middle",
+            ipdb_manufacturer_id=351,
+            years_active="1985-1999",
+        )
+        resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
+        entities = resp.json()["entities"]
+        assert [e["name"] for e in entities] == [
+            "Williams Early",
+            "Williams Middle",
+            "Williams Latest",
+        ]
+
     def test_list_all_manufacturers_thumbnail_prefers_year(
         self, client, manufacturer, db
     ):
