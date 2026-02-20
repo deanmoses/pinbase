@@ -10,6 +10,20 @@
 			href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap"
 			rel="stylesheet"
 		/>
+		<style>
+			/* Critical dark-mode background inlined to prevent flash on pre-rendered pages.
+			   Values must stay in sync with app.css. */
+			html {
+				background-color: #fbf7f0;
+				color: #333333;
+			}
+			@media (prefers-color-scheme: dark) {
+				html {
+					background-color: #1f1f1f;
+					color: #cccccc;
+				}
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
