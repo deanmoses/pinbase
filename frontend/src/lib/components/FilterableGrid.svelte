@@ -2,13 +2,17 @@
 	import type { Snippet } from 'svelte';
 	import SearchBox from './SearchBox.svelte';
 	import CardGrid from './CardGrid.svelte';
+	import SkeletonCard from './SkeletonCard.svelte';
 	import { normalizeText } from '$lib/util';
 
 	const SEARCH_THRESHOLD = 12;
+	const SKELETON_INDICES = Array.from({ length: 12 }, (_, i) => i);
 
 	let {
 		items,
 		filterFn,
+		loading = false,
+		error = null,
 		placeholder = 'Search...',
 		entityName = 'result',
 		entityNamePlural = `${entityName}s`,
@@ -16,6 +20,8 @@
 	}: {
 		items: T[];
 		filterFn: (item: T, query: string) => boolean;
+		loading?: boolean;
+		error?: string | null;
 		placeholder?: string;
 		entityName?: string;
 		entityNamePlural?: string;
@@ -64,19 +70,29 @@
 </script>
 
 <div class="filterable-grid">
-	{#if showSearch}
-		<SearchBox bind:value={searchQuery} {placeholder} />
-		<p class="count">{countLabel}</p>
-	{/if}
+	{#if loading}
+		<CardGrid>
+			{#each SKELETON_INDICES as i (i)}
+				<SkeletonCard />
+			{/each}
+		</CardGrid>
+	{:else if error}
+		<p class="error">{error}</p>
+	{:else}
+		{#if showSearch}
+			<SearchBox bind:value={searchQuery} {placeholder} />
+			<p class="count">{countLabel}</p>
+		{/if}
 
-	<CardGrid>
-		{#each visibleItems as item (item)}
-			{@render children(item)}
-		{/each}
-	</CardGrid>
+		<CardGrid>
+			{#each visibleItems as item (item)}
+				{@render children(item)}
+			{/each}
+		</CardGrid>
 
-	{#if hasMore}
-		<div class="sentinel" bind:this={sentinel}></div>
+		{#if hasMore}
+			<div class="sentinel" bind:this={sentinel}></div>
+		{/if}
 	{/if}
 </div>
 
@@ -90,6 +106,12 @@
 		color: var(--color-text-muted);
 		font-size: var(--font-size-1);
 		margin-bottom: var(--size-4);
+	}
+
+	.error {
+		text-align: center;
+		color: var(--color-error);
+		padding: var(--size-6) 0;
 	}
 
 	.sentinel {

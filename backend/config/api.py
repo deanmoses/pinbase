@@ -22,7 +22,7 @@ def health(request):
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
     if not settings.DEBUG:
-        if not (settings.FRONTEND_BUILD_DIR / "index.html").is_file():
+        if not (settings.FRONTEND_BUILD_DIR / "200.html").is_file():
             raise RuntimeError("Frontend build missing")
     return {"status": "ok"}
 

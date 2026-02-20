@@ -1,18 +1,26 @@
 <script lang="ts">
+	import client from '$lib/api/client';
+	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import GroupCard from '$lib/components/GroupCard.svelte';
 	import { pageTitle } from '$lib/constants';
 	import { normalizeText } from '$lib/util';
 
-	let { data } = $props();
+	const groups = createAsyncLoader(async () => {
+		const { data } = await client.GET('/api/groups/all/');
+		return data ?? [];
+	}, []);
 </script>
 
 <svelte:head>
 	<title>{pageTitle('Groups')}</title>
+	<link rel="preload" as="fetch" href="/api/groups/all/" crossorigin="anonymous" />
 </svelte:head>
 
 <FilterableGrid
-	items={data.groups}
+	items={groups.data}
+	loading={groups.loading}
+	error={groups.error}
 	filterFn={(item, q) =>
 		normalizeText(item.name).includes(q) ||
 		(item.shortname ? normalizeText(item.shortname).includes(q) : false)}
