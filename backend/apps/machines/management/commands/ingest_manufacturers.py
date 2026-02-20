@@ -13,6 +13,7 @@ import logging
 from django.core.management.base import BaseCommand
 
 from apps.machines.ingestion.bulk_utils import format_names, generate_unique_slug
+from apps.machines.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
 from apps.machines.ingestion.parsers import parse_ipdb_manufacturer_string
 from apps.machines.models import Manufacturer, ManufacturerEntity
 
@@ -50,7 +51,7 @@ class Command(BaseCommand):
             f"  Entities: {ipdb_stats['entities_existing']} existing, "
             f"{ipdb_stats['entities_created']} created"
         )
-        self.stdout.write(f"  Skipped (id=0): {ipdb_stats['skipped']}")
+        self.stdout.write(f"  Skipped (placeholder IDs): {ipdb_stats['skipped']}")
 
         self.stdout.write("Phase 2: Matching OPDB manufacturers...")
         opdb_stats = self._ingest_opdb(opdb_path)
@@ -72,11 +73,15 @@ class Command(BaseCommand):
         raw_mfrs: dict[int, str] = {}
         for rec in data["Data"]:
             mid = rec.get("ManufacturerId")
-            if mid is not None and mid != 0:
+            if mid is not None and mid not in IPDB_SKIP_MANUFACTURER_IDS:
                 if mid not in raw_mfrs:
                     raw_mfrs[mid] = rec.get("Manufacturer", "")
 
-        skipped = sum(1 for r in data["Data"] if r.get("ManufacturerId") == 0)
+        skipped = sum(
+            1
+            for r in data["Data"]
+            if r.get("ManufacturerId") in IPDB_SKIP_MANUFACTURER_IDS
+        )
 
         # Pre-fetch existing data.
         brand_cache: dict[str, Manufacturer] = {

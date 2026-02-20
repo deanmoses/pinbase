@@ -16,6 +16,7 @@ from html import unescape
 from django.core.management.base import BaseCommand
 
 from apps.machines.ingestion.bulk_utils import format_names, generate_unique_slug
+from apps.machines.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
 from apps.machines.ingestion.ipdb_title_fixes import TITLE_FIXES
 from apps.machines.ingestion.parsers import (
     parse_credit_string,
@@ -180,8 +181,8 @@ class Command(BaseCommand):
             value = rec.get(ipdb_field)
             if value is None or value == "":
                 continue
-            # Skip ManufacturerId=0 (no manufacturer assigned).
-            if ipdb_field == "ManufacturerId" and value == 0:
+            # Skip placeholder manufacturer IDs (0 = unassigned, 328 = "Unknown").
+            if ipdb_field == "ManufacturerId" and value in IPDB_SKIP_MANUFACTURER_IDS:
                 continue
             # Use corrected title for name claims.
             if ipdb_field == "Title" and ipdb_id in TITLE_FIXES:
