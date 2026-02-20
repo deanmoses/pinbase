@@ -31,7 +31,11 @@ _ASSET_EXTENSIONS = {
 
 
 def _serve_html(filepath):
-    return HttpResponse(filepath.read_bytes(), content_type="text/html")
+    resp = HttpResponse(filepath.read_bytes(), content_type="text/html")
+    # Allow browser caching but always revalidate. ConditionalGetMiddleware
+    # adds ETag so repeat requests get a fast 304 Not Modified.
+    resp["Cache-Control"] = "no-cache"
+    return resp
 
 
 def frontend_spa(request, path=""):
