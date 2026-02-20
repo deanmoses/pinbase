@@ -3,6 +3,8 @@
 Matches existing PinballModels by ipdb_id cross-reference, then by opdb_id,
 then creates new records. Ingests both machines and aliases (with alias_of FK).
 Optionally processes groups and changelog data.
+
+Claims are collected during the main loops and written in bulk afterward.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
+from apps.machines.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.machines.ingestion.parsers import (
     map_opdb_display,
     map_opdb_type,
@@ -77,61 +80,207 @@ class Command(BaseCommand):
             f"Processing {len(machines)} OPDB machines + {len(aliases)} aliases..."
         )
 
-        # --- Ingest machines first (aliases need parent lookup) ---
-        matched = 0
-        created = 0
-        failed = 0
-        failed_ids = []
-
-        for rec in machines:
-            try:
-                result = self._ingest_record(rec, source, groups_by_id)
-                if result == "matched":
-                    matched += 1
-                else:
-                    created += 1
-            except Exception:
-                opdb_id = rec.get("opdb_id", "?")
-                logger.exception("Failed to ingest OPDB record %s", opdb_id)
-                failed += 1
-                failed_ids.append(opdb_id)
-
-        self.stdout.write(
-            f"  Machines — Matched: {matched}, Created: {created}, Failed: {failed}"
+        # --- Pre-fetch all PinballModels into lookup dicts ---
+        by_ipdb_id: dict[int, PinballModel] = {
+            pm.ipdb_id: pm for pm in PinballModel.objects.filter(ipdb_id__isnull=False)
+        }
+        by_opdb_id: dict[str, PinballModel] = {
+            pm.opdb_id: pm for pm in PinballModel.objects.filter(opdb_id__isnull=False)
+        }
+        existing_slugs: set[str] = set(
+            PinballModel.objects.values_list("slug", flat=True)
         )
 
-        # --- Ingest aliases ---
+        # --- Phase 1a: Match/create machines ---
+        new_models: list[PinballModel] = []
+        models_needing_opdb_update: list[PinballModel] = []
+        machine_models: list[tuple[PinballModel, dict]] = []
+        matched = 0
+        created = 0
+        skipped = 0
+
+        for rec in machines:
+            opdb_id = rec.get("opdb_id")
+            if not opdb_id:
+                skipped += 1
+                continue
+
+            ipdb_id = rec.get("ipdb_id")
+            name = rec.get("name", "Unknown")
+
+            pm = None
+            if ipdb_id:
+                pm = by_ipdb_id.get(ipdb_id)
+            if not pm:
+                pm = by_opdb_id.get(opdb_id)
+
+            if pm:
+                matched += 1
+                # Set opdb_id if not already set (conflict check in memory).
+                if pm.opdb_id is None and opdb_id:
+                    if opdb_id not in by_opdb_id:
+                        pm.opdb_id = opdb_id
+                        by_opdb_id[opdb_id] = pm
+                        models_needing_opdb_update.append(pm)
+                    else:
+                        logger.warning(
+                            "Cannot set opdb_id=%s on %r (ipdb_id=%s): "
+                            "already owned by %r",
+                            opdb_id,
+                            pm.name,
+                            ipdb_id,
+                            by_opdb_id[opdb_id].name,
+                        )
+                elif pm.opdb_id and pm.opdb_id != opdb_id:
+                    logger.warning(
+                        "PinballModel %r already has opdb_id=%s, skipping %s",
+                        pm.name,
+                        pm.opdb_id,
+                        opdb_id,
+                    )
+            else:
+                created += 1
+                slug = generate_unique_slug(name, existing_slugs)
+                pm = PinballModel(name=name, opdb_id=opdb_id, slug=slug)
+                new_models.append(pm)
+                by_opdb_id[opdb_id] = pm
+                if ipdb_id:
+                    by_ipdb_id[ipdb_id] = pm
+
+            machine_models.append((pm, rec))
+
+        if new_models:
+            PinballModel.objects.bulk_create(new_models)
+        if models_needing_opdb_update:
+            PinballModel.objects.bulk_update(models_needing_opdb_update, ["opdb_id"])
+
+        self.stdout.write(
+            f"  Machines — Matched: {matched}, Created: {created}, Skipped: {skipped}"
+        )
+        if new_models:
+            self.stdout.write(
+                f"    New: {format_names([pm.name for pm in new_models])}"
+            )
+
+        # --- Phase 1b: Match/create aliases ---
+        new_alias_models: list[PinballModel] = []
+        alias_models_needing_update: list[PinballModel] = []
+        alias_models: list[tuple[PinballModel, dict]] = []
         alias_linked = 0
         alias_created = 0
         alias_skipped = 0
-        alias_failed = 0
 
         for rec in aliases:
-            try:
-                result = self._ingest_alias(rec, source, groups_by_id)
-                if result == "matched":
-                    alias_linked += 1
-                elif result == "skipped":
-                    alias_skipped += 1
-                else:
-                    alias_created += 1
-            except Exception:
-                opdb_id = rec.get("opdb_id", "?")
-                logger.exception("Failed to ingest OPDB alias %s", opdb_id)
-                alias_failed += 1
-                failed_ids.append(opdb_id)
+            opdb_id = rec.get("opdb_id")
+            if not opdb_id:
+                alias_skipped += 1
+                continue
+
+            ipdb_id = rec.get("ipdb_id")
+            name = rec.get("name", "Unknown")
+
+            # Find the parent machine in memory.
+            parent_opdb_id = "-".join(opdb_id.split("-")[:2])
+            parent = by_opdb_id.get(parent_opdb_id)
+
+            if not parent:
+                logger.warning(
+                    "Alias %s (%s): parent %s not found, skipping",
+                    opdb_id,
+                    name,
+                    parent_opdb_id,
+                )
+                alias_skipped += 1
+                continue
+
+            pm = None
+            if ipdb_id:
+                pm = by_ipdb_id.get(ipdb_id)
+            if not pm:
+                pm = by_opdb_id.get(opdb_id)
+
+            if pm:
+                alias_linked += 1
+                needs_update = False
+                # Set opdb_id if not already set.
+                if pm.opdb_id is None and opdb_id:
+                    if opdb_id not in by_opdb_id:
+                        pm.opdb_id = opdb_id
+                        by_opdb_id[opdb_id] = pm
+                        needs_update = True
+                # Link to parent.
+                if pm.alias_of_id != parent.pk:
+                    pm.alias_of = parent
+                    needs_update = True
+                if needs_update:
+                    alias_models_needing_update.append(pm)
+            else:
+                alias_created += 1
+                slug = generate_unique_slug(name, existing_slugs)
+                pm = PinballModel(
+                    name=name, opdb_id=opdb_id, alias_of=parent, slug=slug
+                )
+                new_alias_models.append(pm)
+                by_opdb_id[opdb_id] = pm
+                if ipdb_id:
+                    by_ipdb_id[ipdb_id] = pm
+
+            alias_models.append((pm, rec))
+
+        if new_alias_models:
+            PinballModel.objects.bulk_create(new_alias_models)
+        if alias_models_needing_update:
+            PinballModel.objects.bulk_update(
+                alias_models_needing_update, ["opdb_id", "alias_of_id"]
+            )
 
         self.stdout.write(
             f"  Aliases — Linked: {alias_linked}, Created: {alias_created}, "
-            f"Skipped: {alias_skipped}, Failed: {alias_failed}"
+            f"Skipped: {alias_skipped}"
         )
+        if new_alias_models:
+            self.stdout.write(
+                f"    New: {format_names([pm.name for pm in new_alias_models])}"
+            )
+
+        # --- Phase 2: Collect claims ---
+        pending_claims: list[Claim] = []
+        failed = 0
+        failed_ids: list = []
+
+        for pm, rec in machine_models:
+            try:
+                self._collect_claims(pm, rec, source, groups_by_id, pending_claims)
+            except Exception:
+                opdb_id = rec.get("opdb_id", "?")
+                logger.exception("Failed to collect claims for OPDB record %s", opdb_id)
+                failed += 1
+                failed_ids.append(opdb_id)
+
+        for pm, rec in alias_models:
+            try:
+                self._collect_claims(pm, rec, source, groups_by_id, pending_claims)
+            except Exception:
+                opdb_id = rec.get("opdb_id", "?")
+                logger.exception("Failed to collect claims for OPDB alias %s", opdb_id)
+                failed += 1
+                failed_ids.append(opdb_id)
 
         if failed_ids:
             self.stderr.write(f"  Failed IDs: {failed_ids}")
 
+        # --- Bulk-assert all collected claims ---
+        claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
+        self.stdout.write(
+            f"  Claims: {claim_stats['unchanged']} unchanged, "
+            f"{claim_stats['created']} created, "
+            f"{claim_stats['superseded']} superseded, "
+            f"{claim_stats['duplicates_removed']} duplicates removed"
+        )
+
         self.stdout.write(self.style.SUCCESS("OPDB ingestion complete."))
 
-        if failed or alias_failed:
+        if failed:
             raise SystemExit(1)
 
     # ------------------------------------------------------------------
@@ -183,271 +332,144 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
 
     def _load_groups(self, path: str) -> dict[str, dict]:
-        """Load groups JSON and create/update MachineGroup records.
+        """Load groups JSON and bulk create/update MachineGroup records.
 
         Returns a dict mapping group opdb_id → group record for later lookup.
         """
         with open(path) as f:
             data = json.load(f)
 
+        # Build lookup of raw group data.
         groups_by_id: dict[str, dict] = {}
-        created = 0
-        updated = 0
-
         for rec in data:
             opdb_id = rec.get("opdb_id")
-            if not opdb_id:
-                continue
+            if opdb_id:
+                groups_by_id[opdb_id] = rec
 
-            groups_by_id[opdb_id] = rec
+        # Pre-fetch existing groups.
+        existing_groups: dict[str, MachineGroup] = {
+            g.opdb_id: g for g in MachineGroup.objects.all()
+        }
+        existing_slugs: set[str] = set(
+            MachineGroup.objects.values_list("slug", flat=True)
+        )
 
-            _, was_created = MachineGroup.objects.update_or_create(
-                opdb_id=opdb_id,
-                defaults={
-                    "name": rec.get("name", ""),
-                    "shortname": rec.get("shortname") or "",
-                },
-            )
-            if was_created:
-                created += 1
+        new_groups: list[MachineGroup] = []
+        updated_groups: list[MachineGroup] = []
+        unchanged = 0
+
+        for opdb_id, rec in groups_by_id.items():
+            name = rec.get("name", "")
+            shortname = rec.get("shortname") or ""
+
+            existing = existing_groups.get(opdb_id)
+            if existing:
+                # Check if update is needed.
+                if existing.name != name or existing.shortname != shortname:
+                    existing.name = name
+                    existing.shortname = shortname
+                    updated_groups.append(existing)
+                else:
+                    unchanged += 1
             else:
-                updated += 1
+                slug = generate_unique_slug(name, existing_slugs)
+                new_groups.append(
+                    MachineGroup(
+                        opdb_id=opdb_id,
+                        name=name,
+                        slug=slug,
+                        shortname=shortname,
+                    )
+                )
+
+        groups_created = len(new_groups)
+        groups_updated = len(updated_groups)
+
+        if new_groups:
+            MachineGroup.objects.bulk_create(new_groups)
+        if updated_groups:
+            MachineGroup.objects.bulk_update(updated_groups, ["name", "shortname"])
 
         self.stdout.write(
-            f"  Groups: {created} created, {updated} updated "
-            f"({len(groups_by_id)} total)"
+            f"  Groups: {groups_created} created, {groups_updated} updated, "
+            f"{unchanged} unchanged"
         )
         return groups_by_id
 
     # ------------------------------------------------------------------
-    # Machine ingestion
+    # Shared claim collection
     # ------------------------------------------------------------------
 
-    def _ingest_record(
-        self, rec: dict, source: Source, groups_by_id: dict[str, dict]
-    ) -> str:
-        opdb_id = rec.get("opdb_id")
-        ipdb_id = rec.get("ipdb_id")
-        name = rec.get("name", "Unknown")
-
-        # Try to match existing PinballModel.
-        pm = None
-        was_matched = False
-
-        # 1. Match by ipdb_id cross-reference.
-        if ipdb_id:
-            pm = PinballModel.objects.filter(ipdb_id=ipdb_id).first()
-
-        # 2. Match by opdb_id.
-        if not pm and opdb_id:
-            pm = PinballModel.objects.filter(opdb_id=opdb_id).first()
-
-        if pm:
-            was_matched = True
-            # Set opdb_id if not already set.
-            if pm.opdb_id is None and opdb_id:
-                # Check no other model already owns this opdb_id.
-                conflict = PinballModel.objects.filter(opdb_id=opdb_id).first()
-                if conflict:
-                    logger.warning(
-                        "Cannot set opdb_id=%s on %r (ipdb_id=%s): "
-                        "already owned by %r (pk=%s)",
-                        opdb_id,
-                        pm.name,
-                        ipdb_id,
-                        conflict.name,
-                        conflict.pk,
-                    )
-                else:
-                    pm.opdb_id = opdb_id
-                    pm.save(update_fields=["opdb_id"])
-            elif pm.opdb_id and opdb_id and pm.opdb_id != opdb_id:
-                logger.warning(
-                    "PinballModel %r already has opdb_id=%s, skipping %s",
-                    pm.name,
-                    pm.opdb_id,
-                    opdb_id,
-                )
-        else:
-            pm = PinballModel.objects.create(name=name, opdb_id=opdb_id)
-
-        self._assert_claims(pm, rec, source, groups_by_id)
-
-        return "matched" if was_matched else "created"
-
-    # ------------------------------------------------------------------
-    # Alias ingestion
-    # ------------------------------------------------------------------
-
-    def _ingest_alias(
-        self, rec: dict, source: Source, groups_by_id: dict[str, dict]
-    ) -> str:
-        opdb_id = rec.get("opdb_id")
-        ipdb_id = rec.get("ipdb_id")
-        name = rec.get("name", "Unknown")
-
-        # Find the parent machine. The alias opdb_id is G{group}-M{machine}-A{alias}.
-        # The parent machine's opdb_id is G{group}-M{machine} (first two segments).
-        parent_opdb_id = "-".join(opdb_id.split("-")[:2]) if opdb_id else None
-        parent = (
-            PinballModel.objects.filter(opdb_id=parent_opdb_id).first()
-            if parent_opdb_id
-            else None
-        )
-
-        if not parent:
-            logger.warning(
-                "Alias %s (%s): parent %s not found, skipping",
-                opdb_id,
-                name,
-                parent_opdb_id,
-            )
-            return "skipped"
-
-        # Try to match existing PinballModel (IPDB may have created it).
-        pm = None
-        was_matched = False
-
-        if ipdb_id:
-            pm = PinballModel.objects.filter(ipdb_id=ipdb_id).first()
-
-        if not pm and opdb_id:
-            pm = PinballModel.objects.filter(opdb_id=opdb_id).first()
-
-        if pm:
-            was_matched = True
-            # Set opdb_id if not already set.
-            if pm.opdb_id is None and opdb_id:
-                conflict = PinballModel.objects.filter(opdb_id=opdb_id).first()
-                if not conflict:
-                    pm.opdb_id = opdb_id
-            # Link to parent.
-            if pm.alias_of_id != parent.pk:
-                pm.alias_of = parent
-            pm.save()
-        else:
-            pm = PinballModel.objects.create(
-                name=name, opdb_id=opdb_id, alias_of=parent
-            )
-
-        self._assert_claims(pm, rec, source, groups_by_id)
-
-        return "matched" if was_matched else "created"
-
-    # ------------------------------------------------------------------
-    # Shared claim logic
-    # ------------------------------------------------------------------
-
-    def _assert_claims(
+    def _collect_claims(
         self,
         pm: PinballModel,
         rec: dict,
         source: Source,
         groups_by_id: dict[str, dict],
+        pending_claims: list[Claim],
     ) -> None:
-        """Assert all claims for a machine or alias record."""
+        """Collect claim objects for a machine or alias record.
+
+        Appends unsaved Claim instances to ``pending_claims`` for later bulk
+        write via ``Claim.objects.bulk_assert_claims()``.
+        """
         opdb_id = rec.get("opdb_id")
         name = rec.get("name")
 
+        def _add(field_name: str, value) -> None:
+            pending_claims.append(
+                Claim(model_id=pm.pk, field_name=field_name, value=value)
+            )
+
         if name:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="name", value=name
-            )
+            _add("name", name)
         if opdb_id:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="opdb_id", value=opdb_id
-            )
+            _add("opdb_id", opdb_id)
 
         # Manufacturer (claimed as OPDB manufacturer_id).
         mfr = rec.get("manufacturer")
         if mfr and mfr.get("manufacturer_id"):
-            Claim.objects.assert_claim(
-                model=pm,
-                source=source,
-                field_name="manufacturer",
-                value=mfr["manufacturer_id"],
-            )
+            _add("manufacturer", mfr["manufacturer_id"])
 
         # Date.
         date_str = rec.get("manufacture_date")
         if date_str:
             year, month = parse_opdb_date(date_str)
             if year is not None:
-                Claim.objects.assert_claim(
-                    model=pm, source=source, field_name="year", value=year
-                )
+                _add("year", year)
             if month is not None:
-                Claim.objects.assert_claim(
-                    model=pm, source=source, field_name="month", value=month
-                )
+                _add("month", month)
 
         # Player count.
         player_count = rec.get("player_count")
         if player_count is not None:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="player_count", value=player_count
-            )
+            _add("player_count", player_count)
 
         # Machine type.
         machine_type = map_opdb_type(rec.get("type"))
         if machine_type:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="machine_type", value=machine_type
-            )
+            _add("machine_type", machine_type)
 
         # Display type.
         display_type = map_opdb_display(rec.get("display"))
         if display_type:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="display_type", value=display_type
-            )
+            _add("display_type", display_type)
 
         # Extra data fields.
-        features = rec.get("features")
-        if features:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="features", value=features
-            )
-
-        keywords = rec.get("keywords")
-        if keywords:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="keywords", value=keywords
-            )
-
-        description = rec.get("description")
-        if description:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="description", value=description
-            )
-
-        # --- New fields ---
-
-        common_name = rec.get("common_name")
-        if common_name:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="common_name", value=common_name
-            )
-
-        shortname = rec.get("shortname")
-        if shortname:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="shortname", value=shortname
-            )
-
-        images = rec.get("images")
-        if images:
-            Claim.objects.assert_claim(
-                model=pm, source=source, field_name="images", value=images
-            )
+        for field in (
+            "features",
+            "keywords",
+            "description",
+            "common_name",
+            "shortname",
+            "images",
+        ):
+            value = rec.get(field)
+            if value:
+                _add(field, value)
 
         # Group claim (derived from opdb_id prefix).
         if opdb_id and groups_by_id:
             group_opdb_id = parse_opdb_group_id(opdb_id)
             if group_opdb_id and group_opdb_id in groups_by_id:
-                Claim.objects.assert_claim(
-                    model=pm,
-                    source=source,
-                    field_name="group",
-                    value=group_opdb_id,
-                )
+                _add("group", group_opdb_id)

@@ -1,5 +1,8 @@
 """Integration tests for the ingest_opdb command."""
 
+import json
+import tempfile
+
 import pytest
 from django.core.management import call_command
 
@@ -233,3 +236,130 @@ class TestIngestOpdbChangelog:
         # The stale one should NOT be overwritten (replacement already taken).
         stale = PinballModel.objects.get(name="Stale Machine")
         assert stale.opdb_id == "GSTALE-MOld1"
+
+
+def _opdb_dump(machines=None, aliases=None):
+    """Write a temporary OPDB JSON dump and return the path."""
+    data = []
+    for m in machines or []:
+        m.setdefault("is_machine", True)
+        data.append(m)
+    for a in aliases or []:
+        a.setdefault("is_alias", True)
+        data.append(a)
+    f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    json.dump(data, f)
+    f.close()
+    return f.name
+
+
+@pytest.mark.django_db
+class TestOpdbSkipsMissingOpdbId:
+    """Records without opdb_id are skipped (unmatchable on rerun)."""
+
+    def test_machine_without_opdb_id_skipped(self):
+        path = _opdb_dump(machines=[{"name": "No ID Game"}])
+        call_command("ingest_opdb", opdb=path)
+        assert not PinballModel.objects.filter(name="No ID Game").exists()
+
+    def test_alias_without_opdb_id_skipped(self):
+        path = _opdb_dump(aliases=[{"name": "No ID Alias"}])
+        call_command("ingest_opdb", opdb=path)
+        assert not PinballModel.objects.filter(name="No ID Alias").exists()
+
+
+@pytest.mark.django_db
+class TestOpdbConflictBranches:
+    """In-memory opdb_id conflict handling."""
+
+    def test_matched_model_keeps_existing_opdb_id(self):
+        """Model matched by ipdb_id already has a different opdb_id → not overwritten."""
+        PinballModel.objects.create(name="Test Game", ipdb_id=9999, opdb_id="GOLD-M1")
+        path = _opdb_dump(
+            machines=[
+                {
+                    "opdb_id": "GNEW-M1",
+                    "ipdb_id": 9999,
+                    "name": "Test Game",
+                }
+            ]
+        )
+        call_command("ingest_opdb", opdb=path)
+
+        pm = PinballModel.objects.get(ipdb_id=9999)
+        assert pm.opdb_id == "GOLD-M1"
+
+    def test_opdb_id_set_when_no_conflict(self):
+        """Model matched by ipdb_id has no opdb_id → gets it set."""
+        PinballModel.objects.create(name="Test Game", ipdb_id=9999)
+        path = _opdb_dump(
+            machines=[
+                {
+                    "opdb_id": "GNEW-M1",
+                    "ipdb_id": 9999,
+                    "name": "Test Game",
+                }
+            ]
+        )
+        call_command("ingest_opdb", opdb=path)
+
+        pm = PinballModel.objects.get(ipdb_id=9999)
+        assert pm.opdb_id == "GNEW-M1"
+
+    def test_opdb_id_not_set_when_already_owned(self):
+        """Model matched by ipdb_id has no opdb_id, but opdb_id is already taken."""
+        PinballModel.objects.create(name="Owner", opdb_id="GNEW-M1")
+        PinballModel.objects.create(name="Test Game", ipdb_id=9999)
+        path = _opdb_dump(
+            machines=[
+                {
+                    "opdb_id": "GNEW-M1",
+                    "ipdb_id": 9999,
+                    "name": "Test Game",
+                }
+            ]
+        )
+        call_command("ingest_opdb", opdb=path)
+
+        pm = PinballModel.objects.get(ipdb_id=9999)
+        assert pm.opdb_id is None
+
+
+@pytest.mark.django_db
+class TestOpdbAliasEdgeCases:
+    """Alias-specific edge cases in in-memory matching."""
+
+    def test_alias_skipped_when_parent_missing(self):
+        """Alias whose parent opdb_id doesn't exist is skipped."""
+        path = _opdb_dump(
+            aliases=[
+                {
+                    "opdb_id": "GORPHAN-M1-AAlias",
+                    "name": "Orphan Alias",
+                }
+            ]
+        )
+        call_command("ingest_opdb", opdb=path)
+        assert not PinballModel.objects.filter(name="Orphan Alias").exists()
+
+    def test_alias_links_to_parent_from_same_run(self):
+        """Alias can find a parent that was created in the same ingest run."""
+        path = _opdb_dump(
+            machines=[
+                {
+                    "opdb_id": "GNEW-M1",
+                    "name": "New Parent",
+                }
+            ],
+            aliases=[
+                {
+                    "opdb_id": "GNEW-M1-AAlias",
+                    "name": "New Alias",
+                }
+            ],
+        )
+        call_command("ingest_opdb", opdb=path)
+
+        parent = PinballModel.objects.get(opdb_id="GNEW-M1")
+        alias = PinballModel.objects.get(opdb_id="GNEW-M1-AAlias")
+        assert alias.alias_of == parent

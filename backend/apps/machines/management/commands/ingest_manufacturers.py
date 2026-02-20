@@ -12,6 +12,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
+from apps.machines.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.machines.ingestion.parsers import parse_ipdb_manufacturer_string
 from apps.machines.models import Manufacturer, ManufacturerEntity
 
@@ -40,18 +41,26 @@ class Command(BaseCommand):
         self.stdout.write("Phase 1: Ingesting IPDB manufacturers...")
         ipdb_stats = self._ingest_ipdb(ipdb_path)
         self.stdout.write(
-            f"  Brands created/matched: {ipdb_stats['brands']}, "
-            f"Entities created: {ipdb_stats['entities']}, "
-            f"Skipped (id=0): {ipdb_stats['skipped']}"
+            f"  Brands: {ipdb_stats['brands_existing']} existing, "
+            f"{ipdb_stats['brands_created']} created"
         )
+        if ipdb_stats["new_brand_names"]:
+            self.stdout.write(f"    New: {format_names(ipdb_stats['new_brand_names'])}")
+        self.stdout.write(
+            f"  Entities: {ipdb_stats['entities_existing']} existing, "
+            f"{ipdb_stats['entities_created']} created"
+        )
+        self.stdout.write(f"  Skipped (id=0): {ipdb_stats['skipped']}")
 
         self.stdout.write("Phase 2: Matching OPDB manufacturers...")
         opdb_stats = self._ingest_opdb(opdb_path)
         self.stdout.write(
             f"  Matched: {opdb_stats['matched']}, "
             f"Created: {opdb_stats['created']}, "
-            f"Unmatched: {opdb_stats['unmatched']}"
+            f"opdb_id set: {opdb_stats['opdb_id_set']}"
         )
+        if opdb_stats["new_brand_names"]:
+            self.stdout.write(f"    New: {format_names(opdb_stats['new_brand_names'])}")
 
         self.stdout.write(self.style.SUCCESS("Manufacturer ingestion complete."))
 
@@ -69,13 +78,24 @@ class Command(BaseCommand):
 
         skipped = sum(1 for r in data["Data"] if r.get("ManufacturerId") == 0)
 
-        # Cache existing brands by lowercase name for dedup.
+        # Pre-fetch existing data.
         brand_cache: dict[str, Manufacturer] = {
             m.name.lower(): m for m in Manufacturer.objects.all()
         }
+        existing_brand_slugs: set[str] = set(
+            Manufacturer.objects.values_list("slug", flat=True)
+        )
+        existing_entity_ids: set[int] = set(
+            ManufacturerEntity.objects.values_list("ipdb_manufacturer_id", flat=True)
+        )
 
-        brands_touched = set()
-        entities_created = 0
+        # Collect new records in memory.
+        new_brands: list[Manufacturer] = []
+        new_entities: list[ManufacturerEntity] = []
+        # Map ManufacturerId → brand_key so we can link entities after brand bulk_create.
+        entity_specs: list[
+            tuple[int, str, str, str]
+        ] = []  # (mid, brand_key, company_name, years_active)
 
         for mid, raw_string in raw_mfrs.items():
             parsed = parse_ipdb_manufacturer_string(raw_string)
@@ -86,33 +106,62 @@ class Command(BaseCommand):
                 )
                 continue
 
-            # Get or create the brand.
+            # Ensure the brand exists (in cache or in new_brands).
             brand_key = brand_name.lower()
-            if brand_key in brand_cache:
-                brand = brand_cache[brand_key]
-            else:
-                brand, _ = Manufacturer.objects.get_or_create(
-                    name=brand_name,
-                    defaults={"trade_name": parsed["trade_name"]},
+            if brand_key not in brand_cache:
+                slug = generate_unique_slug(
+                    parsed["trade_name"] or brand_name, existing_brand_slugs
                 )
-                brand_cache[brand_key] = brand
-            brands_touched.add(brand.pk)
+                brand = Manufacturer(
+                    name=brand_name,
+                    slug=slug,
+                    trade_name=parsed["trade_name"],
+                )
+                new_brands.append(brand)
+                brand_cache[brand_key] = brand  # Placeholder until bulk_create
 
-            # Create the corporate entity.
-            _, created = ManufacturerEntity.objects.get_or_create(
-                ipdb_manufacturer_id=mid,
-                defaults={
-                    "manufacturer": brand,
-                    "name": parsed["company_name"] or brand_name,
-                    "years_active": parsed["years_active"],
-                },
+            # Collect entity if it doesn't exist yet.
+            if mid not in existing_entity_ids:
+                entity_specs.append(
+                    (
+                        mid,
+                        brand_key,
+                        parsed["company_name"] or brand_name,
+                        parsed["years_active"],
+                    )
+                )
+                existing_entity_ids.add(mid)
+
+        # Bulk-create new brands.
+        brands_created = len(new_brands)
+        if new_brands:
+            Manufacturer.objects.bulk_create(new_brands)
+            # Refresh cache to get PKs.
+            brand_cache = {m.name.lower(): m for m in Manufacturer.objects.all()}
+
+        # Build and bulk-create new entities (now that brands have PKs).
+        for mid, brand_key, company_name, years_active in entity_specs:
+            brand = brand_cache[brand_key]
+            new_entities.append(
+                ManufacturerEntity(
+                    manufacturer=brand,
+                    ipdb_manufacturer_id=mid,
+                    name=company_name,
+                    years_active=years_active,
+                )
             )
-            if created:
-                entities_created += 1
+
+        entities_created = len(new_entities)
+        if new_entities:
+            ManufacturerEntity.objects.bulk_create(new_entities)
 
         return {
-            "brands": len(brands_touched),
-            "entities": entities_created,
+            "brands_existing": len(brand_cache) - brands_created,
+            "brands_created": brands_created,
+            "new_brand_names": [b.name for b in new_brands],
+            "entities_existing": len(existing_entity_ids)
+            - entities_created,  # Pre-existing count
+            "entities_created": entities_created,
             "skipped": skipped,
         }
 
@@ -136,10 +185,13 @@ class Command(BaseCommand):
         trade_cache: dict[str, Manufacturer] = {
             m.trade_name.lower(): m for m in Manufacturer.objects.exclude(trade_name="")
         }
+        existing_slugs: set[str] = set(
+            Manufacturer.objects.values_list("slug", flat=True)
+        )
 
         matched = 0
-        created = 0
-        unmatched_names = []
+        new_brands: list[Manufacturer] = []
+        brands_needing_opdb_id: list[Manufacturer] = []
 
         for mid, m in opdb_mfrs.items():
             opdb_name = m["name"]
@@ -160,19 +212,21 @@ class Command(BaseCommand):
             if brand:
                 matched += 1
             else:
-                brand = Manufacturer.objects.create(
+                slug = generate_unique_slug(opdb_name, existing_slugs)
+                brand = Manufacturer(
                     name=opdb_name,
+                    slug=slug,
                     trade_name=opdb_name,
                 )
+                new_brands.append(brand)
                 name_cache[opdb_name.lower()] = brand
-                created += 1
-                unmatched_names.append(opdb_name)
-                logger.info("Created new brand for OPDB manufacturer: %s", opdb_name)
 
-            # Set opdb_manufacturer_id if not already set.
+            # Track opdb_manufacturer_id updates.
             if brand.opdb_manufacturer_id is None:
                 brand.opdb_manufacturer_id = mid
-                brand.save(update_fields=["opdb_manufacturer_id"])
+                if brand.pk:  # Existing brand needs update
+                    brands_needing_opdb_id.append(brand)
+                # New brands get the id set before bulk_create
             elif brand.opdb_manufacturer_id != mid:
                 logger.warning(
                     "Brand %r already has opdb_manufacturer_id=%d, skipping %d",
@@ -181,11 +235,21 @@ class Command(BaseCommand):
                     mid,
                 )
 
-        if unmatched_names:
-            self.stdout.write(f"  New brands from OPDB: {', '.join(unmatched_names)}")
+        # Bulk-create new brands.
+        created = len(new_brands)
+        if new_brands:
+            Manufacturer.objects.bulk_create(new_brands)
+
+        # Bulk-update existing brands that need opdb_manufacturer_id set.
+        opdb_id_set = len(brands_needing_opdb_id)
+        if brands_needing_opdb_id:
+            Manufacturer.objects.bulk_update(
+                brands_needing_opdb_id, ["opdb_manufacturer_id"]
+            )
 
         return {
             "matched": matched,
             "created": created,
-            "unmatched": len(unmatched_names),
+            "new_brand_names": [b.name for b in new_brands],
+            "opdb_id_set": opdb_id_set,
         }

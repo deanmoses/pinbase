@@ -2,17 +2,15 @@
 
 Quick-and-dirty tool for demo purposes — NOT for production use.
 
-Tries three strategies in order:
+Tries four strategies in order:
+0. Hand-picked URLs (MANUAL_IMAGES dict, keyed by opdb_id)
 1. Copy from a group sibling (same franchise, different edition)
 2. Scrape IPDB page (for machines with IPDB IDs)
 3. Search Bing Images (fallback for everything else)
 
-Processes in batches with a pause between each for inspection.
-
 Usage:
-    python manage.py scrape_images                    # all machines, batches of 10
+    python manage.py scrape_images                    # all machines
     python manage.py scrape_images --year-min 2024    # only 2024+
-    python manage.py scrape_images --batch-size 5     # smaller batches
     python manage.py scrape_images --dry-run           # preview without saving
 """
 
@@ -43,6 +41,19 @@ HEADERS = {
 
 # Seconds to wait between network requests (be polite).
 REQUEST_DELAY = 1.5
+
+# Hand-picked image URLs for machines that scrapers can't find. Keyed by opdb_id.
+MANUAL_IMAGES: dict[str, list[str]] = {
+    "GV8wB-Mq12N": [  # Pokémon (Pro)
+        "https://scontent-sjc6-1.xx.fbcdn.net/v/t39.30808-6/635610770_1323098703181952_4251437457470395789_n.jpg?stp=cp6_dst-jpg_tt6&_nc_cat=107&ccb=1-7&_nc_sid=7b2446&_nc_ohc=3ktPut9lrCcQ7kNvwFY0hBU&_nc_oc=Adn38G1p2Sc0iczV8POYOI55e2jFFUFvgL0HKF5JI2Cg0EhKPVjZaQuTzkJyV7eaV-k&_nc_zt=23&_nc_ht=scontent-sjc6-1.xx&_nc_gid=Fj6p4Hief3yQdoxOcCW5kw&oh=00_AfuFs3vRocrxVq9YIBjrM6M75viyrasY2yKTujoSMOAuQQ&oe=699D84F1",
+    ],
+    "GV8wB-MRjKd": [  # Pokémon (Premium/LE)
+        "https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2026%2F02%2F16%2Fstern-pinball-pokemon-pinball-machine-debut-collaboration-release-info-001.jpg?w=1440&cbr=1&q=90&fit=max",
+    ],
+    "GV8wB-MRjKd-AOVy7": [  # Pokémon (Premium)
+        "https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2026%2F02%2F16%2Fstern-pinball-pokemon-pinball-machine-debut-collaboration-release-info-001.jpg?w=1440&cbr=1&q=90&fit=max",
+    ],
+}
 
 
 def _has_images(extra_data: dict) -> bool:
@@ -143,12 +154,6 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--batch-size",
-            type=int,
-            default=10,
-            help="Number of machines to process per batch (default: 10).",
-        )
-        parser.add_argument(
             "--year-min",
             type=int,
             default=None,
@@ -161,7 +166,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        batch_size = options["batch_size"]
         year_min = options["year_min"]
         dry_run = options["dry_run"]
 
@@ -190,69 +194,48 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("All machines already have images!"))
             return
 
-        total_batches = (total + batch_size - 1) // batch_size
-        self.stdout.write(
-            f"Found {total} machines without images ({total_batches} batches).\n"
-        )
+        self.stdout.write(f"Found {total} machines without images.\n")
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN — nothing will be saved.\n"))
 
-        for i in range(0, total, batch_size):
-            batch = machines[i : i + batch_size]
-            batch_num = i // batch_size + 1
+        found_count = 0
+        for i, pm in enumerate(machines, 1):
+            strategy, urls = self._find_images(pm)
 
-            self.stdout.write(f"--- Batch {batch_num}/{total_batches} ---")
-
-            found_count = 0
-            for pm in batch:
-                strategy, urls = self._find_images(pm)
-
-                if urls:
-                    found_count += 1
-                    if not dry_run:
-                        Claim.objects.assert_claim(
-                            model=pm,
-                            source=source,
-                            field_name="image_urls",
-                            value=urls,
-                        )
-                        resolve_model(pm)
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"  \u2713 {pm.name} [{pm.year}] \u2014 {strategy} ({len(urls)} URLs)"
-                        )
-                    )
-                    for url in urls[:2]:
-                        self.stdout.write(f"    {url}")
-                    if len(urls) > 2:
-                        self.stdout.write(f"    ... and {len(urls) - 2} more")
-                else:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"  \u2717 {pm.name} [{pm.year}] \u2014 no images found"
-                        )
-                    )
-
-            self.stdout.write(
-                f"\n  Batch result: {found_count}/{len(batch)} machines got images."
-            )
-
-            # Pause between batches for inspection.
-            if i + batch_size < total:
+            if urls:
+                found_count += 1
                 if not dry_run:
-                    self.stdout.write("\nInspect results at http://localhost:5173")
-                try:
-                    input("Press Enter for next batch (Ctrl+C to stop)... ")
-                except KeyboardInterrupt, EOFError:
-                    self.stdout.write("\n\nStopped.")
-                    return
+                    Claim.objects.assert_claim(
+                        model=pm,
+                        source=source,
+                        field_name="image_urls",
+                        value=urls,
+                    )
+                    resolve_model(pm)
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  [{i}/{total}] \u2713 {pm.name} [{pm.year}] \u2014 {strategy} ({len(urls)} URLs)"
+                    )
+                )
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  [{i}/{total}] \u2717 {pm.name} [{pm.year}] \u2014 no images found"
+                    )
+                )
 
         action = "would be updated" if dry_run else "updated"
-        self.stdout.write(self.style.SUCCESS(f"\nDone! Machines {action}."))
+        self.stdout.write(
+            self.style.SUCCESS(f"\nDone! {found_count}/{total} machines {action}.")
+        )
 
     def _find_images(self, pm: PinballModel) -> tuple[str | None, list[str] | None]:
         """Try each strategy in order, return (strategy_name, urls) or (None, None)."""
+
+        # Strategy 0: Hand-picked URLs (no network needed).
+        if pm.opdb_id and pm.opdb_id in MANUAL_IMAGES:
+            return "manual", MANUAL_IMAGES[pm.opdb_id]
 
         # Strategy 1: Group sibling (no network needed).
         urls = _try_group_sibling(pm)
