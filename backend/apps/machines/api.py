@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, F, Prefetch, Q, TextField
 from django.db.models.functions import Cast
-from django.db.models import TextField
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 from ninja.pagination import PageNumberPagination, paginate
@@ -283,20 +282,18 @@ def _build_model_list_qs(
     if person:
         qs = qs.filter(credits__person__slug=person).distinct()
 
-    allowed_orderings = {
-        "name",
-        "-name",
-        "year",
-        "-year",
-        "-ipdb_rating",
-        "-pinside_rating",
-        "ipdb_rating",
-        "pinside_rating",
+    ordering_map = {
+        "name": [F("name").asc()],
+        "-name": [F("name").desc()],
+        "year": [F("year").asc(nulls_last=True)],
+        "-year": [F("year").desc(nulls_last=True)],
+        "-ipdb_rating": [F("ipdb_rating").desc(nulls_last=True)],
+        "-pinside_rating": [F("pinside_rating").desc(nulls_last=True)],
+        "ipdb_rating": [F("ipdb_rating").asc(nulls_last=True)],
+        "pinside_rating": [F("pinside_rating").asc(nulls_last=True)],
     }
-    if ordering in allowed_orderings:
-        qs = qs.order_by(ordering)
-    else:
-        qs = qs.order_by("-year")
+    order_exprs = ordering_map.get(ordering, ordering_map["-year"])
+    qs = qs.order_by(*order_exprs, "name")
 
     return qs
 
@@ -478,13 +475,7 @@ def list_models(
 @models_router.get("/all/", response=list[PinballModelGridSchema])
 def list_all_models(request):
     """Return every non-alias model with minimal fields (no pagination)."""
-    from .models import PinballModel
-
-    qs = (
-        PinballModel.objects.filter(alias_of__isnull=True)
-        .select_related("manufacturer")
-        .order_by("-year")
-    )
+    qs = _build_model_list_qs()
     result = []
     for pm in qs:
         thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
@@ -619,7 +610,7 @@ def list_all_manufacturers(request):
         for extra in (
             mfr.models.filter(alias_of__isnull=True)
             .exclude(extra_data={})
-            .order_by("-year")
+            .order_by(F("year").desc(nulls_last=True))
             .values_list("extra_data", flat=True)
         ):
             thumb, _ = _extract_image_urls(extra)
@@ -661,7 +652,9 @@ def get_manufacturer(request, slug: str):
                 "machine_type": m.machine_type,
                 "thumbnail_url": _extract_image_urls(m.extra_data or {})[0],
             }
-            for m in mfr.models.filter(alias_of__isnull=True).order_by("-year", "name")
+            for m in mfr.models.filter(alias_of__isnull=True).order_by(
+                F("year").desc(nulls_last=True), "name"
+            )
         ],
     }
 
