@@ -12,6 +12,7 @@
 		items,
 		filterFn,
 		loading = false,
+		error = null,
 		placeholder = 'Search...',
 		entityName = 'result',
 		entityNamePlural = `${entityName}s`,
@@ -20,6 +21,7 @@
 		items: T[];
 		filterFn: (item: T, query: string) => boolean;
 		loading?: boolean;
+		error?: string | null;
 		placeholder?: string;
 		entityName?: string;
 		entityNamePlural?: string;
@@ -74,6 +76,8 @@
 				<SkeletonCard />
 			{/each}
 		</CardGrid>
+	{:else if error}
+		<p class="error">{error}</p>
 	{:else}
 		{#if showSearch}
 			<SearchBox bind:value={searchQuery} {placeholder} />
@@ -102,6 +106,12 @@
 		color: var(--color-text-muted);
 		font-size: var(--font-size-1);
 		margin-bottom: var(--size-4);
+	}
+
+	.error {
+		text-align: center;
+		color: var(--color-error);
+		padding: var(--size-6) 0;
 	}
 
 	.sentinel {

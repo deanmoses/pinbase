@@ -1,27 +1,15 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import client from '$lib/api/client';
+	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import ManufacturerCard from '$lib/components/ManufacturerCard.svelte';
 	import { pageTitle } from '$lib/constants';
 	import { normalizeText } from '$lib/util';
 
-	async function fetchManufacturers() {
+	const manufacturers = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/manufacturers/all/');
 		return data ?? [];
-	}
-
-	type Manufacturers = Awaited<ReturnType<typeof fetchManufacturers>>;
-	let manufacturers = $state<Manufacturers>([]);
-	let loading = $state(true);
-
-	onMount(async () => {
-		try {
-			manufacturers = await fetchManufacturers();
-		} finally {
-			loading = false;
-		}
-	});
+	}, []);
 </script>
 
 <svelte:head>
@@ -30,8 +18,9 @@
 </svelte:head>
 
 <FilterableGrid
-	items={manufacturers}
-	{loading}
+	items={manufacturers.data}
+	loading={manufacturers.loading}
+	error={manufacturers.error}
 	filterFn={(item, q) =>
 		normalizeText(item.name).includes(q) ||
 		(item.trade_name ? normalizeText(item.trade_name).includes(q) : false)}

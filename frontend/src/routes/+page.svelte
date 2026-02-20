@@ -1,27 +1,15 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import client from '$lib/api/client';
+	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
 	import { SITE_NAME } from '$lib/constants';
 	import { normalizeText } from '$lib/util';
 
-	async function fetchModels() {
+	const models = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/models/all/');
 		return data ?? [];
-	}
-
-	type Models = Awaited<ReturnType<typeof fetchModels>>;
-	let models = $state<Models>([]);
-	let loading = $state(true);
-
-	onMount(async () => {
-		try {
-			models = await fetchModels();
-		} finally {
-			loading = false;
-		}
-	});
+	}, []);
 </script>
 
 <svelte:head>
@@ -30,8 +18,9 @@
 </svelte:head>
 
 <FilterableGrid
-	items={models}
-	{loading}
+	items={models.data}
+	loading={models.loading}
+	error={models.error}
 	filterFn={(item, q) =>
 		normalizeText(item.name).includes(q) ||
 		(item.manufacturer_name ? normalizeText(item.manufacturer_name).includes(q) : false)}

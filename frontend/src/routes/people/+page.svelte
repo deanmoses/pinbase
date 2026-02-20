@@ -1,27 +1,15 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import client from '$lib/api/client';
+	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import PersonCard from '$lib/components/PersonCard.svelte';
 	import { pageTitle } from '$lib/constants';
 	import { normalizeText } from '$lib/util';
 
-	async function fetchPeople() {
+	const people = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/people/all/');
 		return data ?? [];
-	}
-
-	type People = Awaited<ReturnType<typeof fetchPeople>>;
-	let people = $state<People>([]);
-	let loading = $state(true);
-
-	onMount(async () => {
-		try {
-			people = await fetchPeople();
-		} finally {
-			loading = false;
-		}
-	});
+	}, []);
 </script>
 
 <svelte:head>
@@ -30,8 +18,9 @@
 </svelte:head>
 
 <FilterableGrid
-	items={people}
-	{loading}
+	items={people.data}
+	loading={people.loading}
+	error={people.error}
 	filterFn={(item, q) => normalizeText(item.name).includes(q)}
 	placeholder="Search people..."
 	entityName="person"
