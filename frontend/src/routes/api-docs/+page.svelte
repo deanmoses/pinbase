@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { SITE_NAME, pageTitle } from '$lib/constants';
 
 	let scalarLoaded = $state(false);
@@ -19,7 +18,7 @@
 		}
 	`;
 
-	onMount(() => {
+	$effect(() => {
 		const script = document.createElement('script');
 		script.src = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference';
 		script.onload = () => {
