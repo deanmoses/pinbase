@@ -43,7 +43,7 @@
 
 	// Reset visible count when search changes
 	$effect(() => {
-		searchQuery;
+		void searchQuery;
 		visibleCount = BATCH_SIZE;
 	});
 
