@@ -21,11 +21,7 @@ echo "==> Generating TypeScript API types..."
 (cd frontend && pnpm api:gen)
 
 echo "==> Installing pre-commit hooks..."
-if command -v pre-commit >/dev/null 2>&1; then
-  pre-commit install
-else
-  echo "  pre-commit not found, skipping. Install with: uv tool install pre-commit"
-fi
+uvx pre-commit install
 
 echo ""
 echo "Done! Run 'make dev' to start, or create a superuser:"

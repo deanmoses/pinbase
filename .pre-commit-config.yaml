@@ -26,22 +26,22 @@ repos:
         args: ['--baseline', '.secrets.baseline']
         exclude: '(pnpm-lock\.yaml|uv\.lock)$'
 
-  # Markdown — formatting + linting
-  - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.1
-    hooks:
-      - id: prettier
-        types: [markdown]
-        exclude: ^(CLAUDE|AGENTS)\.md$
-  - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.21.0
-    hooks:
-      - id: markdownlint-cli2
-        exclude: ^(CLAUDE|AGENTS)\.md$
-
-  # Local hooks
+  # Local hooks (use system Node to avoid nodeenv/Node 24 incompatibility)
   - repo: local
     hooks:
+      # Markdown — formatting + linting
+      - id: prettier-markdown
+        name: prettier (markdown)
+        entry: npx prettier@3.8.1 --check
+        language: system
+        types: [markdown]
+        exclude: ^(CLAUDE|AGENTS)\.md$
+      - id: markdownlint-cli2
+        name: markdownlint-cli2
+        entry: npx markdownlint-cli2@0.21.0
+        language: system
+        types: [markdown]
+        exclude: ^(CLAUDE|AGENTS)\.md$
       # Python (backend) — use project's ruff via uv so pre-commit and CI
       # always run the identical binary (avoids platform formatting drift).
       # pass_filenames: false so ruff checks all backend files every time,
