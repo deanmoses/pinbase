@@ -1,6 +1,8 @@
 import pytest
+from django.core.cache import cache
 from django.test import Client
 
+from apps.machines.cache import MODELS_ALL_KEY
 from apps.machines.models import (
     Claim,
     DesignCredit,
@@ -483,6 +485,43 @@ class TestPeopleAPI:
         assert len(data["machines"]) == 1
         assert data["machines"][0]["model_name"] == "Medieval Madness"
         assert data["machines"][0]["roles"] == ["Design"]
+
+
+class TestAllEndpointCache:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        cache.clear()
+        yield
+        cache.clear()
+
+    def test_models_all_caches_on_second_request(self, client, pinball_model):
+        resp1 = client.get("/api/models/all/")
+        assert resp1.status_code == 200
+        assert cache.get(MODELS_ALL_KEY) is not None
+
+        # Second request should return the same data from cache.
+        resp2 = client.get("/api/models/all/")
+        assert resp2.json() == resp1.json()
+
+    def test_model_save_invalidates_cache(self, client, pinball_model):
+        client.get("/api/models/all/")
+        assert cache.get(MODELS_ALL_KEY) is not None
+
+        # Saving a model triggers the signal and clears the cache.
+        pinball_model.name = "Medieval Madness LE"
+        pinball_model.save()
+        assert cache.get(MODELS_ALL_KEY) is None
+
+    def test_new_model_appears_after_invalidation(self, client, pinball_model, stern):
+        resp1 = client.get("/api/models/all/")
+        count_before = len(resp1.json())
+
+        PinballModel.objects.create(
+            name="Godzilla", manufacturer=stern, year=2021, machine_type="SS"
+        )
+        # Signal should have cleared the cache, so next request rebuilds it.
+        resp2 = client.get("/api/models/all/")
+        assert len(resp2.json()) == count_before + 1
 
 
 class TestSourcesAPI:

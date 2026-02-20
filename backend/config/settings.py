@@ -72,6 +72,15 @@ DATABASES = {
     ),
 }
 
+# Server-side cache: file-based so all gunicorn workers + management commands
+# share the same cache via the filesystem. Invalidated explicitly on data changes.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": BASE_DIR / "cache",
+    }
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"

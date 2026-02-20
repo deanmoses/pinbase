@@ -19,4 +19,7 @@ class Command(BaseCommand):
 
         self.stdout.write("Resolving claims...")
         count = resolve_all()
+        from apps.machines.cache import invalidate_all
+
+        invalidate_all()
         self.stdout.write(self.style.SUCCESS(f"Resolved {count} models."))
