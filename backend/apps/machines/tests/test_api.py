@@ -127,6 +127,27 @@ class TestModelsAPI:
         data = resp.json()
         assert data["items"][0]["name"] == "The Mandalorian"
 
+    def test_list_models_ordering_nulls_last(self, client, pinball_model, db):
+        """Models with no year sort after models with a year."""
+        PinballModel.objects.create(name="Unknown Year Game", machine_type="SS")
+        resp = client.get("/api/models/?ordering=-year")
+        data = resp.json()
+        names = [m["name"] for m in data["items"]]
+        assert names[-1] == "Unknown Year Game"
+
+    def test_list_models_ordering_stable(self, client, manufacturer, db):
+        """Models with the same year are sorted by name for stability."""
+        PinballModel.objects.create(
+            name="Zeta", manufacturer=manufacturer, year=2000, machine_type="SS"
+        )
+        PinballModel.objects.create(
+            name="Alpha", manufacturer=manufacturer, year=2000, machine_type="SS"
+        )
+        resp = client.get("/api/models/?ordering=-year")
+        data = resp.json()
+        names = [m["name"] for m in data["items"]]
+        assert names == ["Alpha", "Zeta"]
+
     def test_list_models_excludes_aliases(self, client, pinball_model):
         PinballModel.objects.create(
             name="Medieval Madness (LE)",
@@ -359,6 +380,59 @@ class TestManufacturersAPI:
         assert data["entities"][0]["ipdb_manufacturer_id"] == 350
         assert len(data["models"]) == 1
         assert data["models"][0]["name"] == "Medieval Madness"
+
+    def test_list_all_manufacturers_thumbnail_prefers_year(
+        self, client, manufacturer, db
+    ):
+        """Thumbnail comes from most recent model with a year, not a null-year model."""
+        PinballModel.objects.create(
+            name="No Year Game",
+            manufacturer=manufacturer,
+            machine_type="SS",
+            extra_data={"images": SAMPLE_IMAGES},
+        )
+        PinballModel.objects.create(
+            name="Has Year Game",
+            manufacturer=manufacturer,
+            year=2020,
+            machine_type="SS",
+            extra_data={
+                "images": [
+                    {
+                        "primary": True,
+                        "type": "backglass",
+                        "urls": {
+                            "small": "https://img.opdb.org/year-sm.jpg",
+                            "medium": "https://img.opdb.org/year-md.jpg",
+                            "large": "https://img.opdb.org/year-lg.jpg",
+                        },
+                    }
+                ]
+            },
+        )
+        resp = client.get("/api/manufacturers/all/")
+        data = resp.json()
+        # The thumbnail should come from "Has Year Game" (year=2020),
+        # not from "No Year Game" (year=None) which sorts first with bare DESC.
+        assert data[0]["thumbnail_url"] == "https://img.opdb.org/year-md.jpg"
+
+    def test_get_manufacturer_detail_nulls_last(self, client, manufacturer, db):
+        """Models with no year sort after models with a year in manufacturer detail."""
+        PinballModel.objects.create(
+            name="No Year Game",
+            manufacturer=manufacturer,
+            machine_type="SS",
+        )
+        PinballModel.objects.create(
+            name="Has Year Game",
+            manufacturer=manufacturer,
+            year=2020,
+            machine_type="SS",
+        )
+        resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
+        data = resp.json()
+        names = [m["name"] for m in data["models"]]
+        assert names[-1] == "No Year Game"
 
 
 class TestPeopleAPI:
