@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
                 (
                     "priority",
                     models.PositiveSmallIntegerField(
-                        default=100,
+                        default=10000,
                         help_text="Claim priority for conflict resolution. Higher beats lower.",
                     ),
                 ),
