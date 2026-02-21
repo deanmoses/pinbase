@@ -2,7 +2,6 @@
 	import DetailPage from '$lib/components/DetailPage.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
-	import { normalizeText } from '$lib/util';
 
 	let { data } = $props();
 	let person = $derived(data.person);
@@ -18,7 +17,7 @@
 	{#if person.machines.length > 0}
 		<FilterableGrid
 			items={person.machines}
-			filterFn={(item, q) => normalizeText(item.model_name).includes(q)}
+			filterFields={(item) => [item.model_name]}
 			placeholder="Search models..."
 			entityName="machine"
 		>

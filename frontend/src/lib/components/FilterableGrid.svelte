@@ -10,7 +10,7 @@
 
 	let {
 		items,
-		filterFn,
+		filterFields,
 		loading = false,
 		error = null,
 		placeholder = 'Search...',
@@ -19,7 +19,7 @@
 		children
 	}: {
 		items: T[];
-		filterFn: (item: T, query: string) => boolean;
+		filterFields: (item: T) => (string | number | null | undefined)[];
 		loading?: boolean;
 		error?: string | null;
 		placeholder?: string;
@@ -37,7 +37,9 @@
 	let filteredItems = $derived.by(() => {
 		const q = normalizeText(searchQuery.trim());
 		if (!q) return items;
-		return items.filter((item) => filterFn(item, q));
+		return items.filter((item) =>
+			filterFields(item).some((field) => field != null && normalizeText(String(field)).includes(q))
+		);
 	});
 
 	let showSearch = $derived(items.length >= SEARCH_THRESHOLD || searchQuery.trim() !== '');
@@ -71,6 +73,10 @@
 
 <div class="filterable-grid">
 	{#if loading}
+		{#if showSearch}
+			<SearchBox {placeholder} disabled />
+			<p class="count">{countLabel}</p>
+		{/if}
 		<CardGrid>
 			{#each SKELETON_INDICES as i (i)}
 				<SkeletonCard />

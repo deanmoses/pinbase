@@ -4,7 +4,6 @@
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import GroupCard from '$lib/components/GroupCard.svelte';
 	import { pageTitle } from '$lib/constants';
-	import { normalizeText } from '$lib/util';
 
 	const groups = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/groups/all/');
@@ -21,9 +20,7 @@
 	items={groups.data}
 	loading={groups.loading}
 	error={groups.error}
-	filterFn={(item, q) =>
-		normalizeText(item.name).includes(q) ||
-		(item.shortname ? normalizeText(item.shortname).includes(q) : false)}
+	filterFields={(item) => [item.name, item.shortname]}
 	placeholder="Search groups..."
 	entityName="group"
 >

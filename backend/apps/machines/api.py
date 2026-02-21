@@ -128,6 +128,7 @@ class PinballModelGridSchema(Schema):
     manufacturer_name: Optional[str] = None
     machine_type: str
     thumbnail_url: Optional[str] = None
+    shortname: Optional[str] = None
 
 
 class PinballModelListSchema(Schema):
@@ -508,6 +509,7 @@ def list_all_models(request):
                 ),
                 "machine_type": pm.machine_type,
                 "thumbnail_url": thumbnail_url,
+                "shortname": pm.extra_data.get("shortname") or None,
             }
         )
     cache.set(MODELS_ALL_KEY, result, timeout=None)

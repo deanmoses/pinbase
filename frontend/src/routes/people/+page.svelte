@@ -4,7 +4,6 @@
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import PersonCard from '$lib/components/PersonCard.svelte';
 	import { pageTitle } from '$lib/constants';
-	import { normalizeText } from '$lib/util';
 
 	const people = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/people/all/');
@@ -21,7 +20,7 @@
 	items={people.data}
 	loading={people.loading}
 	error={people.error}
-	filterFn={(item, q) => normalizeText(item.name).includes(q)}
+	filterFields={(item) => [item.name]}
 	placeholder="Search people..."
 	entityName="person"
 	entityNamePlural="people"

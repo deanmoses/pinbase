@@ -2,7 +2,6 @@
 	import DetailPage from '$lib/components/DetailPage.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
-	import { normalizeText } from '$lib/util';
 
 	let { data } = $props();
 	let mfr = $derived(data.manufacturer);
@@ -26,7 +25,7 @@
 			<h2>Models ({mfr.models.length})</h2>
 			<FilterableGrid
 				items={mfr.models}
-				filterFn={(item, q) => normalizeText(item.name).includes(q)}
+				filterFields={(item) => [item.name]}
 				placeholder="Search models..."
 				entityName="model"
 			>

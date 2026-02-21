@@ -4,7 +4,6 @@
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import ManufacturerCard from '$lib/components/ManufacturerCard.svelte';
 	import { pageTitle } from '$lib/constants';
-	import { normalizeText } from '$lib/util';
 
 	const manufacturers = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/manufacturers/all/');
@@ -21,9 +20,7 @@
 	items={manufacturers.data}
 	loading={manufacturers.loading}
 	error={manufacturers.error}
-	filterFn={(item, q) =>
-		normalizeText(item.name).includes(q) ||
-		(item.trade_name ? normalizeText(item.trade_name).includes(q) : false)}
+	filterFields={(item) => [item.name, item.trade_name]}
 	placeholder="Search manufacturers..."
 	entityName="manufacturer"
 >

@@ -159,6 +159,20 @@
 		</section>
 	{/if}
 
+	{#if model.extra_data.notes}
+		<section class="notes">
+			<h2>Notes</h2>
+			<p>{model.extra_data.notes}</p>
+		</section>
+	{/if}
+
+	{#if model.extra_data.Notes}
+		<section class="notes">
+			<h2>Notes Capitalized</h2>
+			<p>{model.extra_data.Notes}</p>
+		</section>
+	{/if}
+
 	{#if model.educational_text}
 		<section class="description">
 			<h2>About</h2>
@@ -170,7 +184,7 @@
 		{@const { conflicts, agreed, single } = activityGroups}
 		{@const sourceNames = [...new Set(model.activity.map((c) => c.source_name))]}
 		<section class="activity">
-			<h2>Activity</h2>
+			<h2>Sources</h2>
 			<p class="activity-summary">
 				{sourceNames.join(' and ')} contributed to this record.
 			</p>
@@ -420,6 +434,7 @@
 		font-size: var(--font-size-0);
 	}
 
+	.notes p,
 	.description p {
 		font-size: var(--font-size-2);
 		color: var(--color-text-primary);
