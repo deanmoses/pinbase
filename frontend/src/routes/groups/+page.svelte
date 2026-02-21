@@ -20,7 +20,7 @@
 	items={groups.data}
 	loading={groups.loading}
 	error={groups.error}
-	filterFields={(item) => [item.name, item.shortname]}
+	filterFields={(item) => [item.name, item.short_name]}
 	placeholder="Search groups..."
 	entityName="group"
 >
@@ -29,7 +29,7 @@
 			slug={group.slug}
 			name={group.name}
 			thumbnailUrl={group.thumbnail_url}
-			shortname={group.shortname}
+			short_name={group.short_name}
 			machineCount={group.machine_count}
 		/>
 	{/snippet}

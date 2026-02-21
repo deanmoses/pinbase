@@ -2,7 +2,7 @@
 
 import pytest
 
-from apps.machines.models import Claim, Manufacturer, PinballModel, Source
+from apps.machines.models import Claim, Manufacturer, MachineModel, Source
 
 
 @pytest.fixture
@@ -26,14 +26,14 @@ def manufacturer(db):
 
 @pytest.fixture
 def pm1(db, manufacturer):
-    return PinballModel.objects.create(
+    return MachineModel.objects.create(
         name="Medieval Madness", manufacturer=manufacturer, year=1997
     )
 
 
 @pytest.fixture
 def pm2(db, manufacturer):
-    return PinballModel.objects.create(
+    return MachineModel.objects.create(
         name="Monster Bash", manufacturer=manufacturer, year=1998
     )
 

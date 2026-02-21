@@ -1,4 +1,4 @@
-"""Re-resolve all PinballModels from their claims."""
+"""Re-resolve all machine models from their claims."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from apps.machines.resolve import resolve_all
 
 
 class Command(BaseCommand):
-    help = "Re-resolve all PinballModels from their active claims."
+    help = "Re-resolve all machine models from their active claims."
 
     def handle(self, *args, **options):
         # Silence per-query SQL logging — bulk_update generates huge CASE WHEN

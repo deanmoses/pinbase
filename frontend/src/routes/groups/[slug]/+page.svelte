@@ -14,8 +14,8 @@
 <article>
 	<header>
 		<h1>{group.name}</h1>
-		{#if group.shortname && group.shortname !== group.name}
-			<p class="shortname">{group.shortname}</p>
+		{#if group.short_name && group.short_name !== group.name}
+			<p class="short_name">{group.short_name}</p>
 		{/if}
 	</header>
 
@@ -56,7 +56,7 @@
 		margin-bottom: var(--size-2);
 	}
 
-	.shortname {
+	.short_name {
 		font-size: var(--font-size-2);
 		color: var(--color-text-muted);
 	}

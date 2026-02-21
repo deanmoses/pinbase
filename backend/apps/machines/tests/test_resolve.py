@@ -6,7 +6,7 @@ from apps.machines.models import (
     MachineGroup,
     Manufacturer,
     ManufacturerEntity,
-    PinballModel,
+    MachineModel,
     Source,
 )
 from apps.machines.resolve import resolve_all, resolve_model
@@ -31,7 +31,7 @@ def editorial(db):
 
 @pytest.fixture
 def pm(db):
-    return PinballModel.objects.create(name="Placeholder")
+    return MachineModel.objects.create(name="Placeholder")
 
 
 class TestResolveModel:
@@ -190,9 +190,9 @@ class TestResolveAll:
         ipdb = Source.objects.create(
             name="IPDB", slug="ipdb", source_type="database", priority=10
         )
-        pm1 = PinballModel.objects.create(name="P1", slug="p1")
-        pm2 = PinballModel.objects.create(name="P2", slug="p2")
-        pm3 = PinballModel.objects.create(name="P3", slug="p3")
+        pm1 = MachineModel.objects.create(name="P1", slug="p1")
+        pm2 = MachineModel.objects.create(name="P2", slug="p2")
+        pm3 = MachineModel.objects.create(name="P3", slug="p3")
 
         Claim.objects.assert_claim(pm1, "name", "Medieval Madness", source=ipdb)
         Claim.objects.assert_claim(pm1, "year", 1997, source=ipdb)
@@ -232,8 +232,8 @@ class TestResolveAll:
         )
         MachineGroup.objects.create(opdb_id="G1111", name="Medieval Madness", slug="mm")
 
-        pm_bulk = PinballModel.objects.create(name="P1", slug="p1")
-        pm_single = PinballModel.objects.create(name="P2", slug="p2")
+        pm_bulk = MachineModel.objects.create(name="P1", slug="p1")
+        pm_single = MachineModel.objects.create(name="P2", slug="p2")
 
         # Same claims on both models.
         for pm in (pm_bulk, pm_single):
@@ -265,8 +265,8 @@ class TestResolveAll:
             name="IPDB", slug="ipdb", source_type="database", priority=10
         )
         # "Alpha" sorts before "Beta" — Alpha should keep the opdb_id.
-        pm_a = PinballModel.objects.create(name="Alpha", slug="alpha")
-        pm_b = PinballModel.objects.create(name="Beta", slug="beta")
+        pm_a = MachineModel.objects.create(name="Alpha", slug="alpha")
+        pm_b = MachineModel.objects.create(name="Beta", slug="beta")
 
         Claim.objects.assert_claim(pm_a, "opdb_id", "GCONFLICT-M1", source=ipdb)
         Claim.objects.assert_claim(pm_b, "opdb_id", "GCONFLICT-M1", source=ipdb)
@@ -282,7 +282,7 @@ class TestResolveAll:
         ipdb = Source.objects.create(
             name="IPDB", slug="ipdb", source_type="database", priority=10
         )
-        pm = PinballModel.objects.create(name="P1", slug="p1")
+        pm = MachineModel.objects.create(name="P1", slug="p1")
 
         Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
         Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
@@ -306,7 +306,7 @@ class TestResolveAll:
             name="IPDB", slug="ipdb", source_type="database", priority=10
         )
         for i in range(5):
-            pm = PinballModel.objects.create(name=f"Model {i}", slug=f"model-{i}")
+            pm = MachineModel.objects.create(name=f"Model {i}", slug=f"model-{i}")
             Claim.objects.assert_claim(pm, "name", f"Resolved {i}", source=ipdb)
             Claim.objects.assert_claim(pm, "year", 2000 + i, source=ipdb)
 

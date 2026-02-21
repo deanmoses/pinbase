@@ -1,6 +1,6 @@
 """Ingest pinball machines from an IPDB JSON dump.
 
-Creates PinballModel records, asserts Claims for each field, and creates
+Creates MachineModel records, asserts Claims for each field, and creates
 Person/DesignCredit records for design credits.
 
 Claims, Persons, and DesignCredits are collected during the main loop and
@@ -23,7 +23,7 @@ from apps.machines.ingestion.parsers import (
     parse_ipdb_date,
     parse_ipdb_machine_type,
 )
-from apps.machines.models import Claim, DesignCredit, Person, PinballModel, Source
+from apps.machines.models import Claim, DesignCredit, Person, MachineModel, Source
 
 logger = logging.getLogger(__name__)
 
@@ -87,16 +87,16 @@ class Command(BaseCommand):
         records = data["Data"]
         self.stdout.write(f"Processing {len(records)} IPDB records...")
 
-        # --- Phase 1: Ensure all PinballModels exist ---
-        existing_by_ipdb: dict[int, PinballModel] = {
-            pm.ipdb_id: pm for pm in PinballModel.objects.filter(ipdb_id__isnull=False)
+        # --- Phase 1: Ensure all MachineModels exist ---
+        existing_by_ipdb: dict[int, MachineModel] = {
+            pm.ipdb_id: pm for pm in MachineModel.objects.filter(ipdb_id__isnull=False)
         }
         existing_slugs: set[str] = set(
-            PinballModel.objects.values_list("slug", flat=True)
+            MachineModel.objects.values_list("slug", flat=True)
         )
 
-        new_models: list[PinballModel] = []
-        record_models: list[tuple[PinballModel, dict, bool]] = []
+        new_models: list[MachineModel] = []
+        record_models: list[tuple[MachineModel, dict, bool]] = []
         skipped = 0
 
         for rec in records:
@@ -112,7 +112,7 @@ class Command(BaseCommand):
                 record_models.append((pm, rec, False))
             else:
                 slug = generate_unique_slug(title, existing_slugs)
-                pm = PinballModel(ipdb_id=ipdb_id, name=title, slug=slug)
+                pm = MachineModel(ipdb_id=ipdb_id, name=title, slug=slug)
                 new_models.append(pm)
                 existing_by_ipdb[ipdb_id] = pm
                 record_models.append((pm, rec, True))
@@ -120,7 +120,7 @@ class Command(BaseCommand):
         created = len(new_models)
         matched = len(record_models) - created
         if new_models:
-            PinballModel.objects.bulk_create(new_models)
+            MachineModel.objects.bulk_create(new_models)
 
         self.stdout.write(
             f"  Models — Matched: {matched}, Created: {created}, Skipped: {skipped}"
@@ -167,7 +167,7 @@ class Command(BaseCommand):
 
     def _collect_record_data(
         self,
-        pm: PinballModel,
+        pm: MachineModel,
         rec: dict,
         source: Source,
         pending_claims: list[Claim],

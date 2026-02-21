@@ -7,7 +7,7 @@ from apps.machines.models import (
     Manufacturer,
     ManufacturerEntity,
     Person,
-    PinballModel,
+    MachineModel,
     Source,
 )
 
@@ -30,8 +30,8 @@ def manufacturer(db):
 
 
 @pytest.fixture
-def pinball_model(db, manufacturer):
-    return PinballModel.objects.create(
+def machine_model(db, manufacturer):
+    return MachineModel.objects.create(
         name="Medieval Madness", manufacturer=manufacturer, year=1997
     )
 
@@ -139,24 +139,24 @@ class TestManufacturerEntity:
         assert manufacturer.entities.count() == 2
 
 
-# --- PinballModel ---
+# --- MachineModel ---
 
 
-class TestPinballModel:
-    def test_auto_slug_with_manufacturer_year(self, pinball_model):
-        assert pinball_model.slug == "medieval-madness-williams-1997"
+class TestMachineModel:
+    def test_auto_slug_with_manufacturer_year(self, machine_model):
+        assert machine_model.slug == "medieval-madness-williams-1997"
 
     def test_auto_slug_without_manufacturer(self, db):
-        pm = PinballModel.objects.create(name="Test Game")
+        pm = MachineModel.objects.create(name="Test Game")
         assert pm.slug == "test-game"
 
-    def test_str(self, pinball_model):
-        assert "Medieval Madness" in str(pinball_model)
-        assert "Williams" in str(pinball_model)
-        assert "1997" in str(pinball_model)
+    def test_str(self, machine_model):
+        assert "Medieval Madness" in str(machine_model)
+        assert "Williams" in str(machine_model)
+        assert "1997" in str(machine_model)
 
-    def test_slug_deduplication(self, db, manufacturer, pinball_model):
-        pm2 = PinballModel.objects.create(
+    def test_slug_deduplication(self, db, manufacturer, machine_model):
+        pm2 = MachineModel.objects.create(
             name="Medieval Madness", manufacturer=manufacturer, year=1997
         )
         assert pm2.slug == "medieval-madness-williams-1997-2"
@@ -181,33 +181,33 @@ class TestPerson:
 
 
 class TestDesignCredit:
-    def test_create(self, pinball_model, person):
+    def test_create(self, machine_model, person):
         credit = DesignCredit.objects.create(
-            model=pinball_model, person=person, role="design"
+            model=machine_model, person=person, role="design"
         )
         assert "Brian Eddy" in str(credit)
         assert "Design" in str(credit)
 
-    def test_unique_constraint(self, pinball_model, person):
-        DesignCredit.objects.create(model=pinball_model, person=person, role="design")
+    def test_unique_constraint(self, machine_model, person):
+        DesignCredit.objects.create(model=machine_model, person=person, role="design")
         with pytest.raises(IntegrityError):
             DesignCredit.objects.create(
-                model=pinball_model, person=person, role="design"
+                model=machine_model, person=person, role="design"
             )
 
-    def test_different_roles_ok(self, pinball_model, person):
-        DesignCredit.objects.create(model=pinball_model, person=person, role="design")
-        DesignCredit.objects.create(model=pinball_model, person=person, role="concept")
-        assert pinball_model.credits.count() == 2
+    def test_different_roles_ok(self, machine_model, person):
+        DesignCredit.objects.create(model=machine_model, person=person, role="design")
+        DesignCredit.objects.create(model=machine_model, person=person, role="concept")
+        assert machine_model.credits.count() == 2
 
 
 # --- Claim ---
 
 
 class TestClaim:
-    def test_assert_claim_creates(self, pinball_model, source):
+    def test_assert_claim_creates(self, machine_model, source):
         claim = Claim.objects.assert_claim(
-            model=pinball_model,
+            model=machine_model,
             source=source,
             field_name="name",
             value="Medieval Madness",
@@ -215,47 +215,47 @@ class TestClaim:
         assert claim.is_active is True
         assert claim.value == "Medieval Madness"
 
-    def test_assert_claim_supersedes(self, pinball_model, source):
+    def test_assert_claim_supersedes(self, machine_model, source):
         c1 = Claim.objects.assert_claim(
-            model=pinball_model, source=source, field_name="year", value=1997
+            model=machine_model, source=source, field_name="year", value=1997
         )
         c2 = Claim.objects.assert_claim(
-            model=pinball_model, source=source, field_name="year", value=1998
+            model=machine_model, source=source, field_name="year", value=1998
         )
         c1.refresh_from_db()
         assert c1.is_active is False
         assert c2.is_active is True
 
     def test_assert_claim_different_sources_coexist(
-        self, pinball_model, source, editorial_source
+        self, machine_model, source, editorial_source
     ):
         c1 = Claim.objects.assert_claim(
-            model=pinball_model, source=source, field_name="year", value=1997
+            model=machine_model, source=source, field_name="year", value=1997
         )
         c2 = Claim.objects.assert_claim(
-            model=pinball_model, source=editorial_source, field_name="year", value=1997
+            model=machine_model, source=editorial_source, field_name="year", value=1997
         )
         c1.refresh_from_db()
         assert c1.is_active is True
         assert c2.is_active is True
 
-    def test_unique_active_constraint(self, pinball_model, source):
+    def test_unique_active_constraint(self, machine_model, source):
         Claim.objects.assert_claim(
-            model=pinball_model, source=source, field_name="name", value="V1"
+            model=machine_model, source=source, field_name="name", value="V1"
         )
         # Direct create (bypassing manager) should violate the constraint.
         with pytest.raises(IntegrityError):
             Claim.objects.create(
-                model=pinball_model,
+                model=machine_model,
                 source=source,
                 field_name="name",
                 value="V2",
                 is_active=True,
             )
 
-    def test_str(self, pinball_model, source):
+    def test_str(self, machine_model, source):
         claim = Claim.objects.assert_claim(
-            model=pinball_model, source=source, field_name="year", value=1997
+            model=machine_model, source=source, field_name="year", value=1997
         )
         assert "IPDB" in str(claim)
         assert "year" in str(claim)

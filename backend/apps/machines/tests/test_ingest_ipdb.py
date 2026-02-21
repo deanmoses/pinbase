@@ -3,7 +3,7 @@
 import pytest
 from django.core.management import call_command
 
-from apps.machines.models import Claim, DesignCredit, Person, PinballModel, Source
+from apps.machines.models import Claim, DesignCredit, Person, MachineModel, Source
 
 FIXTURES = "apps/machines/tests/fixtures"
 
@@ -20,17 +20,17 @@ class TestIngestIpdb:
     def test_creates_source(self):
         source = Source.objects.get(slug="ipdb")
         assert source.name == "IPDB"
-        assert source.priority == 10
+        assert source.priority == 100
 
     def test_creates_models(self):
-        assert PinballModel.objects.count() == 4
-        assert PinballModel.objects.filter(ipdb_id=4000).exists()
-        assert PinballModel.objects.filter(ipdb_id=20).exists()
-        assert PinballModel.objects.filter(ipdb_id=61).exists()
-        assert PinballModel.objects.filter(ipdb_id=100).exists()
+        assert MachineModel.objects.count() == 4
+        assert MachineModel.objects.filter(ipdb_id=4000).exists()
+        assert MachineModel.objects.filter(ipdb_id=20).exists()
+        assert MachineModel.objects.filter(ipdb_id=61).exists()
+        assert MachineModel.objects.filter(ipdb_id=100).exists()
 
     def test_claims_created(self):
-        pm = PinballModel.objects.get(ipdb_id=4000)
+        pm = MachineModel.objects.get(ipdb_id=4000)
         source = Source.objects.get(slug="ipdb")
         active_claims = Claim.objects.filter(model=pm, source=source, is_active=True)
 
@@ -46,7 +46,7 @@ class TestIngestIpdb:
         assert "ipdb_rating" in claim_fields
 
     def test_date_parsing(self):
-        pm = PinballModel.objects.get(ipdb_id=4000)
+        pm = MachineModel.objects.get(ipdb_id=4000)
         source = Source.objects.get(slug="ipdb")
         year_claim = Claim.objects.get(
             model=pm, source=source, field_name="year", is_active=True
@@ -59,7 +59,7 @@ class TestIngestIpdb:
 
     def test_year_only_date(self):
         # ABC Bowler has DateOfManufacture "1941-01-01T00:00:00" (Jan 1 placeholder).
-        pm = PinballModel.objects.get(ipdb_id=20)
+        pm = MachineModel.objects.get(ipdb_id=20)
         source = Source.objects.get(slug="ipdb")
         year_claim = Claim.objects.get(
             model=pm, source=source, field_name="year", is_active=True
@@ -71,7 +71,7 @@ class TestIngestIpdb:
         ).exists()
 
     def test_credits_created(self):
-        pm = PinballModel.objects.get(ipdb_id=4000)
+        pm = MachineModel.objects.get(ipdb_id=4000)
         credits = DesignCredit.objects.filter(model=pm)
         # Brian Eddy (design), John Youssi + Greg Freres (art), Lyman Sheats (software)
         assert credits.count() == 4
@@ -81,7 +81,7 @@ class TestIngestIpdb:
 
     def test_multi_credit_string(self):
         # Addams Family: "Pat Lawlor, Larry DeMar" for design
-        pm = PinballModel.objects.get(ipdb_id=61)
+        pm = MachineModel.objects.get(ipdb_id=61)
         design_credits = DesignCredit.objects.filter(model=pm, role="design")
         assert design_credits.count() == 2
         names = set(design_credits.values_list("person__name", flat=True))
@@ -94,7 +94,7 @@ class TestIngestIpdb:
 
     def test_pure_mechanical_type(self):
         # Baffle Ball has TypeShortName="" but Type="Pure Mechanical".
-        pm = PinballModel.objects.get(ipdb_id=100)
+        pm = MachineModel.objects.get(ipdb_id=100)
         source = Source.objects.get(slug="ipdb")
         type_claim = Claim.objects.get(
             model=pm, source=source, field_name="machine_type", is_active=True
@@ -105,6 +105,6 @@ class TestIngestIpdb:
         # Run again.
         call_command("ingest_ipdb", ipdb=f"{FIXTURES}/ipdb_sample.json")
         # Same 4 models.
-        assert PinballModel.objects.count() == 4
+        assert MachineModel.objects.count() == 4
         # Same 6 people.
         assert Person.objects.count() == 6

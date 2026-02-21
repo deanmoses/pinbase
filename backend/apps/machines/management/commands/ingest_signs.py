@@ -4,7 +4,7 @@ Asserts Claims for editorial fields (name, year, month, manufacturer,
 manufacturer address, production quantity, educational text, sources/notes)
 and creates DesignCredit records from the Heading/Info columns.
 
-Matches PinballModels by IPDB ID. Rows without an IPDB ID are skipped.
+Matches MachineModels by IPDB ID. Rows without an IPDB ID are skipped.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from django.core.management.base import BaseCommand
 
 from apps.machines.ingestion.bulk_utils import generate_unique_slug
 from apps.machines.ingestion.parsers import parse_credit_string
-from apps.machines.models import Claim, DesignCredit, Person, PinballModel, Source
+from apps.machines.models import Claim, DesignCredit, Person, MachineModel, Source
 
 logger = logging.getLogger(__name__)
 
@@ -94,8 +94,8 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Processing {len(rows)} rows...")
 
-        by_ipdb_id: dict[int, PinballModel] = {
-            pm.ipdb_id: pm for pm in PinballModel.objects.filter(ipdb_id__isnull=False)
+        by_ipdb_id: dict[int, MachineModel] = {
+            pm.ipdb_id: pm for pm in MachineModel.objects.filter(ipdb_id__isnull=False)
         }
 
         pending_claims: list[Claim] = []
@@ -119,7 +119,7 @@ class Command(BaseCommand):
             if not pm:
                 title = row.get("Title", "?")
                 logger.warning(
-                    "No PinballModel for IPDB id %s (%s), skipping", ipdb_id, title
+                    "No MachineModel for IPDB id %s (%s), skipping", ipdb_id, title
                 )
                 skipped += 1
                 continue
@@ -143,7 +143,7 @@ class Command(BaseCommand):
 
     def _collect_claims(
         self,
-        pm: PinballModel,
+        pm: MachineModel,
         row: dict,
         pending_claims: list[Claim],
         credit_queue: list[tuple[int, str, str]],

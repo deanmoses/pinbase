@@ -3,7 +3,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.machines.models import Claim, PinballModel, Source
+from apps.machines.models import Claim, MachineModel, Source
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ def low_priority_source(db):
 
 @pytest.fixture
 def pm(db):
-    return PinballModel.objects.create(name="Medieval Madness", year=1997)
+    return MachineModel.objects.create(name="Medieval Madness", year=1997)
 
 
 @pytest.mark.django_db
@@ -127,7 +127,7 @@ class TestPatchClaimsPersistence:
         pm.refresh_from_db()
         assert pm.year == 1997
 
-        # User (priority 100) claims year = 2000 — should win
+        # User (priority 10000) claims year = 2000 — should win
         client.force_login(user)
         resp = client.patch(
             f"/api/models/{pm.slug}/claims/",
@@ -151,7 +151,7 @@ class TestUserClaimResolution:
         from apps.machines.resolve import resolve_model
 
         Claim.objects.assert_claim(pm, "year", 1990, source=low_priority_source)
-        Claim.objects.assert_claim(pm, "year", 2000, user=user)  # priority 100 > 10
+        Claim.objects.assert_claim(pm, "year", 2000, user=user)  # priority 10000 > 10
 
         resolved = resolve_model(pm)
         assert resolved.year == 2000
@@ -161,10 +161,12 @@ class TestUserClaimResolution:
 
         # Source with very high priority
         high_source = Source.objects.create(
-            name="HighPri", source_type="editorial", priority=500
+            name="HighPri", source_type="editorial", priority=50000
         )
         Claim.objects.assert_claim(pm, "year", 1990, source=high_source)
-        Claim.objects.assert_claim(pm, "year", 2000, user=user)  # priority 100 < 500
+        Claim.objects.assert_claim(
+            pm, "year", 2000, user=user
+        )  # priority 10000 < 50000
 
         resolved = resolve_model(pm)
         assert resolved.year == 1990

@@ -4,10 +4,10 @@ from .models import (
     Claim,
     DesignCredit,
     MachineGroup,
+    MachineModel,
     Manufacturer,
     ManufacturerEntity,
     Person,
-    PinballModel,
     Source,
 )
 
@@ -112,13 +112,13 @@ class ManufacturerAdmin(admin.ModelAdmin):
 
 @admin.register(MachineGroup)
 class MachineGroupAdmin(admin.ModelAdmin):
-    list_display = ("name", "shortname", "opdb_id", "machine_count")
-    search_fields = ("name", "shortname", "opdb_id")
+    list_display = ("name", "short_name", "opdb_id", "machine_model_count")
+    search_fields = ("name", "short_name", "opdb_id")
     prepopulated_fields = {"slug": ("name",)}
 
-    @admin.display(description="Machines")
-    def machine_count(self, obj):
-        return obj.machines.count()
+    @admin.display(description="Machine Models")
+    def machine_model_count(self, obj):
+        return obj.machine_models.count()
 
 
 @admin.register(Person)
@@ -132,8 +132,8 @@ class PersonAdmin(admin.ModelAdmin):
         return obj.credits.count()
 
 
-@admin.register(PinballModel)
-class PinballModelAdmin(admin.ModelAdmin):
+@admin.register(MachineModel)
+class MachineModelAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "manufacturer",

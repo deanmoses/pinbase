@@ -1,6 +1,6 @@
-"""Claim → PinballModel resolution logic.
+"""Claim → MachineModel resolution logic.
 
-Given a PinballModel, fetch all active claims, pick the winner per field
+Given a MachineModel, fetch all active claims, pick the winner per field
 (highest source priority, most recent if tied), and write back the resolved
 values.
 """
@@ -15,11 +15,11 @@ from django.db import models
 from django.db.models import Case, F, IntegerField, Value, When
 from django.utils import timezone
 
-from .models import Claim, MachineGroup, Manufacturer, ManufacturerEntity, PinballModel
+from .models import Claim, MachineGroup, MachineModel, Manufacturer, ManufacturerEntity
 
 logger = logging.getLogger(__name__)
 
-# Fields on PinballModel that can be set directly from a claim value.
+# Fields on MachineModel that can be set directly from a claim value.
 # Maps field_name (as stored in Claim.field_name) → model attribute name.
 DIRECT_FIELDS: dict[str, str] = {
     "name": "name",
@@ -144,16 +144,16 @@ def _resolve_manufacturer(value, source_slug: str = "") -> Manufacturer | None:
     return None
 
 
-def resolve_model(pinball_model: PinballModel) -> PinballModel:
-    """Resolve all active claims into the given PinballModel's fields.
+def resolve_model(machine_model: MachineModel) -> MachineModel:
+    """Resolve all active claims into the given MachineModel's fields.
 
     Picks the winning claim per field_name: highest effective priority
     (from source or user profile), then most recent created_at as tiebreaker.
 
-    Returns the saved PinballModel.
+    Returns the saved MachineModel.
     """
     claims = (
-        Claim.objects.filter(model=pinball_model, is_active=True)
+        Claim.objects.filter(model=machine_model, is_active=True)
         .select_related("source", "user__profile")
         .annotate(
             effective_priority=Case(
@@ -174,61 +174,61 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
 
     # Reset all resolvable fields to defaults before applying winners.
     # This ensures deactivated claims don't leave stale values.
-    pinball_model.manufacturer = None
-    pinball_model.group = None
+    machine_model.manufacturer = None
+    machine_model.group = None
     for attr in DIRECT_FIELDS.values():
-        field = pinball_model._meta.get_field(attr)
+        field = machine_model._meta.get_field(attr)
         if hasattr(field, "default") and field.default is not models.NOT_PROVIDED:
-            setattr(pinball_model, attr, field.default)
+            setattr(machine_model, attr, field.default)
         elif field.null:
-            setattr(pinball_model, attr, None)
+            setattr(machine_model, attr, None)
         else:
-            setattr(pinball_model, attr, "")
+            setattr(machine_model, attr, "")
     extra_data: dict = {}
 
     # Apply winners to the model.
     for field_name, claim in winners.items():
         if field_name == "manufacturer":
-            pinball_model.manufacturer = _resolve_manufacturer(
+            machine_model.manufacturer = _resolve_manufacturer(
                 claim.value, source_slug=claim.source.slug if claim.source else ""
             )
         elif field_name == "group":
-            pinball_model.group = _resolve_group(claim.value)
+            machine_model.group = _resolve_group(claim.value)
         elif field_name in DIRECT_FIELDS:
             attr = DIRECT_FIELDS[field_name]
-            setattr(pinball_model, attr, _coerce(field_name, claim.value))
+            setattr(machine_model, attr, _coerce(field_name, claim.value))
         else:
             # Goes into extra_data catch-all.
             extra_data[field_name] = claim.value
 
-    pinball_model.extra_data = extra_data
+    machine_model.extra_data = extra_data
 
     # Guard against UNIQUE constraint on opdb_id: if another model already
     # owns this opdb_id, clear it rather than crashing.
-    if pinball_model.opdb_id:
+    if machine_model.opdb_id:
         conflict = (
-            PinballModel.objects.filter(opdb_id=pinball_model.opdb_id)
-            .exclude(pk=pinball_model.pk)
+            MachineModel.objects.filter(opdb_id=machine_model.opdb_id)
+            .exclude(pk=machine_model.pk)
             .first()
         )
         if conflict:
             logger.warning(
                 "Cannot resolve opdb_id=%s onto '%s' (pk=%s): "
                 "already owned by '%s' (pk=%s)",
-                pinball_model.opdb_id,
-                pinball_model.name,
-                pinball_model.pk,
+                machine_model.opdb_id,
+                machine_model.name,
+                machine_model.pk,
                 conflict.name,
                 conflict.pk,
             )
-            pinball_model.opdb_id = None
+            machine_model.opdb_id = None
 
-    pinball_model.save()
-    return pinball_model
+    machine_model.save()
+    return machine_model
 
 
 def resolve_all() -> int:
-    """Re-resolve every PinballModel from its claims (bulk-optimized).
+    """Re-resolve every MachineModel from its claims (bulk-optimized).
 
     Pre-fetches all lookup tables and claims in ~4 queries, resolves
     in memory, then writes back with a single bulk_update().
@@ -241,8 +241,8 @@ def resolve_all() -> int:
     # 2. Pre-fetch all active claims, grouped by model_id (~1 query).
     claims_by_model = _build_claims_by_model()
 
-    # 3. Load all PinballModels (~1 query).
-    all_models = list(PinballModel.objects.all())
+    # 3. Load all MachineModels (~1 query).
+    all_models = list(MachineModel.objects.all())
 
     # 4. Resolve each model in memory.
     for pm in all_models:
@@ -267,7 +267,7 @@ def resolve_all() -> int:
     # batch_size=100 is optimal for SQLite (CASE WHEN overhead grows with
     # batch size × field count). PostgreSQL uses a more efficient UPDATE FROM
     # VALUES syntax and handles larger batches fine.
-    PinballModel.objects.bulk_update(all_models, update_fields, batch_size=100)
+    MachineModel.objects.bulk_update(all_models, update_fields, batch_size=100)
 
     return len(all_models)
 
@@ -286,7 +286,7 @@ def _get_field_defaults() -> dict[str, Any]:
         return _field_defaults
     defaults: dict[str, Any] = {}
     for attr in DIRECT_FIELDS.values():
-        field = PinballModel._meta.get_field(attr)
+        field = MachineModel._meta.get_field(attr)
         if hasattr(field, "default") and field.default is not models.NOT_PROVIDED:
             defaults[attr] = (
                 field.default() if callable(field.default) else field.default
@@ -419,13 +419,13 @@ def _resolve_group_bulk(
 
 
 def _apply_resolution(
-    pm: PinballModel,
+    pm: MachineModel,
     winners: dict[str, Claim],
     field_defaults: dict[str, Any],
     mfr_lookups: tuple,
     group_lookup: dict[str, MachineGroup],
 ) -> None:
-    """Apply claim winners to a PinballModel instance in memory."""
+    """Apply claim winners to a MachineModel instance in memory."""
     # Reset FK fields.
     pm.manufacturer = None
     pm.group = None
@@ -456,12 +456,12 @@ def _apply_resolution(
     pm.extra_data = extra_data
 
 
-def _resolve_opdb_conflicts(all_models: list[PinballModel]) -> None:
+def _resolve_opdb_conflicts(all_models: list[MachineModel]) -> None:
     """Clear opdb_id on models that would cause UNIQUE constraint violations.
 
     First model encountered (by queryset order) wins ownership.
     """
-    seen_opdb_ids: dict[str, PinballModel] = {}
+    seen_opdb_ids: dict[str, MachineModel] = {}
     for pm in all_models:
         if not pm.opdb_id:
             continue

@@ -1,6 +1,6 @@
 """Ingest pinball machines from an OPDB JSON dump.
 
-Matches existing PinballModels by ipdb_id cross-reference, then by opdb_id,
+Matches existing MachineModels by ipdb_id cross-reference, then by opdb_id,
 then creates new records. Ingests both machines and aliases (with alias_of FK).
 Optionally processes groups and changelog data.
 
@@ -21,7 +21,7 @@ from apps.machines.ingestion.parsers import (
     parse_opdb_date,
     parse_opdb_group_id,
 )
-from apps.machines.models import Claim, MachineGroup, PinballModel, Source
+from apps.machines.models import Claim, MachineGroup, MachineModel, Source
 
 logger = logging.getLogger(__name__)
 
@@ -80,21 +80,21 @@ class Command(BaseCommand):
             f"Processing {len(machines)} OPDB machines + {len(aliases)} aliases..."
         )
 
-        # --- Pre-fetch all PinballModels into lookup dicts ---
-        by_ipdb_id: dict[int, PinballModel] = {
-            pm.ipdb_id: pm for pm in PinballModel.objects.filter(ipdb_id__isnull=False)
+        # --- Pre-fetch all MachineModels into lookup dicts ---
+        by_ipdb_id: dict[int, MachineModel] = {
+            pm.ipdb_id: pm for pm in MachineModel.objects.filter(ipdb_id__isnull=False)
         }
-        by_opdb_id: dict[str, PinballModel] = {
-            pm.opdb_id: pm for pm in PinballModel.objects.filter(opdb_id__isnull=False)
+        by_opdb_id: dict[str, MachineModel] = {
+            pm.opdb_id: pm for pm in MachineModel.objects.filter(opdb_id__isnull=False)
         }
         existing_slugs: set[str] = set(
-            PinballModel.objects.values_list("slug", flat=True)
+            MachineModel.objects.values_list("slug", flat=True)
         )
 
         # --- Phase 1a: Match/create machines ---
-        new_models: list[PinballModel] = []
-        models_needing_opdb_update: list[PinballModel] = []
-        machine_models: list[tuple[PinballModel, dict]] = []
+        new_models: list[MachineModel] = []
+        models_needing_opdb_update: list[MachineModel] = []
+        machine_models: list[tuple[MachineModel, dict]] = []
         matched = 0
         created = 0
         skipped = 0
@@ -133,7 +133,7 @@ class Command(BaseCommand):
                         )
                 elif pm.opdb_id and pm.opdb_id != opdb_id:
                     logger.warning(
-                        "PinballModel %r already has opdb_id=%s, skipping %s",
+                        "MachineModel %r already has opdb_id=%s, skipping %s",
                         pm.name,
                         pm.opdb_id,
                         opdb_id,
@@ -141,7 +141,7 @@ class Command(BaseCommand):
             else:
                 created += 1
                 slug = generate_unique_slug(name, existing_slugs)
-                pm = PinballModel(name=name, opdb_id=opdb_id, slug=slug)
+                pm = MachineModel(name=name, opdb_id=opdb_id, slug=slug)
                 new_models.append(pm)
                 by_opdb_id[opdb_id] = pm
                 if ipdb_id:
@@ -150,9 +150,9 @@ class Command(BaseCommand):
             machine_models.append((pm, rec))
 
         if new_models:
-            PinballModel.objects.bulk_create(new_models)
+            MachineModel.objects.bulk_create(new_models)
         if models_needing_opdb_update:
-            PinballModel.objects.bulk_update(models_needing_opdb_update, ["opdb_id"])
+            MachineModel.objects.bulk_update(models_needing_opdb_update, ["opdb_id"])
 
         self.stdout.write(
             f"  Machines — Matched: {matched}, Created: {created}, Skipped: {skipped}"
@@ -163,9 +163,9 @@ class Command(BaseCommand):
             )
 
         # --- Phase 1b: Match/create aliases ---
-        new_alias_models: list[PinballModel] = []
-        alias_models_needing_update: list[PinballModel] = []
-        alias_models: list[tuple[PinballModel, dict]] = []
+        new_alias_models: list[MachineModel] = []
+        alias_models_needing_update: list[MachineModel] = []
+        alias_models: list[tuple[MachineModel, dict]] = []
         alias_linked = 0
         alias_created = 0
         alias_skipped = 0
@@ -217,7 +217,7 @@ class Command(BaseCommand):
             else:
                 alias_created += 1
                 slug = generate_unique_slug(name, existing_slugs)
-                pm = PinballModel(
+                pm = MachineModel(
                     name=name, opdb_id=opdb_id, alias_of=parent, slug=slug
                 )
                 new_alias_models.append(pm)
@@ -228,9 +228,9 @@ class Command(BaseCommand):
             alias_models.append((pm, rec))
 
         if new_alias_models:
-            PinballModel.objects.bulk_create(new_alias_models)
+            MachineModel.objects.bulk_create(new_alias_models)
         if alias_models_needing_update:
-            PinballModel.objects.bulk_update(
+            MachineModel.objects.bulk_update(
                 alias_models_needing_update, ["opdb_id", "alias_of_id"]
             )
 
@@ -300,9 +300,9 @@ class Command(BaseCommand):
             replacement_id = entry.get("opdb_id_replacement")
 
             if action == "move" and deleted_id and replacement_id:
-                updated = PinballModel.objects.filter(opdb_id=deleted_id)
+                updated = MachineModel.objects.filter(opdb_id=deleted_id)
                 # Only update if the replacement isn't already taken.
-                if not PinballModel.objects.filter(opdb_id=replacement_id).exists():
+                if not MachineModel.objects.filter(opdb_id=replacement_id).exists():
                     count = updated.update(opdb_id=replacement_id)
                     if count:
                         self.stdout.write(
@@ -316,7 +316,7 @@ class Command(BaseCommand):
                         replacement_id,
                     )
             elif action == "delete" and deleted_id:
-                if PinballModel.objects.filter(opdb_id=deleted_id).exists():
+                if MachineModel.objects.filter(opdb_id=deleted_id).exists():
                     logger.info(
                         "Changelog delete %s: model exists but not deleting",
                         deleted_id,
@@ -360,14 +360,14 @@ class Command(BaseCommand):
 
         for opdb_id, rec in groups_by_id.items():
             name = rec.get("name", "")
-            shortname = rec.get("shortname") or ""
+            short_name = rec.get("shortname") or ""
 
             existing = existing_groups.get(opdb_id)
             if existing:
                 # Check if update is needed.
-                if existing.name != name or existing.shortname != shortname:
+                if existing.name != name or existing.short_name != short_name:
                     existing.name = name
-                    existing.shortname = shortname
+                    existing.short_name = short_name
                     updated_groups.append(existing)
                 else:
                     unchanged += 1
@@ -378,7 +378,7 @@ class Command(BaseCommand):
                         opdb_id=opdb_id,
                         name=name,
                         slug=slug,
-                        shortname=shortname,
+                        short_name=short_name,
                     )
                 )
 
@@ -388,7 +388,7 @@ class Command(BaseCommand):
         if new_groups:
             MachineGroup.objects.bulk_create(new_groups)
         if updated_groups:
-            MachineGroup.objects.bulk_update(updated_groups, ["name", "shortname"])
+            MachineGroup.objects.bulk_update(updated_groups, ["name", "short_name"])
 
         self.stdout.write(
             f"  Groups: {groups_created} created, {groups_updated} updated, "
@@ -402,7 +402,7 @@ class Command(BaseCommand):
 
     def _collect_claims(
         self,
-        pm: PinballModel,
+        pm: MachineModel,
         rec: dict,
         source: Source,
         groups_by_id: dict[str, dict],

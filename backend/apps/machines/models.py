@@ -1,8 +1,8 @@
-"""Data models for the pinball machine database.
+"""Machine catalog models.
 
 Two-layer architecture:
 - Layer 1 (provenance): Source + Claim — a stream of per-field facts from multiple sources.
-- Layer 2 (resolved): PinballModel — a materialized view derived by merging claims.
+- Layer 2 (resolved): MachineModel — a materialized view derived by merging claims.
 """
 
 from __future__ import annotations
@@ -11,9 +11,48 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils.text import slugify
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-class Source(models.Model):
-    """A data origin: a database, a book, The Flip's editorial team, etc."""
+
+def _unique_slug(obj, source: str, fallback: str = "item") -> str:
+    """Generate a unique slug with counter disambiguation.
+
+    Appends a counter suffix (-2, -3, …) until the slug is unique within
+    the model's table.
+    """
+    base = slugify(source) or fallback
+    slug = base
+    counter = 2
+    while type(obj).objects.filter(slug=slug).exclude(pk=obj.pk).exists():
+        slug = f"{base}-{counter}"
+        counter += 1
+    return slug
+
+
+# ---------------------------------------------------------------------------
+# Abstract base models
+# ---------------------------------------------------------------------------
+
+
+class TimeStampedModel(models.Model):
+    """Abstract base adding created_at / updated_at timestamps."""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+# ---------------------------------------------------------------------------
+# Source / Claim (provenance layer)
+# ---------------------------------------------------------------------------
+
+
+class Source(TimeStampedModel):
+    """A data origin point (external database, book, editorial team, etc.)."""
 
     class SourceType(models.TextChoices):
         DATABASE = "database", "Database"
@@ -24,11 +63,11 @@ class Source(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     source_type = models.CharField(
-        max_length=20, choices=SourceType.choices, default=SourceType.OTHER
+        max_length=20, choices=SourceType.choices, default=SourceType.DATABASE
     )
     priority = models.PositiveSmallIntegerField(
         default=0,
-        help_text="Higher wins conflicts. Editorial sources should get the highest priority.",
+        help_text="Higher priority wins when claims conflict.",
     )
     url = models.URLField(blank=True)
     description = models.TextField(blank=True)
@@ -41,14 +80,14 @@ class Source(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name) or "source"
+            self.slug = _unique_slug(self, self.name, "source")
         super().save(*args, **kwargs)
 
 
 class ClaimManager(models.Manager):
     def assert_claim(
         self,
-        model: PinballModel,
+        model: MachineModel,
         field_name: str,
         value,
         citation: str = "",
@@ -146,14 +185,14 @@ class ClaimManager(models.Manager):
 
 
 class Claim(models.Model):
-    """A single fact asserted by a source or a user about a single pinball model.
+    """A single fact asserted by a source or a user about a single machine model.
 
     Exactly one of ``source`` or ``user`` must be set — enforced by a CheckConstraint
     and by ClaimManager.assert_claim().
     """
 
     model = models.ForeignKey(
-        "PinballModel",
+        "MachineModel",
         on_delete=models.CASCADE,
         related_name="claims",
     )
@@ -211,7 +250,12 @@ class Claim(models.Model):
         return f"{author}: {self.model.name}.{self.field_name}"
 
 
-class Manufacturer(models.Model):
+# ---------------------------------------------------------------------------
+# Manufacturer
+# ---------------------------------------------------------------------------
+
+
+class Manufacturer(TimeStampedModel):
     """A pinball machine brand (user-facing grouping).
 
     Corporate incarnations are tracked separately in ManufacturerEntity.
@@ -243,17 +287,11 @@ class Manufacturer(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(self.trade_name or self.name) or "manufacturer"
-            slug = base
-            counter = 2
-            while Manufacturer.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base}-{counter}"
-                counter += 1
-            self.slug = slug
+            self.slug = _unique_slug(self, self.trade_name or self.name, "manufacturer")
         super().save(*args, **kwargs)
 
 
-class ManufacturerEntity(models.Model):
+class ManufacturerEntity(TimeStampedModel):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
@@ -292,13 +330,18 @@ class ManufacturerEntity(models.Model):
         return self.name
 
 
-class MachineGroup(models.Model):
-    """A franchise/title grouping of related pinball machines.
+# ---------------------------------------------------------------------------
+# MachineGroup
+# ---------------------------------------------------------------------------
+
+
+class MachineGroup(TimeStampedModel):
+    """A franchise/title grouping of related machine models.
 
     OPDB defines groups (e.g., "Medieval Madness" spans the 1997 original,
     the 2015 remake, and LE/SE variants). Like Manufacturer, this is a direct
     reference entity — no source contests the group's identity itself.
-    Assignment of machines to groups goes through the claims system.
+    Assignment of machine models to groups goes through the claims system.
     """
 
     opdb_id = models.CharField(
@@ -309,7 +352,7 @@ class MachineGroup(models.Model):
     )
     name = models.CharField(max_length=300)
     slug = models.SlugField(max_length=300, unique=True, blank=True)
-    shortname = models.CharField(
+    short_name = models.CharField(
         max_length=50,
         blank=True,
         help_text='Common abbreviation, e.g., "MM" for Medieval Madness',
@@ -319,23 +362,22 @@ class MachineGroup(models.Model):
         ordering = ["name"]
 
     def __str__(self) -> str:
-        if self.shortname:
-            return f"{self.name} ({self.shortname})"
+        if self.short_name:
+            return f"{self.name} ({self.short_name})"
         return self.name
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(self.name) or "group"
-            slug = base
-            counter = 2
-            while MachineGroup.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base}-{counter}"
-                counter += 1
-            self.slug = slug
+            self.slug = _unique_slug(self, self.name, "group")
         super().save(*args, **kwargs)
 
 
-class PinballModel(models.Model):
+# ---------------------------------------------------------------------------
+# MachineModel
+# ---------------------------------------------------------------------------
+
+
+class MachineModel(TimeStampedModel):
     """A pinball machine title/design — the resolved/materialized view.
 
     Fields are derived from resolving claims. The resolution logic picks the
@@ -374,7 +416,7 @@ class PinballModel(models.Model):
     group = models.ForeignKey(
         MachineGroup,
         on_delete=models.SET_NULL,
-        related_name="machines",
+        related_name="machine_models",
         null=True,
         blank=True,
         help_text="Franchise/title grouping (resolved from claims).",
@@ -385,7 +427,7 @@ class PinballModel(models.Model):
         related_name="aliases",
         null=True,
         blank=True,
-        help_text="Parent machine if this is a cosmetic/LE variant.",
+        help_text="Parent machine model if this is a cosmetic/LE variant.",
     )
 
     # Core filterable fields
@@ -427,10 +469,6 @@ class PinballModel(models.Model):
     # Catch-all for fields without dedicated columns
     extra_data = models.JSONField(default=dict, blank=True)
 
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         ordering = ["name"]
         indexes = [
@@ -449,24 +487,22 @@ class PinballModel(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            # Disambiguate: star-trek-bally-1979
             parts = [self.name]
             if self.manufacturer:
                 parts.append(self.manufacturer.trade_name or self.manufacturer.name)
             if self.year:
                 parts.append(str(self.year))
-            base = slugify(" ".join(parts)) or "model"
-            slug = base
-            counter = 2
-            while PinballModel.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base}-{counter}"
-                counter += 1
-            self.slug = slug
+            self.slug = _unique_slug(self, " ".join(parts), "model")
         super().save(*args, **kwargs)
 
 
-class Person(models.Model):
-    """A person involved in pinball design (designer, artist, etc.)."""
+# ---------------------------------------------------------------------------
+# Person / DesignCredit
+# ---------------------------------------------------------------------------
+
+
+class Person(TimeStampedModel):
+    """A person involved in pinball machine design (designer, artist, etc.)."""
 
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
@@ -481,18 +517,12 @@ class Person(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(self.name) or "person"
-            slug = base
-            counter = 2
-            while Person.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base}-{counter}"
-                counter += 1
-            self.slug = slug
+            self.slug = _unique_slug(self, self.name, "person")
         super().save(*args, **kwargs)
 
 
-class DesignCredit(models.Model):
-    """Links a person to a pinball model with a specific role."""
+class DesignCredit(TimeStampedModel):
+    """Links a person to a machine model with a specific role."""
 
     class Role(models.TextChoices):
         CONCEPT = "concept", "Concept"
@@ -506,7 +536,7 @@ class DesignCredit(models.Model):
         OTHER = "other", "Other"
 
     model = models.ForeignKey(
-        PinballModel,
+        MachineModel,
         on_delete=models.CASCADE,
         related_name="credits",
     )

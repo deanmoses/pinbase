@@ -14,7 +14,7 @@ class TestUserProfileAutoCreate:
 
     def test_profile_default_priority(self):
         user = User.objects.create_user(username="testuser2", password="pass")
-        assert user.profile.priority == 100
+        assert user.profile.priority == 10000
 
     def test_profile_deleted_with_user(self):
         user = User.objects.create_user(username="testuser3", password="pass")

@@ -10,7 +10,7 @@ from apps.machines.models import (
     Manufacturer,
     ManufacturerEntity,
     Person,
-    PinballModel,
+    MachineModel,
     Source,
 )
 
@@ -53,8 +53,8 @@ def person(db):
 
 
 @pytest.fixture
-def pinball_model(db, manufacturer):
-    return PinballModel.objects.create(
+def machine_model(db, manufacturer):
+    return MachineModel.objects.create(
         name="Medieval Madness",
         manufacturer=manufacturer,
         year=1997,
@@ -66,7 +66,7 @@ def pinball_model(db, manufacturer):
 
 @pytest.fixture
 def another_model(db, stern):
-    return PinballModel.objects.create(
+    return MachineModel.objects.create(
         name="The Mandalorian",
         manufacturer=stern,
         year=2021,
@@ -77,7 +77,7 @@ def another_model(db, stern):
 
 
 class TestModelsAPI:
-    def test_list_models(self, client, pinball_model):
+    def test_list_models(self, client, machine_model):
         resp = client.get("/api/models/")
         assert resp.status_code == 200
         data = resp.json()
@@ -85,14 +85,14 @@ class TestModelsAPI:
         assert data["items"][0]["name"] == "Medieval Madness"
 
     def test_list_models_filter_manufacturer(
-        self, client, pinball_model, another_model
+        self, client, machine_model, another_model
     ):
         resp = client.get("/api/models/?manufacturer=williams")
         data = resp.json()
         assert data["count"] == 1
         assert data["items"][0]["name"] == "Medieval Madness"
 
-    def test_list_models_filter_type(self, client, pinball_model):
+    def test_list_models_filter_type(self, client, machine_model):
         resp = client.get("/api/models/?type=SS")
         data = resp.json()
         assert data["count"] == 1
@@ -101,37 +101,37 @@ class TestModelsAPI:
         data = resp.json()
         assert data["count"] == 0
 
-    def test_list_models_filter_year_range(self, client, pinball_model, another_model):
+    def test_list_models_filter_year_range(self, client, machine_model, another_model):
         resp = client.get("/api/models/?year_min=2000&year_max=2025")
         data = resp.json()
         assert data["count"] == 1
         assert data["items"][0]["name"] == "The Mandalorian"
 
-    def test_list_models_search(self, client, pinball_model, another_model):
+    def test_list_models_search(self, client, machine_model, another_model):
         resp = client.get("/api/models/?search=Medieval")
         data = resp.json()
         assert data["count"] == 1
         assert data["items"][0]["name"] == "Medieval Madness"
 
-    def test_list_models_search_manufacturer(self, client, pinball_model):
+    def test_list_models_search_manufacturer(self, client, machine_model):
         resp = client.get("/api/models/?search=Williams")
         data = resp.json()
         assert data["count"] == 1
 
-    def test_list_models_filter_person(self, client, pinball_model, person):
-        DesignCredit.objects.create(model=pinball_model, person=person, role="design")
+    def test_list_models_filter_person(self, client, machine_model, person):
+        DesignCredit.objects.create(model=machine_model, person=person, role="design")
         resp = client.get("/api/models/?person=pat-lawlor")
         data = resp.json()
         assert data["count"] == 1
 
-    def test_list_models_ordering(self, client, pinball_model, another_model):
+    def test_list_models_ordering(self, client, machine_model, another_model):
         resp = client.get("/api/models/?ordering=-year")
         data = resp.json()
         assert data["items"][0]["name"] == "The Mandalorian"
 
-    def test_list_models_ordering_nulls_last(self, client, pinball_model, db):
+    def test_list_models_ordering_nulls_last(self, client, machine_model, db):
         """Models with no year sort after models with a year."""
-        PinballModel.objects.create(name="Unknown Year Game", machine_type="SS")
+        MachineModel.objects.create(name="Unknown Year Game", machine_type="SS")
         resp = client.get("/api/models/?ordering=-year")
         data = resp.json()
         names = [m["name"] for m in data["items"]]
@@ -139,10 +139,10 @@ class TestModelsAPI:
 
     def test_list_models_ordering_stable(self, client, manufacturer, db):
         """Models with the same year are sorted by name for stability."""
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Zeta", manufacturer=manufacturer, year=2000, machine_type="SS"
         )
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Alpha", manufacturer=manufacturer, year=2000, machine_type="SS"
         )
         resp = client.get("/api/models/?ordering=-year")
@@ -150,12 +150,12 @@ class TestModelsAPI:
         names = [m["name"] for m in data["items"]]
         assert names == ["Alpha", "Zeta"]
 
-    def test_list_models_excludes_aliases(self, client, pinball_model):
-        PinballModel.objects.create(
+    def test_list_models_excludes_aliases(self, client, machine_model):
+        MachineModel.objects.create(
             name="Medieval Madness (LE)",
             machine_type="SS",
             display_type="dmd",
-            alias_of=pinball_model,
+            alias_of=machine_model,
         )
         resp = client.get("/api/models/")
         data = resp.json()
@@ -163,7 +163,7 @@ class TestModelsAPI:
         assert data["items"][0]["name"] == "Medieval Madness"
 
     def test_list_models_thumbnail(self, client, manufacturer, db):
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="With Image",
             manufacturer=manufacturer,
             machine_type="SS",
@@ -174,13 +174,13 @@ class TestModelsAPI:
         data = resp.json()
         assert data["items"][0]["thumbnail_url"] == "https://img.opdb.org/md.jpg"
 
-    def test_get_model_detail(self, client, pinball_model, person, source):
-        DesignCredit.objects.create(model=pinball_model, person=person, role="design")
+    def test_get_model_detail(self, client, machine_model, person, source):
+        DesignCredit.objects.create(model=machine_model, person=person, role="design")
         Claim.objects.assert_claim(
-            pinball_model, "year", 1997, "IPDB entry", source=source
+            machine_model, "year", 1997, "IPDB entry", source=source
         )
 
-        resp = client.get(f"/api/models/{pinball_model.slug}")
+        resp = client.get(f"/api/models/{machine_model.slug}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Medieval Madness"
@@ -192,7 +192,7 @@ class TestModelsAPI:
         assert year_claims[0]["is_winner"] is True
 
     def test_get_model_detail_images(self, client, manufacturer, db):
-        pm = PinballModel.objects.create(
+        pm = MachineModel.objects.create(
             name="With Image",
             manufacturer=manufacturer,
             machine_type="SS",
@@ -204,14 +204,14 @@ class TestModelsAPI:
         assert data["thumbnail_url"] == "https://img.opdb.org/md.jpg"
         assert data["hero_image_url"] == "https://img.opdb.org/lg.jpg"
 
-    def test_get_model_detail_no_images(self, client, pinball_model):
-        resp = client.get(f"/api/models/{pinball_model.slug}")
+    def test_get_model_detail_no_images(self, client, machine_model):
+        resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
         assert data["thumbnail_url"] is None
         assert data["hero_image_url"] is None
 
     def test_get_model_detail_features(self, client, manufacturer, db):
-        pm = PinballModel.objects.create(
+        pm = MachineModel.objects.create(
             name="With Features",
             manufacturer=manufacturer,
             machine_type="SS",
@@ -222,33 +222,33 @@ class TestModelsAPI:
         data = resp.json()
         assert data["features"] == ["Castle attack", "Gold trim"]
 
-    def test_get_model_detail_aliases(self, client, pinball_model):
-        PinballModel.objects.create(
+    def test_get_model_detail_aliases(self, client, machine_model):
+        MachineModel.objects.create(
             name="Medieval Madness (LE)",
             machine_type="SS",
             display_type="dmd",
-            alias_of=pinball_model,
+            alias_of=machine_model,
             extra_data={"features": ["Gold trim"]},
         )
-        resp = client.get(f"/api/models/{pinball_model.slug}")
+        resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
         assert len(data["aliases"]) == 1
         assert data["aliases"][0]["name"] == "Medieval Madness (LE)"
         assert data["aliases"][0]["features"] == ["Gold trim"]
 
-    def test_get_model_detail_group(self, client, pinball_model, db):
+    def test_get_model_detail_group(self, client, machine_model, db):
         group = MachineGroup.objects.create(
-            name="Medieval Madness", opdb_id="G5pe4", shortname="MM"
+            name="Medieval Madness", opdb_id="G5pe4", short_name="MM"
         )
-        pinball_model.group = group
-        pinball_model.save()
-        resp = client.get(f"/api/models/{pinball_model.slug}")
+        machine_model.group = group
+        machine_model.save()
+        resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
         assert data["group_name"] == "Medieval Madness"
         assert data["group_slug"] == group.slug
 
-    def test_get_model_detail_no_group(self, client, pinball_model):
-        resp = client.get(f"/api/models/{pinball_model.slug}")
+    def test_get_model_detail_no_group(self, client, machine_model):
+        resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
         assert data["group_name"] is None
         assert data["group_slug"] is None
@@ -262,12 +262,12 @@ class TestGroupsAPI:
     @pytest.fixture
     def group(self, db):
         return MachineGroup.objects.create(
-            name="Medieval Madness", opdb_id="G5pe4", shortname="MM"
+            name="Medieval Madness", opdb_id="G5pe4", short_name="MM"
         )
 
     @pytest.fixture
     def group_with_machines(self, group, manufacturer):
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Medieval Madness",
             manufacturer=manufacturer,
             year=1997,
@@ -276,7 +276,7 @@ class TestGroupsAPI:
             group=group,
             extra_data={"images": SAMPLE_IMAGES},
         )
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Medieval Madness (Remake)",
             manufacturer=manufacturer,
             year=2015,
@@ -293,17 +293,17 @@ class TestGroupsAPI:
         assert data["count"] == 1
         item = data["items"][0]
         assert item["name"] == "Medieval Madness"
-        assert item["shortname"] == "MM"
+        assert item["short_name"] == "MM"
         assert item["machine_count"] == 2
 
     def test_list_groups_search(self, client, group_with_machines, db):
         MachineGroup.objects.create(
-            name="Attack From Mars", opdb_id="G1234", shortname="AFM"
+            name="Attack From Mars", opdb_id="G1234", short_name="AFM"
         )
         resp = client.get("/api/groups/?search=MM")
         data = resp.json()
         assert data["count"] == 1
-        assert data["items"][0]["shortname"] == "MM"
+        assert data["items"][0]["short_name"] == "MM"
 
     def test_list_groups_thumbnail(self, client, group_with_machines):
         resp = client.get("/api/groups/")
@@ -324,8 +324,8 @@ class TestGroupsAPI:
         assert len(data["machines"]) == 2
 
     def test_get_group_detail_excludes_aliases(self, client, group_with_machines):
-        parent = PinballModel.objects.get(name="Medieval Madness")
-        PinballModel.objects.create(
+        parent = MachineModel.objects.get(name="Medieval Madness")
+        MachineModel.objects.create(
             name="Medieval Madness (LE)",
             machine_type="SS",
             display_type="dmd",
@@ -340,8 +340,8 @@ class TestGroupsAPI:
         assert "Medieval Madness (LE)" not in names
 
     def test_machine_count_excludes_aliases(self, client, group_with_machines):
-        parent = PinballModel.objects.get(name="Medieval Madness")
-        PinballModel.objects.create(
+        parent = MachineModel.objects.get(name="Medieval Madness")
+        MachineModel.objects.create(
             name="Medieval Madness (LE)",
             machine_type="SS",
             display_type="dmd",
@@ -358,7 +358,7 @@ class TestGroupsAPI:
 
 
 class TestManufacturersAPI:
-    def test_list_manufacturers(self, client, manufacturer, pinball_model):
+    def test_list_manufacturers(self, client, manufacturer, machine_model):
         resp = client.get("/api/manufacturers/")
         assert resp.status_code == 200
         data = resp.json()
@@ -366,7 +366,7 @@ class TestManufacturersAPI:
         assert data["items"][0]["name"] == "Williams"
         assert data["items"][0]["model_count"] == 1
 
-    def test_get_manufacturer_detail(self, client, manufacturer, pinball_model):
+    def test_get_manufacturer_detail(self, client, manufacturer, machine_model):
         ManufacturerEntity.objects.create(
             manufacturer=manufacturer,
             name="Williams Manufacturing Company",
@@ -416,13 +416,13 @@ class TestManufacturersAPI:
         self, client, manufacturer, db
     ):
         """Thumbnail comes from most recent model with a year, not a null-year model."""
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="No Year Game",
             manufacturer=manufacturer,
             machine_type="SS",
             extra_data={"images": SAMPLE_IMAGES},
         )
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Has Year Game",
             manufacturer=manufacturer,
             year=2020,
@@ -449,12 +449,12 @@ class TestManufacturersAPI:
 
     def test_get_manufacturer_detail_nulls_last(self, client, manufacturer, db):
         """Models with no year sort after models with a year in manufacturer detail."""
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="No Year Game",
             manufacturer=manufacturer,
             machine_type="SS",
         )
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Has Year Game",
             manufacturer=manufacturer,
             year=2020,
@@ -467,8 +467,8 @@ class TestManufacturersAPI:
 
 
 class TestPeopleAPI:
-    def test_list_people(self, client, person, pinball_model):
-        DesignCredit.objects.create(model=pinball_model, person=person, role="design")
+    def test_list_people(self, client, person, machine_model):
+        DesignCredit.objects.create(model=machine_model, person=person, role="design")
         resp = client.get("/api/people/")
         assert resp.status_code == 200
         data = resp.json()
@@ -476,8 +476,8 @@ class TestPeopleAPI:
         assert data["items"][0]["name"] == "Pat Lawlor"
         assert data["items"][0]["credit_count"] == 1
 
-    def test_get_person_detail(self, client, person, pinball_model):
-        DesignCredit.objects.create(model=pinball_model, person=person, role="design")
+    def test_get_person_detail(self, client, person, machine_model):
+        DesignCredit.objects.create(model=machine_model, person=person, role="design")
         resp = client.get(f"/api/people/{person.slug}")
         assert resp.status_code == 200
         data = resp.json()
@@ -494,7 +494,7 @@ class TestAllEndpointCache:
         yield
         cache.clear()
 
-    def test_models_all_caches_on_second_request(self, client, pinball_model):
+    def test_models_all_caches_on_second_request(self, client, machine_model):
         resp1 = client.get("/api/models/all/")
         assert resp1.status_code == 200
         assert cache.get(MODELS_ALL_KEY) is not None
@@ -503,20 +503,20 @@ class TestAllEndpointCache:
         resp2 = client.get("/api/models/all/")
         assert resp2.json() == resp1.json()
 
-    def test_model_save_invalidates_cache(self, client, pinball_model):
+    def test_model_save_invalidates_cache(self, client, machine_model):
         client.get("/api/models/all/")
         assert cache.get(MODELS_ALL_KEY) is not None
 
         # Saving a model triggers the signal and clears the cache.
-        pinball_model.name = "Medieval Madness LE"
-        pinball_model.save()
+        machine_model.name = "Medieval Madness LE"
+        machine_model.save()
         assert cache.get(MODELS_ALL_KEY) is None
 
-    def test_new_model_appears_after_invalidation(self, client, pinball_model, stern):
+    def test_new_model_appears_after_invalidation(self, client, machine_model, stern):
         resp1 = client.get("/api/models/all/")
         count_before = len(resp1.json())
 
-        PinballModel.objects.create(
+        MachineModel.objects.create(
             name="Godzilla", manufacturer=stern, year=2021, machine_type="SS"
         )
         # Signal should have cleared the cache, so next request rebuilds it.

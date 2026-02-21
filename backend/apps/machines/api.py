@@ -138,7 +138,7 @@ class AliasSchema(Schema):
     features: list[str] = []
 
 
-class PinballModelGridSchema(Schema):
+class MachineModelGridSchema(Schema):
     name: str
     slug: str
     year: Optional[int] = None
@@ -148,7 +148,7 @@ class PinballModelGridSchema(Schema):
     shortname: Optional[str] = None
 
 
-class PinballModelListSchema(Schema):
+class MachineModelListSchema(Schema):
     name: str
     slug: str
     manufacturer_name: Optional[str] = None
@@ -163,7 +163,7 @@ class PinballModelListSchema(Schema):
     thumbnail_url: Optional[str] = None
 
 
-class PinballModelDetailSchema(Schema):
+class MachineModelDetailSchema(Schema):
     name: str
     slug: str
     manufacturer_name: Optional[str] = None
@@ -208,7 +208,7 @@ class GroupMachineSchema(Schema):
 class GroupListSchema(Schema):
     name: str
     slug: str
-    shortname: str
+    short_name: str
     machine_count: int = 0
     thumbnail_url: Optional[str] = None
 
@@ -216,7 +216,7 @@ class GroupListSchema(Schema):
 class GroupDetailSchema(Schema):
     name: str
     slug: str
-    shortname: str
+    short_name: str
     machines: list[GroupMachineSchema]
 
 
@@ -276,9 +276,9 @@ def _build_model_list_qs(
     person: str = "",
     ordering: str = "-year",
 ):
-    from .models import PinballModel
+    from .models import MachineModel
 
-    qs = PinballModel.objects.select_related("manufacturer").filter(
+    qs = MachineModel.objects.select_related("manufacturer").filter(
         alias_of__isnull=True
     )
 
@@ -342,7 +342,7 @@ def _serialize_model_list(pm) -> dict:
 
 
 def _serialize_model_detail(pm) -> dict:
-    """Serialize a PinballModel into the detail response dict.
+    """Serialize a MachineModel into the detail response dict.
 
     Expects *pm* to have been fetched with prefetch_related for credits
     (with select_related("person")) and claims (to_attr="active_claims").
@@ -446,13 +446,13 @@ def _serialize_model_detail(pm) -> dict:
 
 def _serialize_group_list(group) -> dict:
     thumbnail_url = None
-    machines = list(group.machines.all())
+    machines = list(group.machine_models.all())
     if machines:
         thumbnail_url, _ = _extract_image_urls(machines[0].extra_data or {})
     return {
         "name": group.name,
         "slug": group.slug,
-        "shortname": group.shortname,
+        "short_name": group.short_name,
         "machine_count": group.machine_count,
         "thumbnail_url": thumbnail_url,
     }
@@ -460,7 +460,7 @@ def _serialize_group_list(group) -> dict:
 
 def _serialize_group_detail(group) -> dict:
     machines = []
-    for pm in group.machines.all():
+    for pm in group.machine_models.all():
         thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
         machines.append(
             {
@@ -476,7 +476,7 @@ def _serialize_group_detail(group) -> dict:
     return {
         "name": group.name,
         "slug": group.slug,
-        "shortname": group.shortname,
+        "short_name": group.short_name,
         "machines": machines,
     }
 
@@ -488,7 +488,7 @@ def _serialize_group_detail(group) -> dict:
 models_router = Router(tags=["models"])
 
 
-@models_router.get("/", response=list[PinballModelListSchema])
+@models_router.get("/", response=list[MachineModelListSchema])
 @paginate(PageNumberPagination, page_size=25)
 def list_models(
     request,
@@ -514,7 +514,7 @@ def list_models(
     return [_serialize_model_list(pm) for pm in qs]
 
 
-@models_router.get("/all/", response=list[PinballModelGridSchema])
+@models_router.get("/all/", response=list[MachineModelGridSchema])
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_models(request):
     """Return every non-alias model with minimal fields (no pagination)."""
@@ -542,13 +542,13 @@ def list_all_models(request):
     return result
 
 
-@models_router.get("/{slug}", response=PinballModelDetailSchema)
+@models_router.get("/{slug}", response=MachineModelDetailSchema)
 @decorate_view(cache_control(public=True, max_age=300))
 def get_model(request, slug: str):
-    from .models import Claim, DesignCredit, PinballModel
+    from .models import Claim, DesignCredit, MachineModel
 
     pm = get_object_or_404(
-        PinballModel.objects.select_related("manufacturer", "group").prefetch_related(
+        MachineModel.objects.select_related("manufacturer", "group").prefetch_related(
             "aliases",
             Prefetch(
                 "credits",
@@ -576,11 +576,11 @@ def get_model(request, slug: str):
 
 
 @models_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=PinballModelDetailSchema
+    "/{slug}/claims/", auth=django_auth, response=MachineModelDetailSchema
 )
 def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve the model."""
-    from .models import Claim, DesignCredit, PinballModel
+    from .models import Claim, DesignCredit, MachineModel
     from .resolve import DIRECT_FIELDS, resolve_model
 
     editable_fields = set(DIRECT_FIELDS.keys())
@@ -588,7 +588,7 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
     if unknown:
         raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
 
-    pm = get_object_or_404(PinballModel, slug=slug)
+    pm = get_object_or_404(MachineModel, slug=slug)
 
     for field_name, value in data.fields.items():
         Claim.objects.assert_claim(pm, field_name, value, user=request.user)
@@ -597,7 +597,7 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
     invalidate_all()
 
     pm = get_object_or_404(
-        PinballModel.objects.select_related("manufacturer", "group").prefetch_related(
+        MachineModel.objects.select_related("manufacturer", "group").prefetch_related(
             "aliases",
             Prefetch(
                 "credits",
@@ -634,20 +634,22 @@ groups_router = Router(tags=["groups"])
 @groups_router.get("/", response=list[GroupListSchema])
 @paginate(PageNumberPagination, page_size=25)
 def list_groups(request, search: str = ""):
-    from .models import MachineGroup, PinballModel
+    from .models import MachineGroup, MachineModel
 
     qs = MachineGroup.objects.annotate(
-        machine_count=Count("machines", filter=Q(machines__alias_of__isnull=True))
+        machine_count=Count(
+            "machine_models", filter=Q(machine_models__alias_of__isnull=True)
+        )
     ).prefetch_related(
         Prefetch(
-            "machines",
-            queryset=PinballModel.objects.filter(alias_of__isnull=True).order_by(
+            "machine_models",
+            queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
                 "year", "name"
             ),
         )
     )
     if search:
-        qs = qs.filter(Q(name__icontains=search) | Q(shortname__icontains=search))
+        qs = qs.filter(Q(name__icontains=search) | Q(short_name__icontains=search))
     qs = qs.order_by("name")
     return [_serialize_group_list(g) for g in qs]
 
@@ -656,16 +658,18 @@ def list_groups(request, search: str = ""):
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_groups(request):
     """Return every group with minimal fields (no pagination)."""
-    from .models import MachineGroup, PinballModel
+    from .models import MachineGroup, MachineModel
 
     qs = (
         MachineGroup.objects.annotate(
-            machine_count=Count("machines", filter=Q(machines__alias_of__isnull=True))
+            machine_count=Count(
+                "machine_models", filter=Q(machine_models__alias_of__isnull=True)
+            )
         )
         .prefetch_related(
             Prefetch(
                 "machines",
-                queryset=PinballModel.objects.filter(alias_of__isnull=True).order_by(
+                queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
                     "year", "name"
                 ),
             )
@@ -678,13 +682,13 @@ def list_all_groups(request):
 @groups_router.get("/{slug}", response=GroupDetailSchema)
 @decorate_view(cache_control(public=True, max_age=300))
 def get_group(request, slug: str):
-    from .models import MachineGroup, PinballModel
+    from .models import MachineGroup, MachineModel
 
     group = get_object_or_404(
         MachineGroup.objects.prefetch_related(
             Prefetch(
-                "machines",
-                queryset=PinballModel.objects.filter(
+                "machine_models",
+                queryset=MachineModel.objects.filter(
                     alias_of__isnull=True
                 ).select_related("manufacturer"),
             )
@@ -721,7 +725,7 @@ def list_all_manufacturers(request):
     if result is not None:
         return result
 
-    from .models import Manufacturer, PinballModel
+    from .models import Manufacturer, MachineModel
 
     qs = (
         Manufacturer.objects.annotate(
@@ -730,7 +734,7 @@ def list_all_manufacturers(request):
         .prefetch_related(
             Prefetch(
                 "models",
-                queryset=PinballModel.objects.filter(alias_of__isnull=True)
+                queryset=MachineModel.objects.filter(alias_of__isnull=True)
                 .exclude(extra_data={})
                 .order_by(F("year").desc(nulls_last=True))
                 .only("id", "manufacturer_id", "year", "extra_data"),
@@ -763,7 +767,7 @@ def list_all_manufacturers(request):
 @manufacturers_router.get("/{slug}", response=ManufacturerDetailSchema)
 @decorate_view(cache_control(public=True, max_age=300))
 def get_manufacturer(request, slug: str):
-    from .models import Manufacturer, ManufacturerEntity, PinballModel
+    from .models import Manufacturer, ManufacturerEntity, MachineModel
 
     mfr = get_object_or_404(
         Manufacturer.objects.prefetch_related(
@@ -773,7 +777,7 @@ def get_manufacturer(request, slug: str):
             ),
             Prefetch(
                 "models",
-                queryset=PinballModel.objects.filter(alias_of__isnull=True).order_by(
+                queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
                     F("year").desc(nulls_last=True), "name"
                 ),
                 to_attr="non_alias_models",

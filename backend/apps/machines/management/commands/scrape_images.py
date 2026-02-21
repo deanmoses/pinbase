@@ -26,7 +26,7 @@ import requests
 from bs4 import BeautifulSoup
 from django.core.management.base import BaseCommand
 
-from apps.machines.models import Claim, PinballModel, Source
+from apps.machines.models import Claim, MachineModel, Source
 from apps.machines.resolve import resolve_model
 
 logger = logging.getLogger(__name__)
@@ -66,11 +66,11 @@ def _has_images(extra_data: dict) -> bool:
     return False
 
 
-def _try_group_sibling(pm: PinballModel) -> list[str] | None:
+def _try_group_sibling(pm: MachineModel) -> list[str] | None:
     """Copy image URLs from a sibling in the same group."""
     if not pm.group:
         return None
-    for sib in pm.group.machines.exclude(pk=pm.pk):
+    for sib in pm.group.machine_models.exclude(pk=pm.pk):
         ed = sib.extra_data or {}
 
         # Try OPDB structured images — extract best URLs.
@@ -181,7 +181,7 @@ class Command(BaseCommand):
         )
 
         # Find machines without images, newest first.
-        qs = PinballModel.objects.filter(alias_of__isnull=True).order_by(
+        qs = MachineModel.objects.filter(alias_of__isnull=True).order_by(
             "-year", "name"
         )
         if year_min:
@@ -235,7 +235,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"\nDone! {found_count}/{total} machines {action}.")
         )
 
-    def _find_images(self, pm: PinballModel) -> tuple[str | None, list[str] | None]:
+    def _find_images(self, pm: MachineModel) -> tuple[str | None, list[str] | None]:
         """Try each strategy in order, return (strategy_name, urls) or (None, None)."""
 
         # Strategy 0: Hand-picked URLs (no network needed).
