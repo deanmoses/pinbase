@@ -72,6 +72,7 @@ class ManufacturerDetailSchema(Schema):
     opdb_manufacturer_id: Optional[int] = None
     entities: list[ManufacturerEntitySchema]
     models: list[ManufacturerModelSchema]
+    activity: list[ClaimSchema]
 
 
 class PersonGridSchema(Schema):
@@ -99,6 +100,7 @@ class PersonDetailSchema(Schema):
     slug: str
     bio: str
     machines: list[PersonMachineSchema]
+    activity: list[ClaimSchema]
 
 
 class ClaimSchema(Schema):
@@ -214,6 +216,52 @@ class GroupDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _build_activity(active_claims) -> list[dict]:
+    """Serialize pre-fetched active claims (ordered by field_name, -priority, -created_at)
+    into the activity list format, marking the winner per field."""
+    winners: set[str] = set()
+    activity: list[dict] = []
+    for claim in active_claims:
+        is_winner = claim.field_name not in winners
+        if is_winner:
+            winners.add(claim.field_name)
+        activity.append(
+            {
+                "source_name": claim.source.name if claim.source else None,
+                "source_slug": claim.source.slug if claim.source else None,
+                "user_display": claim.user.username if claim.user else None,
+                "field_name": claim.field_name,
+                "value": claim.value,
+                "citation": claim.citation,
+                "created_at": claim.created_at.isoformat(),
+                "is_winner": is_winner,
+            }
+        )
+    activity.sort(key=lambda c: c["created_at"], reverse=True)
+    return activity
+
+
+def _claims_prefetch(to_attr: str = "active_claims"):
+    """Return a Prefetch for active claims with priority annotation."""
+    from apps.provenance.models import Claim
+
+    return Prefetch(
+        "claims",
+        queryset=Claim.objects.filter(is_active=True)
+        .select_related("source", "user")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("field_name", "-effective_priority", "-created_at"),
+        to_attr=to_attr,
+    )
 
 
 def _extract_image_urls(extra_data: dict) -> tuple[str | None, str | None]:
@@ -349,8 +397,6 @@ def _serialize_model_detail(pm) -> dict:
         for c in pm.credits.all()
     ]
 
-    # Build flat activity list from active claims, marking winners.
-    # Claims are ordered by field_name then priority; first per field wins.
     activity_claims = getattr(pm, "active_claims", None)
     if activity_claims is None:
         activity_claims = list(
@@ -366,27 +412,7 @@ def _serialize_model_detail(pm) -> dict:
             )
             .order_by("field_name", "-effective_priority", "-created_at")
         )
-
-    winners: set[str] = set()
-    activity: list[dict] = []
-    for claim in activity_claims:
-        is_winner = claim.field_name not in winners
-        if is_winner:
-            winners.add(claim.field_name)
-        activity.append(
-            {
-                "source_name": claim.source.name if claim.source else None,
-                "source_slug": claim.source.slug if claim.source else None,
-                "user_display": claim.user.username if claim.user else None,
-                "field_name": claim.field_name,
-                "value": claim.value,
-                "citation": claim.citation,
-                "created_at": claim.created_at.isoformat(),
-                "is_winner": is_winner,
-            }
-        )
-    # Re-sort by most recent first for the timeline view.
-    activity.sort(key=lambda c: c["created_at"], reverse=True)
+    activity = _build_activity(activity_claims)
 
     thumbnail_url, hero_image_url = _extract_image_urls(pm.extra_data or {})
     features = _extract_features(pm.extra_data or {})
@@ -536,8 +562,6 @@ def list_all_models(request):
 @models_router.get("/{slug}", response=MachineModelDetailSchema)
 @decorate_view(cache_control(public=True, max_age=300))
 def get_model(request, slug: str):
-    from apps.provenance.models import Claim
-
     from .models import DesignCredit, MachineModel
 
     pm = get_object_or_404(
@@ -547,21 +571,7 @@ def get_model(request, slug: str):
                 "credits",
                 queryset=DesignCredit.objects.select_related("person"),
             ),
-            Prefetch(
-                "claims",
-                queryset=Claim.objects.filter(is_active=True)
-                .select_related("source", "user")
-                .annotate(
-                    effective_priority=Case(
-                        When(source__isnull=False, then=F("source__priority")),
-                        When(user__isnull=False, then=F("user__profile__priority")),
-                        default=Value(0),
-                        output_field=IntegerField(),
-                    )
-                )
-                .order_by("field_name", "-effective_priority", "-created_at"),
-                to_attr="active_claims",
-            ),
+            _claims_prefetch(),
         ),
         slug=slug,
     )
@@ -598,21 +608,7 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
                 "credits",
                 queryset=DesignCredit.objects.select_related("person"),
             ),
-            Prefetch(
-                "claims",
-                queryset=Claim.objects.filter(is_active=True)
-                .select_related("source", "user")
-                .annotate(
-                    effective_priority=Case(
-                        When(source__isnull=False, then=F("source__priority")),
-                        When(user__isnull=False, then=F("user__profile__priority")),
-                        default=Value(0),
-                        output_field=IntegerField(),
-                    )
-                )
-                .order_by("field_name", "-effective_priority", "-created_at"),
-                to_attr="active_claims",
-            ),
+            _claims_prefetch(),
         ),
         slug=slug,
     )
@@ -759,41 +755,25 @@ def list_all_manufacturers(request):
     return result
 
 
-@manufacturers_router.get("/{slug}", response=ManufacturerDetailSchema)
-@decorate_view(cache_control(public=True, max_age=300))
-def get_manufacturer(request, slug: str):
-    from .models import MachineModel, Manufacturer, ManufacturerEntity
+def _serialize_manufacturer_detail(mfr) -> dict:
+    """Serialize a Manufacturer into the detail response dict.
 
-    mfr = get_object_or_404(
-        Manufacturer.objects.prefetch_related(
-            Prefetch(
-                "entities",
-                queryset=ManufacturerEntity.objects.order_by("years_active"),
-            ),
-            Prefetch(
-                "models",
-                queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
-                    F("year").desc(nulls_last=True), "name"
-                ),
-                to_attr="non_alias_models",
-            ),
-        ),
-        slug=slug,
-    )
-    entities = [
-        {
-            "name": e.name,
-            "ipdb_manufacturer_id": e.ipdb_manufacturer_id,
-            "years_active": e.years_active,
-        }
-        for e in mfr.entities.all()
-    ]
+    Expects *mfr* to have been fetched with prefetch_related for entities,
+    non_alias_models, and claims (to_attr="active_claims").
+    """
     return {
         "name": mfr.name,
         "slug": mfr.slug,
         "trade_name": mfr.trade_name,
         "opdb_manufacturer_id": mfr.opdb_manufacturer_id,
-        "entities": entities,
+        "entities": [
+            {
+                "name": e.name,
+                "ipdb_manufacturer_id": e.ipdb_manufacturer_id,
+                "years_active": e.years_active,
+            }
+            for e in mfr.entities.all()
+        ],
         "models": [
             {
                 "name": m.name,
@@ -804,7 +784,61 @@ def get_manufacturer(request, slug: str):
             }
             for m in mfr.non_alias_models
         ],
+        "activity": _build_activity(getattr(mfr, "active_claims", [])),
     }
+
+
+def _manufacturer_qs():
+    from .models import MachineModel, Manufacturer, ManufacturerEntity
+
+    return Manufacturer.objects.prefetch_related(
+        Prefetch(
+            "entities",
+            queryset=ManufacturerEntity.objects.order_by("years_active"),
+        ),
+        Prefetch(
+            "models",
+            queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
+                F("year").desc(nulls_last=True), "name"
+            ),
+            to_attr="non_alias_models",
+        ),
+        _claims_prefetch(),
+    )
+
+
+@manufacturers_router.get("/{slug}", response=ManufacturerDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_manufacturer(request, slug: str):
+    mfr = get_object_or_404(_manufacturer_qs(), slug=slug)
+    return _serialize_manufacturer_detail(mfr)
+
+
+@manufacturers_router.patch(
+    "/{slug}/claims/", auth=django_auth, response=ManufacturerDetailSchema
+)
+def patch_manufacturer_claims(request, slug: str, data: ClaimPatchSchema):
+    """Assert per-field claims from the authenticated user, then re-resolve the manufacturer."""
+    from apps.provenance.models import Claim
+
+    from .models import Manufacturer
+    from .resolve import MANUFACTURER_DIRECT_FIELDS, resolve_manufacturer
+
+    editable_fields = set(MANUFACTURER_DIRECT_FIELDS.keys())
+    unknown = set(data.fields.keys()) - editable_fields
+    if unknown:
+        raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
+
+    mfr = get_object_or_404(Manufacturer, slug=slug)
+
+    for field_name, value in data.fields.items():
+        Claim.objects.assert_claim(mfr, field_name, value, user=request.user)
+
+    resolve_manufacturer(mfr)
+    invalidate_all()
+
+    mfr = get_object_or_404(_manufacturer_qs(), slug=mfr.slug)
+    return _serialize_manufacturer_detail(mfr)
 
 
 # ---------------------------------------------------------------------------
@@ -863,14 +897,14 @@ def list_all_people(request):
     return result
 
 
-@people_router.get("/{slug}", response=PersonDetailSchema)
-@decorate_view(cache_control(public=True, max_age=300))
-def get_person(request, slug: str):
-    from .models import Person
+def _serialize_person_detail(person) -> dict:
+    """Serialize a Person into the detail response dict.
 
-    person = get_object_or_404(Person, slug=slug)
+    Expects *person* to have been fetched with prefetch_related for credits
+    (select_related model) and claims (to_attr="active_claims").
+    """
     machines: dict[str, dict] = {}
-    for c in person.credits.select_related("model").order_by("model__name"):
+    for c in person.credits.all():
         slug_key = c.model.slug
         if slug_key not in machines:
             thumbnail_url, _ = _extract_image_urls(c.model.extra_data or {})
@@ -886,4 +920,51 @@ def get_person(request, slug: str):
         "slug": person.slug,
         "bio": person.bio,
         "machines": list(machines.values()),
+        "activity": _build_activity(getattr(person, "active_claims", [])),
     }
+
+
+def _person_qs():
+    from .models import DesignCredit, Person
+
+    return Person.objects.prefetch_related(
+        Prefetch(
+            "credits",
+            queryset=DesignCredit.objects.select_related("model").order_by(
+                "model__name"
+            ),
+        ),
+        _claims_prefetch(),
+    )
+
+
+@people_router.get("/{slug}", response=PersonDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_person(request, slug: str):
+    person = get_object_or_404(_person_qs(), slug=slug)
+    return _serialize_person_detail(person)
+
+
+@people_router.patch("/{slug}/claims/", auth=django_auth, response=PersonDetailSchema)
+def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
+    """Assert per-field claims from the authenticated user, then re-resolve the person."""
+    from apps.provenance.models import Claim
+
+    from .models import Person
+    from .resolve import PERSON_DIRECT_FIELDS, resolve_person
+
+    editable_fields = set(PERSON_DIRECT_FIELDS.keys())
+    unknown = set(data.fields.keys()) - editable_fields
+    if unknown:
+        raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
+
+    person = get_object_or_404(Person, slug=slug)
+
+    for field_name, value in data.fields.items():
+        Claim.objects.assert_claim(person, field_name, value, user=request.user)
+
+    resolve_person(person)
+    invalidate_all()
+
+    person = get_object_or_404(_person_qs(), slug=person.slug)
+    return _serialize_person_detail(person)

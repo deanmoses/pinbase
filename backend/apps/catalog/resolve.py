@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from apps.provenance.models import Claim
 
-from .models import MachineGroup, MachineModel, Manufacturer, ManufacturerEntity
+from .models import MachineGroup, MachineModel, Manufacturer, ManufacturerEntity, Person
 
 logger = logging.getLogger(__name__)
 
@@ -459,6 +459,79 @@ def _apply_resolution(
             extra_data[field_name] = claim.value
 
     pm.extra_data = extra_data
+
+
+MANUFACTURER_DIRECT_FIELDS: dict[str, str] = {
+    "name": "name",
+    "trade_name": "trade_name",
+}
+
+PERSON_DIRECT_FIELDS: dict[str, str] = {
+    "name": "name",
+    "bio": "bio",
+}
+
+
+def _resolve_simple(obj, direct_fields: dict[str, str]) -> None:
+    """Resolve active claims onto an object with only string direct fields.
+
+    Mutates *obj* in memory; the caller is responsible for saving.
+    """
+    claims = (
+        obj.claims.filter(is_active=True)
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("field_name", "-effective_priority", "-created_at")
+    )
+
+    winners: dict[str, Claim] = {}
+    for claim in claims:
+        if claim.field_name not in winners:
+            winners[claim.field_name] = claim
+
+    # Reset resolvable fields to defaults.
+    for attr in direct_fields.values():
+        field = obj._meta.get_field(attr)
+        if hasattr(field, "default") and field.default is not models.NOT_PROVIDED:
+            setattr(obj, attr, field.default)
+        elif field.null:
+            setattr(obj, attr, None)
+        else:
+            setattr(obj, attr, "")
+
+    # Apply winners.
+    for field_name, claim in winners.items():
+        if field_name in direct_fields:
+            attr = direct_fields[field_name]
+            value = claim.value
+            setattr(obj, attr, "" if value is None else value)
+
+
+def resolve_manufacturer(mfr: Manufacturer) -> Manufacturer:
+    """Resolve active claims into the given Manufacturer's fields.
+
+    Returns the saved Manufacturer.
+    """
+    _resolve_simple(mfr, MANUFACTURER_DIRECT_FIELDS)
+    mfr.save()
+    return mfr
+
+
+def resolve_person(person: Person) -> Person:
+    """Resolve active claims into the given Person's fields.
+
+    Returns the saved Person.
+    """
+    _resolve_simple(person, PERSON_DIRECT_FIELDS)
+    person.save()
+    return person
 
 
 def _resolve_opdb_conflicts(all_models: list[MachineModel]) -> None:

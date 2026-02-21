@@ -1,0 +1,98 @@
+"""Tests for resolve_manufacturer() and resolve_person()."""
+
+import pytest
+
+from apps.catalog.models import Manufacturer, Person
+from apps.catalog.resolve import resolve_manufacturer, resolve_person
+from apps.provenance.models import Claim, Source
+
+
+@pytest.fixture
+def ipdb(db):
+    return Source.objects.create(name="IPDB", source_type="database", priority=10)
+
+
+@pytest.fixture
+def editorial(db):
+    return Source.objects.create(
+        name="Editorial", source_type="editorial", priority=100
+    )
+
+
+@pytest.fixture
+def mfr(db):
+    return Manufacturer.objects.create(name="Placeholder Mfr")
+
+
+@pytest.fixture
+def person(db):
+    return Person.objects.create(name="Placeholder Person")
+
+
+class TestResolveManufacturer:
+    def test_basic_resolution(self, mfr, ipdb):
+        Claim.objects.assert_claim(mfr, "name", "Williams", source=ipdb)
+        Claim.objects.assert_claim(mfr, "trade_name", "WMS", source=ipdb)
+
+        resolved = resolve_manufacturer(mfr)
+        assert resolved.name == "Williams"
+        assert resolved.trade_name == "WMS"
+
+    def test_higher_priority_wins(self, mfr, ipdb, editorial):
+        Claim.objects.assert_claim(mfr, "name", "Williams Low", source=ipdb)
+        Claim.objects.assert_claim(mfr, "name", "Williams High", source=editorial)
+
+        resolved = resolve_manufacturer(mfr)
+        assert resolved.name == "Williams High"
+
+    def test_deactivated_claim_is_not_applied(self, mfr, ipdb):
+        Claim.objects.assert_claim(mfr, "trade_name", "Old Name", source=ipdb)
+        # Supersede it.
+        Claim.objects.assert_claim(mfr, "trade_name", "New Name", source=ipdb)
+
+        resolved = resolve_manufacturer(mfr)
+        assert resolved.trade_name == "New Name"
+        assert mfr.claims.filter(is_active=False).count() == 1
+
+    def test_no_claims_resets_to_defaults(self, mfr):
+        mfr.trade_name = "Something"
+        mfr.save()
+
+        resolved = resolve_manufacturer(mfr)
+        assert resolved.trade_name == ""
+
+    def test_saves_to_db(self, mfr, ipdb):
+        Claim.objects.assert_claim(mfr, "name", "Bally", source=ipdb)
+        resolve_manufacturer(mfr)
+        mfr.refresh_from_db()
+        assert mfr.name == "Bally"
+
+
+class TestResolvePerson:
+    def test_basic_resolution(self, person, ipdb):
+        Claim.objects.assert_claim(person, "name", "Pat Lawlor", source=ipdb)
+        Claim.objects.assert_claim(person, "bio", "Designer of TAF.", source=ipdb)
+
+        resolved = resolve_person(person)
+        assert resolved.name == "Pat Lawlor"
+        assert resolved.bio == "Designer of TAF."
+
+    def test_higher_priority_wins(self, person, ipdb, editorial):
+        Claim.objects.assert_claim(person, "bio", "Short bio.", source=ipdb)
+        Claim.objects.assert_claim(person, "bio", "Better bio.", source=editorial)
+
+        resolved = resolve_person(person)
+        assert resolved.bio == "Better bio."
+
+    def test_no_claims_resets_to_defaults(self, person):
+        person.bio = "Something"
+        person.save()
+
+        resolved = resolve_person(person)
+        assert resolved.bio == ""
+
+    def test_saves_to_db(self, person, ipdb):
+        Claim.objects.assert_claim(person, "name", "Steve Ritchie", source=ipdb)
+        resolve_person(person)
+        person.refresh_from_db()
+        assert person.name == "Steve Ritchie"

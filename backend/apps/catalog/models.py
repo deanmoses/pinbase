@@ -39,6 +39,8 @@ class Manufacturer(TimeStampedModel):
         help_text="OPDB's manufacturer_id for cross-referencing",
     )
 
+    claims = GenericRelation("provenance.Claim")
+
     class Meta:
         ordering = ["name"]
 
@@ -272,6 +274,8 @@ class Person(TimeStampedModel):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     bio = models.TextField(blank=True)
+
+    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["name"]
