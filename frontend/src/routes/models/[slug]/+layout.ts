@@ -1,11 +1,11 @@
 import client from '$lib/api/client';
 import { error } from '@sveltejs/kit';
-import type { PageLoad } from './$types';
+import type { LayoutLoad } from './$types';
 
 export const prerender = false;
 export const ssr = false;
 
-export const load: PageLoad = async ({ params }) => {
+export const load: LayoutLoad = async ({ params }) => {
 	const { data, response } = await client.GET('/api/models/{slug}', {
 		params: { path: { slug: params.slug } }
 	});
