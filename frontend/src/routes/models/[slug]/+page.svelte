@@ -67,17 +67,10 @@
 	</section>
 {/if}
 
-{#if model.credits.length > 0}
-	<section class="credits">
-		<h2>Credits</h2>
-		<ul>
-			{#each model.credits as credit (credit.person_slug + credit.role)}
-				<li>
-					<a href={resolve(`/people/${credit.person_slug}`)}>{credit.person_name}</a>
-					<span class="role">{credit.role_display}</span>
-				</li>
-			{/each}
-		</ul>
+{#if model.educational_text}
+	<section class="description">
+		<h2>About</h2>
+		<p>{model.educational_text}</p>
 	</section>
 {/if}
 
@@ -95,10 +88,17 @@
 	</section>
 {/if}
 
-{#if model.educational_text}
-	<section class="description">
-		<h2>About</h2>
-		<p>{model.educational_text}</p>
+{#if model.credits.length > 0}
+	<section class="credits">
+		<h2>Credits</h2>
+		<ul>
+			{#each model.credits as credit (credit.person_slug + credit.role)}
+				<li>
+					<a href={resolve(`/people/${credit.person_slug}`)}>{credit.person_name}</a>
+					<span class="role">{credit.role_display}</span>
+				</li>
+			{/each}
+		</ul>
 	</section>
 {/if}
 
