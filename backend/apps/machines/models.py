@@ -9,41 +9,8 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models, transaction
-from django.utils.text import slugify
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _unique_slug(obj, source: str, fallback: str = "item") -> str:
-    """Generate a unique slug with counter disambiguation.
-
-    Appends a counter suffix (-2, -3, …) until the slug is unique within
-    the model's table.
-    """
-    base = slugify(source) or fallback
-    slug = base
-    counter = 2
-    while type(obj).objects.filter(slug=slug).exclude(pk=obj.pk).exists():
-        slug = f"{base}-{counter}"
-        counter += 1
-    return slug
-
-
-# ---------------------------------------------------------------------------
-# Abstract base models
-# ---------------------------------------------------------------------------
-
-
-class TimeStampedModel(models.Model):
-    """Abstract base adding created_at / updated_at timestamps."""
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
+from apps.core.models import TimeStampedModel, unique_slug
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +47,7 @@ class Source(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = _unique_slug(self, self.name, "source")
+            self.slug = unique_slug(self, self.name, "source")
         super().save(*args, **kwargs)
 
 
@@ -287,7 +254,7 @@ class Manufacturer(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = _unique_slug(self, self.trade_name or self.name, "manufacturer")
+            self.slug = unique_slug(self, self.trade_name or self.name, "manufacturer")
         super().save(*args, **kwargs)
 
 
@@ -368,7 +335,7 @@ class MachineGroup(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = _unique_slug(self, self.name, "group")
+            self.slug = unique_slug(self, self.name, "group")
         super().save(*args, **kwargs)
 
 
@@ -492,7 +459,7 @@ class MachineModel(TimeStampedModel):
                 parts.append(self.manufacturer.trade_name or self.manufacturer.name)
             if self.year:
                 parts.append(str(self.year))
-            self.slug = _unique_slug(self, " ".join(parts), "model")
+            self.slug = unique_slug(self, " ".join(parts), "model")
         super().save(*args, **kwargs)
 
 
@@ -517,7 +484,7 @@ class Person(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = _unique_slug(self, self.name, "person")
+            self.slug = unique_slug(self, self.name, "person")
         super().save(*args, **kwargs)
 
 
