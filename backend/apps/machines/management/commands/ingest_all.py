@@ -23,22 +23,22 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--ipdb",
-            default="../data/dump1/data/ipdbdatabase.json",
+            default="../data/dump1/ipdbdatabase.json",
             help="Path to IPDB JSON dump.",
         )
         parser.add_argument(
             "--opdb",
-            default="../data/dump2/opdb_export_machines.json",
+            default="../data/dump1/opdb_export_machines.json",
             help="Path to OPDB JSON dump.",
         )
         parser.add_argument(
             "--opdb-groups",
-            default="../data/dump2/opdb_export_groups.json",
+            default="../data/dump1/opdb_export_groups.json",
             help="Path to OPDB groups JSON dump.",
         )
         parser.add_argument(
             "--opdb-changelog",
-            default="../data/dump2/opdb_changelog.json",
+            default="../data/dump1/opdb_changelog.json",
             help="Path to OPDB changelog JSON dump.",
         )
 

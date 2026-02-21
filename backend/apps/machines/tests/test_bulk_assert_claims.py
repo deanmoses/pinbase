@@ -185,9 +185,7 @@ class TestBulkAssertClaimsIsolation:
 
     def test_does_not_touch_other_sources(self, source, other_source, pm1):
         # Set up claims from both sources.
-        Claim.objects.assert_claim(
-            model=pm1, source=other_source, field_name="year", value=1997
-        )
+        Claim.objects.assert_claim(pm1, "year", 1997, source=other_source)
 
         pending = [Claim(model_id=pm1.pk, field_name="year", value=1998)]
         Claim.objects.bulk_assert_claims(source, pending)

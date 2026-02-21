@@ -1,6 +1,7 @@
 from django.conf import settings
 from ninja import NinjaAPI
 
+from apps.accounts.api import auth_router
 from apps.machines.api import (
     groups_router,
     manufacturers_router,
@@ -27,6 +28,7 @@ def health(request):
     return {"status": "ok"}
 
 
+api.add_router("/auth/", auth_router)
 api.add_router("/models/", models_router)
 api.add_router("/groups/", groups_router)
 api.add_router("/manufacturers/", manufacturers_router)

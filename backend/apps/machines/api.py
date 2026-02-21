@@ -6,18 +6,30 @@ Wired into the main NinjaAPI instance in config/api.py.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from django.core.cache import cache
-from django.db.models import Count, F, Prefetch, Q, TextField
+from django.db.models import (
+    Case,
+    Count,
+    F,
+    IntegerField,
+    Prefetch,
+    Q,
+    TextField,
+    Value,
+    When,
+)
 from django.db.models.functions import Cast
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
+from ninja.errors import HttpError
 from ninja.pagination import PageNumberPagination, paginate
+from ninja.security import django_auth
 
-from .cache import MANUFACTURERS_ALL_KEY, MODELS_ALL_KEY, PEOPLE_ALL_KEY
+from .cache import MANUFACTURERS_ALL_KEY, MODELS_ALL_KEY, PEOPLE_ALL_KEY, invalidate_all
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -99,13 +111,18 @@ class SourceSchema(Schema):
 
 
 class ClaimSchema(Schema):
-    source_name: str
-    source_slug: str
+    source_name: Optional[str] = None
+    source_slug: Optional[str] = None
+    user_display: Optional[str] = None  # username for user-attributed claims
     field_name: str
     value: object
     citation: str
     created_at: str
     is_winner: bool
+
+
+class ClaimPatchSchema(Schema):
+    fields: dict[str, Any]
 
 
 class DesignCreditSchema(Schema):
@@ -347,8 +364,16 @@ def _serialize_model_detail(pm) -> dict:
     if activity_claims is None:
         activity_claims = list(
             pm.claims.filter(is_active=True)
-            .select_related("source")
-            .order_by("field_name", "-source__priority", "-created_at")
+            .select_related("source", "user")
+            .annotate(
+                effective_priority=Case(
+                    When(source__isnull=False, then=F("source__priority")),
+                    When(user__isnull=False, then=F("user__profile__priority")),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("field_name", "-effective_priority", "-created_at")
         )
 
     winners: set[str] = set()
@@ -359,8 +384,9 @@ def _serialize_model_detail(pm) -> dict:
             winners.add(claim.field_name)
         activity.append(
             {
-                "source_name": claim.source.name,
-                "source_slug": claim.source.slug,
+                "source_name": claim.source.name if claim.source else None,
+                "source_slug": claim.source.slug if claim.source else None,
+                "user_display": claim.user.username if claim.user else None,
                 "field_name": claim.field_name,
                 "value": claim.value,
                 "citation": claim.citation,
@@ -531,8 +557,65 @@ def get_model(request, slug: str):
             Prefetch(
                 "claims",
                 queryset=Claim.objects.filter(is_active=True)
-                .select_related("source")
-                .order_by("field_name", "-source__priority", "-created_at"),
+                .select_related("source", "user")
+                .annotate(
+                    effective_priority=Case(
+                        When(source__isnull=False, then=F("source__priority")),
+                        When(user__isnull=False, then=F("user__profile__priority")),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                )
+                .order_by("field_name", "-effective_priority", "-created_at"),
+                to_attr="active_claims",
+            ),
+        ),
+        slug=slug,
+    )
+    return _serialize_model_detail(pm)
+
+
+@models_router.patch(
+    "/{slug}/claims/", auth=django_auth, response=PinballModelDetailSchema
+)
+def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
+    """Assert per-field claims from the authenticated user, then re-resolve the model."""
+    from .models import Claim, DesignCredit, PinballModel
+    from .resolve import DIRECT_FIELDS, resolve_model
+
+    editable_fields = set(DIRECT_FIELDS.keys())
+    unknown = set(data.fields.keys()) - editable_fields
+    if unknown:
+        raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
+
+    pm = get_object_or_404(PinballModel, slug=slug)
+
+    for field_name, value in data.fields.items():
+        Claim.objects.assert_claim(pm, field_name, value, user=request.user)
+
+    resolve_model(pm)
+    invalidate_all()
+
+    pm = get_object_or_404(
+        PinballModel.objects.select_related("manufacturer", "group").prefetch_related(
+            "aliases",
+            Prefetch(
+                "credits",
+                queryset=DesignCredit.objects.select_related("person"),
+            ),
+            Prefetch(
+                "claims",
+                queryset=Claim.objects.filter(is_active=True)
+                .select_related("source", "user")
+                .annotate(
+                    effective_priority=Case(
+                        When(source__isnull=False, then=F("source__priority")),
+                        When(user__isnull=False, then=F("user__profile__priority")),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                )
+                .order_by("field_name", "-effective_priority", "-created_at"),
                 to_attr="active_claims",
             ),
         ),

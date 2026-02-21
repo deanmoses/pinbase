@@ -36,9 +36,9 @@ def pm(db):
 
 class TestResolveModel:
     def test_basic_resolution(self, pm, ipdb):
-        Claim.objects.assert_claim(pm, ipdb, "name", "Medieval Madness")
-        Claim.objects.assert_claim(pm, ipdb, "year", 1997)
-        Claim.objects.assert_claim(pm, ipdb, "machine_type", "SS")
+        Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=ipdb)
+        Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm, "machine_type", "SS", source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.name == "Medieval Madness"
@@ -46,23 +46,23 @@ class TestResolveModel:
         assert resolved.machine_type == "SS"
 
     def test_higher_priority_wins(self, pm, ipdb, editorial):
-        Claim.objects.assert_claim(pm, ipdb, "year", 1996)
-        Claim.objects.assert_claim(pm, editorial, "year", 1997)
+        Claim.objects.assert_claim(pm, "year", 1996, source=ipdb)
+        Claim.objects.assert_claim(pm, "year", 1997, source=editorial)
 
         resolved = resolve_model(pm)
         assert resolved.year == 1997  # editorial has higher priority
 
     def test_same_priority_latest_wins(self, pm, ipdb, opdb):
         # opdb has priority 20, ipdb has priority 10 — opdb wins by priority.
-        Claim.objects.assert_claim(pm, ipdb, "name", "IPDB Name")
-        Claim.objects.assert_claim(pm, opdb, "name", "OPDB Name")
+        Claim.objects.assert_claim(pm, "name", "IPDB Name", source=ipdb)
+        Claim.objects.assert_claim(pm, "name", "OPDB Name", source=opdb)
 
         resolved = resolve_model(pm)
         assert resolved.name == "OPDB Name"
 
     def test_extra_data_catchall(self, pm, ipdb):
-        Claim.objects.assert_claim(pm, ipdb, "model_number", "20021")
-        Claim.objects.assert_claim(pm, ipdb, "abbreviation", "MM")
+        Claim.objects.assert_claim(pm, "model_number", "20021", source=ipdb)
+        Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.extra_data["model_number"] == "20021"
@@ -73,21 +73,21 @@ class TestResolveModel:
         ManufacturerEntity.objects.create(
             manufacturer=mfr, name="Williams Manufacturing", ipdb_manufacturer_id=42
         )
-        Claim.objects.assert_claim(pm, ipdb, "manufacturer", 42)
+        Claim.objects.assert_claim(pm, "manufacturer", 42, source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.manufacturer == mfr
 
     def test_manufacturer_resolution_by_opdb_id(self, pm, opdb):
         mfr = Manufacturer.objects.create(name="Williams", opdb_manufacturer_id=7)
-        Claim.objects.assert_claim(pm, opdb, "manufacturer", 7)
+        Claim.objects.assert_claim(pm, "manufacturer", 7, source=opdb)
 
         resolved = resolve_model(pm)
         assert resolved.manufacturer == mfr
 
     def test_manufacturer_resolution_by_name(self, pm, ipdb):
         mfr = Manufacturer.objects.create(name="Stern")
-        Claim.objects.assert_claim(pm, ipdb, "manufacturer", "Stern")
+        Claim.objects.assert_claim(pm, "manufacturer", "Stern", source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.manufacturer == mfr
@@ -96,7 +96,7 @@ class TestResolveModel:
         mfr = Manufacturer.objects.create(
             name="Midway Manufacturing", trade_name="Bally"
         )
-        Claim.objects.assert_claim(pm, ipdb, "manufacturer", "Bally")
+        Claim.objects.assert_claim(pm, "manufacturer", "Bally", source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.manufacturer == mfr
@@ -116,18 +116,18 @@ class TestResolveModel:
             name="Stern", opdb_manufacturer_id=colliding_id
         )
         # OPDB claim should resolve to the OPDB manufacturer, not the IPDB entity.
-        Claim.objects.assert_claim(pm, opdb, "manufacturer", colliding_id)
+        Claim.objects.assert_claim(pm, "manufacturer", colliding_id, source=opdb)
         resolved = resolve_model(pm)
         assert resolved.manufacturer == opdb_mfr
 
     def test_manufacturer_resolution_unknown(self, pm, ipdb):
-        Claim.objects.assert_claim(pm, ipdb, "manufacturer", "NonexistentCorp")
+        Claim.objects.assert_claim(pm, "manufacturer", "NonexistentCorp", source=ipdb)
         resolved = resolve_model(pm)
         assert resolved.manufacturer is None
 
     def test_int_coercion(self, pm, ipdb):
-        Claim.objects.assert_claim(pm, ipdb, "year", "1997")
-        Claim.objects.assert_claim(pm, ipdb, "player_count", "4")
+        Claim.objects.assert_claim(pm, "year", "1997", source=ipdb)
+        Claim.objects.assert_claim(pm, "player_count", "4", source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.year == 1997
@@ -136,26 +136,26 @@ class TestResolveModel:
     def test_decimal_coercion(self, pm, ipdb):
         from decimal import Decimal
 
-        Claim.objects.assert_claim(pm, ipdb, "ipdb_rating", "8.75")
+        Claim.objects.assert_claim(pm, "ipdb_rating", "8.75", source=ipdb)
 
         resolved = resolve_model(pm)
         assert resolved.ipdb_rating == Decimal("8.75")
 
     def test_empty_string_coercion(self, pm, ipdb):
-        Claim.objects.assert_claim(pm, ipdb, "year", "")
+        Claim.objects.assert_claim(pm, "year", "", source=ipdb)
         resolved = resolve_model(pm)
         assert resolved.year is None
 
     def test_invalid_int_coercion(self, pm, ipdb):
-        Claim.objects.assert_claim(pm, ipdb, "year", "not-a-number")
+        Claim.objects.assert_claim(pm, "year", "not-a-number", source=ipdb)
         resolved = resolve_model(pm)
         assert resolved.year is None
 
     def test_stale_values_cleared_on_re_resolve(self, pm, ipdb):
         """Deactivated claims should not leave ghost values after re-resolution."""
-        Claim.objects.assert_claim(pm, ipdb, "year", 1997)
-        Claim.objects.assert_claim(pm, ipdb, "theme", "Medieval")
-        Claim.objects.assert_claim(pm, ipdb, "abbreviation", "MM")
+        Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
+        Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
         resolve_model(pm)
         assert pm.year == 1997
         assert pm.theme == "Medieval"
@@ -170,10 +170,12 @@ class TestResolveModel:
         assert pm.extra_data == {}
 
     def test_mixed_fields_and_extra_data(self, pm, ipdb, editorial):
-        Claim.objects.assert_claim(pm, ipdb, "name", "The Addams Family")
-        Claim.objects.assert_claim(pm, ipdb, "year", 1992)
-        Claim.objects.assert_claim(pm, ipdb, "toys", "Thing hand, bookcase")
-        Claim.objects.assert_claim(pm, editorial, "educational_text", "A seminal game.")
+        Claim.objects.assert_claim(pm, "name", "The Addams Family", source=ipdb)
+        Claim.objects.assert_claim(pm, "year", 1992, source=ipdb)
+        Claim.objects.assert_claim(pm, "toys", "Thing hand, bookcase", source=ipdb)
+        Claim.objects.assert_claim(
+            pm, "educational_text", "A seminal game.", source=editorial
+        )
 
         resolved = resolve_model(pm)
         assert resolved.name == "The Addams Family"
@@ -192,11 +194,11 @@ class TestResolveAll:
         pm2 = PinballModel.objects.create(name="P2", slug="p2")
         pm3 = PinballModel.objects.create(name="P3", slug="p3")
 
-        Claim.objects.assert_claim(pm1, ipdb, "name", "Medieval Madness")
-        Claim.objects.assert_claim(pm1, ipdb, "year", 1997)
-        Claim.objects.assert_claim(pm2, ipdb, "name", "The Addams Family")
-        Claim.objects.assert_claim(pm3, ipdb, "name", "Twilight Zone")
-        Claim.objects.assert_claim(pm3, ipdb, "machine_type", "SS")
+        Claim.objects.assert_claim(pm1, "name", "Medieval Madness", source=ipdb)
+        Claim.objects.assert_claim(pm1, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm2, "name", "The Addams Family", source=ipdb)
+        Claim.objects.assert_claim(pm3, "name", "Twilight Zone", source=ipdb)
+        Claim.objects.assert_claim(pm3, "machine_type", "SS", source=ipdb)
 
         before = timezone.now()
         count = resolve_all()
@@ -235,12 +237,12 @@ class TestResolveAll:
 
         # Same claims on both models.
         for pm in (pm_bulk, pm_single):
-            Claim.objects.assert_claim(pm, ipdb, "name", "Medieval Madness")
-            Claim.objects.assert_claim(pm, opdb, "year", 1997)
-            Claim.objects.assert_claim(pm, ipdb, "manufacturer", 42)
-            Claim.objects.assert_claim(pm, opdb, "group", "G1111")
-            Claim.objects.assert_claim(pm, ipdb, "abbreviation", "MM")
-            Claim.objects.assert_claim(pm, ipdb, "machine_type", "SS")
+            Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=ipdb)
+            Claim.objects.assert_claim(pm, "year", 1997, source=opdb)
+            Claim.objects.assert_claim(pm, "manufacturer", 42, source=ipdb)
+            Claim.objects.assert_claim(pm, "group", "G1111", source=opdb)
+            Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
+            Claim.objects.assert_claim(pm, "machine_type", "SS", source=ipdb)
 
         # Resolve pm_single with the per-model path.
         resolve_model(pm_single)
@@ -266,8 +268,8 @@ class TestResolveAll:
         pm_a = PinballModel.objects.create(name="Alpha", slug="alpha")
         pm_b = PinballModel.objects.create(name="Beta", slug="beta")
 
-        Claim.objects.assert_claim(pm_a, ipdb, "opdb_id", "GCONFLICT-M1")
-        Claim.objects.assert_claim(pm_b, ipdb, "opdb_id", "GCONFLICT-M1")
+        Claim.objects.assert_claim(pm_a, "opdb_id", "GCONFLICT-M1", source=ipdb)
+        Claim.objects.assert_claim(pm_b, "opdb_id", "GCONFLICT-M1", source=ipdb)
 
         resolve_all()
         pm_a.refresh_from_db()
@@ -282,9 +284,9 @@ class TestResolveAll:
         )
         pm = PinballModel.objects.create(name="P1", slug="p1")
 
-        Claim.objects.assert_claim(pm, ipdb, "year", 1997)
-        Claim.objects.assert_claim(pm, ipdb, "theme", "Medieval")
-        Claim.objects.assert_claim(pm, ipdb, "abbreviation", "MM")
+        Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
+        Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
         resolve_all()
         pm.refresh_from_db()
         assert pm.year == 1997
@@ -305,8 +307,8 @@ class TestResolveAll:
         )
         for i in range(5):
             pm = PinballModel.objects.create(name=f"Model {i}", slug=f"model-{i}")
-            Claim.objects.assert_claim(pm, ipdb, "name", f"Resolved {i}")
-            Claim.objects.assert_claim(pm, ipdb, "year", 2000 + i)
+            Claim.objects.assert_claim(pm, "name", f"Resolved {i}", source=ipdb)
+            Claim.objects.assert_claim(pm, "year", 2000 + i, source=ipdb)
 
         # Should be ~6 queries: 2 manufacturer lookups + 1 groups + 1 claims
         # + 1 models + 1 bulk_update.

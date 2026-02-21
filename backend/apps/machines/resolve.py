@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import models
-from django.db.models import F
+from django.db.models import Case, F, IntegerField, Value, When
 from django.utils import timezone
 
 from .models import Claim, MachineGroup, Manufacturer, ManufacturerEntity, PinballModel
@@ -147,16 +147,23 @@ def _resolve_manufacturer(value, source_slug: str = "") -> Manufacturer | None:
 def resolve_model(pinball_model: PinballModel) -> PinballModel:
     """Resolve all active claims into the given PinballModel's fields.
 
-    Picks the winning claim per field_name: highest source priority,
-    then most recent created_at as tiebreaker.
+    Picks the winning claim per field_name: highest effective priority
+    (from source or user profile), then most recent created_at as tiebreaker.
 
     Returns the saved PinballModel.
     """
     claims = (
         Claim.objects.filter(model=pinball_model, is_active=True)
-        .select_related("source")
-        .annotate(source_priority=F("source__priority"))
-        .order_by("field_name", "-source_priority", "-created_at")
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("field_name", "-effective_priority", "-created_at")
     )
 
     # Group by field_name — first claim per group is the winner.
@@ -183,7 +190,7 @@ def resolve_model(pinball_model: PinballModel) -> PinballModel:
     for field_name, claim in winners.items():
         if field_name == "manufacturer":
             pinball_model.manufacturer = _resolve_manufacturer(
-                claim.value, source_slug=claim.source.slug
+                claim.value, source_slug=claim.source.slug if claim.source else ""
             )
         elif field_name == "group":
             pinball_model.group = _resolve_group(claim.value)
@@ -330,8 +337,16 @@ def _build_claims_by_model() -> dict[int, dict[str, Claim]]:
     """
     claims = (
         Claim.objects.filter(is_active=True)
-        .select_related("source")
-        .order_by("model_id", "field_name", "-source__priority", "-created_at")
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("model_id", "field_name", "-effective_priority", "-created_at")
     )
 
     result: dict[int, dict[str, Claim]] = {}
@@ -426,7 +441,9 @@ def _apply_resolution(
     for field_name, claim in winners.items():
         if field_name == "manufacturer":
             pm.manufacturer = _resolve_manufacturer_bulk(
-                claim.value, source_slug=claim.source.slug, mfr_lookups=mfr_lookups
+                claim.value,
+                source_slug=claim.source.slug if claim.source else "",
+                mfr_lookups=mfr_lookups,
             )
         elif field_name == "group":
             pm.group = _resolve_group_bulk(claim.value, group_lookup)

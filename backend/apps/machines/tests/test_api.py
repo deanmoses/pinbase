@@ -177,7 +177,7 @@ class TestModelsAPI:
     def test_get_model_detail(self, client, pinball_model, person, source):
         DesignCredit.objects.create(model=pinball_model, person=person, role="design")
         Claim.objects.assert_claim(
-            pinball_model, source, "year", 1997, citation="IPDB entry"
+            pinball_model, "year", 1997, "IPDB entry", source=source
         )
 
         resp = client.get(f"/api/models/{pinball_model.slug}")

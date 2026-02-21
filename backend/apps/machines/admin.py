@@ -76,11 +76,11 @@ class ClaimAdmin(admin.ModelAdmin):
         """Route creates through assert_claim to preserve the superseding invariant."""
         if not change:
             created = Claim.objects.assert_claim(
-                model=obj.model,
+                obj.model,
+                obj.field_name,
+                obj.value,
+                obj.citation,
                 source=obj.source,
-                field_name=obj.field_name,
-                value=obj.value,
-                citation=obj.citation,
             )
             obj.pk = created.pk
         else:

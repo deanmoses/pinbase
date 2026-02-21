@@ -7,6 +7,7 @@ Two-layer architecture:
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import models, transaction
 from django.utils.text import slugify
 
@@ -48,20 +49,26 @@ class ClaimManager(models.Manager):
     def assert_claim(
         self,
         model: PinballModel,
-        source: Source,
         field_name: str,
         value,
         citation: str = "",
+        *,
+        source: Source | None = None,
+        user=None,
     ) -> Claim:
-        """Create a claim, deactivating any existing active claim for the same field+source.
+        """Create a claim, deactivating any existing active claim for the same field+author.
 
+        Exactly one of ``source`` or ``user`` must be provided.
         This is the only sanctioned write path for claims in production code.
         Runs in a transaction to ensure the old claim is deactivated atomically.
         """
+        if (source is None) == (user is None):
+            raise ValueError("Exactly one of source or user must be provided.")
         with transaction.atomic():
             self.filter(
                 model=model,
                 source=source,
+                user=user,
                 field_name=field_name,
                 is_active=True,
             ).update(is_active=False)
@@ -69,6 +76,7 @@ class ClaimManager(models.Manager):
             return self.create(
                 model=model,
                 source=source,
+                user=user,
                 field_name=field_name,
                 value=value,
                 citation=citation,
@@ -138,7 +146,11 @@ class ClaimManager(models.Manager):
 
 
 class Claim(models.Model):
-    """A single fact asserted by a single source about a single pinball model."""
+    """A single fact asserted by a source or a user about a single pinball model.
+
+    Exactly one of ``source`` or ``user`` must be set — enforced by a CheckConstraint
+    and by ClaimManager.assert_claim().
+    """
 
     model = models.ForeignKey(
         "PinballModel",
@@ -149,6 +161,15 @@ class Claim(models.Model):
         Source,
         on_delete=models.PROTECT,
         related_name="claims",
+        null=True,
+        blank=True,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="claims",
+        null=True,
+        blank=True,
     )
     field_name = models.CharField(max_length=100)
     value = models.JSONField()
@@ -162,18 +183,32 @@ class Claim(models.Model):
         indexes = [
             models.Index(fields=["model", "field_name"]),
             models.Index(fields=["source", "model"]),
+            models.Index(fields=["user", "model"]),
             models.Index(fields=["field_name", "is_active"]),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(source__isnull=False, user__isnull=True)
+                    | models.Q(source__isnull=True, user__isnull=False)
+                ),
+                name="claim_source_xor_user",
+            ),
             models.UniqueConstraint(
                 fields=["model", "source", "field_name"],
-                condition=models.Q(is_active=True),
+                condition=models.Q(is_active=True, source__isnull=False),
                 name="unique_active_claim_per_source_field",
+            ),
+            models.UniqueConstraint(
+                fields=["model", "user", "field_name"],
+                condition=models.Q(is_active=True, user__isnull=False),
+                name="unique_active_claim_per_user_field",
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.source.name}: {self.model.name}.{self.field_name}"
+        author = self.source.name if self.source_id else self.user.username
+        return f"{author}: {self.model.name}.{self.field_name}"
 
 
 class Manufacturer(models.Model):
