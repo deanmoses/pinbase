@@ -663,7 +663,7 @@ def list_all_groups(request):
         )
         .prefetch_related(
             Prefetch(
-                "machines",
+                "machine_models",
                 queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
                     "year", "name"
                 ),

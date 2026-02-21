@@ -240,7 +240,7 @@ def resolve_all() -> int:
     group_lookup = _build_group_lookup()
     field_defaults = _get_field_defaults()
 
-    # 2. Pre-fetch all active claims, grouped by model_id (~1 query).
+    # 2. Pre-fetch all active claims, grouped by object_id (~1 query).
     claims_by_model = _build_claims_by_model()
 
     # 3. Load all MachineModels (~1 query).
