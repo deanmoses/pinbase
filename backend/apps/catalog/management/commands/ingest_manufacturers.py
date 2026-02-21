@@ -16,6 +16,7 @@ from apps.catalog.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.catalog.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
 from apps.catalog.ingestion.parsers import parse_ipdb_manufacturer_string
 from apps.catalog.models import Manufacturer, ManufacturerEntity
+from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,27 @@ class Command(BaseCommand):
         ipdb_path = options["ipdb"]
         opdb_path = options["opdb"]
 
+        ipdb_source, _ = Source.objects.update_or_create(
+            slug="ipdb",
+            defaults={
+                "name": "IPDB",
+                "source_type": "database",
+                "priority": 100,
+                "url": "https://www.ipdb.org",
+            },
+        )
+        opdb_source, _ = Source.objects.update_or_create(
+            slug="opdb",
+            defaults={
+                "name": "OPDB",
+                "source_type": "database",
+                "priority": 200,
+                "url": "https://opdb.org",
+            },
+        )
+
         self.stdout.write("Phase 1: Ingesting IPDB manufacturers...")
-        ipdb_stats = self._ingest_ipdb(ipdb_path)
+        ipdb_stats = self._ingest_ipdb(ipdb_path, ipdb_source)
         self.stdout.write(
             f"  Brands: {ipdb_stats['brands_existing']} existing, "
             f"{ipdb_stats['brands_created']} created"
@@ -54,7 +74,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Skipped (placeholder IDs): {ipdb_stats['skipped']}")
 
         self.stdout.write("Phase 2: Matching OPDB manufacturers...")
-        opdb_stats = self._ingest_opdb(opdb_path)
+        opdb_stats = self._ingest_opdb(opdb_path, opdb_source)
         self.stdout.write(
             f"  Matched: {opdb_stats['matched']}, "
             f"Created: {opdb_stats['created']}, "
@@ -65,7 +85,9 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Manufacturer ingestion complete."))
 
-    def _ingest_ipdb(self, path: str) -> dict[str, int]:
+    def _ingest_ipdb(self, path: str, source: Source) -> dict:
+        from django.contrib.contenttypes.models import ContentType
+
         with open(path) as f:
             data = json.load(f)
 
@@ -152,6 +174,36 @@ class Command(BaseCommand):
         if new_entities:
             ManufacturerEntity.objects.bulk_create(new_entities)
 
+        # Assert name/trade_name claims for all manufacturer brands seen in this ingest.
+        ct = ContentType.objects.get_for_model(Manufacturer)
+        pending_claims: list[Claim] = []
+        for brand in brand_cache.values():
+            if not brand.pk:
+                continue
+            pending_claims.append(
+                Claim(
+                    content_type_id=ct.pk,
+                    object_id=brand.pk,
+                    field_name="name",
+                    value=brand.name,
+                )
+            )
+            if brand.trade_name:
+                pending_claims.append(
+                    Claim(
+                        content_type_id=ct.pk,
+                        object_id=brand.pk,
+                        field_name="trade_name",
+                        value=brand.trade_name,
+                    )
+                )
+        claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
+        self.stdout.write(
+            f"  Manufacturer claims (IPDB): {claim_stats['unchanged']} unchanged, "
+            f"{claim_stats['created']} created, "
+            f"{claim_stats['superseded']} superseded"
+        )
+
         return {
             "brands_existing": len(brand_cache) - brands_created,
             "brands_created": brands_created,
@@ -161,7 +213,9 @@ class Command(BaseCommand):
             "skipped": skipped,
         }
 
-    def _ingest_opdb(self, path: str) -> dict[str, int]:
+    def _ingest_opdb(self, path: str, source: Source) -> dict:
+        from django.contrib.contenttypes.models import ContentType
+
         with open(path) as f:
             data = json.load(f)
 
@@ -186,6 +240,8 @@ class Command(BaseCommand):
         matched = 0
         new_brands: list[Manufacturer] = []
         brands_needing_opdb_id: list[Manufacturer] = []
+        # Track (brand, opdb_name) for all processed brands to assert claims.
+        brand_opdb_names: list[tuple[Manufacturer, str]] = []
 
         for mid, m in opdb_mfrs.items():
             opdb_name = m["name"]
@@ -210,6 +266,8 @@ class Command(BaseCommand):
                 new_brands.append(brand)
                 name_cache[opdb_name.lower()] = brand
 
+            brand_opdb_names.append((brand, opdb_name))
+
             if brand.opdb_manufacturer_id is None:
                 brand.opdb_manufacturer_id = mid
                 if brand.pk:
@@ -225,12 +283,37 @@ class Command(BaseCommand):
         created = len(new_brands)
         if new_brands:
             Manufacturer.objects.bulk_create(new_brands)
+            # Refresh PKs for newly created brands.
+            pk_lookup = {m.name.lower(): m.pk for m in Manufacturer.objects.all()}
+            for brand in new_brands:
+                brand.pk = pk_lookup[brand.name.lower()]
 
         opdb_id_set = len(brands_needing_opdb_id)
         if brands_needing_opdb_id:
             Manufacturer.objects.bulk_update(
                 brands_needing_opdb_id, ["opdb_manufacturer_id"]
             )
+
+        # Assert name claims for all manufacturer brands seen in this ingest.
+        ct = ContentType.objects.get_for_model(Manufacturer)
+        pending_claims: list[Claim] = []
+        for brand, opdb_name in brand_opdb_names:
+            if not brand.pk:
+                continue
+            pending_claims.append(
+                Claim(
+                    content_type_id=ct.pk,
+                    object_id=brand.pk,
+                    field_name="name",
+                    value=opdb_name,
+                )
+            )
+        claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
+        self.stdout.write(
+            f"  Manufacturer claims (OPDB): {claim_stats['unchanged']} unchanged, "
+            f"{claim_stats['created']} created, "
+            f"{claim_stats['superseded']} superseded"
+        )
 
         return {
             "matched": matched,

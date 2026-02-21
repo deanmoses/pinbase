@@ -163,7 +163,7 @@ class Command(BaseCommand):
         )
 
         # --- Bulk-create Persons and Credits ---
-        self._bulk_create_persons_and_credits(credit_queue)
+        self._bulk_create_persons_and_credits(credit_queue, source)
 
         self.stdout.write(self.style.SUCCESS("IPDB ingestion complete."))
 
@@ -268,11 +268,14 @@ class Command(BaseCommand):
                 credit_queue.append((pm.pk, name, role))
 
     def _bulk_create_persons_and_credits(
-        self, credit_queue: list[tuple[int, str, str]]
+        self, credit_queue: list[tuple[int, str, str]], source
     ) -> None:
-        """Bulk-create Person and DesignCredit records from the credit queue."""
+        """Bulk-create Person and DesignCredit records from the credit queue,
+        then assert name claims for all persons via the provenance system."""
         if not credit_queue:
             return
+
+        from django.contrib.contenttypes.models import ContentType
 
         # Discover all unique person names needed.
         existing_persons: dict[str, Person] = {
@@ -298,6 +301,27 @@ class Command(BaseCommand):
         self.stdout.write(
             f"  Persons: {len(existing_persons) - persons_created} existing, "
             f"{persons_created} created"
+        )
+
+        # Assert name claims for all unique persons referenced in this ingest.
+        # One claim per unique person — not one per credit.
+        ct_person = ContentType.objects.get_for_model(Person)
+        unique_names = {name.lower(): name for _, name, _ in credit_queue}
+        person_claims: list[Claim] = [
+            Claim(
+                content_type_id=ct_person.pk,
+                object_id=existing_persons[key].pk,
+                field_name="name",
+                value=canonical_name,
+            )
+            for key, canonical_name in unique_names.items()
+            if key in existing_persons
+        ]
+        person_claim_stats = Claim.objects.bulk_assert_claims(source, person_claims)
+        self.stdout.write(
+            f"  Person claims: {person_claim_stats['unchanged']} unchanged, "
+            f"{person_claim_stats['created']} created, "
+            f"{person_claim_stats['superseded']} superseded"
         )
 
         # Build DesignCredit objects, skipping duplicates.
