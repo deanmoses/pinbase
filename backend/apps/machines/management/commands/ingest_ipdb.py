@@ -76,7 +76,7 @@ class Command(BaseCommand):
             defaults={
                 "name": "IPDB",
                 "source_type": "database",
-                "priority": 10,
+                "priority": 100,
                 "url": "https://www.ipdb.org",
             },
         )
@@ -278,12 +278,12 @@ class Command(BaseCommand):
         new_credits: list[DesignCredit] = []
         for pm_pk, name, role in credit_queue:
             person = existing_persons[name.lower()]
-            key = (pm_pk, person.pk, role)
-            if key not in existing_credits:
+            credit_key = (pm_pk, person.pk, role)
+            if credit_key not in existing_credits:
                 new_credits.append(
                     DesignCredit(model_id=pm_pk, person_id=person.pk, role=role)
                 )
-                existing_credits.add(key)
+                existing_credits.add(credit_key)
 
         credits_created = len(new_credits)
         if new_credits:

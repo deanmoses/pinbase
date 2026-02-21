@@ -56,7 +56,7 @@ class Command(BaseCommand):
             defaults={
                 "name": "OPDB",
                 "source_type": "database",
-                "priority": 20,
+                "priority": 200,
                 "url": "https://opdb.org",
             },
         )

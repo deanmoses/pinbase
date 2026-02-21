@@ -11,7 +11,7 @@ class UserProfile(models.Model):
         related_name="profile",
     )
     priority = models.PositiveSmallIntegerField(
-        default=100,
+        default=10000,
         help_text="Claim priority for conflict resolution. Higher beats lower.",
     )
     created_at = models.DateTimeField(auto_now_add=True)

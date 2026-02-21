@@ -13,6 +13,7 @@ STEPS = [
     "ingest_manufacturers",
     "ingest_ipdb",
     "ingest_opdb",
+    "ingest_signs",
     "resolve_claims",
 ]
 

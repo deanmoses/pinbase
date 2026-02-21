@@ -174,7 +174,7 @@ class Command(BaseCommand):
             defaults={
                 "name": "Web Scrape",
                 "source_type": "other",
-                "priority": 5,
+                "priority": 10,
                 "url": "",
                 "description": "Temporary web-scraped images for demo purposes.",
             },
