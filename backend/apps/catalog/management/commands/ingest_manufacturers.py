@@ -1,8 +1,10 @@
 """Ingest manufacturers from IPDB and OPDB JSON dumps.
 
 Phase 1: Parse IPDB Manufacturer strings → create Manufacturer (brand)
-          and ManufacturerEntity (corporate entity) records.
-Phase 2: Match OPDB manufacturers to existing brands or create new ones.
+          and ManufacturerEntity (corporate entity) records, then assert
+          name/trade_name provenance claims via the IPDB source.
+Phase 2: Match OPDB manufacturers to existing brands or create new ones,
+          then assert name provenance claims via the OPDB source.
 """
 
 from __future__ import annotations
@@ -72,6 +74,12 @@ class Command(BaseCommand):
             f"{ipdb_stats['entities_created']} created"
         )
         self.stdout.write(f"  Skipped (placeholder IDs): {ipdb_stats['skipped']}")
+        cs = ipdb_stats["claim_stats"]
+        self.stdout.write(
+            f"  Claims (IPDB): {cs['unchanged']} unchanged, "
+            f"{cs['created']} created, "
+            f"{cs['superseded']} superseded"
+        )
 
         self.stdout.write("Phase 2: Matching OPDB manufacturers...")
         opdb_stats = self._ingest_opdb(opdb_path, opdb_source)
@@ -82,6 +90,12 @@ class Command(BaseCommand):
         )
         if opdb_stats["new_brand_names"]:
             self.stdout.write(f"    New: {format_names(opdb_stats['new_brand_names'])}")
+        cs = opdb_stats["claim_stats"]
+        self.stdout.write(
+            f"  Claims (OPDB): {cs['unchanged']} unchanged, "
+            f"{cs['created']} created, "
+            f"{cs['superseded']} superseded"
+        )
 
         self.stdout.write(self.style.SUCCESS("Manufacturer ingestion complete."))
 
@@ -198,11 +212,6 @@ class Command(BaseCommand):
                     )
                 )
         claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
-        self.stdout.write(
-            f"  Manufacturer claims (IPDB): {claim_stats['unchanged']} unchanged, "
-            f"{claim_stats['created']} created, "
-            f"{claim_stats['superseded']} superseded"
-        )
 
         return {
             "brands_existing": len(brand_cache) - brands_created,
@@ -211,6 +220,7 @@ class Command(BaseCommand):
             "entities_existing": len(existing_entity_ids) - entities_created,
             "entities_created": entities_created,
             "skipped": skipped,
+            "claim_stats": claim_stats,
         }
 
     def _ingest_opdb(self, path: str, source: Source) -> dict:
@@ -309,15 +319,11 @@ class Command(BaseCommand):
                 )
             )
         claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
-        self.stdout.write(
-            f"  Manufacturer claims (OPDB): {claim_stats['unchanged']} unchanged, "
-            f"{claim_stats['created']} created, "
-            f"{claim_stats['superseded']} superseded"
-        )
 
         return {
             "matched": matched,
             "created": created,
             "new_brand_names": [b.name for b in new_brands],
             "opdb_id_set": opdb_id_set,
+            "claim_stats": claim_stats,
         }
