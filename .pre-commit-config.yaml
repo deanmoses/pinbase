@@ -87,3 +87,15 @@ repos:
         language: system
         files: ^frontend/
         pass_filenames: false
+      - id: frontend-test
+        name: frontend tests
+        entry: bash -c 'cd frontend && pnpm test'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+      - id: backend-test
+        name: backend tests
+        entry: uv run --directory backend pytest
+        language: system
+        files: ^backend/
+        pass_filenames: false
