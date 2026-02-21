@@ -1,0 +1,298 @@
+import pytest
+from django.utils import timezone
+
+from apps.catalog.models import (
+    MachineGroup,
+    Manufacturer,
+    ManufacturerEntity,
+    MachineModel,
+)
+from apps.catalog.resolve import resolve_all, resolve_model
+from apps.provenance.models import Claim, Source
+
+
+@pytest.fixture
+def ipdb(db):
+    return Source.objects.create(name="IPDB", source_type="database", priority=10)
+
+
+@pytest.fixture
+def opdb(db):
+    return Source.objects.create(name="OPDB", source_type="database", priority=20)
+
+
+@pytest.fixture
+def editorial(db):
+    return Source.objects.create(
+        name="The Flip Editorial", source_type="editorial", priority=100
+    )
+
+
+@pytest.fixture
+def pm(db):
+    return MachineModel.objects.create(name="Placeholder")
+
+
+class TestResolveModel:
+    def test_basic_resolution(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=ipdb)
+        Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm, "machine_type", "SS", source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.name == "Medieval Madness"
+        assert resolved.year == 1997
+        assert resolved.machine_type == "SS"
+
+    def test_higher_priority_wins(self, pm, ipdb, editorial):
+        Claim.objects.assert_claim(pm, "year", 1996, source=ipdb)
+        Claim.objects.assert_claim(pm, "year", 1997, source=editorial)
+
+        resolved = resolve_model(pm)
+        assert resolved.year == 1997  # editorial has higher priority
+
+    def test_same_priority_latest_wins(self, pm, ipdb, opdb):
+        Claim.objects.assert_claim(pm, "name", "IPDB Name", source=ipdb)
+        Claim.objects.assert_claim(pm, "name", "OPDB Name", source=opdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.name == "OPDB Name"
+
+    def test_extra_data_catchall(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "model_number", "20021", source=ipdb)
+        Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.extra_data["model_number"] == "20021"
+        assert resolved.extra_data["abbreviation"] == "MM"
+
+    def test_manufacturer_resolution_by_ipdb_id(self, pm, ipdb):
+        mfr = Manufacturer.objects.create(name="Williams")
+        ManufacturerEntity.objects.create(
+            manufacturer=mfr, name="Williams Manufacturing", ipdb_manufacturer_id=42
+        )
+        Claim.objects.assert_claim(pm, "manufacturer", 42, source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == mfr
+
+    def test_manufacturer_resolution_by_opdb_id(self, pm, opdb):
+        mfr = Manufacturer.objects.create(name="Williams", opdb_manufacturer_id=7)
+        Claim.objects.assert_claim(pm, "manufacturer", 7, source=opdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == mfr
+
+    def test_manufacturer_resolution_by_name(self, pm, ipdb):
+        mfr = Manufacturer.objects.create(name="Stern")
+        Claim.objects.assert_claim(pm, "manufacturer", "Stern", source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == mfr
+
+    def test_manufacturer_resolution_by_trade_name(self, pm, ipdb):
+        mfr = Manufacturer.objects.create(
+            name="Midway Manufacturing", trade_name="Bally"
+        )
+        Claim.objects.assert_claim(pm, "manufacturer", "Bally", source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == mfr
+
+    def test_manufacturer_resolution_disambiguates_opdb_from_ipdb(self, pm, ipdb, opdb):
+        colliding_id = 7
+        ipdb_mfr = Manufacturer.objects.create(name="Some IPDB Brand")
+        ManufacturerEntity.objects.create(
+            manufacturer=ipdb_mfr,
+            name="Some IPDB Corp",
+            ipdb_manufacturer_id=colliding_id,
+        )
+        opdb_mfr = Manufacturer.objects.create(
+            name="Stern", opdb_manufacturer_id=colliding_id
+        )
+        Claim.objects.assert_claim(pm, "manufacturer", colliding_id, source=opdb)
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer == opdb_mfr
+
+    def test_manufacturer_resolution_unknown(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "manufacturer", "NonexistentCorp", source=ipdb)
+        resolved = resolve_model(pm)
+        assert resolved.manufacturer is None
+
+    def test_int_coercion(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "year", "1997", source=ipdb)
+        Claim.objects.assert_claim(pm, "player_count", "4", source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.year == 1997
+        assert resolved.player_count == 4
+
+    def test_decimal_coercion(self, pm, ipdb):
+        from decimal import Decimal
+
+        Claim.objects.assert_claim(pm, "ipdb_rating", "8.75", source=ipdb)
+
+        resolved = resolve_model(pm)
+        assert resolved.ipdb_rating == Decimal("8.75")
+
+    def test_empty_string_coercion(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "year", "", source=ipdb)
+        resolved = resolve_model(pm)
+        assert resolved.year is None
+
+    def test_invalid_int_coercion(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "year", "not-a-number", source=ipdb)
+        resolved = resolve_model(pm)
+        assert resolved.year is None
+
+    def test_stale_values_cleared_on_re_resolve(self, pm, ipdb):
+        Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
+        Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
+        resolve_model(pm)
+        assert pm.year == 1997
+        assert pm.theme == "Medieval"
+        assert pm.extra_data["abbreviation"] == "MM"
+
+        pm.claims.filter(is_active=True).update(is_active=False)
+        resolve_model(pm)
+        pm.refresh_from_db()
+        assert pm.year is None
+        assert pm.theme == ""
+        assert pm.extra_data == {}
+
+    def test_mixed_fields_and_extra_data(self, pm, ipdb, editorial):
+        Claim.objects.assert_claim(pm, "name", "The Addams Family", source=ipdb)
+        Claim.objects.assert_claim(pm, "year", 1992, source=ipdb)
+        Claim.objects.assert_claim(pm, "toys", "Thing hand, bookcase", source=ipdb)
+        Claim.objects.assert_claim(
+            pm, "educational_text", "A seminal game.", source=editorial
+        )
+
+        resolved = resolve_model(pm)
+        assert resolved.name == "The Addams Family"
+        assert resolved.year == 1992
+        assert resolved.extra_data["toys"] == "Thing hand, bookcase"
+        assert resolved.educational_text == "A seminal game."
+
+
+@pytest.mark.django_db
+class TestResolveAll:
+    def test_basic(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm1 = MachineModel.objects.create(name="P1", slug="p1")
+        pm2 = MachineModel.objects.create(name="P2", slug="p2")
+        pm3 = MachineModel.objects.create(name="P3", slug="p3")
+
+        Claim.objects.assert_claim(pm1, "name", "Medieval Madness", source=ipdb)
+        Claim.objects.assert_claim(pm1, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm2, "name", "The Addams Family", source=ipdb)
+        Claim.objects.assert_claim(pm3, "name", "Twilight Zone", source=ipdb)
+        Claim.objects.assert_claim(pm3, "machine_type", "SS", source=ipdb)
+
+        before = timezone.now()
+        count = resolve_all()
+        assert count == 3
+
+        pm1.refresh_from_db()
+        pm2.refresh_from_db()
+        pm3.refresh_from_db()
+        assert pm1.name == "Medieval Madness"
+        assert pm1.year == 1997
+        assert pm2.name == "The Addams Family"
+        assert pm3.name == "Twilight Zone"
+        assert pm3.machine_type == "SS"
+
+        assert pm1.updated_at >= before
+        assert pm2.updated_at >= before
+        assert pm3.updated_at >= before
+
+    def test_matches_resolve_model(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        opdb = Source.objects.create(
+            name="OPDB", slug="opdb", source_type="database", priority=20
+        )
+        mfr = Manufacturer.objects.create(name="Williams", opdb_manufacturer_id=7)
+        ManufacturerEntity.objects.create(
+            manufacturer=mfr, name="Williams Corp", ipdb_manufacturer_id=42
+        )
+        MachineGroup.objects.create(opdb_id="G1111", name="Medieval Madness", slug="mm")
+
+        pm_bulk = MachineModel.objects.create(name="P1", slug="p1")
+        pm_single = MachineModel.objects.create(name="P2", slug="p2")
+
+        for pm in (pm_bulk, pm_single):
+            Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=ipdb)
+            Claim.objects.assert_claim(pm, "year", 1997, source=opdb)
+            Claim.objects.assert_claim(pm, "manufacturer", 42, source=ipdb)
+            Claim.objects.assert_claim(pm, "group", "G1111", source=opdb)
+            Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
+            Claim.objects.assert_claim(pm, "machine_type", "SS", source=ipdb)
+
+        resolve_model(pm_single)
+        pm_single.refresh_from_db()
+
+        resolve_all()
+        pm_bulk.refresh_from_db()
+
+        assert pm_bulk.name == pm_single.name
+        assert pm_bulk.year == pm_single.year
+        assert pm_bulk.manufacturer_id == pm_single.manufacturer_id
+        assert pm_bulk.group_id == pm_single.group_id
+        assert pm_bulk.machine_type == pm_single.machine_type
+        assert pm_bulk.extra_data == pm_single.extra_data
+
+    def test_opdb_conflict(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm_a = MachineModel.objects.create(name="Alpha", slug="alpha")
+        pm_b = MachineModel.objects.create(name="Beta", slug="beta")
+
+        Claim.objects.assert_claim(pm_a, "opdb_id", "GCONFLICT-M1", source=ipdb)
+        Claim.objects.assert_claim(pm_b, "opdb_id", "GCONFLICT-M1", source=ipdb)
+
+        resolve_all()
+        pm_a.refresh_from_db()
+        pm_b.refresh_from_db()
+
+        assert pm_a.opdb_id == "GCONFLICT-M1"
+        assert pm_b.opdb_id is None
+
+    def test_stale_values_cleared(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm = MachineModel.objects.create(name="P1", slug="p1")
+
+        Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
+        Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
+        Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
+        resolve_all()
+        pm.refresh_from_db()
+        assert pm.year == 1997
+        assert pm.theme == "Medieval"
+        assert pm.extra_data["abbreviation"] == "MM"
+
+        pm.claims.filter(is_active=True).update(is_active=False)
+        resolve_all()
+        pm.refresh_from_db()
+        assert pm.year is None
+        assert pm.theme == ""
+        assert pm.extra_data == {}
+
+    def test_query_count(self, django_assert_max_num_queries):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        for i in range(5):
+            pm = MachineModel.objects.create(name=f"Model {i}", slug=f"model-{i}")
+            Claim.objects.assert_claim(pm, "name", f"Resolved {i}", source=ipdb)
+            Claim.objects.assert_claim(pm, "year", 2000 + i, source=ipdb)
+
+        with django_assert_max_num_queries(10):
+            resolve_all()

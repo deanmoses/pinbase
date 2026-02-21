@@ -2,13 +2,13 @@ from django.conf import settings
 from ninja import NinjaAPI
 
 from apps.accounts.api import auth_router
-from apps.machines.api import (
+from apps.catalog.api import (
     groups_router,
     manufacturers_router,
     models_router,
     people_router,
-    sources_router,
 )
+from apps.provenance.api import sources_router
 
 api = NinjaAPI(
     title="Pinbase API",

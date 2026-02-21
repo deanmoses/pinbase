@@ -29,7 +29,8 @@ INSTALLED_APPS = [
     "config",
     "apps.accounts",
     "apps.core",
-    "apps.machines",
+    "apps.catalog",
+    "apps.provenance",
 ]
 
 MIDDLEWARE = [

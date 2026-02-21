@@ -1,0 +1,159 @@
+"""Tests for PATCH /api/models/{slug}/claims/ endpoint."""
+
+import pytest
+from django.contrib.auth import get_user_model
+
+from apps.catalog.models import MachineModel
+from apps.catalog.resolve import resolve_model
+from apps.provenance.models import Claim, Source
+
+User = get_user_model()
+
+
+@pytest.fixture
+def user(db):
+    return User.objects.create_user(username="editor", password="testpass")  # pragma: allowlist secret  # fmt: skip
+
+
+@pytest.fixture
+def low_priority_source(db):
+    return Source.objects.create(name="IPDB", source_type="database", priority=10)
+
+
+@pytest.fixture
+def pm(db):
+    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+
+
+@pytest.mark.django_db
+class TestPatchClaimsAuth:
+    def test_anonymous_gets_401(self, client, pm):
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 1998}}',
+            content_type="application/json",
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_authenticated_user_can_patch(self, client, user, pm):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 1998}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+class TestPatchClaimsValidation:
+    def test_unknown_field_returns_422(self, client, user, pm):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"nonexistent_field": "value"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+
+    def test_nonexistent_slug_returns_404(self, client, user):
+        client.force_login(user)
+        resp = client.patch(
+            "/api/models/does-not-exist/claims/",
+            data='{"fields": {"year": 1998}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestPatchClaimsPersistence:
+    def test_claim_created_for_user(self, client, user, pm):
+        client.force_login(user)
+        client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 1998}}',
+            content_type="application/json",
+        )
+        claim = pm.claims.get(user=user, field_name="year", is_active=True)
+        assert claim.value == 1998
+        assert claim.source is None
+
+    def test_repeated_edit_supersedes_previous_claim(self, client, user, pm):
+        client.force_login(user)
+        client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 1998}}',
+            content_type="application/json",
+        )
+        client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 1999}}',
+            content_type="application/json",
+        )
+        active = pm.claims.filter(user=user, field_name="year", is_active=True)
+        inactive = pm.claims.filter(user=user, field_name="year", is_active=False)
+        assert active.count() == 1
+        assert inactive.count() == 1
+        assert active.first().value == 1999
+
+    def test_model_is_resolved_after_patch(self, client, user, pm):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 2001, "name": "Updated Name"}}',
+            content_type="application/json",
+        )
+        data = resp.json()
+        assert data["year"] == 2001
+        assert data["name"] == "Updated Name"
+
+        pm.refresh_from_db()
+        assert pm.year == 2001
+        assert pm.name == "Updated Name"
+
+    def test_user_claim_beats_lower_priority_source(
+        self, client, user, pm, low_priority_source
+    ):
+        Claim.objects.assert_claim(pm, "year", 1997, source=low_priority_source)
+        resolve_model(pm)
+        pm.refresh_from_db()
+        assert pm.year == 1997
+
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"year": 2000}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["year"] == 2000
+
+        pm.refresh_from_db()
+        assert pm.year == 2000
+
+
+@pytest.mark.django_db
+class TestUserClaimResolution:
+    """Resolution logic correctly handles user-attributed claims."""
+
+    def test_user_claim_wins_over_lower_priority_source(
+        self, user, pm, low_priority_source
+    ):
+        Claim.objects.assert_claim(pm, "year", 1990, source=low_priority_source)
+        Claim.objects.assert_claim(pm, "year", 2000, user=user)  # priority 10000 > 10
+
+        resolved = resolve_model(pm)
+        assert resolved.year == 2000
+
+    def test_source_wins_over_lower_priority_user(self, user, pm):
+        high_source = Source.objects.create(
+            name="HighPri", source_type="editorial", priority=50000
+        )
+        Claim.objects.assert_claim(pm, "year", 1990, source=high_source)
+        Claim.objects.assert_claim(
+            pm, "year", 2000, user=user
+        )  # priority 10000 < 50000
+
+        resolved = resolve_model(pm)
+        assert resolved.year == 1990
