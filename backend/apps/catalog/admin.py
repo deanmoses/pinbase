@@ -1,5 +1,8 @@
+from decimal import Decimal
+
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
+from django.contrib.contenttypes.models import ContentType
 
 from apps.provenance.models import Claim
 
@@ -11,6 +14,66 @@ from .models import (
     ManufacturerEntity,
     Person,
 )
+from .resolve import (
+    DIRECT_FIELDS,
+    MANUFACTURER_DIRECT_FIELDS,
+    PERSON_DIRECT_FIELDS,
+    resolve_manufacturer,
+    resolve_model,
+    resolve_person,
+)
+
+
+class ProvenanceSaveMixin:
+    """Routes writes to claim-controlled fields through the provenance system.
+
+    Subclasses define:
+    - ``CLAIM_FIELDS``: frozenset of form field names that are claim-controlled.
+    - ``_to_claim_value(field_name, value)``: serialize a form value for storage
+      in a Claim (override for FK fields).
+    - ``_resolve(obj)``: call the appropriate resolve function after asserting claims.
+
+    On save, any changed claim-controlled field is asserted as a user Claim, then
+    the object is re-resolved so the materialized fields stay consistent.
+    """
+
+    CLAIM_FIELDS: frozenset = frozenset()
+
+    def _to_claim_value(self, field_name: str, value):
+        if isinstance(value, Decimal):
+            return str(value)
+        return value
+
+    def _resolve(self, obj) -> None:
+        raise NotImplementedError
+
+    def save_model(self, request, obj, form, change):
+        # Persist the object first (required to have a PK for claim creation).
+        super().save_model(request, obj, form, change)
+
+        changed = [f for f in form.changed_data if f in self.CLAIM_FIELDS]
+        if not changed:
+            return
+
+        for field_name in changed:
+            claim_value = self._to_claim_value(
+                field_name, form.cleaned_data.get(field_name)
+            )
+            if claim_value is None:
+                # Field cleared: withdraw the user's claim rather than storing a
+                # NULL value (Claim.value does not allow NULL).
+                Claim.objects.filter(
+                    content_type=ContentType.objects.get_for_model(obj),
+                    object_id=obj.pk,
+                    user=request.user,
+                    field_name=field_name,
+                    is_active=True,
+                ).update(is_active=False)
+            else:
+                Claim.objects.assert_claim(
+                    obj, field_name, claim_value, user=request.user
+                )
+        self._resolve(obj)
 
 
 class ClaimInline(GenericTabularInline):
@@ -49,7 +112,12 @@ class ManufacturerEntityInline(admin.TabularInline):
 
 
 @admin.register(Manufacturer)
-class ManufacturerAdmin(admin.ModelAdmin):
+class ManufacturerAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(MANUFACTURER_DIRECT_FIELDS)
+
+    def _resolve(self, obj):
+        resolve_manufacturer(obj)
+
     list_display = (
         "name",
         "trade_name",
@@ -58,7 +126,7 @@ class ManufacturerAdmin(admin.ModelAdmin):
     )
     search_fields = ("name", "trade_name")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = (ManufacturerEntityInline,)
+    inlines = (ManufacturerEntityInline, ClaimInline)
 
     @admin.display(description="Entities")
     def entity_count(self, obj):
@@ -77,10 +145,16 @@ class MachineGroupAdmin(admin.ModelAdmin):
 
 
 @admin.register(Person)
-class PersonAdmin(admin.ModelAdmin):
+class PersonAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(PERSON_DIRECT_FIELDS)
+
+    def _resolve(self, obj):
+        resolve_person(obj)
+
     list_display = ("name", "credit_count")
     search_fields = ("name",)
     prepopulated_fields = {"slug": ("name",)}
+    inlines = (ClaimInline,)
 
     @admin.display(description="Credits")
     def credit_count(self, obj):
@@ -88,7 +162,21 @@ class PersonAdmin(admin.ModelAdmin):
 
 
 @admin.register(MachineModel)
-class MachineModelAdmin(admin.ModelAdmin):
+class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {"manufacturer", "group"}
+
+    def _to_claim_value(self, field_name: str, value):
+        if field_name == "manufacturer" and value is not None:
+            return (
+                value.opdb_manufacturer_id if value.opdb_manufacturer_id else value.name
+            )
+        if field_name == "group" and value is not None:
+            return value.opdb_id
+        return super()._to_claim_value(field_name, value)
+
+    def _resolve(self, obj):
+        resolve_model(obj)
+
     list_display = (
         "name",
         "manufacturer",
