@@ -3,22 +3,29 @@ name: CI
 on:
   pull_request:
     branches: [main]
-    # Keep in sync with watchPatterns in railway.toml
-    paths-ignore:
-      - '*.md'
-      - 'docs/**'
-      - '.claude/**'
-      - '.github/**'
-      - '!.github/workflows/**'
-      - '.vscode/**'
-      - '.coderabbit.yaml'
-      - '.pre-commit-config.yaml'
-      - '.env.example'
-      - '.gitignore'
-      - 'LICENSE'
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/**'
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,6 +39,8 @@ jobs:
       - run: uv run pytest
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,6 +60,8 @@ jobs:
       - run: pnpm test
 
   api-types:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,3 +82,17 @@ jobs:
         run: test -f frontend/src/lib/api/schema.d.ts
       - name: Svelte type check
         run: cd frontend && pnpm check
+
+  ci:
+    if: always()
+    needs: [backend, frontend, api-types]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed
+        run: |
+          results='${{ toJSON(needs.*.result) }}'
+          if echo "$results" | grep -qE '"(failure|cancelled)"'; then
+            echo "One or more jobs failed or were cancelled"
+            exit 1
+          fi
+          echo "All checks passed or were skipped"
