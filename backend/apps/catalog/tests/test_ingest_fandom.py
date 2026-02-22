@@ -5,14 +5,21 @@ from django.core.management import call_command
 
 from apps.catalog.ingestion.fandom_wiki import (
     FandomCredit,
+    FandomPerson,
+    _extract_prose,
+    _parse_company_template,
     _parse_infobox_credits,
     parse_game_pages,
+    parse_manufacturer_pages,
+    parse_person_pages,
 )
-from apps.catalog.models import DesignCredit, MachineModel, Person
-from apps.provenance.models import Source
+from apps.catalog.models import DesignCredit, MachineModel, Manufacturer, Person
+from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
 SAMPLE = f"{FIXTURES}/fandom_sample.json"
+PERSONS_SAMPLE = f"{FIXTURES}/fandom_persons_sample.json"
+MANUFACTURERS_SAMPLE = f"{FIXTURES}/fandom_manufacturers_sample.json"
 
 
 # ---------------------------------------------------------------------------
@@ -46,8 +53,13 @@ def _seed_db(db):
 
 @pytest.fixture
 def _run_fandom(_seed_db):
-    """Run ingest_fandom using the sample fixture."""
-    call_command("ingest_fandom", from_dump=SAMPLE)
+    """Run ingest_fandom using the sample fixtures (no network calls)."""
+    call_command(
+        "ingest_fandom",
+        from_dump=SAMPLE,
+        from_dump_persons=PERSONS_SAMPLE,
+        from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +73,7 @@ class TestIngestFandom:
     def test_creates_source(self):
         source = Source.objects.get(slug="fandom")
         assert source.name == "Pinball Wiki (Fandom)"
-        assert source.priority == 60
+        assert source.priority == 20
         assert source.source_type == "wiki"
 
     def test_art_credit_created(self):
@@ -105,7 +117,12 @@ class TestIngestFandom:
 
     def test_idempotent(self):
         """Running twice must not duplicate credits."""
-        call_command("ingest_fandom", from_dump=SAMPLE)
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
         addams = MachineModel.objects.get(name="The Addams Family")
         john_y = Person.objects.get(name="John Youssi")
         assert (
@@ -124,9 +141,22 @@ class TestFromDumpEmpty:
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump({"games": []}, f)
-            path = f.name
+            games_path = f.name
 
-        call_command("ingest_fandom", from_dump=path)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"persons": []}, f)
+            persons_path = f.name
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"manufacturers": []}, f)
+            mfrs_path = f.name
+
+        call_command(
+            "ingest_fandom",
+            from_dump=games_path,
+            from_dump_persons=persons_path,
+            from_dump_manufacturers=mfrs_path,
+        )
         assert Source.objects.filter(slug="fandom").exists()
         assert DesignCredit.objects.count() == 0
 
@@ -246,3 +276,354 @@ class TestParseGamePages:
 
     def test_empty_games_returns_empty_list(self):
         assert parse_game_pages({"games": []}) == []
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — persons
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _seed_persons_db(db):
+    """Seed DB for person ingestion tests."""
+    addams = MachineModel.objects.create(name="The Addams Family", year=1992)
+    pat = Person.objects.create(name="Pat Lawlor")
+    DesignCredit.objects.create(model=addams, person=pat, role="design")
+    return {"addams": addams, "pat": pat}
+
+
+@pytest.mark.django_db
+class TestIngestFandomPersons:
+    def test_existing_person_not_duplicated(self, _seed_persons_db):
+        """Pat Lawlor is already in the DB — must not be duplicated."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        assert Person.objects.filter(name="Pat Lawlor").count() == 1
+
+    def test_new_person_created(self, _seed_persons_db):
+        """'New Artist' is in the persons dump but not the DB — should be created."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        assert Person.objects.filter(name="New Artist").exists()
+
+    def test_redirect_page_skipped(self, _seed_persons_db):
+        """Redirect pages must not create person records."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        assert not Person.objects.filter(name="Bally").exists()
+
+    def test_bio_claim_asserted_for_existing_person(self, _seed_persons_db):
+        """A bio claim should be asserted for Pat Lawlor from his Fandom page."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        pat = Person.objects.get(name="Pat Lawlor")
+        assert Claim.objects.filter(object_id=pat.pk, field_name="bio").exists()
+
+    def test_bio_resolved_into_person_field(self, _seed_persons_db):
+        """resolve_person() should populate Person.bio from the Fandom claim."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        pat = Person.objects.get(name="Pat Lawlor")
+        assert pat.bio != ""
+
+    def test_idempotent_persons(self, _seed_persons_db):
+        """Running twice must not duplicate persons or claims."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        assert Person.objects.filter(name="Pat Lawlor").count() == 1
+        assert Person.objects.filter(name="New Artist").count() == 1
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — manufacturers
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _seed_manufacturers_db(db):
+    """Seed DB for manufacturer ingestion tests."""
+    williams = Manufacturer.objects.create(name="Williams Electronics")
+    return {"williams": williams}
+
+
+@pytest.mark.django_db
+class TestIngestFandomManufacturers:
+    def test_founded_year_claim_asserted(self, _seed_manufacturers_db):
+        """founded_year claim should be created for Williams Electronics."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        williams = Manufacturer.objects.get(name="Williams Electronics")
+        assert Claim.objects.filter(
+            object_id=williams.pk, field_name="founded_year"
+        ).exists()
+
+    def test_founded_year_resolved(self, _seed_manufacturers_db):
+        """resolve_manufacturer() should populate founded_year from the claim."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        williams = Manufacturer.objects.get(name="Williams Electronics")
+        assert williams.founded_year == 1943
+
+    def test_dissolved_year_resolved(self, _seed_manufacturers_db):
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        williams = Manufacturer.objects.get(name="Williams Electronics")
+        assert williams.dissolved_year == 1999
+
+    def test_unmatched_manufacturer_not_created(self, _seed_manufacturers_db):
+        """'Unknown Co' is in the dump but not the DB — must NOT be created."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        assert not Manufacturer.objects.filter(name="Unknown Co").exists()
+
+    def test_redirect_manufacturer_skipped(self, _seed_manufacturers_db):
+        """Redirect pages must not create manufacturer records."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        assert not Manufacturer.objects.filter(name="Bally").exists()
+
+    def test_idempotent_manufacturers(self, _seed_manufacturers_db):
+        """Running twice must not duplicate claims."""
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        call_command(
+            "ingest_fandom",
+            from_dump=SAMPLE,
+            from_dump_persons=PERSONS_SAMPLE,
+            from_dump_manufacturers=MANUFACTURERS_SAMPLE,
+        )
+        williams = Manufacturer.objects.get(name="Williams Electronics")
+        assert (
+            Claim.objects.filter(
+                object_id=williams.pk, field_name="founded_year"
+            ).count()
+            == 1
+        )
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — prose extraction and Company template parsing
+# ---------------------------------------------------------------------------
+
+
+class TestExtractProse:
+    def test_strips_stub_template(self):
+        wikitext = "{{stub}}\n\n'''Pat Lawlor''' is a designer.\n"
+        assert _extract_prose(wikitext) == "Pat Lawlor is a designer."
+
+    def test_strips_wikilinks(self):
+        wikitext = (
+            "'''Alice''' works for [[Bally]] and [[Williams Electronics|Williams]].\n"
+        )
+        result = _extract_prose(wikitext)
+        assert "Bally" in result
+        assert "Williams" in result
+        assert "[[" not in result
+
+    def test_strips_bold_apostrophes(self):
+        wikitext = "'''Bob Smith''' is a pinball artist.\n"
+        assert _extract_prose(wikitext) == "Bob Smith is a pinball artist."
+
+    def test_skips_headings(self):
+        wikitext = "{{stub}}\n== Credits ==\n'''Alice''' is an artist.\n"
+        assert _extract_prose(wikitext) == "Alice is an artist."
+
+    def test_skips_category_links(self):
+        wikitext = "[[Category:People|Smith, Bob]]\n'''Bob Smith''' is a designer.\n"
+        result = _extract_prose(wikitext)
+        assert result == "Bob Smith is a designer."
+
+    def test_empty_wikitext_returns_empty(self):
+        assert _extract_prose("") == ""
+
+    def test_redirect_page_returns_empty(self):
+        assert _extract_prose("#REDIRECT [[Midway Manufacturing Company]]") == ""
+
+
+class TestParseCompanyTemplate:
+    WILLIAMS_WIKITEXT = (
+        "{{Company\n"
+        "  | title1=Williams Electronics\n"
+        "  | founded=1943\n"
+        "  | defunct=1999\n"
+        "  | headquarters=Chicago, Illinois\n"
+        "  | website=[http://www.williams.com/ www.williams.com]\n"
+        "}}\n"
+        "'''Williams Electronics''' was a major pinball manufacturer.\n"
+    )
+
+    def test_founded_year(self):
+        result = _parse_company_template(self.WILLIAMS_WIKITEXT)
+        assert result["founded_year"] == 1943
+
+    def test_dissolved_year(self):
+        result = _parse_company_template(self.WILLIAMS_WIKITEXT)
+        assert result["dissolved_year"] == 1999
+
+    def test_headquarters(self):
+        result = _parse_company_template(self.WILLIAMS_WIKITEXT)
+        assert result["headquarters"] == "Chicago, Illinois"
+
+    def test_website_strips_external_link_markup(self):
+        result = _parse_company_template(self.WILLIAMS_WIKITEXT)
+        assert result["website"] == "http://www.williams.com/"
+
+    def test_no_company_template_returns_none(self):
+        assert _parse_company_template("No template here.") is None
+
+    def test_missing_fields_return_none_or_empty(self):
+        wikitext = "{{Company\n  | title1=Minimal Co\n}}\n"
+        result = _parse_company_template(wikitext)
+        assert result is not None
+        assert result["founded_year"] is None
+        assert result["dissolved_year"] is None
+        assert result["headquarters"] == ""
+
+
+class TestParsePersonPages:
+    def test_redirect_skipped(self):
+        data = {
+            "persons": [
+                {"page_id": 1, "title": "Bally", "wikitext": "#REDIRECT [[Midway]]"}
+            ]
+        }
+        assert parse_person_pages(data) == []
+
+    def test_bio_extracted(self):
+        data = {
+            "persons": [
+                {
+                    "page_id": 1,
+                    "title": "Pat Lawlor",
+                    "wikitext": "{{stub}}\n\n'''Pat Lawlor''' is a designer.\n",
+                }
+            ]
+        }
+        persons = parse_person_pages(data)
+        assert len(persons) == 1
+        assert persons[0].bio == "Pat Lawlor is a designer."
+
+    def test_sorted_by_title(self):
+        data = {
+            "persons": [
+                {"page_id": 2, "title": "Steve Ritchie", "wikitext": ""},
+                {"page_id": 1, "title": "Pat Lawlor", "wikitext": ""},
+            ]
+        }
+        persons = parse_person_pages(data)
+        assert persons[0].title == "Pat Lawlor"
+        assert persons[1].title == "Steve Ritchie"
+
+    def test_citation_url(self):
+        data = {"persons": [{"page_id": 1, "title": "Pat Lawlor", "wikitext": ""}]}
+        persons = parse_person_pages(data)
+        assert persons[0].citation_url == "https://pinball.fandom.com/wiki/Pat_Lawlor"
+
+    def test_returns_fandom_person_type(self):
+        data = {
+            "persons": [{"page_id": 1, "title": "Pat Lawlor", "wikitext": "stub text"}]
+        }
+        persons = parse_person_pages(data)
+        assert isinstance(persons[0], FandomPerson)
+
+
+class TestParseManufacturerPages:
+    def test_redirect_skipped(self):
+        data = {
+            "manufacturers": [
+                {"page_id": 1, "title": "Bally", "wikitext": "#REDIRECT [[Midway]]"}
+            ]
+        }
+        assert parse_manufacturer_pages(data) == []
+
+    def test_founded_year_parsed(self):
+        data = {
+            "manufacturers": [
+                {
+                    "page_id": 1,
+                    "title": "Williams Electronics",
+                    "wikitext": "{{Company\n  | founded=1943\n}}\nSome text.\n",
+                }
+            ]
+        }
+        mfrs = parse_manufacturer_pages(data)
+        assert mfrs[0].founded_year == 1943
+
+    def test_no_company_template_still_included(self):
+        """Pages without {{Company}} are included (description only)."""
+        data = {
+            "manufacturers": [
+                {
+                    "page_id": 1,
+                    "title": "Stub Co",
+                    "wikitext": "'''Stub Co''' is a company.\n",
+                }
+            ]
+        }
+        mfrs = parse_manufacturer_pages(data)
+        assert len(mfrs) == 1
+        assert mfrs[0].founded_year is None
+
+    def test_sorted_by_title(self):
+        data = {
+            "manufacturers": [
+                {"page_id": 2, "title": "Williams", "wikitext": ""},
+                {"page_id": 1, "title": "Bally Manufacturing", "wikitext": ""},
+            ]
+        }
+        mfrs = parse_manufacturer_pages(data)
+        assert mfrs[0].title == "Bally Manufacturing"

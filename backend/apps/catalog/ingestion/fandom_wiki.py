@@ -1,4 +1,4 @@
-"""Pinball Fandom wiki fetch and parse utilities for game credit data.
+"""Pinball Fandom wiki fetch and parse utilities.
 
 No Django dependency — pure Python. Testable in isolation.
 
@@ -6,10 +6,12 @@ Fetch strategy
 --------------
 The Pinball Fandom wiki (https://pinball.fandom.com) exposes a standard
 MediaWiki API.  We use the ``generator=categorymembers`` approach to iterate
-all pages in ``Category:Machines`` in batches of 50, fetching their wikitext
+all pages in a given category in batches of 50, fetching their wikitext
 content in the same request.  Pagination is handled automatically via the
 MediaWiki ``continue`` token.
 
+Game pages (Category:Machines)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Each game page contains an ``{{Infobox Title}}`` template whose ``designer``
 field encodes all credits, e.g.::
 
@@ -22,8 +24,22 @@ field encodes all credits, e.g.::
 
 This provides roles (art, animation, mechanics) that Wikidata does not cover.
 
-Dump format written by ``fetch_game_pages()`` (and read by ``--from-dump``):
-``{"games": [{"page_id": int, "title": str, "wikitext": str}, ...]}``.
+Person pages (Category:People)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Person pages are one-sentence stubs.  The page title is the canonical name
+used in wikilinks; the first prose sentence is used as the bio.
+
+Manufacturer pages (Category:Manufacturers)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Manufacturer pages use a ``{{Company}}`` template with structured fields:
+``founded``, ``defunct``, ``headquarters``, ``website``.  Redirect pages
+(e.g. "Bally" → "Midway Manufacturing Company") are skipped.
+
+Dump formats
+~~~~~~~~~~~~
+- Games:         ``{"games": [{"page_id": int, "title": str, "wikitext": str}, ...]}``
+- Persons:       ``{"persons": [{"page_id": int, "title": str, "wikitext": str}, ...]}``
+- Manufacturers: ``{"manufacturers": [{"page_id": int, "title": str, "wikitext": str}, ...]}``
 """
 
 from __future__ import annotations
@@ -65,12 +81,25 @@ _LABEL_TO_ROLE: dict[str, str] = {
 # Regex to strip wikilinks: [[display|target]] → display, [[name]] → name.
 _WIKILINK_RE = re.compile(r"\[\[([^\]|]*?)(?:\|[^\]]*?)?\]\]")
 
+# Regex to strip external links: [url display text] → url.
+_EXTLINK_RE = re.compile(r"\[(\S+)(?:\s[^\]]*)?\]")
+
 # Regex to extract a credit segment: '''Label''': persons
 _CREDIT_SEGMENT_RE = re.compile(r"'''([^']+)'''\s*:\s*(.*)", re.DOTALL)
 
 # Regex to find and extract the {{Infobox Title}} template content.
-# Matches from the opening {{ to its matching }}.
 _INFOBOX_START_RE = re.compile(r"\{\{Infobox\s+Title\b", re.IGNORECASE)
+
+# Regex to find the {{Company}} template.
+_COMPANY_START_RE = re.compile(r"\{\{Company\b", re.IGNORECASE)
+
+# Regex to find a 4-digit year.
+_YEAR_RE = re.compile(r"\d{4}")
+
+
+# ---------------------------------------------------------------------------
+# Dataclasses
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -87,6 +116,31 @@ class FandomGame:
     citation_url: str = ""
 
 
+@dataclass
+class FandomPerson:
+    page_id: int
+    title: str  # canonical page title = name used in [[wikilinks]]
+    bio: str  # first prose paragraph, wikitext-stripped
+    citation_url: str = ""
+
+
+@dataclass
+class FandomManufacturer:
+    page_id: int
+    title: str
+    founded_year: int | None = None
+    dissolved_year: int | None = None
+    headquarters: str = ""
+    website: str = ""
+    description: str = ""
+    citation_url: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Public fetch functions
+# ---------------------------------------------------------------------------
+
+
 def fetch_game_pages(timeout: int = 10) -> dict:
     """Fetch all game pages from Category:Machines and return a dump dict.
 
@@ -95,51 +149,29 @@ def fetch_game_pages(timeout: int = 10) -> dict:
 
     Raises ``requests.RequestException`` on network failure.
     """
-    params: dict = {
-        "action": "query",
-        "generator": "categorymembers",
-        "gcmtitle": "Category:Machines",
-        "gcmnamespace": "0",
-        "gcmlimit": "50",
-        "prop": "revisions",
-        "rvprop": "content",
-        "rvslots": "*",
-        "format": "json",
-        "formatversion": "2",
-    }
+    return {"games": _fetch_category_pages("Machines", timeout)}
 
-    pages: list[dict] = []
 
-    while True:
-        resp = requests.get(
-            FANDOM_API,
-            params=params,
-            headers={"User-Agent": USER_AGENT},
-            timeout=timeout,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+def fetch_person_pages(timeout: int = 10) -> dict:
+    """Fetch all person pages from Category:People and return a dump dict.
 
-        query = data.get("query", {})
-        for page in query.get("pages", []):
-            page_id = page.get("pageid")
-            title = page.get("title", "")
-            revisions = page.get("revisions", [])
-            if not revisions:
-                continue
-            rev = revisions[0]
-            # formatversion=2 puts content in slots.main.content
-            slots = rev.get("slots", {})
-            wikitext = slots.get("main", {}).get("content", rev.get("content", ""))
-            if wikitext:
-                pages.append({"page_id": page_id, "title": title, "wikitext": wikitext})
+    Shape: ``{"persons": [{"page_id", "title", "wikitext"}, ...]}``.
+    """
+    return {"persons": _fetch_category_pages("People", timeout)}
 
-        if "continue" not in data:
-            break
-        # Advance pagination — merge all continue params into next request.
-        params.update(data["continue"])
 
-    return {"games": pages}
+def fetch_manufacturer_pages(timeout: int = 10) -> dict:
+    """Fetch all manufacturer pages from Category:Manufacturers and return a dump dict.
+
+    Shape: ``{"manufacturers": [{"page_id", "title", "wikitext"}, ...]}``.
+    Includes redirect pages; callers should skip them via ``parse_manufacturer_pages()``.
+    """
+    return {"manufacturers": _fetch_category_pages("Manufacturers", timeout)}
+
+
+# ---------------------------------------------------------------------------
+# Public parse functions
+# ---------------------------------------------------------------------------
 
 
 def parse_game_pages(data: dict) -> list[FandomGame]:
@@ -167,6 +199,69 @@ def parse_game_pages(data: dict) -> list[FandomGame]:
             )
         )
     return sorted(games, key=lambda g: g.title.lower())
+
+
+def parse_person_pages(data: dict) -> list[FandomPerson]:
+    """Parse the fetch_person_pages() dump into a list of FandomPerson.
+
+    Redirect pages (wikitext starting with ``#REDIRECT``) are skipped.
+    Returns a list sorted by title.
+    """
+    persons: list[FandomPerson] = []
+    for entry in data.get("persons", []):
+        page_id = entry.get("page_id", 0)
+        title = entry.get("title", "")
+        wikitext = entry.get("wikitext", "")
+        if wikitext.lstrip().startswith("#REDIRECT"):
+            continue
+        bio = _extract_prose(wikitext)
+        title_slug = title.replace(" ", "_")
+        persons.append(
+            FandomPerson(
+                page_id=page_id,
+                title=title,
+                bio=bio,
+                citation_url=f"{FANDOM_WIKI_BASE}/{title_slug}",
+            )
+        )
+    return sorted(persons, key=lambda p: p.title.lower())
+
+
+def parse_manufacturer_pages(data: dict) -> list[FandomManufacturer]:
+    """Parse the fetch_manufacturer_pages() dump into a list of FandomManufacturer.
+
+    Redirect pages are skipped.  Pages without a ``{{Company}}`` template are
+    included with empty structured fields (description only).
+    Returns a list sorted by title.
+    """
+    manufacturers: list[FandomManufacturer] = []
+    for entry in data.get("manufacturers", []):
+        page_id = entry.get("page_id", 0)
+        title = entry.get("title", "")
+        wikitext = entry.get("wikitext", "")
+        if wikitext.lstrip().startswith("#REDIRECT"):
+            continue
+        fields = _parse_company_template(wikitext) or {}
+        description = _extract_prose(wikitext)
+        title_slug = title.replace(" ", "_")
+        manufacturers.append(
+            FandomManufacturer(
+                page_id=page_id,
+                title=title,
+                founded_year=fields.get("founded_year"),
+                dissolved_year=fields.get("dissolved_year"),
+                headquarters=fields.get("headquarters", ""),
+                website=fields.get("website", ""),
+                description=description,
+                citation_url=f"{FANDOM_WIKI_BASE}/{title_slug}",
+            )
+        )
+    return sorted(manufacturers, key=lambda m: m.title.lower())
+
+
+# ---------------------------------------------------------------------------
+# Private helpers — game credit parsing
+# ---------------------------------------------------------------------------
 
 
 def _parse_infobox_credits(wikitext: str) -> list[FandomCredit]:
@@ -280,3 +375,159 @@ def _split_person_names(raw: str) -> list[str]:
     # Strip any remaining wiki markup (bold/italic apostrophes).
     stripped = stripped.replace("'''", "").replace("''", "")
     return [name.strip() for name in stripped.split(",")]
+
+
+# ---------------------------------------------------------------------------
+# Private helpers — person and manufacturer parsing
+# ---------------------------------------------------------------------------
+
+
+def _fetch_category_pages(category: str, timeout: int = 10) -> list[dict]:
+    """Fetch all pages in a Fandom wiki category via the MediaWiki API.
+
+    Returns a list of ``{"page_id": int, "title": str, "wikitext": str}`` dicts.
+    Pagination is handled automatically via the MediaWiki ``continue`` token.
+    """
+    params: dict = {
+        "action": "query",
+        "generator": "categorymembers",
+        "gcmtitle": f"Category:{category}",
+        "gcmnamespace": "0",
+        "gcmlimit": "50",
+        "prop": "revisions",
+        "rvprop": "content",
+        "rvslots": "*",
+        "format": "json",
+        "formatversion": "2",
+    }
+
+    pages: list[dict] = []
+
+    while True:
+        resp = requests.get(
+            FANDOM_API,
+            params=params,
+            headers={"User-Agent": USER_AGENT},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        query = data.get("query", {})
+        for page in query.get("pages", []):
+            page_id = page.get("pageid")
+            title = page.get("title", "")
+            revisions = page.get("revisions", [])
+            if not revisions:
+                continue
+            rev = revisions[0]
+            slots = rev.get("slots", {})
+            wikitext = slots.get("main", {}).get("content", rev.get("content", ""))
+            if wikitext:
+                pages.append({"page_id": page_id, "title": title, "wikitext": wikitext})
+
+        if "continue" not in data:
+            break
+        params.update(data["continue"])
+
+    return pages
+
+
+def _extract_prose(wikitext: str) -> str:
+    """Extract the first non-empty prose line, stripped of wikitext markup.
+
+    Removes ``{{templates}}``, category links, wikilinks, external links, and
+    bold/italic apostrophes.  Returns the first non-blank, non-heading line.
+    Redirect pages (``#REDIRECT ...``) return an empty string.
+    """
+    if wikitext.lstrip().startswith("#REDIRECT"):
+        return ""
+    # Remove Category links before stripping templates.
+    text = re.sub(r"\[\[Category:[^\]]*\]\]", "", wikitext, flags=re.IGNORECASE)
+    # Remove all {{...}} template blocks.
+    text = _strip_templates(text)
+    # Strip wikilinks: [[Display|Target]] → Display, [[Name]] → Name.
+    text = _WIKILINK_RE.sub(lambda m: m.group(1), text)
+    # Strip external links: [url text] → url.
+    text = _EXTLINK_RE.sub(lambda m: m.group(1), text)
+    # Strip bold/italic apostrophes.
+    text = text.replace("'''", "").replace("''", "")
+    # Return first non-empty, non-heading line.
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("="):
+            return line
+    return ""
+
+
+def _strip_templates(text: str) -> str:
+    """Remove all ``{{...}}`` template blocks from text, preserving surrounding content."""
+    result: list[str] = []
+    depth = 0
+    i = 0
+    while i < len(text):
+        if text[i : i + 2] == "{{":
+            depth += 1
+            i += 2
+        elif text[i : i + 2] == "}}":
+            if depth > 0:
+                depth -= 1
+            i += 2
+        elif depth == 0:
+            result.append(text[i])
+            i += 1
+        else:
+            i += 1
+    return "".join(result)
+
+
+def _parse_company_template(wikitext: str) -> dict | None:
+    """Extract fields from the ``{{Company}}`` template in wikitext.
+
+    Returns a dict with keys ``founded_year``, ``dissolved_year``,
+    ``headquarters``, ``website``.  Returns ``None`` if no Company template
+    is found; missing/unparseable values are ``None`` or ``""``.
+    """
+    m = _COMPANY_START_RE.search(wikitext)
+    if not m:
+        return None
+
+    # Extract the full template block using depth counting.
+    start = m.start()
+    depth = 0
+    i = start
+    block = ""
+    while i < len(wikitext) - 1:
+        if wikitext[i : i + 2] == "{{":
+            depth += 1
+            i += 2
+        elif wikitext[i : i + 2] == "}}":
+            depth -= 1
+            if depth == 0:
+                block = wikitext[start : i + 2]
+                break
+            i += 2
+        else:
+            i += 1
+
+    if not block:
+        return {}
+
+    def _int_year(raw: str) -> int | None:
+        ym = _YEAR_RE.search(raw)
+        return int(ym.group()) if ym else None
+
+    # Extract website URL from [url display text] markup.
+    website_raw = _extract_field(block, "website").strip()
+    website_match = _EXTLINK_RE.match(website_raw)
+    website = website_match.group(1) if website_match else website_raw
+
+    founded_raw = _extract_field(block, "founded")
+    defunct_raw = _extract_field(block, "defunct")
+
+    return {
+        "founded_year": _int_year(founded_raw) if founded_raw else None,
+        "dissolved_year": _int_year(defunct_raw) if defunct_raw else None,
+        "headquarters": _extract_field(block, "headquarters").strip(),
+        "website": website,
+    }
