@@ -38,6 +38,20 @@ class Manufacturer(TimeStampedModel):
         blank=True,
         help_text="OPDB's manufacturer_id for cross-referencing",
     )
+    wikidata_id = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Wikidata QID, e.g. Q180268",
+    )
+    description = models.TextField(blank=True)
+    founded_year = models.IntegerField(null=True, blank=True)
+    dissolved_year = models.IntegerField(null=True, blank=True)
+    country = models.CharField(max_length=200, null=True, blank=True)
+    headquarters = models.CharField(max_length=200, null=True, blank=True)
+    logo_url = models.URLField(null=True, blank=True)
+    website = models.URLField(blank=True)
 
     claims = GenericRelation("provenance.Claim")
 

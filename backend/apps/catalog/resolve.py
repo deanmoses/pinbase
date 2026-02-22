@@ -464,7 +464,16 @@ def _apply_resolution(
 MANUFACTURER_DIRECT_FIELDS: dict[str, str] = {
     "name": "name",
     "trade_name": "trade_name",
+    "description": "description",
+    "founded_year": "founded_year",
+    "dissolved_year": "dissolved_year",
+    "country": "country",
+    "headquarters": "headquarters",
+    "logo_url": "logo_url",
+    "website": "website",
 }
+
+_MANUFACTURER_INT_FIELDS: frozenset[str] = frozenset({"founded_year", "dissolved_year"})
 
 PERSON_DIRECT_FIELDS: dict[str, str] = {
     "name": "name",
@@ -497,7 +506,12 @@ def _resolve_simple(
     direct_fields: dict[str, str],
     int_fields: frozenset[str] | None = None,
 ) -> None:
-    """Resolve active claims onto an object with only string direct fields.
+    """Resolve active claims onto an object with only direct fields.
+
+    All resolvable fields are reset to their defaults first, then active
+    claim winners are applied.  Claims are the sole source of truth for
+    these fields: a field with no active claim will be blank/null after
+    resolution regardless of what was previously stored.
 
     Mutates *obj* in memory; the caller is responsible for saving.
     Pass *int_fields* to coerce matching claim values to ``int``.
@@ -547,7 +561,9 @@ def resolve_manufacturer(mfr: Manufacturer) -> Manufacturer:
 
     Returns the saved Manufacturer.
     """
-    _resolve_simple(mfr, MANUFACTURER_DIRECT_FIELDS)
+    _resolve_simple(
+        mfr, MANUFACTURER_DIRECT_FIELDS, int_fields=_MANUFACTURER_INT_FIELDS
+    )
     mfr.save()
     return mfr
 

@@ -1,9 +1,9 @@
-"""Wikidata SPARQL fetch and parse utilities for pinball person data.
+"""Wikidata SPARQL fetch and parse utilities for pinball data.
 
 No Django dependency — pure Python. Testable in isolation.
 
-Three-query strategy
---------------------
+Person pipeline
+---------------
 The Wikidata SPARQL endpoint kills queries that exceed ~60 seconds.
 Fetching all (person, machine) pairs with biographical OPTIONAL clauses
 and label lookups in a single query is too slow.
@@ -24,6 +24,19 @@ Instead we run three targeted queries:
 
 Dump format written by ``fetch_sparql()`` (and read by ``--from-dump``):
 ``{"persons": <sparql-result>, "bio": <sparql-result>, "credits": <sparql-result>}``.
+
+Manufacturer pipeline
+---------------------
+Two targeted queries:
+
+1. **Manufacturers query** — DISTINCT manufacturer QIDs + labels from P176
+   (manufacturer) on pinball machines.  Small result set, fast.
+
+2. **Manufacturer bio query** — uses a ``VALUES`` clause for the known QIDs;
+   fetches inception date, dissolution date, country, headquarters, logo, website.
+
+Dump format written by ``fetch_manufacturer_sparql()`` (and read by ``--from-dump``):
+``{"manufacturers": <sparql-result>, "bio": <sparql-result>}``.
 """
 
 from __future__ import annotations
@@ -127,6 +140,50 @@ WHERE {{
 """
 
 
+# Manufacturer query 1: DISTINCT manufacturers (P176) on pinball machines.
+_SPARQL_MANUFACTURERS_QUERY = """
+SELECT DISTINCT ?manufacturer ?manufacturerLabel
+WHERE {
+  ?machine wdt:P31 wd:Q653928 .
+  ?machine wdt:P176 ?manufacturer .
+  SERVICE wikibase:label {
+    bd:serviceParam wikibase:language "en" .
+  }
+}
+"""
+
+# Manufacturer query 2 template: structured bio for a known set of QIDs.
+# P571 = inception (founded), P576 = dissolved, P17 = country,
+# P159 = headquarters location, P154 = logo image, P856 = official website.
+_SPARQL_MFR_BIO_QUERY_TEMPLATE = """
+SELECT DISTINCT
+  ?manufacturer ?manufacturerDescription
+  ?inception ?dissolution
+  ?countryLabel ?hqLabel
+  ?logo ?website
+WHERE {{
+  VALUES ?manufacturer {{ {qid_values} }}
+  OPTIONAL {{ ?manufacturer wdt:P571 ?inception . }}
+  OPTIONAL {{ ?manufacturer wdt:P576 ?dissolution . }}
+  OPTIONAL {{
+    ?manufacturer wdt:P17 ?country .
+    ?country rdfs:label ?countryLabel .
+    FILTER(LANG(?countryLabel) = "en")
+  }}
+  OPTIONAL {{
+    ?manufacturer wdt:P159 ?hq .
+    ?hq rdfs:label ?hqLabel .
+    FILTER(LANG(?hqLabel) = "en")
+  }}
+  OPTIONAL {{ ?manufacturer wdt:P154 ?logo . }}
+  OPTIONAL {{ ?manufacturer wdt:P856 ?website . }}
+  SERVICE wikibase:label {{
+    bd:serviceParam wikibase:language "en" .
+  }}
+}}
+"""
+
+
 @dataclass
 class WikidataCredit:
     work_qid: str  # e.g. "Q2789375"
@@ -148,6 +205,20 @@ class WikidataPerson:
     photo_url: str | None  # https://commons.wikimedia.org/wiki/Special:FilePath/...
     credits: list[WikidataCredit] = field(default_factory=list)
     citation_url: str = ""  # https://www.wikidata.org/wiki/{qid}
+
+
+@dataclass
+class WikidataManufacturer:
+    qid: str  # e.g. "Q180268"
+    name: str  # Wikidata label, e.g. "Williams Electronics"
+    description: str  # Short Wikidata description, may be ""
+    founded_year: int | None
+    dissolved_year: int | None
+    country: str | None  # English label, e.g. "United States of America"
+    headquarters: str | None  # English label, e.g. "Chicago"
+    logo_url: str | None
+    website: str  # may be ""
+    citation_url: str  # https://www.wikidata.org/wiki/{qid}
 
 
 def fetch_sparql(timeout: int = 5) -> dict:
@@ -266,6 +337,96 @@ def parse_sparql_results(data: dict) -> list[WikidataPerson]:
     return sorted(persons.values(), key=lambda p: p.name.lower())
 
 
+def fetch_manufacturer_sparql(timeout: int = 5) -> dict:
+    """Run manufacturer queries and return a combined result dict.
+
+    The returned dict has the shape ``{"manufacturers": <sparql-result>,
+    "bio": <sparql-result>}`` — suitable for passing to
+    ``parse_manufacturer_sparql_results()`` or saving as a ``--dump`` file.
+
+    Raises ``requests.RequestException`` on network failure.
+    Raises ``ValueError`` if a response is missing expected keys.
+    """
+    manufacturers_data = _run_sparql(_SPARQL_MANUFACTURERS_QUERY, timeout=timeout)
+
+    qids = _extract_qids(manufacturers_data, "manufacturer")
+    if not qids:
+        empty: dict = {"results": {"bindings": []}}
+        return {"manufacturers": manufacturers_data, "bio": empty}
+
+    bio_query = _SPARQL_MFR_BIO_QUERY_TEMPLATE.format(
+        qid_values=" ".join(f"wd:{qid}" for qid in sorted(qids))
+    )
+    bio_data = _run_sparql(bio_query, timeout=timeout)
+
+    return {"manufacturers": manufacturers_data, "bio": bio_data}
+
+
+def parse_manufacturer_sparql_results(data: dict) -> list[WikidataManufacturer]:
+    """Parse the combined fetch_manufacturer_sparql() result into a list of WikidataManufacturer.
+
+    ``data`` must have ``"manufacturers"`` and ``"bio"`` keys, each containing
+    a standard SPARQL JSON result, as returned by ``fetch_manufacturer_sparql()``
+    or loaded from a ``--dump`` file.
+
+    Returns list sorted by name for deterministic output.
+    """
+    manufacturers: dict[str, WikidataManufacturer] = {}
+
+    # Pass 1: build manufacturer stubs from the manufacturers query.
+    for binding in data["manufacturers"]["results"]["bindings"]:
+        uri = binding.get("manufacturer", {}).get("value", "")
+        if not uri:
+            continue
+        qid = uri.rstrip("/").rsplit("/", 1)[-1]
+        if qid not in manufacturers:
+            manufacturers[qid] = WikidataManufacturer(
+                qid=qid,
+                name=binding.get("manufacturerLabel", {}).get("value", ""),
+                description="",
+                founded_year=None,
+                dissolved_year=None,
+                country=None,
+                headquarters=None,
+                logo_url=None,
+                website="",
+                citation_url=f"https://www.wikidata.org/wiki/{qid}",
+            )
+
+    # Pass 2: enrich with biographical data.
+    for binding in data["bio"]["results"]["bindings"]:
+        uri = binding.get("manufacturer", {}).get("value", "")
+        if not uri:
+            continue
+        qid = uri.rstrip("/").rsplit("/", 1)[-1]
+        if (wm := manufacturers.get(qid)) is None:
+            continue
+
+        # Only set fields that aren't already populated (first binding wins).
+        if not wm.description:
+            wm.description = binding.get("manufacturerDescription", {}).get("value", "")
+        if wm.founded_year is None:
+            year, _, _ = parse_wikidata_date(
+                binding.get("inception", {}).get("value"), precision=None
+            )
+            wm.founded_year = year
+        if wm.dissolved_year is None:
+            year, _, _ = parse_wikidata_date(
+                binding.get("dissolution", {}).get("value"), precision=None
+            )
+            wm.dissolved_year = year
+        if wm.country is None:
+            wm.country = binding.get("countryLabel", {}).get("value") or None
+        if wm.headquarters is None:
+            wm.headquarters = binding.get("hqLabel", {}).get("value") or None
+        if wm.logo_url is None:
+            wm.logo_url = _normalize_photo_url(binding.get("logo", {}).get("value"))
+        if not wm.website:
+            wm.website = binding.get("website", {}).get("value", "")
+
+    return sorted(manufacturers.values(), key=lambda m: m.name.lower())
+
+
 def parse_wikidata_date(
     date_str: str | None,
     precision: int | None,
@@ -329,15 +490,20 @@ def _run_sparql(query: str, timeout: int) -> dict:
     return data
 
 
-def _extract_person_qids(persons_data: dict) -> list[str]:
-    """Return distinct person QIDs from a persons query result."""
+def _extract_qids(result_data: dict, var_name: str) -> list[str]:
+    """Return distinct QIDs from a SPARQL result binding under *var_name*."""
     seen: set[str] = set()
-    for binding in persons_data["results"]["bindings"]:
-        uri = binding.get("person", {}).get("value", "")
+    for binding in result_data["results"]["bindings"]:
+        uri = binding.get(var_name, {}).get("value", "")
         if uri:
             qid = uri.rstrip("/").rsplit("/", 1)[-1]
             seen.add(qid)
     return list(seen)
+
+
+def _extract_person_qids(persons_data: dict) -> list[str]:
+    """Return distinct person QIDs from a persons query result."""
+    return _extract_qids(persons_data, "person")
 
 
 def _int_binding(binding: dict, key: str) -> int | None:
