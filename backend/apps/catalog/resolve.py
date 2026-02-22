@@ -469,13 +469,38 @@ MANUFACTURER_DIRECT_FIELDS: dict[str, str] = {
 PERSON_DIRECT_FIELDS: dict[str, str] = {
     "name": "name",
     "bio": "bio",
+    "birth_year": "birth_year",
+    "birth_month": "birth_month",
+    "birth_day": "birth_day",
+    "death_year": "death_year",
+    "death_month": "death_month",
+    "death_day": "death_day",
+    "birth_place": "birth_place",
+    "nationality": "nationality",
+    "photo_url": "photo_url",
 }
 
+_PERSON_INT_FIELDS: frozenset[str] = frozenset(
+    {
+        "birth_year",
+        "birth_month",
+        "birth_day",
+        "death_year",
+        "death_month",
+        "death_day",
+    }
+)
 
-def _resolve_simple(obj, direct_fields: dict[str, str]) -> None:
+
+def _resolve_simple(
+    obj,
+    direct_fields: dict[str, str],
+    int_fields: frozenset[str] | None = None,
+) -> None:
     """Resolve active claims onto an object with only string direct fields.
 
     Mutates *obj* in memory; the caller is responsible for saving.
+    Pass *int_fields* to coerce matching claim values to ``int``.
     """
     claims = (
         obj.claims.filter(is_active=True)
@@ -511,7 +536,10 @@ def _resolve_simple(obj, direct_fields: dict[str, str]) -> None:
         if field_name in direct_fields:
             attr = direct_fields[field_name]
             value = claim.value
-            setattr(obj, attr, "" if value is None else value)
+            if int_fields and field_name in int_fields:
+                setattr(obj, attr, None if value is None else int(value))
+            else:
+                setattr(obj, attr, "" if value is None else value)
 
 
 def resolve_manufacturer(mfr: Manufacturer) -> Manufacturer:
@@ -529,7 +557,7 @@ def resolve_person(person: Person) -> Person:
 
     Returns the saved Person.
     """
-    _resolve_simple(person, PERSON_DIRECT_FIELDS)
+    _resolve_simple(person, PERSON_DIRECT_FIELDS, int_fields=_PERSON_INT_FIELDS)
     person.save()
     return person
 
