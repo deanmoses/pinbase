@@ -27,7 +27,7 @@ from apps.catalog.ingestion.wikidata_sparql import (
     parse_sparql_results,
     parse_wikidata_date,
 )
-from apps.catalog.models import DesignCredit, Person
+from apps.catalog.models import DesignCredit, MachineModel, Person
 from apps.catalog.resolve import resolve_person
 from apps.provenance.models import Claim, Source
 
@@ -86,15 +86,13 @@ class Command(BaseCommand):
             },
         )
 
-        # 5. Load existing Person records and their credited machine names.
+        # 5. Load existing Person records and a set of person PKs that have credits.
         existing_persons: dict[str, Person] = {
             p.name.lower(): p for p in Person.objects.all()
         }
-        person_machine_names: dict[int, set[str]] = {}
-        for dc in DesignCredit.objects.select_related("model").all():
-            person_machine_names.setdefault(dc.person_id, set()).add(
-                dc.model.name.lower()
-            )
+        persons_with_credits: set[int] = set(
+            DesignCredit.objects.values_list("person_id", flat=True).distinct()
+        )
 
         ct_id = ContentType.objects.get_for_model(Person).pk
 
@@ -112,7 +110,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  [NO MATCH]   {wp.name} ({wp.qid})")
                 continue
 
-            confidence, reason = _calculate_confidence(wp, person, person_machine_names)
+            confidence, reason = _calculate_confidence(wp, person, persons_with_credits)
             self.stdout.write(
                 f"  [MATCH {confidence:.2f}] {wp.name} ({wp.qid}) — {reason}"
             )
@@ -140,7 +138,38 @@ class Command(BaseCommand):
                 person.save(update_fields=["wikidata_id", "updated_at"])
             resolve_person(person)
 
-        # 10. Summary.
+        # 10. Create DesignCredit records for matched (machine, person) pairs.
+        existing_machines: dict[str, MachineModel] = {
+            m.name.lower(): m for m in MachineModel.objects.all()
+        }
+        existing_credits: set[tuple[int, int, str]] = set(
+            DesignCredit.objects.values_list("model_id", "person_id", "role")
+        )
+        new_credits: list[DesignCredit] = []
+        unmatched_machines: set[str] = set()
+
+        for wp, person in matched_pairs:
+            for credit in wp.credits:
+                machine = existing_machines.get(credit.work_label.lower())
+                if machine is None:
+                    unmatched_machines.add(credit.work_label)
+                    continue
+                key = (machine.pk, person.pk, credit.role)
+                if key not in existing_credits:
+                    new_credits.append(
+                        DesignCredit(
+                            model_id=machine.pk, person_id=person.pk, role=credit.role
+                        )
+                    )
+                    existing_credits.add(key)
+
+        if new_credits:
+            DesignCredit.objects.bulk_create(new_credits)
+        self.stdout.write(f"  Credits: {len(new_credits)} created")
+        if unmatched_machines:
+            self.stdout.write(f"  Unmatched machines: {sorted(unmatched_machines)}")
+
+        # 11. Summary.
         self.stdout.write(f"\n  Matched: {matched_count}, Unmatched: {unmatched_count}")
         self.stdout.write(self.style.SUCCESS("Wikidata ingestion complete."))
 
@@ -148,20 +177,18 @@ class Command(BaseCommand):
 def _calculate_confidence(
     wp: WikidataPerson,
     person: Person,
-    person_machine_names: dict[int, set[str]],
+    persons_with_credits: set[int],
 ) -> tuple[float, str]:
-    """Return (confidence, reason) for a name-matched Wikidata person."""
-    db_machines = person_machine_names.get(person.pk, set())
-    wd_machines = {label.lower() for label in wp.work_labels}
+    """Return (confidence, reason) for a name-matched Wikidata person.
 
-    if db_machines and wd_machines:
-        overlap = db_machines & wd_machines
-        if overlap:
-            return 0.99, f"name match + {len(overlap)} work(s) overlap"
-        return 0.85, "name match; works present but no title overlap"
-    if not db_machines:
-        return 0.85, "name match; person has no credits in DB to verify"
-    return 0.85, "name match; no Wikidata works to cross-check"
+    Wikidata persons are already pinball-specific (they were found by
+    querying for credits on pinball machines), so a name match against
+    our DB is meaningful.  We boost confidence when the person already
+    has credits in our DB, confirming they're active in the pinball world.
+    """
+    if person.pk in persons_with_credits:
+        return 0.95, "name match; person has credits in DB"
+    return 0.85, "name match; person has no credits in DB to verify"
 
 
 def _collect_person_claims(

@@ -152,6 +152,33 @@ class TestIngestWikidata:
         )
         assert bio_claims.count() == 1
 
+    def test_design_credit_created(self):
+        steve = Person.objects.get(name="Steve Ritchie")
+        bk = MachineModel.objects.get(name="Black Knight")
+        assert DesignCredit.objects.filter(
+            person=steve, model=bk, role="design"
+        ).exists()
+
+    def test_both_credits_created(self):
+        steve = Person.objects.get(name="Steve Ritchie")
+        t2 = MachineModel.objects.get(name="Terminator 2: Judgment Day")
+        assert DesignCredit.objects.filter(
+            person=steve, model=t2, role="design"
+        ).exists()
+
+    def test_credit_idempotent(self):
+        call_command("ingest_wikidata", from_dump=SAMPLE)
+        steve = Person.objects.get(name="Steve Ritchie")
+        bk = MachineModel.objects.get(name="Black Knight")
+        assert (
+            DesignCredit.objects.filter(person=steve, model=bk, role="design").count()
+            == 1
+        )
+
+    def test_unmatched_machine_skipped(self):
+        """Pat Designer's credit points to 'Mystery Machine', not in DB — no crash."""
+        assert DesignCredit.objects.filter(person__name="Pat Designer").count() == 0
+
 
 @pytest.mark.django_db
 class TestFromDumpEmpty:
@@ -161,7 +188,8 @@ class TestFromDumpEmpty:
         import json
         import tempfile
 
-        data = {"results": {"bindings": []}}
+        empty = {"results": {"bindings": []}}
+        data = {"persons": empty, "bio": empty, "credits": empty}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(data, f)
             path = f.name

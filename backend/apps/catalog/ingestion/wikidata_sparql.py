@@ -1,6 +1,29 @@
 """Wikidata SPARQL fetch and parse utilities for pinball person data.
 
 No Django dependency — pure Python. Testable in isolation.
+
+Three-query strategy
+--------------------
+The Wikidata SPARQL endpoint kills queries that exceed ~60 seconds.
+Fetching all (person, machine) pairs with biographical OPTIONAL clauses
+and label lookups in a single query is too slow.
+
+Instead we run three targeted queries:
+
+1. **Persons query** — returns only DISTINCT person QIDs + English names for
+   humans credited on pinball machines.  No works, no biographical data.
+   Tiny result set → label service is fast → runs in a few seconds.
+
+2. **Bio query** — uses a ``VALUES`` clause limited to the QIDs found in
+   step 1, so biographical data is fetched for only a known small set.
+   Also runs in a few seconds.
+
+3. **Credits query** — returns (machine, person, property) triples using
+   UNION + BIND to capture which credit role each person held.  ~100 rows
+   total across all properties, runs in under a second.
+
+Dump format written by ``fetch_sparql()`` (and read by ``--from-dump``):
+``{"persons": <sparql-result>, "bio": <sparql-result>, "credits": <sparql-result>}``.
 """
 
 from __future__ import annotations
@@ -10,9 +33,17 @@ from dataclasses import dataclass, field
 import requests
 
 SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
-USER_AGENT = (
-    "Pinbase/1.0 (pinball museum project; contact via github.com/deanmoses/pinbase)"
-)
+USER_AGENT = "Pinbase/1.0 (Project of The Flip pinball museum; contact via github.com/deanmoses/pinbase)"
+
+# Wikidata property → DesignCredit.role mapping.
+# Only properties that link humans to pinball machines and have meaningful
+# coverage in Wikidata are included here.
+PROP_TO_ROLE: dict[str, str] = {
+    "P287": "design",  # designed by
+    "P943": "software",  # programmer
+    "P725": "voice",  # voice actor
+    "P86": "music",  # composer
+}
 
 # Wikidata date precision constants (wikibase:timePrecision)
 PRECISION_DAY = 11
@@ -20,56 +51,95 @@ PRECISION_MONTH = 10
 PRECISION_YEAR = 9
 # Anything below PRECISION_YEAR (decade=8, century=7, ...) is too coarse to use.
 
-# SPARQL query: returns one row per (person, pinball machine) pair.
-# Uses psv: (property statement value) path to get date precision qualifiers.
-_SPARQL_QUERY = """
-SELECT DISTINCT
-  ?person ?personLabel ?personDescription
-  ?birthDate ?birthDatePrecision
-  ?deathDate ?deathDatePrecision
-  ?birthPlaceLabel ?citizenshipLabel
-  ?image
-  ?work ?workLabel
+# Query 1: DISTINCT humans credited on pinball machines, names only.
+# No works, no biographical data — keeps the result set tiny so the
+# label service is fast.  Runs in a few seconds.
+#
+# Q653928 = "pinball machine game" (the correct Wikidata class).
+# P287  = designed by       (game design)
+# P943  = programmer        (software/code)
+# P725  = voice actor       (voice samples)
+# P86   = composer          (music)
+_SPARQL_PERSONS_QUERY = """
+SELECT DISTINCT ?person ?personLabel
 WHERE {
-  # Pinball machine instances (Q192198 = pinball machine)
-  ?work wdt:P31 wd:Q192198 .
-
-  # Person credited on the machine: developer (P178), creator (P170), or director (P57)
-  { ?work wdt:P178 ?person . }
-  UNION
-  { ?work wdt:P170 ?person . }
-  UNION
-  { ?work wdt:P57  ?person . }
-
-  # Filter to humans only (Q5 = human)
+  ?work wdt:P31 wd:Q653928 .
+  ?work wdt:P287|wdt:P943|wdt:P725|wdt:P86 ?person .
   ?person wdt:P31 wd:Q5 .
-
-  OPTIONAL {
-    ?person wdt:P569 ?birthDate .
-    ?person p:P569/psv:P569/wikibase:timePrecision ?birthDatePrecision .
-  }
-  OPTIONAL {
-    ?person wdt:P570 ?deathDate .
-    ?person p:P570/psv:P570/wikibase:timePrecision ?deathDatePrecision .
-  }
-  OPTIONAL {
-    ?person wdt:P19 ?birthPlace .
-    ?birthPlace rdfs:label ?birthPlaceLabel .
-    FILTER(LANG(?birthPlaceLabel) = "en")
-  }
-  OPTIONAL {
-    ?person wdt:P27 ?citizenship .
-    ?citizenship rdfs:label ?citizenshipLabel .
-    FILTER(LANG(?citizenshipLabel) = "en")
-  }
-  OPTIONAL { ?person wdt:P18 ?image . }
-
   SERVICE wikibase:label {
     bd:serviceParam wikibase:language "en" .
   }
 }
-ORDER BY ?person ?work
 """
+
+# Query 2 template: biographical data for a known set of person QIDs.
+# VALUES bounds the engine to only the persons we care about.
+_SPARQL_BIO_QUERY_TEMPLATE = """
+SELECT DISTINCT
+  ?person ?personDescription
+  ?birthDate ?birthDatePrecision
+  ?deathDate ?deathDatePrecision
+  ?birthPlaceLabel ?citizenshipLabel
+  ?image
+WHERE {{
+  VALUES ?person {{ {qid_values} }}
+
+  OPTIONAL {{
+    ?person wdt:P569 ?birthDate .
+    ?person p:P569/psv:P569/wikibase:timePrecision ?birthDatePrecision .
+  }}
+  OPTIONAL {{
+    ?person wdt:P570 ?deathDate .
+    ?person p:P570/psv:P570/wikibase:timePrecision ?deathDatePrecision .
+  }}
+  OPTIONAL {{
+    ?person wdt:P19 ?birthPlace .
+    ?birthPlace rdfs:label ?birthPlaceLabel .
+    FILTER(LANG(?birthPlaceLabel) = "en")
+  }}
+  OPTIONAL {{
+    ?person wdt:P27 ?citizenship .
+    ?citizenship rdfs:label ?citizenshipLabel .
+    FILTER(LANG(?citizenshipLabel) = "en")
+  }}
+  OPTIONAL {{ ?person wdt:P18 ?image . }}
+
+  SERVICE wikibase:label {{
+    bd:serviceParam wikibase:language "en" .
+  }}
+}}
+"""
+
+
+# Query 3: (machine, person, property) triples — one row per credit.
+# UNION + BIND captures which property was used so we can map it to a role.
+# Runs without a VALUES clause; ~100 rows total, under 1 second.
+_SPARQL_CREDITS_QUERY = """
+SELECT ?work ?workLabel ?person ?prop
+WHERE {
+  ?work wdt:P31 wd:Q653928 .
+  {
+    ?work wdt:P287 ?person . BIND("P287" AS ?prop)
+  } UNION {
+    ?work wdt:P943 ?person . BIND("P943" AS ?prop)
+  } UNION {
+    ?work wdt:P725 ?person . BIND("P725" AS ?prop)
+  } UNION {
+    ?work wdt:P86  ?person . BIND("P86"  AS ?prop)
+  }
+  ?person wdt:P31 wd:Q5 .
+  SERVICE wikibase:label {
+    bd:serviceParam wikibase:language "en" .
+  }
+}
+"""
+
+
+@dataclass
+class WikidataCredit:
+    work_qid: str  # e.g. "Q2789375"
+    work_label: str  # e.g. "The Addams Family"
+    role: str  # "design" | "software" | "voice" | "music"
 
 
 @dataclass
@@ -84,65 +154,114 @@ class WikidataPerson:
     birth_place: str | None  # English label, e.g. "Chicago"
     nationality: str | None  # English label, e.g. "United States of America"
     photo_url: str | None  # https://commons.wikimedia.org/wiki/Special:FilePath/...
-    work_labels: list[str] = field(default_factory=list)  # Pinball machine names
+    credits: list[WikidataCredit] = field(default_factory=list)
     citation_url: str = ""  # https://www.wikidata.org/wiki/{qid}
 
 
 def fetch_sparql(timeout: int = 60) -> dict:
-    """Fetch raw SPARQL results from Wikidata.
+    """Run all three queries and return a combined result dict.
 
-    Returns the raw JSON response dict (with ``results``/``bindings`` keys).
+    The returned dict has the shape ``{"persons": <sparql-result>, "bio":
+    <sparql-result>, "credits": <sparql-result>}`` — suitable for passing
+    to ``parse_sparql_results()`` or saving as a ``--dump`` file.
+
     Raises ``requests.RequestException`` on network failure.
-    Raises ``ValueError`` if the response is missing expected keys.
+    Raises ``ValueError`` if a response is missing expected keys.
     """
-    resp = requests.get(
-        SPARQL_ENDPOINT,
-        params={"query": _SPARQL_QUERY, "format": "json"},
-        headers={"User-Agent": USER_AGENT, "Accept": "application/sparql-results+json"},
-        timeout=timeout,
+    # Step 1: find all distinct humans credited on pinball machines.
+    persons_data = _run_sparql(_SPARQL_PERSONS_QUERY, timeout=timeout)
+
+    # Step 2: collect QIDs and fetch bio data only for those persons.
+    qids = _extract_person_qids(persons_data)
+    if not qids:
+        empty = {"results": {"bindings": []}}
+        return {"persons": persons_data, "bio": empty, "credits": empty}
+
+    bio_query = _SPARQL_BIO_QUERY_TEMPLATE.format(
+        qid_values=" ".join(f"wd:{qid}" for qid in sorted(qids))
     )
-    resp.raise_for_status()
-    data = resp.json()
-    if "results" not in data or "bindings" not in data["results"]:
-        raise ValueError(f"Unexpected SPARQL response shape: {list(data.keys())}")
-    return data
+    bio_data = _run_sparql(bio_query, timeout=timeout)
+
+    # Step 3: fetch (machine, person, property) credit triples.
+    credits_data = _run_sparql(_SPARQL_CREDITS_QUERY, timeout=timeout)
+
+    return {"persons": persons_data, "bio": bio_data, "credits": credits_data}
 
 
 def parse_sparql_results(data: dict) -> list[WikidataPerson]:
-    """Parse raw SPARQL JSON into a list of WikidataPerson.
+    """Parse the combined fetch_sparql() result into a list of WikidataPerson.
 
-    Groups (person, machine) rows by QID — one WikidataPerson per person.
+    ``data`` must have ``"persons"``, ``"bio"``, and ``"credits"`` keys, each
+    containing a standard SPARQL JSON result, as returned by ``fetch_sparql()``
+    or loaded from a ``--dump`` file.
+
     Returns list sorted by name for deterministic output.
     """
     persons: dict[str, WikidataPerson] = {}
 
-    for binding in data["results"]["bindings"]:
+    # Pass 1: build persons from the persons query (names + QIDs).
+    for binding in data["persons"]["results"]["bindings"]:
         person_uri = binding.get("person", {}).get("value", "")
         if not person_uri:
             continue
-        qid = person_uri.rstrip("/").rsplit("/", 1)[-1]  # "Q312897"
+        qid = person_uri.rstrip("/").rsplit("/", 1)[-1]
 
         if qid not in persons:
             persons[qid] = WikidataPerson(
                 qid=qid,
                 name=binding.get("personLabel", {}).get("value", ""),
-                description=binding.get("personDescription", {}).get("value", ""),
-                birth_date=binding.get("birthDate", {}).get("value"),
-                birth_precision=_int_binding(binding, "birthDatePrecision"),
-                death_date=binding.get("deathDate", {}).get("value"),
-                death_precision=_int_binding(binding, "deathDatePrecision"),
-                birth_place=binding.get("birthPlaceLabel", {}).get("value"),
-                nationality=binding.get("citizenshipLabel", {}).get("value"),
-                photo_url=_normalize_photo_url(binding.get("image", {}).get("value")),
+                description="",
+                birth_date=None,
+                birth_precision=None,
+                death_date=None,
+                death_precision=None,
+                birth_place=None,
+                nationality=None,
+                photo_url=None,
                 citation_url=f"https://www.wikidata.org/wiki/{qid}",
             )
 
-        wp = persons[qid]
+    # Pass 2: enrich persons with biographical data from the bio query.
+    for binding in data["bio"]["results"]["bindings"]:
+        person_uri = binding.get("person", {}).get("value", "")
+        if not person_uri:
+            continue
+        qid = person_uri.rstrip("/").rsplit("/", 1)[-1]
 
-        # Accumulate work labels (deduplicated).
+        if (wp := persons.get(qid)) is None:
+            continue
+
+        # Only set fields that aren't already populated (first binding wins).
+        if not wp.description:
+            wp.description = binding.get("personDescription", {}).get("value", "")
+        if wp.birth_date is None:
+            wp.birth_date = binding.get("birthDate", {}).get("value")
+            wp.birth_precision = _int_binding(binding, "birthDatePrecision")
+        if wp.death_date is None:
+            wp.death_date = binding.get("deathDate", {}).get("value")
+            wp.death_precision = _int_binding(binding, "deathDatePrecision")
+        if wp.birth_place is None:
+            wp.birth_place = binding.get("birthPlaceLabel", {}).get("value") or None
+        if wp.nationality is None:
+            wp.nationality = binding.get("citizenshipLabel", {}).get("value") or None
+        if wp.photo_url is None:
+            wp.photo_url = _normalize_photo_url(binding.get("image", {}).get("value"))
+
+    # Pass 3: attach credit triples to persons.
+    for binding in data["credits"]["results"]["bindings"]:
+        person_uri = binding.get("person", {}).get("value", "")
+        work_uri = binding.get("work", {}).get("value", "")
+        if not person_uri or not work_uri:
+            continue
+        person_qid = person_uri.rstrip("/").rsplit("/", 1)[-1]
+        work_qid = work_uri.rstrip("/").rsplit("/", 1)[-1]
         work_label = binding.get("workLabel", {}).get("value", "")
-        if work_label and work_label not in wp.work_labels:
-            wp.work_labels.append(work_label)
+        prop = binding.get("prop", {}).get("value", "")
+        role = PROP_TO_ROLE.get(prop)
+        if role and (wp := persons.get(person_qid)):
+            wp.credits.append(
+                WikidataCredit(work_qid=work_qid, work_label=work_label, role=role)
+            )
 
     return sorted(persons.values(), key=lambda p: p.name.lower())
 
@@ -166,14 +285,12 @@ def parse_wikidata_date(
         return None, None, None
 
     # Wikidata dates look like "+1951-10-15T00:00:00Z" or "-0044-01-01T00:00:00Z".
-    # Strip leading sign and trailing time component.
     raw = date_str.lstrip("+")
     date_part = raw.split("T")[0]  # "1951-10-15" or "-0044-01-01"
 
-    # Handle BCE dates (negative years).
     negative = date_part.startswith("-")
     if negative:
-        date_part = date_part[1:]  # strip the "-"
+        date_part = date_part[1:]
 
     parts = date_part.split("-")
     if len(parts) < 1:
@@ -188,15 +305,39 @@ def parse_wikidata_date(
     except ValueError, IndexError:
         return None, None, None
 
-    # Apply precision filter.
     if precision is not None and precision < PRECISION_YEAR:
         return None, None, None
     if precision == PRECISION_YEAR:
         return year, None, None
     if precision == PRECISION_MONTH:
         return year, month, None
-    # PRECISION_DAY or precision is None: return all components.
     return year, month, day
+
+
+def _run_sparql(query: str, timeout: int) -> dict:
+    """Execute a single SPARQL query and return the JSON result dict."""
+    resp = requests.get(
+        SPARQL_ENDPOINT,
+        params={"query": query, "format": "json"},
+        headers={"User-Agent": USER_AGENT, "Accept": "application/sparql-results+json"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if "results" not in data or "bindings" not in data["results"]:
+        raise ValueError(f"Unexpected SPARQL response shape: {list(data.keys())}")
+    return data
+
+
+def _extract_person_qids(persons_data: dict) -> list[str]:
+    """Return distinct person QIDs from a persons query result."""
+    seen: set[str] = set()
+    for binding in persons_data["results"]["bindings"]:
+        uri = binding.get("person", {}).get("value", "")
+        if uri:
+            qid = uri.rstrip("/").rsplit("/", 1)[-1]
+            seen.add(qid)
+    return list(seen)
 
 
 def _int_binding(binding: dict, key: str) -> int | None:
@@ -212,7 +353,6 @@ def _int_binding(binding: dict, key: str) -> int | None:
 def _normalize_photo_url(url: str | None) -> str | None:
     if not url:
         return None
-    # Upgrade http to https.
     if url.startswith("http://"):
         url = "https://" + url[7:]
     return url
