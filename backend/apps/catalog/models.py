@@ -323,6 +323,7 @@ class DesignCredit(TimeStampedModel):
         MECHANICS = "mechanics", "Mechanics"
         MUSIC = "music", "Music"
         SOUND = "sound", "Sound"
+        VOICE = "voice", "Voice"
         SOFTWARE = "software", "Software"
         ANIMATION = "animation", "Dots/Animation"
         OTHER = "other", "Other"
