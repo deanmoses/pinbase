@@ -18,9 +18,9 @@ Instead we run three targeted queries:
    step 1, so biographical data is fetched for only a known small set.
    Also runs in a few seconds.
 
-3. **Credits query** — returns (machine, person, property) triples using
-   UNION + BIND to capture which credit role each person held.  ~100 rows
-   total across all properties, runs in under a second.
+3. **Credits queries** — one simple query per Wikidata property (P287, P943,
+   P725, P86).  UNION across properties times out on the endpoint; four
+   targeted queries of ~10–44 rows each run in ~1s apiece.
 
 Dump format written by ``fetch_sparql()`` (and read by ``--from-dump``):
 ``{"persons": <sparql-result>, "bio": <sparql-result>, "credits": <sparql-result>}``.
@@ -111,27 +111,19 @@ WHERE {{
 """
 
 
-# Query 3: (machine, person, property) triples — one row per credit.
-# UNION + BIND captures which property was used so we can map it to a role.
-# Runs without a VALUES clause; ~100 rows total, under 1 second.
-_SPARQL_CREDITS_QUERY = """
-SELECT ?work ?workLabel ?person ?prop
-WHERE {
+# Query 3 template: one (machine, person) query per Wikidata property.
+# UNION across multiple properties times out on the Wikidata endpoint; running
+# one simple query per property is fast (~1s each) and reliable.
+_SPARQL_CREDITS_QUERY_TEMPLATE = """
+SELECT ?work ?workLabel ?person
+WHERE {{
   ?work wdt:P31 wd:Q653928 .
-  {
-    ?work wdt:P287 ?person . BIND("P287" AS ?prop)
-  } UNION {
-    ?work wdt:P943 ?person . BIND("P943" AS ?prop)
-  } UNION {
-    ?work wdt:P725 ?person . BIND("P725" AS ?prop)
-  } UNION {
-    ?work wdt:P86  ?person . BIND("P86"  AS ?prop)
-  }
+  ?work wdt:{prop} ?person .
   ?person wdt:P31 wd:Q5 .
-  SERVICE wikibase:label {
+  SERVICE wikibase:label {{
     bd:serviceParam wikibase:language "en" .
-  }
-}
+  }}
+}}
 """
 
 
@@ -158,8 +150,8 @@ class WikidataPerson:
     citation_url: str = ""  # https://www.wikidata.org/wiki/{qid}
 
 
-def fetch_sparql(timeout: int = 60) -> dict:
-    """Run all three queries and return a combined result dict.
+def fetch_sparql(timeout: int = 5) -> dict:
+    """Run all queries and return a combined result dict.
 
     The returned dict has the shape ``{"persons": <sparql-result>, "bio":
     <sparql-result>, "credits": <sparql-result>}`` — suitable for passing
@@ -174,7 +166,7 @@ def fetch_sparql(timeout: int = 60) -> dict:
     # Step 2: collect QIDs and fetch bio data only for those persons.
     qids = _extract_person_qids(persons_data)
     if not qids:
-        empty = {"results": {"bindings": []}}
+        empty: dict = {"results": {"bindings": []}}
         return {"persons": persons_data, "bio": empty, "credits": empty}
 
     bio_query = _SPARQL_BIO_QUERY_TEMPLATE.format(
@@ -182,8 +174,16 @@ def fetch_sparql(timeout: int = 60) -> dict:
     )
     bio_data = _run_sparql(bio_query, timeout=timeout)
 
-    # Step 3: fetch (machine, person, property) credit triples.
-    credits_data = _run_sparql(_SPARQL_CREDITS_QUERY, timeout=timeout)
+    # Step 3: fetch credit triples — one query per property to avoid UNION
+    # timeouts.  Inject a synthetic "prop" field so the caller can map to roles.
+    all_credit_bindings: list[dict] = []
+    for prop in PROP_TO_ROLE:
+        query = _SPARQL_CREDITS_QUERY_TEMPLATE.format(prop=prop)
+        result = _run_sparql(query, timeout=timeout)
+        for binding in result["results"]["bindings"]:
+            binding["prop"] = {"type": "literal", "value": prop}
+        all_credit_bindings.extend(result["results"]["bindings"])
+    credits_data = {"results": {"bindings": all_credit_bindings}}
 
     return {"persons": persons_data, "bio": bio_data, "credits": credits_data}
 
