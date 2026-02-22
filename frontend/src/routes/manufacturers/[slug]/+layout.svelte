@@ -33,6 +33,9 @@
 		{#if mfr.trade_name && mfr.trade_name !== mfr.name}
 			<p class="trade-name">Trade name: {mfr.trade_name}</p>
 		{/if}
+		{#if mfr.description}
+			<p class="description">{mfr.description}</p>
+		{/if}
 	</header>
 
 	<nav class="tabs" aria-label="Page sections">
@@ -80,6 +83,13 @@
 		font-size: var(--font-size-2);
 		color: var(--color-text-muted);
 		margin-top: var(--size-2);
+	}
+
+	.description {
+		font-size: var(--font-size-2);
+		color: var(--color-text-secondary);
+		margin-top: var(--size-2);
+		line-height: var(--font-lineheight-3);
 	}
 
 	.tabs {

@@ -70,6 +70,13 @@ class ManufacturerDetailSchema(Schema):
     slug: str
     trade_name: str
     opdb_manufacturer_id: Optional[int] = None
+    description: str = ""
+    founded_year: int | None = None
+    dissolved_year: int | None = None
+    country: str | None = None
+    headquarters: str | None = None
+    logo_url: str | None = None
+    website: str = ""
     entities: list[ManufacturerEntitySchema]
     models: list[ManufacturerModelSchema]
     activity: list[ClaimSchema]
@@ -775,6 +782,13 @@ def _serialize_manufacturer_detail(mfr) -> dict:
         "slug": mfr.slug,
         "trade_name": mfr.trade_name,
         "opdb_manufacturer_id": mfr.opdb_manufacturer_id,
+        "description": mfr.description,
+        "founded_year": mfr.founded_year,
+        "dissolved_year": mfr.dissolved_year,
+        "country": mfr.country,
+        "headquarters": mfr.headquarters,
+        "logo_url": mfr.logo_url,
+        "website": mfr.website,
         "entities": [
             {
                 "name": e.name,

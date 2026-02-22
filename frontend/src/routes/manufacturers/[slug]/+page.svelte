@@ -4,7 +4,55 @@
 
 	let { data } = $props();
 	let mfr = $derived(data.manufacturer);
+
+	let yearsActive = $derived(() => {
+		if (mfr.founded_year && mfr.dissolved_year) return `${mfr.founded_year}–${mfr.dissolved_year}`;
+		if (mfr.founded_year) return `${mfr.founded_year}–present`;
+		if (mfr.dissolved_year) return `dissolved ${mfr.dissolved_year}`;
+		return null;
+	});
+
+	let hasInfo = $derived(
+		mfr.country || mfr.headquarters || mfr.founded_year || mfr.dissolved_year || mfr.website
+	);
 </script>
+
+{#if mfr.logo_url}
+	<div class="logo">
+		<img src={mfr.logo_url} alt="{mfr.name} logo" />
+	</div>
+{/if}
+
+{#if hasInfo}
+	<dl class="bio-meta">
+		{#if mfr.country}
+			<div class="bio-meta-row">
+				<dt>Country</dt>
+				<dd>{mfr.country}</dd>
+			</div>
+		{/if}
+		{#if mfr.headquarters}
+			<div class="bio-meta-row">
+				<dt>Headquarters</dt>
+				<dd>{mfr.headquarters}</dd>
+			</div>
+		{/if}
+		{#if yearsActive()}
+			<div class="bio-meta-row">
+				<dt>Years active</dt>
+				<dd>{yearsActive()}</dd>
+			</div>
+		{/if}
+		{#if mfr.website}
+			<div class="bio-meta-row">
+				<dt>Website</dt>
+				<dd>
+					<a href={mfr.website} target="_blank" rel="noopener external">{mfr.website}</a>
+				</dd>
+			</div>
+		{/if}
+	</dl>
+{/if}
 
 {#if mfr.models.length === 0}
 	<p class="empty">No models listed for this manufacturer.</p>
@@ -31,6 +79,50 @@
 {/if}
 
 <style>
+	.logo {
+		margin-bottom: var(--size-5);
+	}
+
+	.logo img {
+		max-width: 200px;
+		max-height: 120px;
+		object-fit: contain;
+		display: block;
+	}
+
+	.bio-meta {
+		display: flex;
+		flex-direction: column;
+		gap: var(--size-1);
+		margin: 0 0 var(--size-5);
+	}
+
+	.bio-meta-row {
+		display: flex;
+		gap: var(--size-3);
+		font-size: var(--font-size-1);
+	}
+
+	.bio-meta dt {
+		color: var(--color-text-muted);
+		min-width: 7rem;
+		flex-shrink: 0;
+	}
+
+	.bio-meta dd {
+		color: var(--color-text-primary);
+		margin: 0;
+	}
+
+	.bio-meta dd a {
+		color: var(--color-accent);
+		text-decoration: none;
+	}
+
+	.bio-meta dd a:hover {
+		text-decoration: underline;
+	}
+
 	h2 {
 		font-size: var(--font-size-3);
 		font-weight: 600;
