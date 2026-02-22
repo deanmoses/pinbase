@@ -10,7 +10,16 @@
 	function personToFormFields(p: typeof person) {
 		return {
 			name: p.name,
-			bio: p.bio
+			bio: p.bio,
+			nationality: p.nationality ?? '',
+			birth_year: p.birth_year ?? '',
+			birth_month: p.birth_month ?? '',
+			birth_day: p.birth_day ?? '',
+			death_year: p.death_year ?? '',
+			death_month: p.death_month ?? '',
+			death_day: p.death_day ?? '',
+			birth_place: p.birth_place ?? '',
+			photo_url: p.photo_url ?? ''
 		};
 	}
 
@@ -24,7 +33,9 @@
 		const original = personToFormFields(person);
 		const changed: Record<string, unknown> = {};
 		for (const key of Object.keys(editFields) as (keyof typeof editFields)[]) {
-			const val = editFields[key];
+			// Number inputs return NaN when cleared; treat as empty
+			let val: unknown = editFields[key];
+			if (typeof val === 'number' && isNaN(val)) val = '';
 			if (String(val) !== String(original[key])) {
 				changed[key] = val === '' ? null : val;
 			}
@@ -68,6 +79,99 @@
 			<div class="field-group">
 				<label for="ef-name">Name</label>
 				<input id="ef-name" type="text" bind:value={editFields.name} />
+			</div>
+
+			<div class="field-group">
+				<label for="ef-nationality">Nationality</label>
+				<input id="ef-nationality" type="text" bind:value={editFields.nationality} />
+			</div>
+
+			<fieldset class="date-group">
+				<legend>Born</legend>
+				<div class="date-row">
+					<div class="field-group">
+						<label for="ef-birth-year">Year</label>
+						<input
+							id="ef-birth-year"
+							type="number"
+							min="1800"
+							max="2100"
+							step="1"
+							bind:value={editFields.birth_year}
+						/>
+					</div>
+					<div class="field-group">
+						<label for="ef-birth-month">Month</label>
+						<input
+							id="ef-birth-month"
+							type="number"
+							min="1"
+							max="12"
+							step="1"
+							bind:value={editFields.birth_month}
+						/>
+					</div>
+					<div class="field-group">
+						<label for="ef-birth-day">Day</label>
+						<input
+							id="ef-birth-day"
+							type="number"
+							min="1"
+							max="31"
+							step="1"
+							bind:value={editFields.birth_day}
+						/>
+					</div>
+				</div>
+			</fieldset>
+
+			<div class="field-group">
+				<label for="ef-birth-place">Birth place</label>
+				<input id="ef-birth-place" type="text" bind:value={editFields.birth_place} />
+			</div>
+
+			<fieldset class="date-group">
+				<legend>Died</legend>
+				<div class="date-row">
+					<div class="field-group">
+						<label for="ef-death-year">Year</label>
+						<input
+							id="ef-death-year"
+							type="number"
+							min="1800"
+							max="2100"
+							step="1"
+							bind:value={editFields.death_year}
+						/>
+					</div>
+					<div class="field-group">
+						<label for="ef-death-month">Month</label>
+						<input
+							id="ef-death-month"
+							type="number"
+							min="1"
+							max="12"
+							step="1"
+							bind:value={editFields.death_month}
+						/>
+					</div>
+					<div class="field-group">
+						<label for="ef-death-day">Day</label>
+						<input
+							id="ef-death-day"
+							type="number"
+							min="1"
+							max="31"
+							step="1"
+							bind:value={editFields.death_day}
+						/>
+					</div>
+				</div>
+			</fieldset>
+
+			<div class="field-group">
+				<label for="ef-photo-url">Photo URL</label>
+				<input id="ef-photo-url" type="url" bind:value={editFields.photo_url} />
 			</div>
 
 			<div class="field-group">
@@ -143,6 +247,30 @@
 
 	textarea {
 		resize: vertical;
+	}
+
+	.date-group {
+		border: 1px solid var(--color-border-soft);
+		border-radius: var(--radius-2);
+		padding: var(--size-3);
+		margin: 0;
+	}
+
+	.date-group legend {
+		font-size: var(--font-size-1);
+		font-weight: 500;
+		color: var(--color-text-muted);
+		padding: 0 var(--size-1);
+	}
+
+	.date-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		gap: var(--size-3);
+	}
+
+	.date-row .field-group input {
+		width: 100%;
 	}
 
 	.form-actions {

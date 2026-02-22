@@ -99,6 +99,15 @@ class PersonDetailSchema(Schema):
     name: str
     slug: str
     bio: str
+    birth_year: int | None = None
+    birth_month: int | None = None
+    birth_day: int | None = None
+    death_year: int | None = None
+    death_month: int | None = None
+    death_day: int | None = None
+    birth_place: str | None = None
+    nationality: str | None = None
+    photo_url: str | None = None
     machines: list[PersonMachineSchema]
     activity: list[ClaimSchema]
 
@@ -919,6 +928,15 @@ def _serialize_person_detail(person) -> dict:
         "name": person.name,
         "slug": person.slug,
         "bio": person.bio,
+        "birth_year": person.birth_year,
+        "birth_month": person.birth_month,
+        "birth_day": person.birth_day,
+        "death_year": person.death_year,
+        "death_month": person.death_month,
+        "death_day": person.death_day,
+        "birth_place": person.birth_place,
+        "nationality": person.nationality,
+        "photo_url": person.photo_url,
         "machines": list(machines.values()),
         "activity": _build_activity(getattr(person, "active_claims", [])),
     }
