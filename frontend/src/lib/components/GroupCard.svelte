@@ -6,26 +6,26 @@
 		slug,
 		name,
 		thumbnailUrl = null,
-		shortname = null,
+		short_name = null,
 		machineCount = 0
 	}: {
 		slug: string;
 		name: string;
 		thumbnailUrl?: string | null;
-		shortname?: string | null;
+		short_name?: string | null;
 		machineCount?: number;
 	} = $props();
 </script>
 
 <Card href={resolve(`/groups/${slug}`)} title={name} {thumbnailUrl}>
-	{#if shortname && shortname !== name}
-		<p class="card-shortname">{shortname}</p>
+	{#if short_name && short_name !== name}
+		<p class="card-short_name">{short_name}</p>
 	{/if}
 	<p class="card-count">{machineCount} machine{machineCount === 1 ? '' : 's'}</p>
 </Card>
 
 <style>
-	.card-shortname {
+	.card-short_name {
 		font-size: var(--font-size-0);
 		color: var(--color-text-muted);
 		margin-bottom: var(--size-1);

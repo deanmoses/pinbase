@@ -4,16 +4,18 @@
 
 	let {
 		value = $bindable(''),
-		placeholder = 'Search...'
+		placeholder = 'Search...',
+		disabled = false
 	}: {
 		value?: string;
 		placeholder?: string;
+		disabled?: boolean;
 	} = $props();
 </script>
 
 <form class="search-box" onsubmit={(e) => e.preventDefault()}>
 	<FaIcon icon={faMagnifyingGlass} class="search-icon" />
-	<input type="search" {placeholder} aria-label={placeholder} bind:value />
+	<input type="search" {placeholder} aria-label={placeholder} bind:value {disabled} />
 </form>
 
 <style>
