@@ -65,13 +65,9 @@ uv run python manage.py ingest_all \
   --ipdb /tmp/dump1/ipdbdatabase.json \
   --opdb /tmp/dump1/opdb_export_machines.json \
   --opdb-groups /tmp/dump1/opdb_export_groups.json \
-  --opdb-changelog /tmp/dump1/opdb_changelog.json
-
-uv run python manage.py ingest_signs --csv /tmp/dump1/machine_sign_copy.csv
+  --opdb-changelog /tmp/dump1/opdb_changelog.json \
+  --csv /tmp/dump1/machine_sign_copy.csv
 ```
-
-> `ingest_signs` must be run separately because `ingest_all` does not expose
-> a `--csv` flag to override the default path.
 
 ## Resetting the production database
 

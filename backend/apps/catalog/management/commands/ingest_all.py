@@ -1,6 +1,6 @@
 """Orchestrate the full ingestion pipeline.
 
-Runs: ingest_manufacturers → ingest_ipdb → ingest_opdb → resolve_claims.
+Runs: ingest_manufacturers → ingest_ipdb → ingest_opdb → ingest_signs → resolve_claims.
 """
 
 from __future__ import annotations
@@ -42,12 +42,18 @@ class Command(BaseCommand):
             default="../data/dump1/opdb_changelog.json",
             help="Path to OPDB changelog JSON dump.",
         )
+        parser.add_argument(
+            "--csv",
+            default="../data/dump1/machine_sign_copy.csv",
+            help="Path to machine_sign_copy.csv for ingest_signs.",
+        )
 
     def handle(self, *args, **options):
         ipdb_path = options["ipdb"]
         opdb_path = options["opdb"]
         opdb_groups = options["opdb_groups"]
         opdb_changelog = options["opdb_changelog"]
+        csv_path = options["csv"]
 
         from apps.catalog.cache import invalidate_all
 
@@ -65,6 +71,8 @@ class Command(BaseCommand):
                         "groups": opdb_groups,
                         "changelog": opdb_changelog,
                     }
+                elif step == "ingest_signs":
+                    kwargs = {"csv": csv_path}
                 call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
         finally:
             invalidate_all()
