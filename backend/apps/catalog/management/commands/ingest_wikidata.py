@@ -185,6 +185,8 @@ def _collect_person_claims(
                 )
             )
 
+    add("name", wp.name)
+
     if wp.description:
         add("bio", wp.description)
 

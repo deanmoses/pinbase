@@ -1,0 +1,87 @@
+{
+  "results": {
+    "bindings": [
+      {
+        "person": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q312897"
+        },
+        "personLabel": { "type": "literal", "value": "Steve Ritchie" },
+        "personDescription": {
+          "type": "literal",
+          "value": "American pinball machine designer"
+        },
+        "birthDate": {
+          "type": "literal",
+          "value": "+1951-10-15T00:00:00Z",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime"
+        },
+        "birthDatePrecision": { "type": "literal", "value": "11" },
+        "birthPlaceLabel": { "type": "literal", "value": "Chicago" },
+        "citizenshipLabel": {
+          "type": "literal",
+          "value": "United States of America"
+        },
+        "image": {
+          "type": "uri",
+          "value": "http://commons.wikimedia.org/wiki/Special:FilePath/Steve_Ritchie.jpg"
+        },
+        "work": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q500000"
+        },
+        "workLabel": { "type": "literal", "value": "Black Knight" }
+      },
+      {
+        "person": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q312897"
+        },
+        "personLabel": { "type": "literal", "value": "Steve Ritchie" },
+        "work": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q500001"
+        },
+        "workLabel": {
+          "type": "literal",
+          "value": "Terminator 2: Judgment Day"
+        }
+      },
+      {
+        "person": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q99999"
+        },
+        "personLabel": { "type": "literal", "value": "Pat Designer" },
+        "personDescription": {
+          "type": "literal",
+          "value": "American video game and pinball designer"
+        },
+        "birthDate": {
+          "type": "literal",
+          "value": "+1958-01-01T00:00:00Z",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime"
+        },
+        "birthDatePrecision": { "type": "literal", "value": "9" },
+        "work": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q500002"
+        },
+        "workLabel": { "type": "literal", "value": "Some Other Game" }
+      },
+      {
+        "person": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q11111"
+        },
+        "personLabel": { "type": "literal", "value": "Unknown Person" },
+        "personDescription": { "type": "literal", "value": "mystery designer" },
+        "work": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q500003"
+        },
+        "workLabel": { "type": "literal", "value": "Mystery Machine" }
+      }
+    ]
+  }
+}
