@@ -365,3 +365,76 @@ class DesignCredit(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.person.name} — {self.get_role_display()} on {self.model.name}"
+
+
+# ---------------------------------------------------------------------------
+# Award / AwardRecipient
+# ---------------------------------------------------------------------------
+
+
+class Award(TimeStampedModel):
+    """A pinball industry award (e.g., Hall of Fame, Designer of the Year).
+
+    Fields are claim-controlled — resolved from the provenance layer.
+    Recipients are managed as relationship claims on this entity.
+    """
+
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    description = models.TextField(blank=True)
+    image_urls = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of absolute URLs to images of this award.",
+    )
+
+    claims = GenericRelation("provenance.Claim")
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.name, "award")
+        super().save(*args, **kwargs)
+
+
+class AwardRecipient(TimeStampedModel):
+    """Materialized view of a recipient relationship claim on an Award.
+
+    The source of truth is relationship claims (field_name="recipient",
+    claim_key="recipient|person:<slug>|year:<year>") on the parent Award.
+    This table is populated by the resolution layer.
+    """
+
+    award = models.ForeignKey(
+        Award,
+        on_delete=models.CASCADE,
+        related_name="recipients",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="award_recipients",
+    )
+    year = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Year the award was given (null if unknown).",
+    )
+
+    class Meta:
+        ordering = [models.F("year").desc(nulls_last=True), "award__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["award", "person", "year"],
+                name="catalog_unique_award_recipient",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        year_str = str(self.year) if self.year else "unknown year"
+        return f"{self.person.name} — {self.award.name} ({year_str})"

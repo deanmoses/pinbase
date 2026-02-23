@@ -7,6 +7,8 @@ from django.contrib.contenttypes.models import ContentType
 from apps.provenance.models import Claim
 
 from .models import (
+    Award,
+    AwardRecipient,
     DesignCredit,
     MachineGroup,
     MachineModel,
@@ -15,9 +17,11 @@ from .models import (
     Person,
 )
 from .resolve import (
+    AWARD_DIRECT_FIELDS,
     DIRECT_FIELDS,
     MANUFACTURER_DIRECT_FIELDS,
     PERSON_DIRECT_FIELDS,
+    resolve_award,
     resolve_manufacturer,
     resolve_model,
     resolve_person,
@@ -82,6 +86,7 @@ class ClaimInline(GenericTabularInline):
     readonly_fields = (
         "source",
         "field_name",
+        "claim_key",
         "value",
         "citation",
         "is_active",
@@ -100,9 +105,15 @@ class ClaimInline(GenericTabularInline):
 
 
 class DesignCreditInline(admin.TabularInline):
+    """Read-only inline — credits are materialized from relationship claims."""
+
     model = DesignCredit
-    extra = 1
-    autocomplete_fields = ("person",)
+    extra = 0
+    readonly_fields = ("person", "role")
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class ManufacturerEntityInline(admin.TabularInline):
@@ -259,3 +270,32 @@ class DesignCreditAdmin(admin.ModelAdmin):
     list_filter = ("role",)
     search_fields = ("person__name", "model__name")
     autocomplete_fields = ("person", "model")
+
+
+class AwardRecipientInline(admin.TabularInline):
+    """Read-only inline — recipients are materialized from relationship claims."""
+
+    model = AwardRecipient
+    extra = 0
+    readonly_fields = ("person", "year")
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Award)
+class AwardAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(AWARD_DIRECT_FIELDS)
+
+    def _resolve(self, obj):
+        resolve_award(obj)
+
+    list_display = ("name", "recipient_count")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = (AwardRecipientInline, ClaimInline)
+
+    @admin.display(description="Recipients")
+    def recipient_count(self, obj):
+        return obj.recipients.count()

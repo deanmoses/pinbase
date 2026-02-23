@@ -234,13 +234,15 @@ class TestClaim:
 
         Claim.objects.assert_claim(machine_model, "name", "V1", source=source)
         ct = ContentType.objects.get_for_model(machine_model)
-        # Direct create (bypassing manager) should violate the constraint.
+        # Direct create (bypassing manager) should violate the constraint
+        # (keyed on claim_key, which equals field_name for scalar claims).
         with pytest.raises(IntegrityError):
             Claim.objects.create(
                 content_type=ct,
                 object_id=machine_model.pk,
                 source=source,
                 field_name="name",
+                claim_key="name",
                 value="V2",
                 is_active=True,
             )

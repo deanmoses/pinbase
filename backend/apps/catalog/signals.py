@@ -13,9 +13,23 @@ def _invalidate_cache(sender, **kwargs):
 
 def connect():
     """Connect cache-invalidation signals. Called from AppConfig.ready()."""
-    from .models import DesignCredit, MachineModel, Manufacturer, Person
+    from .models import (
+        Award,
+        AwardRecipient,
+        DesignCredit,
+        MachineModel,
+        Manufacturer,
+        Person,
+    )
 
-    for model in (MachineModel, Manufacturer, Person, DesignCredit):
+    for model in (
+        MachineModel,
+        Manufacturer,
+        Person,
+        DesignCredit,
+        Award,
+        AwardRecipient,
+    ):
         uid = f"invalidate_cache_{model.__name__}"
         post_save.connect(_invalidate_cache, sender=model, dispatch_uid=f"{uid}_save")
         post_delete.connect(

@@ -23,7 +23,9 @@ from apps.catalog.ingestion.parsers import (
     parse_ipdb_date,
     parse_ipdb_machine_type,
 )
-from apps.catalog.models import DesignCredit, MachineModel, Person
+from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
+from apps.catalog.models import MachineModel, Person
+from apps.catalog.resolve import resolve_credits
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -162,8 +164,9 @@ class Command(BaseCommand):
             f"{claim_stats['duplicates_removed']} duplicates removed"
         )
 
-        # --- Bulk-create Persons and Credits ---
-        self._bulk_create_persons_and_credits(credit_queue, source)
+        # --- Assert credit claims and create Persons ---
+        all_model_ids = {pm.pk for pm, _, _ in record_models}
+        self._bulk_create_persons_and_credits(credit_queue, source, all_model_ids)
 
         self.stdout.write(self.style.SUCCESS("IPDB ingestion complete."))
 
@@ -268,10 +271,17 @@ class Command(BaseCommand):
                 credit_queue.append((pm.pk, name, role))
 
     def _bulk_create_persons_and_credits(
-        self, credit_queue: list[tuple[int, str, str]], source
+        self,
+        credit_queue: list[tuple[int, str, str]],
+        source,
+        all_model_ids: set[int],
     ) -> None:
-        """Bulk-create Person and DesignCredit records from the credit queue,
-        then assert name claims for all persons via the provenance system."""
+        """Create Persons and assert credit claims from the credit queue.
+
+        Person records and name claims are created as before.  DesignCredit
+        rows are no longer created directly — instead, credit relationship
+        claims are asserted and materialized by the resolution layer.
+        """
         if not credit_queue:
             return
 
@@ -304,7 +314,6 @@ class Command(BaseCommand):
         )
 
         # Assert name claims for all unique persons referenced in this ingest.
-        # One claim per unique person — not one per credit.
         ct_person = ContentType.objects.get_for_model(Person)
         unique_names = {name.lower(): name for _, name, _ in credit_queue}
         person_claims: list[Claim] = [
@@ -324,27 +333,41 @@ class Command(BaseCommand):
             f"{person_claim_stats['superseded']} superseded"
         )
 
-        # Build DesignCredit objects, skipping duplicates.
-        existing_credits: set[tuple[int, int, str]] = set(
-            DesignCredit.objects.values_list("model_id", "person_id", "role")
-        )
-
-        new_credits: list[DesignCredit] = []
+        # Assert credit relationship claims.
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        credit_claims: list[Claim] = []
         for pm_pk, name, role in credit_queue:
-            person = existing_persons[name.lower()]
-            credit_key = (pm_pk, person.pk, role)
-            if credit_key not in existing_credits:
-                new_credits.append(
-                    DesignCredit(model_id=pm_pk, person_id=person.pk, role=role)
+            person = existing_persons.get(name.lower())
+            if not person:
+                continue
+            claim_key, value = build_relationship_claim(
+                "credit",
+                {"person_slug": person.slug, "role": role.strip().lower()},
+            )
+            credit_claims.append(
+                Claim(
+                    content_type_id=ct_machine,
+                    object_id=pm_pk,
+                    field_name="credit",
+                    claim_key=claim_key,
+                    value=value,
                 )
-                existing_credits.add(credit_key)
+            )
 
-        credits_created = len(new_credits)
-        if new_credits:
-            DesignCredit.objects.bulk_create(new_credits)
-
-        self.stdout.write(
-            f"  Design credits: "
-            f"{len(existing_credits) - credits_created} existing, "
-            f"{credits_created} created"
+        auth_scope = make_authoritative_scope(MachineModel, all_model_ids)
+        credit_stats = Claim.objects.bulk_assert_claims(
+            source,
+            credit_claims,
+            sweep_field="credit",
+            authoritative_scope=auth_scope,
         )
+        self.stdout.write(
+            f"  Credit claims: {credit_stats['unchanged']} unchanged, "
+            f"{credit_stats['created']} created, "
+            f"{credit_stats['superseded']} superseded, "
+            f"{credit_stats['swept']} swept"
+        )
+
+        # Resolve credit claims into materialized DesignCredit rows.
+        for machine in MachineModel.objects.filter(pk__in=all_model_ids):
+            resolve_credits(machine)
