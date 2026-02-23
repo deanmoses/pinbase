@@ -54,20 +54,6 @@ class TestBuildRelationshipClaim:
         assert key == "credit|person:pat-lawlor|role:design"
         assert val == {"person_slug": "pat-lawlor", "role": "design", "exists": True}
 
-    def test_recipient_claim(self):
-        key, val = build_relationship_claim(
-            "recipient", {"person_slug": "pat-lawlor", "year": 2023}
-        )
-        assert key == "recipient|person:pat-lawlor|year:2023"
-        assert val == {"person_slug": "pat-lawlor", "year": 2023, "exists": True}
-
-    def test_recipient_null_year(self):
-        key, val = build_relationship_claim(
-            "recipient", {"person_slug": "pat-lawlor", "year": None}
-        )
-        assert key == "recipient|person:pat-lawlor|year:null"
-        assert val == {"person_slug": "pat-lawlor", "year": None, "exists": True}
-
     def test_exists_false(self):
         key, val = build_relationship_claim(
             "credit", {"person_slug": "pat-lawlor", "role": "design"}, exists=False
@@ -109,6 +95,6 @@ class TestMakeAuthoritativeScope:
 
 
 class TestRelationshipNamespaces:
-    def test_contains_credit_and_recipient(self):
+    def test_contains_credit_and_theme(self):
         assert "credit" in RELATIONSHIP_NAMESPACES
-        assert "recipient" in RELATIONSHIP_NAMESPACES
+        assert "theme" in RELATIONSHIP_NAMESPACES

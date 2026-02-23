@@ -7,7 +7,6 @@ from django.core.cache import cache
 MODELS_ALL_KEY = "catalog:models:all"
 MANUFACTURERS_ALL_KEY = "catalog:manufacturers:all"
 PEOPLE_ALL_KEY = "catalog:people:all"
-AWARDS_ALL_KEY = "catalog:awards:all"
 
 
 def invalidate_all() -> None:
@@ -15,4 +14,3 @@ def invalidate_all() -> None:
     cache.delete(MODELS_ALL_KEY)
     cache.delete(MANUFACTURERS_ALL_KEY)
     cache.delete(PEOPLE_ALL_KEY)
-    cache.delete(AWARDS_ALL_KEY)

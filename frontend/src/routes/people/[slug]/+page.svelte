@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
 
@@ -67,22 +66,6 @@
 	</section>
 {/if}
 
-{#if person.awards.length > 0}
-	<section class="awards">
-		<h2>Awards ({person.awards.length})</h2>
-		<ul class="award-list">
-			{#each person.awards as award (award.award_slug + ':' + award.year)}
-				<li>
-					<a href={resolve(`/awards/${award.award_slug}`)}>{award.award_name}</a>
-					{#if award.year}
-						<span class="award-year">({award.year})</span>
-					{/if}
-				</li>
-			{/each}
-		</ul>
-	</section>
-{/if}
-
 {#if person.machines.length > 0}
 	<FilterableGrid
 		items={person.machines}
@@ -146,42 +129,6 @@
 		color: var(--color-text-primary);
 		line-height: var(--font-lineheight-3);
 		margin-bottom: var(--size-6);
-	}
-
-	.awards {
-		margin-bottom: var(--size-6);
-	}
-
-	.awards h2 {
-		font-size: var(--font-size-3);
-		font-weight: 600;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-3);
-	}
-
-	.award-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-
-	.award-list li {
-		padding: var(--size-1) 0;
-		font-size: var(--font-size-1);
-	}
-
-	.award-list a {
-		color: var(--color-accent);
-		text-decoration: none;
-	}
-
-	.award-list a:hover {
-		text-decoration: underline;
-	}
-
-	.award-year {
-		color: var(--color-text-muted);
-		margin-left: var(--size-1);
 	}
 
 	.empty {

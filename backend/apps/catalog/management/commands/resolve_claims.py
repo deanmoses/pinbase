@@ -6,7 +6,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
-from apps.catalog.resolve import resolve_all, resolve_all_awards
+from apps.catalog.resolve import resolve_all
 
 
 class Command(BaseCommand):
@@ -20,10 +20,6 @@ class Command(BaseCommand):
         self.stdout.write("Resolving machine model claims...")
         model_count = resolve_all()
         self.stdout.write(self.style.SUCCESS(f"Resolved {model_count} models."))
-
-        self.stdout.write("Resolving award claims...")
-        award_count = resolve_all_awards()
-        self.stdout.write(self.style.SUCCESS(f"Resolved {award_count} awards."))
 
         from apps.catalog.cache import invalidate_all
 

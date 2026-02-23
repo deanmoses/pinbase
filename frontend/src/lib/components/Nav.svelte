@@ -11,7 +11,6 @@
 		{ href: '/groups' as const, label: 'Groups' },
 		{ href: '/manufacturers' as const, label: 'Manufacturers' },
 		{ href: '/people' as const, label: 'People' },
-		{ href: '/awards' as const, label: 'Awards' },
 		{ href: '/api-docs' as const, label: 'API' }
 	];
 

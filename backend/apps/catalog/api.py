@@ -1,6 +1,6 @@
 """API endpoints for the catalog app.
 
-Five routers: models, groups, manufacturers, people, awards.
+Five routers: models, groups, manufacturers, people, themes.
 Wired into the main NinjaAPI instance in config/api.py.
 """
 
@@ -30,7 +30,6 @@ from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
 from .cache import (
-    AWARDS_ALL_KEY,
     MANUFACTURERS_ALL_KEY,
     MODELS_ALL_KEY,
     PEOPLE_ALL_KEY,
@@ -109,12 +108,6 @@ class PersonMachineSchema(Schema):
     thumbnail_url: str | None = None
 
 
-class PersonAwardSchema(Schema):
-    award_name: str
-    award_slug: str
-    year: int | None = None
-
-
 class PersonDetailSchema(Schema):
     name: str
     slug: str
@@ -129,7 +122,6 @@ class PersonDetailSchema(Schema):
     nationality: str | None = None
     photo_url: str | None = None
     machines: list[PersonMachineSchema]
-    awards: list[PersonAwardSchema] = []
     activity: list[ClaimSchema]
 
 
@@ -253,27 +245,6 @@ class GroupDetailSchema(Schema):
     slug: str
     short_name: str
     machines: list[GroupMachineSchema]
-
-
-class AwardGridSchema(Schema):
-    name: str
-    slug: str
-    recipient_count: int = 0
-
-
-class AwardRecipientSchema(Schema):
-    person_name: str
-    person_slug: str
-    year: int | None = None
-
-
-class AwardDetailSchema(Schema):
-    name: str
-    slug: str
-    description: str
-    image_urls: list[str] = []
-    recipients: list[AwardRecipientSchema]
-    activity: list[ClaimSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -1040,14 +1011,6 @@ def _serialize_person_detail(person) -> dict:
                 "thumbnail_url": thumbnail_url,
             }
         machines[slug_key]["roles"].append(c.get_role_display())
-    awards = [
-        {
-            "award_name": ar.award.name,
-            "award_slug": ar.award.slug,
-            "year": ar.year,
-        }
-        for ar in person.award_recipients.all()
-    ]
     return {
         "name": person.name,
         "slug": person.slug,
@@ -1062,25 +1025,18 @@ def _serialize_person_detail(person) -> dict:
         "nationality": person.nationality,
         "photo_url": person.photo_url,
         "machines": list(machines.values()),
-        "awards": awards,
         "activity": _build_activity(getattr(person, "active_claims", [])),
     }
 
 
 def _person_qs():
-    from .models import AwardRecipient, DesignCredit, Person
+    from .models import DesignCredit, Person
 
     return Person.objects.prefetch_related(
         Prefetch(
             "credits",
             queryset=DesignCredit.objects.select_related("model").order_by(
                 F("model__year").desc(nulls_last=True), "model__name"
-            ),
-        ),
-        Prefetch(
-            "award_recipients",
-            queryset=AwardRecipient.objects.select_related("award").order_by(
-                F("year").desc(nulls_last=True), "award__name"
             ),
         ),
         _claims_prefetch(),
@@ -1117,82 +1073,3 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
 
     person = get_object_or_404(_person_qs(), slug=person.slug)
     return _serialize_person_detail(person)
-
-
-# ---------------------------------------------------------------------------
-# Awards router
-# ---------------------------------------------------------------------------
-
-awards_router = Router(tags=["awards"])
-
-
-@awards_router.get("/", response=list[AwardGridSchema])
-@paginate(PageNumberPagination, page_size=50)
-def list_awards(request, search: str = ""):
-    from .models import Award
-
-    qs = Award.objects.annotate(recipient_count=Count("recipients")).order_by("name")
-    if search:
-        qs = qs.filter(name__icontains=search)
-    return list(qs.values("name", "slug", "recipient_count"))
-
-
-@awards_router.get("/all/", response=list[AwardGridSchema])
-@decorate_view(cache_control(public=True, max_age=300))
-def list_all_awards(request):
-    """Return every award with recipient count (no pagination)."""
-    result = cache.get(AWARDS_ALL_KEY)
-    if result is not None:
-        return result
-
-    from .models import Award
-
-    qs = Award.objects.annotate(recipient_count=Count("recipients")).order_by(
-        "-recipient_count"
-    )
-    result = [
-        {"name": a.name, "slug": a.slug, "recipient_count": a.recipient_count}
-        for a in qs
-    ]
-    cache.set(AWARDS_ALL_KEY, result, timeout=None)
-    return result
-
-
-def _award_qs():
-    from .models import Award, AwardRecipient
-
-    return Award.objects.prefetch_related(
-        Prefetch(
-            "recipients",
-            queryset=AwardRecipient.objects.select_related("person").order_by(
-                F("year").desc(nulls_last=True), "person__name"
-            ),
-        ),
-        _claims_prefetch(),
-    )
-
-
-def _serialize_award_detail(award) -> dict:
-    recipients = [
-        {
-            "person_name": ar.person.name,
-            "person_slug": ar.person.slug,
-            "year": ar.year,
-        }
-        for ar in award.recipients.all()
-    ]
-    return {
-        "name": award.name,
-        "slug": award.slug,
-        "description": award.description,
-        "image_urls": award.image_urls or [],
-        "recipients": recipients,
-        "activity": _build_activity(getattr(award, "active_claims", [])),
-    }
-
-
-@awards_router.get("/{slug}", response=AwardDetailSchema)
-@decorate_view(cache_control(public=True, max_age=300))
-def get_award(request, slug: str):
-    award = get_object_or_404(_award_qs(), slug=slug)
-    return _serialize_award_detail(award)
