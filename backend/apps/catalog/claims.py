@@ -22,6 +22,7 @@ from apps.provenance.models import make_claim_key
 RELATIONSHIP_SCHEMAS: dict[str, dict[str, str]] = {
     "credit": {"person_slug": "person", "role": "role"},
     "recipient": {"person_slug": "person", "year": "year"},
+    "theme": {"theme_slug": "theme"},
 }
 
 RELATIONSHIP_NAMESPACES = frozenset(RELATIONSHIP_SCHEMAS)

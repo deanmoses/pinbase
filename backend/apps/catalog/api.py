@@ -148,6 +148,18 @@ class ClaimPatchSchema(Schema):
     fields: dict[str, Any]
 
 
+class ThemeSchema(Schema):
+    name: str
+    slug: str
+
+
+class ThemeDetailSchema(Schema):
+    name: str
+    slug: str
+    description: str = ""
+    machines: list[GroupMachineSchema]
+
+
 class DesignCreditSchema(Schema):
     person_name: str
     person_slug: str
@@ -182,7 +194,7 @@ class MachineModelListSchema(Schema):
     ipdb_id: Optional[int] = None
     ipdb_rating: Optional[float] = None
     pinside_rating: Optional[float] = None
-    theme: str
+    themes: list[ThemeSchema] = []
     thumbnail_url: Optional[str] = None
 
 
@@ -196,7 +208,7 @@ class MachineModelDetailSchema(Schema):
     machine_type: str
     display_type: str
     player_count: Optional[int] = None
-    theme: str
+    themes: list[ThemeSchema] = []
     production_quantity: str
     mpu: str
     flipper_count: Optional[int] = None
@@ -368,19 +380,22 @@ def _build_model_list_qs(
 ):
     from .models import MachineModel
 
-    qs = MachineModel.objects.select_related("manufacturer").filter(
-        alias_of__isnull=True
+    qs = (
+        MachineModel.objects.select_related("manufacturer")
+        .prefetch_related("themes")
+        .filter(alias_of__isnull=True)
     )
 
     if search:
         text_q = (
             Q(name__icontains=search)
             | Q(manufacturer__name__icontains=search)
-            | Q(theme__icontains=search)
+            | Q(themes__name__icontains=search)
         )
         # Search extra_data by casting to text.
         text_q |= Q(**{"extra_data_text__icontains": search})
         qs = qs.annotate(extra_data_text=Cast("extra_data", TextField())).filter(text_q)
+        qs = qs.distinct()
 
     if manufacturer:
         qs = qs.filter(manufacturer__slug=manufacturer)
@@ -426,7 +441,7 @@ def _serialize_model_list(pm) -> dict:
         "pinside_rating": float(pm.pinside_rating)
         if pm.pinside_rating is not None
         else None,
-        "theme": pm.theme,
+        "themes": [{"name": t.name, "slug": t.slug} for t in pm.themes.all()],
         "thumbnail_url": thumbnail_url,
     }
 
@@ -487,7 +502,7 @@ def _serialize_model_detail(pm) -> dict:
         "machine_type": pm.machine_type,
         "display_type": pm.display_type,
         "player_count": pm.player_count,
-        "theme": pm.theme,
+        "themes": [{"name": t.name, "slug": t.slug} for t in pm.themes.all()],
         "production_quantity": pm.production_quantity,
         "mpu": pm.mpu,
         "flipper_count": pm.flipper_count,
@@ -618,6 +633,7 @@ def get_model(request, slug: str):
     pm = get_object_or_404(
         MachineModel.objects.select_related("manufacturer", "group").prefetch_related(
             "aliases",
+            "themes",
             Prefetch(
                 "credits",
                 queryset=DesignCredit.objects.select_related("person"),
@@ -655,6 +671,7 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
     pm = get_object_or_404(
         MachineModel.objects.select_related("manufacturer", "group").prefetch_related(
             "aliases",
+            "themes",
             Prefetch(
                 "credits",
                 queryset=DesignCredit.objects.select_related("person"),
@@ -738,6 +755,55 @@ def get_group(request, slug: str):
         slug=slug,
     )
     return _serialize_group_detail(group)
+
+
+# ---------------------------------------------------------------------------
+# Themes router
+# ---------------------------------------------------------------------------
+
+themes_router = Router(tags=["themes"])
+
+
+@themes_router.get("/{slug}", response=ThemeDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_theme(request, slug: str):
+    from .models import MachineModel, Theme
+
+    theme = get_object_or_404(
+        Theme.objects.prefetch_related(
+            Prefetch(
+                "machine_models",
+                queryset=MachineModel.objects.filter(alias_of__isnull=True)
+                .select_related("manufacturer")
+                .order_by(F("year").desc(nulls_last=True), "name"),
+            )
+        ),
+        slug=slug,
+    )
+    return _serialize_theme_detail(theme)
+
+
+def _serialize_theme_detail(theme) -> dict:
+    machines = []
+    for pm in theme.machine_models.all():
+        thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
+        machines.append(
+            {
+                "name": pm.name,
+                "slug": pm.slug,
+                "year": pm.year,
+                "manufacturer_name": pm.manufacturer.name if pm.manufacturer else None,
+                "manufacturer_slug": pm.manufacturer.slug if pm.manufacturer else None,
+                "machine_type": pm.machine_type,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+    return {
+        "name": theme.name,
+        "slug": theme.slug,
+        "description": theme.description,
+        "machines": machines,
+    }
 
 
 # ---------------------------------------------------------------------------

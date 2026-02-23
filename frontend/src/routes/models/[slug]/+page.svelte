@@ -24,9 +24,15 @@
 			<dt>MPU</dt>
 			<dd>{model.mpu}</dd>
 		{/if}
-		{#if model.theme}
-			<dt>Theme</dt>
-			<dd>{model.theme}</dd>
+		{#if model.themes.length > 0}
+			<dt>Themes</dt>
+			<dd>
+				{#each model.themes as theme, i (theme.slug)}
+					{#if i > 0},
+					{/if}
+					<a href={resolve(`/themes/${theme.slug}`)}>{theme.name}</a>
+				{/each}
+			</dd>
 		{/if}
 	</dl>
 </section>

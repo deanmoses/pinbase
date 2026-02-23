@@ -10,6 +10,7 @@ from apps.catalog.models import (
     ManufacturerEntity,
     MachineModel,
     Person,
+    Theme,
 )
 from apps.provenance.models import Claim, Source
 
@@ -53,14 +54,16 @@ def person(db):
 
 @pytest.fixture
 def machine_model(db, manufacturer):
-    return MachineModel.objects.create(
+    pm = MachineModel.objects.create(
         name="Medieval Madness",
         manufacturer=manufacturer,
         year=1997,
         machine_type="SS",
         display_type="dmd",
-        theme="Medieval",
     )
+    t = Theme.objects.create(name="Medieval", slug="medieval")
+    pm.themes.add(t)
+    return pm
 
 
 @pytest.fixture
@@ -71,7 +74,6 @@ def another_model(db, stern):
         year=2021,
         machine_type="SS",
         display_type="lcd",
-        theme="Star Wars",
     )
 
 

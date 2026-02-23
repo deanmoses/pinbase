@@ -27,6 +27,7 @@ from .models import (
     Manufacturer,
     ManufacturerEntity,
     Person,
+    Theme,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,6 @@ DIRECT_FIELDS: dict[str, str] = {
     "machine_type": "machine_type",
     "display_type": "display_type",
     "player_count": "player_count",
-    "theme": "theme",
     "production_quantity": "production_quantity",
     "mpu": "mpu",
     "flipper_count": "flipper_count",
@@ -239,8 +239,9 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
 
     machine_model.save()
 
-    # Resolve relationship claims (credits) after scalar save.
+    # Resolve relationship claims after scalar save.
     resolve_credits(machine_model)
+    resolve_themes(machine_model)
 
     return machine_model
 
@@ -289,6 +290,9 @@ def resolve_all() -> int:
 
     # 8. Bulk-resolve credit relationships.
     _resolve_all_credits(all_models)
+
+    # 9. Bulk-resolve theme relationships.
+    _resolve_all_themes(all_models)
 
     return len(all_models)
 
@@ -600,6 +604,22 @@ def resolve_person(person: Person) -> Person:
     return person
 
 
+THEME_DIRECT_FIELDS: dict[str, str] = {
+    "name": "name",
+    "description": "description",
+}
+
+
+def resolve_theme(theme: Theme) -> Theme:
+    """Resolve active claims into the given Theme's fields.
+
+    Returns the saved Theme.
+    """
+    _resolve_simple(theme, THEME_DIRECT_FIELDS)
+    theme.save()
+    return theme
+
+
 def _resolve_opdb_conflicts(all_models: list[MachineModel]) -> None:
     """Clear opdb_id on models that would cause UNIQUE constraint violations.
 
@@ -701,6 +721,32 @@ def resolve_credits(machine_model: MachineModel) -> None:
                 for person_id, role in to_create
             ]
         )
+
+
+def resolve_themes(machine_model: MachineModel) -> None:
+    """Resolve theme claims into the M2M for a single machine.
+
+    Picks the winning claim per claim_key. Where ``value["exists"]`` is
+    True, looks up the Theme by slug and sets the M2M.
+    """
+    winners = _pick_relationship_winners(machine_model, "theme")
+
+    desired_pks: set[int] = set()
+    for claim in winners.values():
+        val = claim.value
+        if not val.get("exists", True):
+            continue
+        theme = Theme.objects.filter(slug=val["theme_slug"]).first()
+        if not theme:
+            logger.warning(
+                "Unresolved theme slug %r in theme claim for %s",
+                val["theme_slug"],
+                machine_model.name,
+            )
+            continue
+        desired_pks.add(theme.pk)
+
+    machine_model.themes.set(desired_pks)
 
 
 def resolve_recipients(award: Award) -> None:
@@ -883,6 +929,97 @@ def _resolve_all_credits(all_models: list[MachineModel]) -> None:
         DesignCredit.objects.filter(pk__in=to_delete_pks).delete()
     if to_create:
         DesignCredit.objects.bulk_create(to_create, batch_size=2000)
+
+
+def _resolve_all_themes(all_models: list[MachineModel]) -> None:
+    """Bulk-resolve theme claims into M2M rows for all models.
+
+    Follows the same pattern as ``_resolve_all_credits()``: queries the M2M
+    through table directly, diffs desired vs existing for ALL model IDs
+    (including those with empty desired sets to clear stale rows), then
+    bulk-creates additions and bulk-deletes removals.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(MachineModel)
+
+    # Pre-fetch theme slug→pk lookup.
+    theme_lookup: dict[str, int] = dict(Theme.objects.values_list("slug", "pk"))
+
+    # Pre-fetch all active theme claims with priority annotation.
+    theme_claims = (
+        Claim.objects.filter(is_active=True, content_type=ct, field_name="theme")
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    )
+
+    # Pick winner per (object_id, claim_key).
+    winners_by_model: dict[int, list[Claim]] = {}
+    seen: set[tuple[int, str]] = set()
+    for claim in theme_claims:
+        key = (claim.object_id, claim.claim_key)
+        if key not in seen:
+            seen.add(key)
+            winners_by_model.setdefault(claim.object_id, []).append(claim)
+
+    # Desired themes from winning claims.
+    desired_by_model: dict[int, set[int]] = {}
+    for model_id, claims_list in winners_by_model.items():
+        desired: set[int] = set()
+        for claim in claims_list:
+            val = claim.value
+            if not val.get("exists", True):
+                continue
+            theme_pk = theme_lookup.get(val["theme_slug"])
+            if theme_pk is None:
+                logger.warning(
+                    "Unresolved theme slug %r in theme claim (model pk=%s)",
+                    val["theme_slug"],
+                    model_id,
+                )
+                continue
+            desired.add(theme_pk)
+        desired_by_model[model_id] = desired
+
+    # Pre-fetch existing M2M through-table rows.
+    through = MachineModel.themes.through
+    existing_by_model: dict[int, set[int]] = {}
+    for row in through.objects.values_list("machinemodel_id", "theme_id"):
+        existing_by_model.setdefault(row[0], set()).add(row[1])
+
+    # Diff and apply for ALL models.
+    all_model_ids = {pm.pk for pm in all_models}
+    to_create = []
+    to_delete_pks: list[int] = []
+
+    for model_id in all_model_ids:
+        desired = desired_by_model.get(model_id, set())
+        existing = existing_by_model.get(model_id, set())
+
+        for theme_pk in desired - existing:
+            to_create.append(through(machinemodel_id=model_id, theme_id=theme_pk))
+
+    # Build a lookup for deletions.
+    for row in through.objects.filter(machinemodel_id__in=all_model_ids).values_list(
+        "pk", "machinemodel_id", "theme_id"
+    ):
+        pk, model_id, theme_id = row
+        desired = desired_by_model.get(model_id, set())
+        if theme_id not in desired:
+            to_delete_pks.append(pk)
+
+    if to_delete_pks:
+        through.objects.filter(pk__in=to_delete_pks).delete()
+    if to_create:
+        through.objects.bulk_create(to_create, batch_size=2000)
 
 
 def resolve_all_awards() -> int:

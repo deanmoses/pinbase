@@ -151,6 +151,36 @@ class MachineGroup(TimeStampedModel):
 
 
 # ---------------------------------------------------------------------------
+# Theme
+# ---------------------------------------------------------------------------
+
+
+class Theme(TimeStampedModel):
+    """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
+
+    Flat taxonomy — no hierarchy. Fields are claim-controlled.
+    The MachineModel↔Theme relationship is materialized from relationship claims.
+    """
+
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    description = models.TextField(blank=True)
+
+    claims = GenericRelation("provenance.Claim")
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.name, "theme")
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
 # MachineModel
 # ---------------------------------------------------------------------------
 
@@ -225,7 +255,12 @@ class MachineModel(TimeStampedModel):
         max_length=10, choices=DisplayType.choices, blank=True
     )
     player_count = models.PositiveSmallIntegerField(null=True, blank=True)
-    theme = models.CharField(max_length=300, blank=True)
+    themes = models.ManyToManyField(
+        "Theme",
+        blank=True,
+        related_name="machine_models",
+        help_text="Resolved theme tags (materialized from relationship claims).",
+    )
     production_quantity = models.CharField(max_length=100, blank=True)
     mpu = models.CharField(
         max_length=200, blank=True, verbose_name="MPU", help_text="Electronic system"

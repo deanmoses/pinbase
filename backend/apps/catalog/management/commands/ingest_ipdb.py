@@ -24,8 +24,8 @@ from apps.catalog.ingestion.parsers import (
     parse_ipdb_machine_type,
 )
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
-from apps.catalog.models import MachineModel, Person
-from apps.catalog.resolve import resolve_credits
+from apps.catalog.models import MachineModel, Person, Theme
+from apps.catalog.resolve import resolve_credits, resolve_themes
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,6 @@ CLAIM_FIELDS = {
     "IpdbId": "ipdb_id",
     "ManufacturerId": "manufacturer",
     "Players": "player_count",
-    "Theme": "theme",
     "ProductionNumber": "production_quantity",
     "MPU": "mpu",
     "AverageFunRating": "ipdb_rating",
@@ -60,6 +59,54 @@ CREDIT_FIELDS = {
     "SoftwareBy": "software",
 }
 
+# Raw IPDB tag → list of canonical theme slugs.
+# After splitting on " - ", each token is looked up here.
+# Unmapped tags are logged as warnings.
+# TBD: full mapping is a taxonomy decision; this skeleton covers data quality fixes.
+IPDB_TAG_MAP: dict[str, list[str]] = {
+    # Spelling/encoding fixes
+    "Basebal": ["baseball"],
+    "BIlliards": ["billiards"],
+    "Music \ufffd Singing": ["music"],
+    # Duplicate normalization
+    "Circus/Carnival": ["circus"],
+    "Circus / Carnival": ["circus"],
+    "Auto racing": ["auto-racing"],
+}
+
+
+def _parse_ipdb_themes(raw_theme: str) -> list[str]:
+    """Split an IPDB theme string and return canonical theme slugs.
+
+    Splits on `` - `` (and ``, `` for comma-delimited entries), looks up
+    each token in IPDB_TAG_MAP (or slugifies if unmapped), and returns
+    deduplicated slugs.
+    """
+    from django.utils.text import slugify
+
+    tags: list[str] = []
+    for part in raw_theme.split(" - "):
+        for sub in part.split(", "):
+            tag = sub.strip()
+            if tag:
+                tags.append(tag)
+
+    slugs: list[str] = []
+    seen: set[str] = set()
+    for tag in tags:
+        mapped = IPDB_TAG_MAP.get(tag)
+        if mapped:
+            for slug in mapped:
+                if slug not in seen:
+                    slugs.append(slug)
+                    seen.add(slug)
+        else:
+            slug = slugify(tag)
+            if slug and slug not in seen:
+                slugs.append(slug)
+                seen.add(slug)
+    return slugs
+
 
 class Command(BaseCommand):
     help = "Ingest pinball machines from an IPDB JSON dump."
@@ -67,7 +114,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--ipdb",
-            default="../data/dump1/data/ipdbdatabase.json",
+            default="../data/dump1/ipdbdatabase.json",
             help="Path to IPDB JSON dump.",
         )
 
@@ -137,15 +184,18 @@ class Command(BaseCommand):
                 f"    New: {format_names([pm.name for pm in new_models])}"
             )
 
-        # --- Phase 2: Collect claims and credits ---
+        # --- Phase 2: Collect claims, credits, and theme slugs ---
         pending_claims: list[Claim] = []
         credit_queue: list[tuple[int, str, str]] = []
+        theme_queue: list[tuple[int, list[str]]] = []  # (model_pk, [slugs])
         failed = 0
         failed_ids: list = []
 
         for pm, rec, _was_created in record_models:
             try:
-                self._collect_record_data(pm, rec, ct_id, pending_claims, credit_queue)
+                self._collect_record_data(
+                    pm, rec, ct_id, pending_claims, credit_queue, theme_queue
+                )
             except Exception:
                 ipdb_id = rec.get("IpdbId", "?")
                 logger.exception("Failed to collect data for IPDB record %s", ipdb_id)
@@ -168,6 +218,9 @@ class Command(BaseCommand):
         all_model_ids = {pm.pk for pm, _, _ in record_models}
         self._bulk_create_persons_and_credits(credit_queue, source, all_model_ids)
 
+        # --- Assert theme claims ---
+        self._bulk_create_themes(theme_queue, source, all_model_ids)
+
         self.stdout.write(self.style.SUCCESS("IPDB ingestion complete."))
 
         if failed:
@@ -180,8 +233,9 @@ class Command(BaseCommand):
         ct_id: int,
         pending_claims: list[Claim],
         credit_queue: list[tuple[int, str, str]],
+        theme_queue: list[tuple[int, list[str]]],
     ) -> None:
-        """Collect claims and credits for a single IPDB record."""
+        """Collect claims, credits, and theme slugs for a single IPDB record."""
         ipdb_id = rec.get("IpdbId")
 
         # Collect claims for mapped fields.
@@ -260,6 +314,13 @@ class Command(BaseCommand):
                         value=urls,
                     )
                 )
+
+        # Collect theme slugs for bulk creation later.
+        raw_theme = rec.get("Theme")
+        if raw_theme:
+            theme_slugs = _parse_ipdb_themes(unescape(raw_theme))
+            if theme_slugs:
+                theme_queue.append((pm.pk, theme_slugs))
 
         # Collect design credits for bulk creation later.
         for ipdb_field, role in CREDIT_FIELDS.items():
@@ -371,3 +432,79 @@ class Command(BaseCommand):
         # Resolve credit claims into materialized DesignCredit rows.
         for machine in MachineModel.objects.filter(pk__in=all_model_ids):
             resolve_credits(machine)
+
+    def _bulk_create_themes(
+        self,
+        theme_queue: list[tuple[int, list[str]]],
+        source,
+        all_model_ids: set[int],
+    ) -> None:
+        """Get-or-create Theme objects and assert theme relationship claims.
+
+        Also resolves theme claims into materialized M2M rows.
+        """
+        if not theme_queue:
+            return
+
+        from django.contrib.contenttypes.models import ContentType
+
+        # Discover all unique theme slugs needed.
+        all_slugs: set[str] = set()
+        for _, slugs in theme_queue:
+            all_slugs.update(slugs)
+
+        # Get-or-create Theme objects.
+        existing_themes: dict[str, Theme] = {
+            t.slug: t for t in Theme.objects.filter(slug__in=all_slugs)
+        }
+        new_themes: list[Theme] = []
+        for slug in sorted(all_slugs - existing_themes.keys()):
+            # Derive display name from slug: "auto-racing" → "Auto Racing"
+            name = slug.replace("-", " ").title()
+            new_themes.append(Theme(name=name, slug=slug))
+        if new_themes:
+            Theme.objects.bulk_create(new_themes)
+            for t in Theme.objects.filter(slug__in=all_slugs):
+                existing_themes[t.slug] = t
+
+        themes_created = len(new_themes)
+        self.stdout.write(
+            f"  Themes: {len(existing_themes) - themes_created} existing, "
+            f"{themes_created} created"
+        )
+
+        # Build theme relationship claims.
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        theme_claims: list[Claim] = []
+        for pm_pk, slugs in theme_queue:
+            for slug in slugs:
+                claim_key, value = build_relationship_claim(
+                    "theme", {"theme_slug": slug}
+                )
+                theme_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=pm_pk,
+                        field_name="theme",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+        auth_scope = make_authoritative_scope(MachineModel, all_model_ids)
+        theme_stats = Claim.objects.bulk_assert_claims(
+            source,
+            theme_claims,
+            sweep_field="theme",
+            authoritative_scope=auth_scope,
+        )
+        self.stdout.write(
+            f"  Theme claims: {theme_stats['unchanged']} unchanged, "
+            f"{theme_stats['created']} created, "
+            f"{theme_stats['superseded']} superseded, "
+            f"{theme_stats['swept']} swept"
+        )
+
+        # Resolve theme claims into materialized M2M rows.
+        for machine in MachineModel.objects.filter(pk__in=all_model_ids):
+            resolve_themes(machine)

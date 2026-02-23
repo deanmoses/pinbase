@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
@@ -32,6 +33,33 @@ from apps.catalog.resolve import resolve_manufacturer
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
+
+# Common business suffixes stripped during fallback name matching.
+# Order matters: longer suffixes first to avoid partial matches.
+_BUSINESS_SUFFIXES = re.compile(
+    r",?\s+(?:Manufacturing|Electronics|Industries|Enterprises"
+    r"|Games|Pinball|Technologies|Company|Corporation"
+    r"|Inc\.?|Ltd\.?|Co\.?|LLC|GmbH|S\.?A\.?|s\.?p\.?a\.?)"
+    r"$",
+    re.IGNORECASE,
+)
+
+
+def _normalize_name(name: str) -> str:
+    """Strip common business suffixes for fuzzy matching.
+
+    >>> _normalize_name("Bally Manufacturing")
+    'bally'
+    >>> _normalize_name("WMS Industries")
+    'wms'
+    """
+    stripped = _BUSINESS_SUFFIXES.sub("", name).strip()
+    # Apply repeatedly for compound suffixes like "Sega Enterprises, Ltd."
+    prev = None
+    while stripped != prev:
+        prev = stripped
+        stripped = _BUSINESS_SUFFIXES.sub("", stripped).strip()
+    return stripped.lower()
 
 
 class Command(BaseCommand):
@@ -51,10 +79,19 @@ class Command(BaseCommand):
             metavar="PATH",
             help="Load SPARQL JSON from this file instead of fetching live.",
         )
+        parser.add_argument(
+            "--timeout",
+            type=int,
+            default=15,
+            metavar="SECONDS",
+            help="SPARQL query timeout in seconds (default: 15).",
+        )
 
     def handle(self, *args, **options):
         dump_path = options["dump"]
         from_dump = options["from_dump"]
+
+        timeout = options["timeout"]
 
         # 1. Fetch or load SPARQL data.
         if from_dump:
@@ -65,7 +102,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 "Fetching manufacturer data from Wikidata SPARQL endpoint..."
             )
-            raw_data = fetch_manufacturer_sparql()
+            raw_data = fetch_manufacturer_sparql(timeout=timeout)
 
         # 2. Optionally save dump.
         if dump_path:
@@ -96,6 +133,15 @@ class Command(BaseCommand):
         by_trade_name: dict[str, Manufacturer] = {
             m.trade_name.lower(): m for m in all_mfrs if m.trade_name
         }
+        # Fallback: normalized names (business suffixes stripped).
+        # Only usable when the normalized form maps to exactly one record.
+        by_normalized: dict[str, Manufacturer | None] = {}
+        for m in all_mfrs:
+            key = _normalize_name(m.name)
+            if key in by_normalized:
+                by_normalized[key] = None  # ambiguous — disable
+            else:
+                by_normalized[key] = m
 
         ct_id = ContentType.objects.get_for_model(Manufacturer).pk
 
@@ -108,12 +154,19 @@ class Command(BaseCommand):
 
         for wm in wikidata_manufacturers:
             mfr = by_name.get(wm.name.lower()) or by_trade_name.get(wm.name.lower())
+            match_type = "exact"
+            if mfr is None:
+                # Fallback: strip business suffixes and try again.
+                normalized = _normalize_name(wm.name)
+                mfr = by_normalized.get(normalized)
+                match_type = "normalized"
             if mfr is None:
                 unmatched_count += 1
                 self.stdout.write(f"  [NO MATCH]  {wm.name} ({wm.qid})")
                 continue
 
-            self.stdout.write(f"  [MATCH]     {wm.name} ({wm.qid}) → {mfr.name}")
+            tag = "MATCH" if match_type == "exact" else "MATCH~"
+            self.stdout.write(f"  [{tag:10s}] {wm.name} ({wm.qid}) → {mfr.name}")
             pending_claims.extend(_collect_manufacturer_claims(wm, mfr, ct_id))
             matched_pairs.append((wm, mfr))
             matched_count += 1
