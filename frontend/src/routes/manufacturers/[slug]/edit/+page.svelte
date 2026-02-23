@@ -10,7 +10,14 @@
 	function mfrToFormFields(m: typeof mfr) {
 		return {
 			name: m.name,
-			trade_name: m.trade_name
+			trade_name: m.trade_name,
+			description: m.description ?? '',
+			founded_year: m.founded_year ?? '',
+			dissolved_year: m.dissolved_year ?? '',
+			country: m.country ?? '',
+			headquarters: m.headquarters ?? '',
+			logo_url: m.logo_url ?? '',
+			website: m.website ?? ''
 		};
 	}
 
@@ -24,7 +31,9 @@
 		const original = mfrToFormFields(mfr);
 		const changed: Record<string, unknown> = {};
 		for (const key of Object.keys(editFields) as (keyof typeof editFields)[]) {
-			const val = editFields[key];
+			// Number inputs return NaN when cleared; treat as empty
+			let val: unknown = editFields[key];
+			if (typeof val === 'number' && isNaN(val)) val = '';
 			if (String(val) !== String(original[key])) {
 				changed[key] = val === '' ? null : val;
 			}
@@ -75,6 +84,59 @@
 				<input id="ef-trade-name" type="text" bind:value={editFields.trade_name} />
 			</div>
 
+			<div class="field-group">
+				<label for="ef-description">Description</label>
+				<textarea id="ef-description" rows="4" bind:value={editFields.description}></textarea>
+			</div>
+
+			<fieldset class="date-group">
+				<legend>Years active</legend>
+				<div class="date-row">
+					<div class="field-group">
+						<label for="ef-founded-year">Founded</label>
+						<input
+							id="ef-founded-year"
+							type="number"
+							min="1800"
+							max="2100"
+							step="1"
+							bind:value={editFields.founded_year}
+						/>
+					</div>
+					<div class="field-group">
+						<label for="ef-dissolved-year">Dissolved</label>
+						<input
+							id="ef-dissolved-year"
+							type="number"
+							min="1800"
+							max="2100"
+							step="1"
+							bind:value={editFields.dissolved_year}
+						/>
+					</div>
+				</div>
+			</fieldset>
+
+			<div class="field-group">
+				<label for="ef-country">Country</label>
+				<input id="ef-country" type="text" bind:value={editFields.country} />
+			</div>
+
+			<div class="field-group">
+				<label for="ef-headquarters">Headquarters</label>
+				<input id="ef-headquarters" type="text" bind:value={editFields.headquarters} />
+			</div>
+
+			<div class="field-group">
+				<label for="ef-website">Website</label>
+				<input id="ef-website" type="url" bind:value={editFields.website} />
+			</div>
+
+			<div class="field-group">
+				<label for="ef-logo-url">Logo URL</label>
+				<input id="ef-logo-url" type="url" bind:value={editFields.logo_url} />
+			</div>
+
 			<div class="form-actions">
 				<button type="submit" class="btn-save" disabled={saveStatus === 'saving'}>
 					{saveStatus === 'saving' ? 'Saving…' : 'Save changes'}
@@ -122,7 +184,8 @@
 		color: var(--color-text-muted);
 	}
 
-	.field-group input {
+	.field-group input,
+	.field-group textarea {
 		font-size: var(--font-size-1);
 		color: var(--color-text-primary);
 		background-color: var(--color-surface);
@@ -133,10 +196,35 @@
 		font-family: inherit;
 	}
 
-	.field-group input:focus {
+	.field-group input:focus,
+	.field-group textarea:focus {
 		outline: 2px solid var(--color-accent);
 		outline-offset: -1px;
 		border-color: var(--color-accent);
+	}
+
+	textarea {
+		resize: vertical;
+	}
+
+	.date-group {
+		border: 1px solid var(--color-border-soft);
+		border-radius: var(--radius-2);
+		padding: var(--size-3);
+		margin: 0;
+	}
+
+	.date-group legend {
+		font-size: var(--font-size-1);
+		font-weight: 500;
+		color: var(--color-text-muted);
+		padding: 0 var(--size-1);
+	}
+
+	.date-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--size-3);
 	}
 
 	.form-actions {

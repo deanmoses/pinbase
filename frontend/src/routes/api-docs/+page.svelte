@@ -57,9 +57,8 @@
 	<div class="resource-card">
 		<h3>OpenAPI Spec</h3>
 		<p>
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- backend API path, not a SvelteKit route -->
-			<a href="/api/openapi.json" target="_blank" rel="noopener">Download</a> the raw OpenAPI 3.1 specification
-			to use with any compatible tooling.
+			<a href="/api/openapi.json" target="_blank" rel="noopener external">Download</a> the raw OpenAPI
+			3.1 specification to use with any compatible tooling.
 		</p>
 	</div>
 

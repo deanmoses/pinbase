@@ -70,6 +70,13 @@ class ManufacturerDetailSchema(Schema):
     slug: str
     trade_name: str
     opdb_manufacturer_id: Optional[int] = None
+    description: str = ""
+    founded_year: int | None = None
+    dissolved_year: int | None = None
+    country: str | None = None
+    headquarters: str | None = None
+    logo_url: str | None = None
+    website: str = ""
     entities: list[ManufacturerEntitySchema]
     models: list[ManufacturerModelSchema]
     activity: list[ClaimSchema]
@@ -91,6 +98,7 @@ class PersonSchema(Schema):
 class PersonMachineSchema(Schema):
     model_name: str
     model_slug: str
+    year: int | None = None
     roles: list[str]
     thumbnail_url: str | None = None
 
@@ -99,6 +107,15 @@ class PersonDetailSchema(Schema):
     name: str
     slug: str
     bio: str
+    birth_year: int | None = None
+    birth_month: int | None = None
+    birth_day: int | None = None
+    death_year: int | None = None
+    death_month: int | None = None
+    death_day: int | None = None
+    birth_place: str | None = None
+    nationality: str | None = None
+    photo_url: str | None = None
     machines: list[PersonMachineSchema]
     activity: list[ClaimSchema]
 
@@ -766,6 +783,13 @@ def _serialize_manufacturer_detail(mfr) -> dict:
         "slug": mfr.slug,
         "trade_name": mfr.trade_name,
         "opdb_manufacturer_id": mfr.opdb_manufacturer_id,
+        "description": mfr.description,
+        "founded_year": mfr.founded_year,
+        "dissolved_year": mfr.dissolved_year,
+        "country": mfr.country,
+        "headquarters": mfr.headquarters,
+        "logo_url": mfr.logo_url,
+        "website": mfr.website,
         "entities": [
             {
                 "name": e.name,
@@ -911,6 +935,7 @@ def _serialize_person_detail(person) -> dict:
             machines[slug_key] = {
                 "model_name": c.model.name,
                 "model_slug": slug_key,
+                "year": c.model.year,
                 "roles": [],
                 "thumbnail_url": thumbnail_url,
             }
@@ -919,6 +944,15 @@ def _serialize_person_detail(person) -> dict:
         "name": person.name,
         "slug": person.slug,
         "bio": person.bio,
+        "birth_year": person.birth_year,
+        "birth_month": person.birth_month,
+        "birth_day": person.birth_day,
+        "death_year": person.death_year,
+        "death_month": person.death_month,
+        "death_day": person.death_day,
+        "birth_place": person.birth_place,
+        "nationality": person.nationality,
+        "photo_url": person.photo_url,
         "machines": list(machines.values()),
         "activity": _build_activity(getattr(person, "active_claims", [])),
     }
@@ -931,7 +965,7 @@ def _person_qs():
         Prefetch(
             "credits",
             queryset=DesignCredit.objects.select_related("model").order_by(
-                "model__name"
+                F("model__year").desc(nulls_last=True), "model__name"
             ),
         ),
         _claims_prefetch(),

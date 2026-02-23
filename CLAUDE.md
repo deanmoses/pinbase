@@ -6,6 +6,11 @@
 
 This file provides guidance to AI programming agents when working with code in this repository.
 
+## Python Style — Non-Negotiable
+
+`except ExcType1, ExcType2:` is **valid Python 3** and is ruff-format's preferred style.
+Do NOT add parentheses. `except (ExcType1, ExcType2):` will be reverted by ruff-format every time. Stop trying to fix it.
+
 ## Project Overview
 
 Django + SvelteKit monorepo. Django owns the data model, APIs (Django Ninja), and admin UI. SvelteKit handles the user-facing frontend with static adapter (CSR for authenticated pages, prerendered for public pages).

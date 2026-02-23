@@ -38,6 +38,20 @@ class Manufacturer(TimeStampedModel):
         blank=True,
         help_text="OPDB's manufacturer_id for cross-referencing",
     )
+    wikidata_id = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Wikidata QID, e.g. Q180268",
+    )
+    description = models.TextField(blank=True)
+    founded_year = models.IntegerField(null=True, blank=True)
+    dissolved_year = models.IntegerField(null=True, blank=True)
+    country = models.CharField(max_length=200, null=True, blank=True)
+    headquarters = models.CharField(max_length=200, null=True, blank=True)
+    logo_url = models.URLField(null=True, blank=True)
+    website = models.URLField(blank=True)
 
     claims = GenericRelation("provenance.Claim")
 
@@ -275,6 +289,29 @@ class Person(TimeStampedModel):
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     bio = models.TextField(blank=True)
 
+    # Wikidata cross-reference — direct field, not a claim
+    wikidata_id = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name="Wikidata ID",
+        help_text='Wikidata QID, e.g., "Q312897"',
+    )
+
+    # Birth / death dates — claimed fields, resolved from provenance
+    birth_year = models.IntegerField(null=True, blank=True)
+    birth_month = models.IntegerField(null=True, blank=True)
+    birth_day = models.IntegerField(null=True, blank=True)
+    death_year = models.IntegerField(null=True, blank=True)
+    death_month = models.IntegerField(null=True, blank=True)
+    death_day = models.IntegerField(null=True, blank=True)
+
+    # Biography context — claimed fields, resolved from provenance
+    birth_place = models.CharField(max_length=200, null=True, blank=True)
+    nationality = models.CharField(max_length=200, null=True, blank=True)
+    photo_url = models.URLField(null=True, blank=True)
+
     claims = GenericRelation("provenance.Claim")
 
     class Meta:
@@ -300,6 +337,7 @@ class DesignCredit(TimeStampedModel):
         MECHANICS = "mechanics", "Mechanics"
         MUSIC = "music", "Music"
         SOUND = "sound", "Sound"
+        VOICE = "voice", "Voice"
         SOFTWARE = "software", "Software"
         ANIMATION = "animation", "Dots/Animation"
         OTHER = "other", "Other"

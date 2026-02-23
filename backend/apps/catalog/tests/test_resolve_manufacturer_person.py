@@ -55,11 +55,24 @@ class TestResolveManufacturer:
         assert mfr.claims.filter(is_active=False).count() == 1
 
     def test_no_claims_resets_to_defaults(self, mfr):
+        """Claims are the sole source of truth: a field with no active claim is blanked."""
         mfr.trade_name = "Something"
         mfr.save()
 
         resolved = resolve_manufacturer(mfr)
         assert resolved.trade_name == ""
+
+    def test_all_claims_removed_field_blanked(self, mfr, ipdb):
+        """Deactivating all claims for a field blanks it on the next resolve."""
+        Claim.objects.assert_claim(mfr, "description", "Old bio", source=ipdb)
+        resolve_manufacturer(mfr)
+        assert mfr.description == "Old bio"
+
+        mfr.claims.filter(field_name="description").update(is_active=False)
+
+        resolve_manufacturer(mfr)
+        mfr.refresh_from_db()
+        assert mfr.description == ""  # blanked — no active claims remain
 
     def test_saves_to_db(self, mfr, ipdb):
         Claim.objects.assert_claim(mfr, "name", "Bally", source=ipdb)
@@ -85,6 +98,7 @@ class TestResolvePerson:
         assert resolved.bio == "Better bio."
 
     def test_no_claims_resets_to_defaults(self, person):
+        """Claims are the sole source of truth: a field with no active claim is blanked."""
         person.bio = "Something"
         person.save()
 

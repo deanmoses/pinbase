@@ -1,0 +1,238 @@
+"""Ingest pinball person data from Wikidata via SPARQL.
+
+Fetches (or loads from a local dump) Wikidata persons associated with
+pinball machines, matches them to existing Person records by name, asserts
+biographical claims, sets wikidata_id, and resolves claims into model fields.
+
+Usage::
+
+    # Live fetch (also saves a dump for inspection):
+    python manage.py ingest_wikidata --dump /tmp/wikidata_raw.json
+
+    # Re-run from an existing dump (skips network call):
+    python manage.py ingest_wikidata --from-dump /tmp/wikidata_raw.json
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+
+from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import BaseCommand
+
+from apps.catalog.ingestion.wikidata_sparql import (
+    WikidataPerson,
+    fetch_sparql,
+    parse_sparql_results,
+    parse_wikidata_date,
+)
+from apps.catalog.models import DesignCredit, MachineModel, Person
+from apps.catalog.resolve import resolve_person
+from apps.provenance.models import Claim, Source
+
+logger = logging.getLogger(__name__)
+
+
+class Command(BaseCommand):
+    help = "Ingest pinball person data from Wikidata via SPARQL."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--dump",
+            default="",
+            metavar="PATH",
+            help="Save the raw SPARQL JSON response to this file.",
+        )
+        parser.add_argument(
+            "--from-dump",
+            default="",
+            dest="from_dump",
+            metavar="PATH",
+            help="Load SPARQL JSON from this file instead of fetching live.",
+        )
+
+    def handle(self, *args, **options):
+        dump_path = options["dump"]
+        from_dump = options["from_dump"]
+
+        # 1. Fetch or load SPARQL data.
+        if from_dump:
+            self.stdout.write(f"Loading SPARQL data from {from_dump}...")
+            with open(from_dump) as f:
+                raw_data = json.load(f)
+        else:
+            self.stdout.write("Fetching data from Wikidata SPARQL endpoint...")
+            raw_data = fetch_sparql()
+
+        # 2. Optionally save dump.
+        if dump_path:
+            with open(dump_path, "w") as f:
+                json.dump(raw_data, f, indent=2)
+            self.stdout.write(f"  Saved raw dump to {dump_path}")
+
+        # 3. Parse into WikidataPerson list.
+        wikidata_persons = parse_sparql_results(raw_data)
+        self.stdout.write(f"  Found {len(wikidata_persons)} persons in Wikidata")
+
+        # 4. Upsert Wikidata source.
+        source, _ = Source.objects.update_or_create(
+            slug="wikidata",
+            defaults={
+                "name": "Wikidata",
+                "source_type": "database",
+                "priority": 75,
+                "url": "https://www.wikidata.org",
+            },
+        )
+
+        # 5. Load existing Person records and a set of person PKs that have credits.
+        existing_persons: dict[str, Person] = {
+            p.name.lower(): p for p in Person.objects.all()
+        }
+        persons_with_credits: set[int] = set(
+            DesignCredit.objects.values_list("person_id", flat=True).distinct()
+        )
+
+        ct_id = ContentType.objects.get_for_model(Person).pk
+
+        # 6 + 7. Match, score, report, collect claims.
+        self.stdout.write("\nWikidata match report:")
+        pending_claims: list[Claim] = []
+        matched_pairs: list[tuple[WikidataPerson, Person]] = []
+        matched_count = 0
+        unmatched_count = 0
+
+        for wp in wikidata_persons:
+            person = existing_persons.get(wp.name.lower())
+            if person is None:
+                unmatched_count += 1
+                self.stdout.write(f"  [NO MATCH]   {wp.name} ({wp.qid})")
+                continue
+
+            confidence, reason = _calculate_confidence(wp, person, persons_with_credits)
+            self.stdout.write(
+                f"  [MATCH {confidence:.2f}] {wp.name} ({wp.qid}) — {reason}"
+            )
+
+            pending_claims.extend(_collect_person_claims(wp, person, ct_id))
+            matched_pairs.append((wp, person))
+            matched_count += 1
+
+        # 8. Bulk-assert all claims.
+        if pending_claims:
+            stats = Claim.objects.bulk_assert_claims(source, pending_claims)
+            self.stdout.write(
+                f"\n  Claims: {stats['unchanged']} unchanged, "
+                f"{stats['created']} created, "
+                f"{stats['superseded']} superseded, "
+                f"{stats['duplicates_removed']} duplicates removed"
+            )
+        else:
+            self.stdout.write("\n  Claims: 0 (no matches)")
+
+        # 9. Set wikidata_id + resolve each matched person.
+        for wp, person in matched_pairs:
+            if person.wikidata_id != wp.qid:
+                person.wikidata_id = wp.qid
+                person.save(update_fields=["wikidata_id", "updated_at"])
+            resolve_person(person)
+
+        # 10. Create DesignCredit records for matched (machine, person) pairs.
+        existing_machines: dict[str, MachineModel] = {
+            m.name.lower(): m for m in MachineModel.objects.all()
+        }
+        existing_credits: set[tuple[int, int, str]] = set(
+            DesignCredit.objects.values_list("model_id", "person_id", "role")
+        )
+        new_credits: list[DesignCredit] = []
+        unmatched_machines: set[str] = set()
+
+        for wp, person in matched_pairs:
+            for credit in wp.credits:
+                machine = existing_machines.get(credit.work_label.lower())
+                if machine is None:
+                    unmatched_machines.add(credit.work_label)
+                    continue
+                key = (machine.pk, person.pk, credit.role)
+                if key not in existing_credits:
+                    new_credits.append(
+                        DesignCredit(
+                            model_id=machine.pk, person_id=person.pk, role=credit.role
+                        )
+                    )
+                    existing_credits.add(key)
+
+        if new_credits:
+            DesignCredit.objects.bulk_create(new_credits)
+        self.stdout.write(f"  Credits: {len(new_credits)} created")
+        if unmatched_machines:
+            self.stdout.write(f"  Unmatched machines: {sorted(unmatched_machines)}")
+
+        # 11. Summary.
+        self.stdout.write(f"\n  Matched: {matched_count}, Unmatched: {unmatched_count}")
+        self.stdout.write(self.style.SUCCESS("Wikidata ingestion complete."))
+
+
+def _calculate_confidence(
+    wp: WikidataPerson,
+    person: Person,
+    persons_with_credits: set[int],
+) -> tuple[float, str]:
+    """Return (confidence, reason) for a name-matched Wikidata person.
+
+    Wikidata persons are already pinball-specific (they were found by
+    querying for credits on pinball machines), so a name match against
+    our DB is meaningful.  We boost confidence when the person already
+    has credits in our DB, confirming they're active in the pinball world.
+    """
+    if person.pk in persons_with_credits:
+        return 0.95, "name match; person has credits in DB"
+    return 0.85, "name match; person has no credits in DB to verify"
+
+
+def _collect_person_claims(
+    wp: WikidataPerson,
+    person: Person,
+    ct_id: int,
+) -> list[Claim]:
+    """Build unsaved Claim objects for all non-empty Wikidata fields."""
+    claims: list[Claim] = []
+    citation = wp.citation_url
+
+    def add(field_name: str, value) -> None:
+        if value is not None and value != "":
+            claims.append(
+                Claim(
+                    content_type_id=ct_id,
+                    object_id=person.pk,
+                    field_name=field_name,
+                    value=value,
+                    citation=citation,
+                )
+            )
+
+    add("name", wp.name)
+
+    if wp.description:
+        add("bio", wp.description)
+
+    birth_year, birth_month, birth_day = parse_wikidata_date(
+        wp.birth_date, wp.birth_precision
+    )
+    add("birth_year", birth_year)
+    add("birth_month", birth_month)
+    add("birth_day", birth_day)
+
+    death_year, death_month, death_day = parse_wikidata_date(
+        wp.death_date, wp.death_precision
+    )
+    add("death_year", death_year)
+    add("death_month", death_month)
+    add("death_day", death_day)
+
+    add("birth_place", wp.birth_place)
+    add("nationality", wp.nationality)
+    add("photo_url", wp.photo_url)
+
+    return claims
