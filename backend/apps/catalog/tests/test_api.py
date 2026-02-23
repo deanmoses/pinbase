@@ -477,6 +477,25 @@ class TestPeopleAPI:
         assert len(data["machines"]) == 1
         assert data["machines"][0]["model_name"] == "Medieval Madness"
         assert data["machines"][0]["roles"] == ["Design"]
+        assert data["machines"][0]["year"] == 1997
+
+    def test_get_person_detail_year_desc_nulls_last(
+        self, client, person, manufacturer, db
+    ):
+        old = MachineModel.objects.create(
+            name="Old Game", manufacturer=manufacturer, year=1990, machine_type="SS"
+        )
+        new = MachineModel.objects.create(
+            name="New Game", manufacturer=manufacturer, year=2020, machine_type="SS"
+        )
+        no_year = MachineModel.objects.create(
+            name="No Year Game", manufacturer=manufacturer, machine_type="SS"
+        )
+        for m in (old, new, no_year):
+            DesignCredit.objects.create(model=m, person=person, role="design")
+        resp = client.get(f"/api/people/{person.slug}")
+        names = [m["model_name"] for m in resp.json()["machines"]]
+        assert names == ["New Game", "Old Game", "No Year Game"]
 
 
 class TestAllEndpointCache:

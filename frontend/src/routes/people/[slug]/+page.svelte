@@ -77,6 +77,7 @@
 			<MachineCard
 				slug={machine.model_slug}
 				name={machine.model_name}
+				year={machine.year}
 				thumbnailUrl={machine.thumbnail_url}
 				roles={machine.roles}
 			/>

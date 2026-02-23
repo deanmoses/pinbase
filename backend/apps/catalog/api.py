@@ -98,6 +98,7 @@ class PersonSchema(Schema):
 class PersonMachineSchema(Schema):
     model_name: str
     model_slug: str
+    year: int | None = None
     roles: list[str]
     thumbnail_url: str | None = None
 
@@ -934,6 +935,7 @@ def _serialize_person_detail(person) -> dict:
             machines[slug_key] = {
                 "model_name": c.model.name,
                 "model_slug": slug_key,
+                "year": c.model.year,
                 "roles": [],
                 "thumbnail_url": thumbnail_url,
             }
@@ -963,7 +965,7 @@ def _person_qs():
         Prefetch(
             "credits",
             queryset=DesignCredit.objects.select_related("model").order_by(
-                "model__name"
+                F("model__year").desc(nulls_last=True), "model__name"
             ),
         ),
         _claims_prefetch(),
