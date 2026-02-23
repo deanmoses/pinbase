@@ -252,3 +252,195 @@ class TestBulkAssertClaimsSourceSet:
 
         claim = pm1.claims.get(field_name="year", is_active=True)
         assert claim.source == source
+
+
+class TestBulkAssertClaimsSweep:
+    """sweep_field + authoritative_scope deactivate stale claims."""
+
+    def test_sweep_deactivates_stale_claim(self, source, ct_id, pm1):
+        """A claim no longer in the pending set is swept (deactivated)."""
+        from apps.catalog.claims import build_relationship_claim
+
+        key1, val1 = build_relationship_claim(
+            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+        )
+        key2, val2 = build_relationship_claim(
+            "credit", {"person_slug": "john-youssi", "role": "art"}
+        )
+        pending1 = [
+            Claim(
+                content_type_id=ct_id,
+                object_id=pm1.pk,
+                field_name="credit",
+                claim_key=key1,
+                value=val1,
+            ),
+            Claim(
+                content_type_id=ct_id,
+                object_id=pm1.pk,
+                field_name="credit",
+                claim_key=key2,
+                value=val2,
+            ),
+        ]
+        auth_scope = {(ct_id, pm1.pk)}
+        Claim.objects.bulk_assert_claims(
+            source,
+            pending1,
+            sweep_field="credit",
+            authoritative_scope=auth_scope,
+        )
+
+        assert Claim.objects.filter(source=source, is_active=True).count() == 2
+
+        # Second run: only one credit remains.
+        pending2 = [
+            Claim(
+                content_type_id=ct_id,
+                object_id=pm1.pk,
+                field_name="credit",
+                claim_key=key1,
+                value=val1,
+            ),
+        ]
+        stats = Claim.objects.bulk_assert_claims(
+            source,
+            pending2,
+            sweep_field="credit",
+            authoritative_scope=auth_scope,
+        )
+
+        assert stats["swept"] == 1
+        assert Claim.objects.filter(source=source, is_active=True).count() == 1
+        remaining = Claim.objects.get(source=source, is_active=True)
+        assert remaining.claim_key == key1
+
+    def test_sweep_with_zero_pending_deactivates_all(self, source, ct_id, pm1):
+        """authoritative_scope ensures stale claims are swept even when pending is empty."""
+        from apps.catalog.claims import build_relationship_claim
+
+        key, val = build_relationship_claim(
+            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+        )
+        Claim.objects.bulk_assert_claims(
+            source,
+            [
+                Claim(
+                    content_type_id=ct_id,
+                    object_id=pm1.pk,
+                    field_name="credit",
+                    claim_key=key,
+                    value=val,
+                )
+            ],
+            sweep_field="credit",
+            authoritative_scope={(ct_id, pm1.pk)},
+        )
+
+        assert Claim.objects.filter(source=source, is_active=True).count() == 1
+
+        # Second run with empty pending but same authoritative scope.
+        stats = Claim.objects.bulk_assert_claims(
+            source,
+            [],
+            sweep_field="credit",
+            authoritative_scope={(ct_id, pm1.pk)},
+        )
+
+        assert stats["swept"] == 1
+        assert Claim.objects.filter(source=source, is_active=True).count() == 0
+
+    def test_sweep_does_not_touch_other_field_names(self, source, ct_id, pm1):
+        """Sweep only affects claims matching the sweep_field."""
+        from apps.catalog.claims import build_relationship_claim
+
+        # A scalar claim.
+        Claim.objects.assert_claim(pm1, "name", "Medieval Madness", source=source)
+
+        # A credit claim.
+        key, val = build_relationship_claim(
+            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+        )
+        Claim.objects.bulk_assert_claims(
+            source,
+            [
+                Claim(
+                    content_type_id=ct_id,
+                    object_id=pm1.pk,
+                    field_name="credit",
+                    claim_key=key,
+                    value=val,
+                )
+            ],
+            sweep_field="credit",
+            authoritative_scope={(ct_id, pm1.pk)},
+        )
+
+        # Sweep credits with empty pending — scalar should survive.
+        Claim.objects.bulk_assert_claims(
+            source,
+            [],
+            sweep_field="credit",
+            authoritative_scope={(ct_id, pm1.pk)},
+        )
+
+        assert (
+            Claim.objects.filter(
+                source=source, field_name="name", is_active=True
+            ).count()
+            == 1
+        )
+        assert (
+            Claim.objects.filter(
+                source=source, field_name="credit", is_active=True
+            ).count()
+            == 0
+        )
+
+    def test_sweep_scoped_to_authoritative_models(self, source, ct_id, pm1, pm2):
+        """Sweep only affects entities in the authoritative scope."""
+        from apps.catalog.claims import build_relationship_claim
+
+        key, val = build_relationship_claim(
+            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+        )
+        # Create credit claims on both machines.
+        for pm in (pm1, pm2):
+            Claim.objects.bulk_assert_claims(
+                source,
+                [
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=pm.pk,
+                        field_name="credit",
+                        claim_key=key,
+                        value=val,
+                    )
+                ],
+                sweep_field="credit",
+                authoritative_scope={(ct_id, pm.pk)},
+            )
+
+        assert Claim.objects.filter(source=source, is_active=True).count() == 2
+
+        # Sweep pm1 only with empty pending.
+        Claim.objects.bulk_assert_claims(
+            source,
+            [],
+            sweep_field="credit",
+            authoritative_scope={(ct_id, pm1.pk)},
+        )
+
+        # pm1's claim swept, pm2's untouched.
+        assert (
+            Claim.objects.filter(
+                source=source, object_id=pm1.pk, is_active=True
+            ).count()
+            == 0
+        )
+        assert (
+            Claim.objects.filter(
+                source=source, object_id=pm2.pk, is_active=True
+            ).count()
+            == 1
+        )

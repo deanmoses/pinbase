@@ -27,8 +27,9 @@ from apps.catalog.ingestion.wikidata_sparql import (
     parse_sparql_results,
     parse_wikidata_date,
 )
-from apps.catalog.models import DesignCredit, MachineModel, Person
-from apps.catalog.resolve import resolve_person
+from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
+from apps.catalog.models import MachineModel, Person
+from apps.catalog.resolve import resolve_credits, resolve_person
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,8 @@ class Command(BaseCommand):
         )
 
         # 5. Load existing Person records and a set of person PKs that have credits.
+        from apps.catalog.models import DesignCredit
+
         existing_persons: dict[str, Person] = {
             p.name.lower(): p for p in Person.objects.all()
         }
@@ -138,15 +141,14 @@ class Command(BaseCommand):
                 person.save(update_fields=["wikidata_id", "updated_at"])
             resolve_person(person)
 
-        # 10. Create DesignCredit records for matched (machine, person) pairs.
+        # 10. Assert credit relationship claims for matched (machine, person) pairs.
         existing_machines: dict[str, MachineModel] = {
             m.name.lower(): m for m in MachineModel.objects.all()
         }
-        existing_credits: set[tuple[int, int, str]] = set(
-            DesignCredit.objects.values_list("model_id", "person_id", "role")
-        )
-        new_credits: list[DesignCredit] = []
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        credit_claims: list[Claim] = []
         unmatched_machines: set[str] = set()
+        matched_machine_ids: set[int] = set()
 
         for wp, person in matched_pairs:
             for credit in wp.credits:
@@ -154,18 +156,40 @@ class Command(BaseCommand):
                 if machine is None:
                     unmatched_machines.add(credit.work_label)
                     continue
-                key = (machine.pk, person.pk, credit.role)
-                if key not in existing_credits:
-                    new_credits.append(
-                        DesignCredit(
-                            model_id=machine.pk, person_id=person.pk, role=credit.role
-                        )
+                matched_machine_ids.add(machine.pk)
+                claim_key, value = build_relationship_claim(
+                    "credit",
+                    {"person_slug": person.slug, "role": credit.role.strip().lower()},
+                )
+                credit_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=machine.pk,
+                        field_name="credit",
+                        claim_key=claim_key,
+                        value=value,
                     )
-                    existing_credits.add(key)
+                )
 
-        if new_credits:
-            DesignCredit.objects.bulk_create(new_credits)
-        self.stdout.write(f"  Credits: {len(new_credits)} created")
+        if credit_claims:
+            auth_scope = make_authoritative_scope(MachineModel, matched_machine_ids)
+            credit_stats = Claim.objects.bulk_assert_claims(
+                source,
+                credit_claims,
+                sweep_field="credit",
+                authoritative_scope=auth_scope,
+            )
+            self.stdout.write(
+                f"  Credit claims: {credit_stats['unchanged']} unchanged, "
+                f"{credit_stats['created']} created, "
+                f"{credit_stats['superseded']} superseded, "
+                f"{credit_stats['swept']} swept"
+            )
+            # Resolve credit claims into materialized DesignCredit rows.
+            for machine in MachineModel.objects.filter(pk__in=matched_machine_ids):
+                resolve_credits(machine)
+        else:
+            self.stdout.write("  Credit claims: 0 (no matches)")
         if unmatched_machines:
             self.stdout.write(f"  Unmatched machines: {sorted(unmatched_machines)}")
 

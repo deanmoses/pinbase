@@ -1,13 +1,15 @@
 import pytest
 from django.utils import timezone
 
+from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import (
     MachineGroup,
     Manufacturer,
     ManufacturerEntity,
     MachineModel,
+    Theme,
 )
-from apps.catalog.resolve import resolve_all, resolve_model
+from apps.catalog.resolve import resolve_all, resolve_model, resolve_themes
 from apps.provenance.models import Claim, Source
 
 
@@ -147,18 +149,18 @@ class TestResolveModel:
 
     def test_stale_values_cleared_on_re_resolve(self, pm, ipdb):
         Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
-        Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
+        Claim.objects.assert_claim(pm, "player_count", 4, source=ipdb)
         Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
         resolve_model(pm)
         assert pm.year == 1997
-        assert pm.theme == "Medieval"
+        assert pm.player_count == 4
         assert pm.extra_data["abbreviation"] == "MM"
 
         pm.claims.filter(is_active=True).update(is_active=False)
         resolve_model(pm)
         pm.refresh_from_db()
         assert pm.year is None
-        assert pm.theme == ""
+        assert pm.player_count is None
         assert pm.extra_data == {}
 
     def test_mixed_fields_and_extra_data(self, pm, ipdb, editorial):
@@ -270,19 +272,19 @@ class TestResolveAll:
         pm = MachineModel.objects.create(name="P1", slug="p1")
 
         Claim.objects.assert_claim(pm, "year", 1997, source=ipdb)
-        Claim.objects.assert_claim(pm, "theme", "Medieval", source=ipdb)
+        Claim.objects.assert_claim(pm, "player_count", 4, source=ipdb)
         Claim.objects.assert_claim(pm, "abbreviation", "MM", source=ipdb)
         resolve_all()
         pm.refresh_from_db()
         assert pm.year == 1997
-        assert pm.theme == "Medieval"
+        assert pm.player_count == 4
         assert pm.extra_data["abbreviation"] == "MM"
 
         pm.claims.filter(is_active=True).update(is_active=False)
         resolve_all()
         pm.refresh_from_db()
         assert pm.year is None
-        assert pm.theme == ""
+        assert pm.player_count is None
         assert pm.extra_data == {}
 
     def test_query_count(self, django_assert_max_num_queries):
@@ -294,5 +296,93 @@ class TestResolveAll:
             Claim.objects.assert_claim(pm, "name", f"Resolved {i}", source=ipdb)
             Claim.objects.assert_claim(pm, "year", 2000 + i, source=ipdb)
 
-        with django_assert_max_num_queries(10):
+        with django_assert_max_num_queries(14):
             resolve_all()
+
+
+@pytest.mark.django_db
+class TestResolveThemes:
+    def test_basic_theme_resolution(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm = MachineModel.objects.create(name="P1", slug="p1")
+        Theme.objects.create(name="Horror", slug="horror")
+        Theme.objects.create(name="Licensed", slug="licensed")
+
+        for slug in ("horror", "licensed"):
+            claim_key, value = build_relationship_claim("theme", {"theme_slug": slug})
+            Claim.objects.assert_claim(
+                pm, "theme", value, source=ipdb, claim_key=claim_key
+            )
+
+        resolve_themes(pm)
+        assert set(pm.themes.values_list("slug", flat=True)) == {
+            "horror",
+            "licensed",
+        }
+
+    def test_theme_exists_false_dispute(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        editorial = Source.objects.create(
+            name="Editorial", source_type="editorial", priority=100
+        )
+        pm = MachineModel.objects.create(name="P1", slug="p1")
+        Theme.objects.create(name="Horror", slug="horror")
+
+        # IPDB says horror, editorial disputes it.
+        claim_key, value = build_relationship_claim("theme", {"theme_slug": "horror"})
+        Claim.objects.assert_claim(pm, "theme", value, source=ipdb, claim_key=claim_key)
+        _, dispute_value = build_relationship_claim(
+            "theme", {"theme_slug": "horror"}, exists=False
+        )
+        Claim.objects.assert_claim(
+            pm, "theme", dispute_value, source=editorial, claim_key=claim_key
+        )
+
+        resolve_themes(pm)
+        assert pm.themes.count() == 0
+
+    def test_stale_themes_cleared(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm = MachineModel.objects.create(name="P1", slug="p1")
+        Theme.objects.create(name="Horror", slug="horror")
+
+        claim_key, value = build_relationship_claim("theme", {"theme_slug": "horror"})
+        Claim.objects.assert_claim(pm, "theme", value, source=ipdb, claim_key=claim_key)
+        resolve_themes(pm)
+        assert pm.themes.count() == 1
+
+        # Deactivate claim, re-resolve — themes should be empty.
+        pm.claims.filter(is_active=True).update(is_active=False)
+        resolve_themes(pm)
+        assert pm.themes.count() == 0
+
+    def test_bulk_theme_resolution(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm1 = MachineModel.objects.create(name="P1", slug="p1")
+        pm2 = MachineModel.objects.create(name="P2", slug="p2")
+        Theme.objects.create(name="Sports", slug="sports")
+        Theme.objects.create(name="Baseball", slug="baseball")
+
+        for pm, slugs in [(pm1, ["sports", "baseball"]), (pm2, ["sports"])]:
+            for slug in slugs:
+                claim_key, value = build_relationship_claim(
+                    "theme", {"theme_slug": slug}
+                )
+                Claim.objects.assert_claim(
+                    pm, "theme", value, source=ipdb, claim_key=claim_key
+                )
+
+        resolve_all()
+        assert set(pm1.themes.values_list("slug", flat=True)) == {
+            "sports",
+            "baseball",
+        }
+        assert set(pm2.themes.values_list("slug", flat=True)) == {"sports"}

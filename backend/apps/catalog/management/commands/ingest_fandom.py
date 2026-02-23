@@ -42,8 +42,9 @@ from apps.catalog.ingestion.fandom_wiki import (
     parse_manufacturer_pages,
     parse_person_pages,
 )
-from apps.catalog.models import DesignCredit, MachineModel, Manufacturer, Person
-from apps.catalog.resolve import resolve_manufacturer, resolve_person
+from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
+from apps.catalog.models import MachineModel, Manufacturer, Person
+from apps.catalog.resolve import resolve_credits, resolve_manufacturer, resolve_person
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -192,15 +193,10 @@ class Command(BaseCommand):
             p.name.lower(): p for p in Person.objects.all()
         }
 
-        # Load existing credits as (model_id, person_id, role) set.
-        existing_credits: set[tuple[int, int, str]] = set(
-            DesignCredit.objects.values_list("model_id", "person_id", "role")
-        )
-
         # ------------------------------------------------------------------
-        # 7. Ingest game credits.
+        # 7. Ingest game credits (as relationship claims).
         # ------------------------------------------------------------------
-        new_credits: list[DesignCredit] = []
+        credit_claims: list[Claim] = []
         credits_by_role: dict[str, int] = {}
         persons_credited: dict[str, list[str]] = {}
         matched_games = 0
@@ -208,7 +204,9 @@ class Command(BaseCommand):
         matched_persons_credits: set[str] = set()
         unmatched_persons_credits: set[str] = set()
         credits_found = 0
-        credits_existing = 0
+        matched_machine_ids: set[int] = set()
+
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
 
         # Also build name → game-titles map for person near-duplicate checking.
         fandom_credits_by_name: dict[str, set[str]] = {}
@@ -222,6 +220,7 @@ class Command(BaseCommand):
                 continue
 
             matched_games += 1
+            matched_machine_ids.add(machine.pk)
             if verbosity >= 2:
                 self.stdout.write(f"  [MATCH]    {game.title}")
 
@@ -235,32 +234,50 @@ class Command(BaseCommand):
                     continue
                 matched_persons_credits.add(person.name)
                 credits_found += 1
-                key = (machine.pk, person.pk, credit.role)
-                if key not in existing_credits:
-                    new_credits.append(
-                        DesignCredit(
-                            model_id=machine.pk,
-                            person_id=person.pk,
-                            role=credit.role,
-                        )
-                    )
-                    existing_credits.add(key)
-                    credits_by_role[credit.role] = (
-                        credits_by_role.get(credit.role, 0) + 1
-                    )
-                    persons_credited.setdefault(person.name, []).append(
-                        f"{credit.role} on {machine.name}"
-                    )
-                else:
-                    credits_existing += 1
 
-        if new_credits:
-            DesignCredit.objects.bulk_create(new_credits)
+                claim_key, value = build_relationship_claim(
+                    "credit",
+                    {"person_slug": person.slug, "role": credit.role.strip().lower()},
+                )
+                credit_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=machine.pk,
+                        field_name="credit",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+                credits_by_role[credit.role] = credits_by_role.get(credit.role, 0) + 1
+                persons_credited.setdefault(person.name, []).append(
+                    f"{credit.role} on {machine.name}"
+                )
+
+        if credit_claims:
+            auth_scope = make_authoritative_scope(MachineModel, matched_machine_ids)
+            credit_stats = Claim.objects.bulk_assert_claims(
+                source,
+                credit_claims,
+                sweep_field="credit",
+                authoritative_scope=auth_scope,
+            )
+            self.stdout.write(
+                f"  Credit claims: {credit_stats['unchanged']} unchanged, "
+                f"{credit_stats['created']} created, "
+                f"{credit_stats['superseded']} superseded, "
+                f"{credit_stats['swept']} swept"
+            )
+
+        # Resolve credit claims into materialized DesignCredit rows.
+        for machine in MachineModel.objects.filter(pk__in=matched_machine_ids):
+            resolve_credits(machine)
 
         # ------------------------------------------------------------------
         # 8. Ingest persons.
         # ------------------------------------------------------------------
         # Preload machine → credited persons for near-duplicate detection.
+        from apps.catalog.models import DesignCredit
+
         machine_credited_persons: dict[int, list[Person]] = {}
         for dc in DesignCredit.objects.select_related("person").all():
             machine_credited_persons.setdefault(dc.model_id, []).append(dc.person)
@@ -443,8 +460,7 @@ class Command(BaseCommand):
             f"{len(unmatched_games)} unmatched"
         )
         self.stdout.write(
-            f"{b}  Credits:      {r} {credits_found} found, {len(new_credits)} created, "
-            f"{credits_existing} existing"
+            f"{b}  Credits:      {r} {credits_found} found"
             + (f" {dim}({role_breakdown}){undim}" if role_breakdown else "")
         )
         self.stdout.write(

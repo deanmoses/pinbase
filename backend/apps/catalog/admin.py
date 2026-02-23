@@ -13,14 +13,17 @@ from .models import (
     Manufacturer,
     ManufacturerEntity,
     Person,
+    Theme,
 )
 from .resolve import (
     DIRECT_FIELDS,
     MANUFACTURER_DIRECT_FIELDS,
     PERSON_DIRECT_FIELDS,
+    THEME_DIRECT_FIELDS,
     resolve_manufacturer,
     resolve_model,
     resolve_person,
+    resolve_theme,
 )
 
 
@@ -82,6 +85,7 @@ class ClaimInline(GenericTabularInline):
     readonly_fields = (
         "source",
         "field_name",
+        "claim_key",
         "value",
         "citation",
         "is_active",
@@ -100,9 +104,29 @@ class ClaimInline(GenericTabularInline):
 
 
 class DesignCreditInline(admin.TabularInline):
+    """Read-only inline — credits are materialized from relationship claims."""
+
     model = DesignCredit
-    extra = 1
-    autocomplete_fields = ("person",)
+    extra = 0
+    readonly_fields = ("person", "role")
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class ThemeInline(admin.TabularInline):
+    """Read-only inline — theme tags are materialized from relationship claims."""
+
+    model = MachineModel.themes.through
+    extra = 0
+    readonly_fields = ("theme",)
+    can_delete = False
+    verbose_name = "theme"
+    verbose_name_plural = "themes"
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class ManufacturerEntityInline(admin.TabularInline):
@@ -141,6 +165,23 @@ class MachineGroupAdmin(admin.ModelAdmin):
 
     @admin.display(description="Machine Models")
     def machine_model_count(self, obj):
+        return obj.machine_models.count()
+
+
+@admin.register(Theme)
+class ThemeAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(THEME_DIRECT_FIELDS)
+
+    def _resolve(self, obj):
+        resolve_theme(obj)
+
+    list_display = ("name", "machine_count")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = (ClaimInline,)
+
+    @admin.display(description="Machines")
+    def machine_count(self, obj):
         return obj.machine_models.count()
 
 
@@ -188,7 +229,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     list_filter = ("machine_type", "display_type", "manufacturer")
     search_fields = ("name", "ipdb_id", "manufacturer__name")
     autocomplete_fields = ("manufacturer", "group", "alias_of")
-    inlines = (DesignCreditInline, ClaimInline)
+    inlines = (DesignCreditInline, ThemeInline, ClaimInline)
 
     fieldsets = (
         (
@@ -212,7 +253,6 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
                     "machine_type",
                     "display_type",
                     "player_count",
-                    "theme",
                     "production_quantity",
                     "mpu",
                     "flipper_count",

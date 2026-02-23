@@ -17,7 +17,6 @@
 			player_count: m.player_count ?? '',
 			flipper_count: m.flipper_count ?? '',
 			production_quantity: m.production_quantity,
-			theme: m.theme,
 			mpu: m.mpu,
 			ipdb_id: m.ipdb_id ?? '',
 			opdb_id: m.opdb_id ?? '',
@@ -141,15 +140,9 @@
 				</div>
 			</div>
 
-			<div class="form-row">
-				<div class="field-group">
-					<label for="ef-theme">Theme</label>
-					<input id="ef-theme" type="text" bind:value={editFields.theme} />
-				</div>
-				<div class="field-group">
-					<label for="ef-mpu">MPU</label>
-					<input id="ef-mpu" type="text" bind:value={editFields.mpu} />
-				</div>
+			<div class="field-group">
+				<label for="ef-mpu">MPU</label>
+				<input id="ef-mpu" type="text" bind:value={editFields.mpu} />
 			</div>
 
 			<div class="field-group">

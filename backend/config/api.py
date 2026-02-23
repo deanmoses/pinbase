@@ -7,6 +7,7 @@ from apps.catalog.api import (
     manufacturers_router,
     models_router,
     people_router,
+    themes_router,
 )
 from apps.provenance.api import sources_router
 
@@ -33,4 +34,5 @@ api.add_router("/models/", models_router)
 api.add_router("/groups/", groups_router)
 api.add_router("/manufacturers/", manufacturers_router)
 api.add_router("/people/", people_router)
+api.add_router("/themes/", themes_router)
 api.add_router("/sources/", sources_router)
