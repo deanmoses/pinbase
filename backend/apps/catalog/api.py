@@ -14,6 +14,7 @@ from django.db.models import (
     Count,
     F,
     IntegerField,
+    Max,
     Prefetch,
     Q,
     TextField,
@@ -789,7 +790,11 @@ def list_all_games(request):
         Title.objects.annotate(
             machine_count=Count(
                 "machine_models", filter=Q(machine_models__alias_of__isnull=True)
-            )
+            ),
+            latest_year=Max(
+                "machine_models__year",
+                filter=Q(machine_models__alias_of__isnull=True),
+            ),
         )
         .prefetch_related(
             Prefetch(
@@ -799,7 +804,7 @@ def list_all_games(request):
                 .order_by("year", "name"),
             )
         )
-        .order_by("-machine_count")
+        .order_by(F("latest_year").desc(nulls_last=True), "name")
     )
     return [_serialize_title_list(t) for t in qs]
 

@@ -30,7 +30,6 @@
 			name={game.name}
 			thumbnailUrl={game.thumbnail_url}
 			short_name={game.short_name}
-			machineCount={game.machine_count}
 		/>
 	{/snippet}
 </FilterableGrid>

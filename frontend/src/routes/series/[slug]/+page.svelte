@@ -31,7 +31,6 @@
 						name={title.name}
 						thumbnailUrl={title.thumbnail_url}
 						short_name={title.short_name}
-						machineCount={title.machine_count}
 					/>
 				{/each}
 			</CardGrid>
