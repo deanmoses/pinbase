@@ -1,0 +1,47 @@
+[
+  { "series_slug": "eight-ball", "opdb_id": "GrN7J" },
+  { "series_slug": "eight-ball", "opdb_id": "G5KXk" },
+  { "series_slug": "eight-ball", "opdb_id": "G439V" },
+
+  { "series_slug": "black-knight", "opdb_id": "GrO7w" },
+  { "series_slug": "black-knight", "opdb_id": "GrxPP" },
+  { "series_slug": "black-knight", "opdb_id": "GD7Ld" },
+
+  { "series_slug": "indiana-jones", "opdb_id": "G4xZy" },
+  { "series_slug": "indiana-jones", "opdb_id": "G4e1d" },
+
+  { "series_slug": "jurassic-park", "opdb_id": "G4ZVB" },
+  { "series_slug": "jurassic-park", "opdb_id": "G4kBL" },
+  { "series_slug": "jurassic-park", "opdb_id": "GK17D" },
+
+  { "series_slug": "star-trek", "opdb_id": "GRVnd" },
+  { "series_slug": "star-trek", "opdb_id": "G42qQ" },
+  { "series_slug": "star-trek", "opdb_id": "GR6d8" },
+  { "series_slug": "star-trek", "opdb_id": "Gryw4" },
+
+  { "series_slug": "batman", "opdb_id": "GrOpb" },
+  { "series_slug": "batman", "opdb_id": "G59zN" },
+  { "series_slug": "batman", "opdb_id": "G4yVw" },
+  { "series_slug": "batman", "opdb_id": "GRoz4" },
+
+  { "series_slug": "spider-man", "opdb_id": "GrXlr" },
+  { "series_slug": "spider-man", "opdb_id": "G5D94" },
+
+  { "series_slug": "terminator", "opdb_id": "GR9Bx" },
+  { "series_slug": "terminator", "opdb_id": "GR91N" },
+
+  { "series_slug": "kiss", "opdb_id": "G4jXr" },
+  { "series_slug": "kiss", "opdb_id": "G4qX5" },
+
+  { "series_slug": "high-speed", "opdb_id": "GRvzd" },
+  { "series_slug": "high-speed", "opdb_id": "Grx8Y" },
+
+  { "series_slug": "harley-davidson", "opdb_id": "Gr2L0" },
+  { "series_slug": "harley-davidson", "opdb_id": "G56lO" },
+
+  { "series_slug": "pinbot", "opdb_id": "G41Z8" },
+  { "series_slug": "pinbot", "opdb_id": "GRpee" },
+
+  { "series_slug": "pirates-of-the-caribbean", "opdb_id": "GR7ZX" },
+  { "series_slug": "pirates-of-the-caribbean", "opdb_id": "GRbPY" }
+]
