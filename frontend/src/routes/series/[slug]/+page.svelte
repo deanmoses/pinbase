@@ -1,38 +1,37 @@
 <script lang="ts">
 	import CardGrid from '$lib/components/CardGrid.svelte';
-	import MachineCard from '$lib/components/MachineCard.svelte';
+	import GameCard from '$lib/components/GameCard.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
-	let group = $derived(data.group);
+	let series = $derived(data.series);
 </script>
 
 <svelte:head>
-	<title>{pageTitle(group.name)}</title>
+	<title>{pageTitle(series.name)}</title>
 </svelte:head>
 
 <article>
 	<header>
-		<h1>{group.name}</h1>
-		{#if group.short_name && group.short_name !== group.name}
-			<p class="short_name">{group.short_name}</p>
+		<h1>{series.name}</h1>
+		{#if series.description}
+			<p class="description">{series.description}</p>
 		{/if}
 	</header>
 
-	{#if group.machines.length === 0}
-		<p class="empty">No machines in this group.</p>
+	{#if series.titles.length === 0}
+		<p class="empty">No titles in this series.</p>
 	{:else}
 		<section>
-			<h2>Machines ({group.machines.length})</h2>
+			<h2>Titles ({series.titles.length})</h2>
 			<CardGrid>
-				{#each group.machines as machine (machine.slug)}
-					<MachineCard
-						slug={machine.slug}
-						name={machine.name}
-						thumbnailUrl={machine.thumbnail_url}
-						manufacturerName={machine.manufacturer_name}
-						year={machine.year}
-						machineType={machine.machine_type}
+				{#each series.titles as title (title.slug)}
+					<GameCard
+						slug={title.slug}
+						name={title.name}
+						thumbnailUrl={title.thumbnail_url}
+						short_name={title.short_name}
+						machineCount={title.machine_count}
 					/>
 				{/each}
 			</CardGrid>
@@ -56,9 +55,10 @@
 		margin-bottom: var(--size-2);
 	}
 
-	.short_name {
+	.description {
 		font-size: var(--font-size-2);
 		color: var(--color-text-muted);
+		line-height: var(--font-lineheight-3);
 	}
 
 	h2 {

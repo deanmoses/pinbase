@@ -3,7 +3,7 @@
 	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import FilterableGrid from '$lib/components/FilterableGrid.svelte';
 	import GameCard from '$lib/components/GameCard.svelte';
-	import { SITE_NAME } from '$lib/constants';
+	import { pageTitle } from '$lib/constants';
 
 	const games = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/games/all/');
@@ -12,7 +12,7 @@
 </script>
 
 <svelte:head>
-	<title>{SITE_NAME}</title>
+	<title>{pageTitle('Games')}</title>
 	<link rel="preload" as="fetch" href="/api/games/all/" crossorigin="anonymous" />
 </svelte:head>
 

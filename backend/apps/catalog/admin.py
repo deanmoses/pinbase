@@ -8,13 +8,14 @@ from apps.provenance.models import Claim
 
 from .models import (
     DesignCredit,
-    MachineGroup,
     MachineModel,
     Manufacturer,
     ManufacturerEntity,
     Person,
+    Series,
     System,
     Theme,
+    Title,
 )
 from .resolve import (
     DIRECT_FIELDS,
@@ -160,8 +161,8 @@ class ManufacturerAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         return obj.entities.count()
 
 
-@admin.register(MachineGroup)
-class MachineGroupAdmin(admin.ModelAdmin):
+@admin.register(Title)
+class TitleAdmin(admin.ModelAdmin):
     list_display = ("name", "short_name", "opdb_id", "machine_model_count")
     search_fields = ("name", "short_name", "opdb_id")
     prepopulated_fields = {"slug": ("name",)}
@@ -169,6 +170,18 @@ class MachineGroupAdmin(admin.ModelAdmin):
     @admin.display(description="Machine Models")
     def machine_model_count(self, obj):
         return obj.machine_models.count()
+
+
+@admin.register(Series)
+class SeriesAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "title_count")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+    filter_horizontal = ("titles",)
+
+    @admin.display(description="Titles")
+    def title_count(self, obj):
+        return obj.titles.count()
 
 
 @admin.register(Theme)
@@ -226,14 +239,14 @@ class PersonAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
 
 @admin.register(MachineModel)
 class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
-    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {"manufacturer", "group", "system"}
+    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {"manufacturer", "title", "system"}
 
     def _to_claim_value(self, field_name: str, value):
         if field_name == "manufacturer" and value is not None:
             return (
                 value.opdb_manufacturer_id if value.opdb_manufacturer_id else value.name
             )
-        if field_name == "group" and value is not None:
+        if field_name == "title" and value is not None:
             return value.opdb_id
         if field_name == "system" and value is not None:
             return value.slug
@@ -252,7 +265,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     )
     list_filter = ("machine_type", "display_type", "manufacturer")
     search_fields = ("name", "ipdb_id", "manufacturer__name")
-    autocomplete_fields = ("manufacturer", "group", "alias_of", "system")
+    autocomplete_fields = ("manufacturer", "title", "alias_of", "system")
     inlines = (DesignCreditInline, ThemeInline, ClaimInline)
 
     fieldsets = (
@@ -263,7 +276,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
                     "name",
                     "slug",
                     "manufacturer",
-                    "group",
+                    "title",
                     "alias_of",
                     "year",
                     "month",

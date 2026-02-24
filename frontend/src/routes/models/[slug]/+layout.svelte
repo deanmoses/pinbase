@@ -47,9 +47,9 @@
 			{/if}
 			<span>{model.machine_type}</span>
 			<span>{model.display_type}</span>
-			{#if model.group_slug}
+			{#if model.title_slug}
 				<span>
-					<a href={resolve(`/groups/${model.group_slug}`)}>{model.group_name}</a>
+					<a href={resolve(`/games/${model.title_slug}`)}>{model.title_name}</a>
 				</span>
 			{/if}
 		</div>

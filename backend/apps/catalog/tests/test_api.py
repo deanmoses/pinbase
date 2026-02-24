@@ -5,13 +5,13 @@ from django.test import Client
 from apps.catalog.cache import MODELS_ALL_KEY
 from apps.catalog.models import (
     DesignCredit,
-    MachineGroup,
+    MachineModel,
     Manufacturer,
     ManufacturerEntity,
-    MachineModel,
     Person,
     System,
     Theme,
+    Title,
 )
 from apps.provenance.models import Claim, Source
 
@@ -238,44 +238,44 @@ class TestModelsAPI:
         assert data["aliases"][0]["name"] == "Medieval Madness (LE)"
         assert data["aliases"][0]["variant_features"] == ["Gold trim"]
 
-    def test_get_model_detail_group(self, client, machine_model, db):
-        group = MachineGroup.objects.create(
+    def test_get_model_detail_title(self, client, machine_model, db):
+        title = Title.objects.create(
             name="Medieval Madness", opdb_id="G5pe4", short_name="MM"
         )
-        machine_model.group = group
+        machine_model.title = title
         machine_model.save()
         resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
-        assert data["group_name"] == "Medieval Madness"
-        assert data["group_slug"] == group.slug
+        assert data["title_name"] == "Medieval Madness"
+        assert data["title_slug"] == title.slug
 
-    def test_get_model_detail_no_group(self, client, machine_model):
+    def test_get_model_detail_no_title(self, client, machine_model):
         resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
-        assert data["group_name"] is None
-        assert data["group_slug"] is None
+        assert data["title_name"] is None
+        assert data["title_slug"] is None
 
     def test_get_model_404(self, client, db):
         resp = client.get("/api/models/nonexistent")
         assert resp.status_code == 404
 
 
-class TestGroupsAPI:
+class TestGamesAPI:
     @pytest.fixture
-    def group(self, db):
-        return MachineGroup.objects.create(
+    def title(self, db):
+        return Title.objects.create(
             name="Medieval Madness", opdb_id="G5pe4", short_name="MM"
         )
 
     @pytest.fixture
-    def group_with_machines(self, group, manufacturer):
+    def title_with_machines(self, title, manufacturer):
         MachineModel.objects.create(
             name="Medieval Madness",
             manufacturer=manufacturer,
             year=1997,
             machine_type="SS",
             display_type="dmd",
-            group=group,
+            title=title,
             extra_data={"images": SAMPLE_IMAGES},
         )
         MachineModel.objects.create(
@@ -284,12 +284,12 @@ class TestGroupsAPI:
             year=2015,
             machine_type="SS",
             display_type="dmd",
-            group=group,
+            title=title,
         )
-        return group
+        return title
 
-    def test_list_groups(self, client, group_with_machines):
-        resp = client.get("/api/groups/")
+    def test_list_games(self, client, title_with_machines):
+        resp = client.get("/api/games/")
         assert resp.status_code == 200
         data = resp.json()
         assert data["count"] == 1
@@ -298,63 +298,61 @@ class TestGroupsAPI:
         assert item["short_name"] == "MM"
         assert item["machine_count"] == 2
 
-    def test_list_groups_search(self, client, group_with_machines, db):
-        MachineGroup.objects.create(
-            name="Attack From Mars", opdb_id="G1234", short_name="AFM"
-        )
-        resp = client.get("/api/groups/?search=MM")
+    def test_list_games_search(self, client, title_with_machines, db):
+        Title.objects.create(name="Attack From Mars", opdb_id="G1234", short_name="AFM")
+        resp = client.get("/api/games/?search=MM")
         data = resp.json()
         assert data["count"] == 1
         assert data["items"][0]["short_name"] == "MM"
 
-    def test_list_groups_thumbnail(self, client, group_with_machines):
-        resp = client.get("/api/groups/")
+    def test_list_games_thumbnail(self, client, title_with_machines):
+        resp = client.get("/api/games/")
         data = resp.json()
         assert data["items"][0]["thumbnail_url"] == "https://img.opdb.org/md.jpg"
 
-    def test_list_groups_empty_group(self, client, group):
-        resp = client.get("/api/groups/")
+    def test_list_games_empty_title(self, client, title):
+        resp = client.get("/api/games/")
         data = resp.json()
         assert data["items"][0]["machine_count"] == 0
         assert data["items"][0]["thumbnail_url"] is None
 
-    def test_get_group_detail(self, client, group_with_machines):
-        resp = client.get(f"/api/groups/{group_with_machines.slug}")
+    def test_get_game_detail(self, client, title_with_machines):
+        resp = client.get(f"/api/games/{title_with_machines.slug}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Medieval Madness"
         assert len(data["machines"]) == 2
 
-    def test_get_group_detail_excludes_aliases(self, client, group_with_machines):
+    def test_get_game_detail_excludes_aliases(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
             machine_type="SS",
             display_type="dmd",
-            group=group_with_machines,
+            title=title_with_machines,
             alias_of=parent,
         )
-        resp = client.get(f"/api/groups/{group_with_machines.slug}")
+        resp = client.get(f"/api/games/{title_with_machines.slug}")
         data = resp.json()
         assert len(data["machines"]) == 2
         names = [m["name"] for m in data["machines"]]
         assert "Medieval Madness (LE)" not in names
 
-    def test_machine_count_excludes_aliases(self, client, group_with_machines):
+    def test_machine_count_excludes_aliases(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
             machine_type="SS",
             display_type="dmd",
-            group=group_with_machines,
+            title=title_with_machines,
             alias_of=parent,
         )
-        resp = client.get("/api/groups/")
+        resp = client.get("/api/games/")
         data = resp.json()
         assert data["items"][0]["machine_count"] == 2
 
-    def test_get_group_404(self, client, db):
-        resp = client.get("/api/groups/nonexistent")
+    def test_get_game_404(self, client, db):
+        resp = client.get("/api/games/nonexistent")
         assert resp.status_code == 404
 
 

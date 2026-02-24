@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 
 from apps.catalog.admin import MachineModelAdmin, ManufacturerAdmin, PersonAdmin
-from apps.catalog.models import MachineGroup, MachineModel, Manufacturer, Person
+from apps.catalog.models import MachineModel, Manufacturer, Person, Title
 from apps.provenance.models import Claim
 
 User = get_user_model()
@@ -237,19 +237,19 @@ class TestMachineModelAdminClaims:
             object_id=pm.pk, field_name="manufacturer", is_active=True
         ).exists()
 
-    def test_group_fk_serialized_as_opdb_id(self, admin_request):
-        group = MachineGroup.objects.create(opdb_id="G5pe4", name="Medieval Madness")
+    def test_title_fk_serialized_as_opdb_id(self, admin_request):
+        title = Title.objects.create(opdb_id="G5pe4", name="Medieval Madness")
         pm = MachineModel.objects.create(name="Medieval Madness")
-        pm.group = group
+        pm.title = title
 
         mma = MachineModelAdmin(MachineModel, AdminSite())
-        form = _MockForm(["group"], {"name": "Medieval Madness", "group": group})
+        form = _MockForm(["title"], {"name": "Medieval Madness", "title": title})
         mma.save_model(admin_request, pm, form, change=True)
 
         claim = Claim.objects.get(
             content_type__model="machinemodel",
             object_id=pm.pk,
-            field_name="group",
+            field_name="title",
             is_active=True,
         )
         assert claim.value == "G5pe4"

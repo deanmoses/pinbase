@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import (
-    MachineGroup,
+    Title,
     Manufacturer,
     ManufacturerEntity,
     MachineModel,
@@ -223,7 +223,7 @@ class TestResolveAll:
         ManufacturerEntity.objects.create(
             manufacturer=mfr, name="Williams Corp", ipdb_manufacturer_id=42
         )
-        MachineGroup.objects.create(opdb_id="G1111", name="Medieval Madness", slug="mm")
+        Title.objects.create(opdb_id="G1111", name="Medieval Madness", slug="mm")
 
         pm_bulk = MachineModel.objects.create(name="P1", slug="p1")
         pm_single = MachineModel.objects.create(name="P2", slug="p2")
@@ -245,7 +245,7 @@ class TestResolveAll:
         assert pm_bulk.name == pm_single.name
         assert pm_bulk.year == pm_single.year
         assert pm_bulk.manufacturer_id == pm_single.manufacturer_id
-        assert pm_bulk.group_id == pm_single.group_id
+        assert pm_bulk.title_id == pm_single.title_id
         assert pm_bulk.machine_type == pm_single.machine_type
         assert pm_bulk.extra_data == pm_single.extra_data
 

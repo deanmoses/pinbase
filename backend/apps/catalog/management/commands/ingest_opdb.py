@@ -21,7 +21,7 @@ from apps.catalog.ingestion.parsers import (
     parse_opdb_date,
     parse_opdb_group_id,
 )
-from apps.catalog.models import MachineGroup, MachineModel
+from apps.catalog.models import MachineModel, Title
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -70,10 +70,10 @@ class Command(BaseCommand):
         if changelog_path:
             self._process_changelog(changelog_path)
 
-        # --- Groups pre-loading ---
+        # --- Titles pre-loading ---
         groups_by_id: dict[str, dict] = {}
         if groups_path:
-            groups_by_id = self._load_groups(groups_path)
+            groups_by_id = self._load_titles(groups_path)
 
         # --- Load machine data ---
         with open(opdb_path) as f:
@@ -336,8 +336,8 @@ class Command(BaseCommand):
     # Groups
     # ------------------------------------------------------------------
 
-    def _load_groups(self, path: str) -> dict[str, dict]:
-        """Load groups JSON and bulk create/update MachineGroup records.
+    def _load_titles(self, path: str) -> dict[str, dict]:
+        """Load groups JSON and bulk create/update Title records.
 
         Returns a dict mapping group opdb_id → group record for later lookup.
         """
@@ -351,35 +351,31 @@ class Command(BaseCommand):
             if opdb_id:
                 groups_by_id[opdb_id] = rec
 
-        # Pre-fetch existing groups.
-        existing_groups: dict[str, MachineGroup] = {
-            g.opdb_id: g for g in MachineGroup.objects.all()
-        }
-        existing_slugs: set[str] = set(
-            MachineGroup.objects.values_list("slug", flat=True)
-        )
+        # Pre-fetch existing titles.
+        existing_titles: dict[str, Title] = {t.opdb_id: t for t in Title.objects.all()}
+        existing_slugs: set[str] = set(Title.objects.values_list("slug", flat=True))
 
-        new_groups: list[MachineGroup] = []
-        updated_groups: list[MachineGroup] = []
+        new_titles: list[Title] = []
+        updated_titles: list[Title] = []
         unchanged = 0
 
         for opdb_id, rec in groups_by_id.items():
             name = rec.get("name", "")
             short_name = rec.get("shortname") or ""
 
-            existing = existing_groups.get(opdb_id)
+            existing = existing_titles.get(opdb_id)
             if existing:
                 # Check if update is needed.
                 if existing.name != name or existing.short_name != short_name:
                     existing.name = name
                     existing.short_name = short_name
-                    updated_groups.append(existing)
+                    updated_titles.append(existing)
                 else:
                     unchanged += 1
             else:
                 slug = generate_unique_slug(name, existing_slugs)
-                new_groups.append(
-                    MachineGroup(
+                new_titles.append(
+                    Title(
                         opdb_id=opdb_id,
                         name=name,
                         slug=slug,
@@ -387,16 +383,16 @@ class Command(BaseCommand):
                     )
                 )
 
-        groups_created = len(new_groups)
-        groups_updated = len(updated_groups)
+        titles_created = len(new_titles)
+        titles_updated = len(updated_titles)
 
-        if new_groups:
-            MachineGroup.objects.bulk_create(new_groups)
-        if updated_groups:
-            MachineGroup.objects.bulk_update(updated_groups, ["name", "short_name"])
+        if new_titles:
+            Title.objects.bulk_create(new_titles)
+        if updated_titles:
+            Title.objects.bulk_update(updated_titles, ["name", "short_name"])
 
         self.stdout.write(
-            f"  Groups: {groups_created} created, {groups_updated} updated, "
+            f"  Titles: {titles_created} created, {titles_updated} updated, "
             f"{unchanged} unchanged"
         )
         return groups_by_id

@@ -3,10 +3,11 @@ from ninja import NinjaAPI
 
 from apps.accounts.api import auth_router
 from apps.catalog.api import (
-    groups_router,
+    games_router,
     manufacturers_router,
     models_router,
     people_router,
+    series_router,
     systems_router,
     themes_router,
 )
@@ -32,9 +33,10 @@ def health(request):
 
 api.add_router("/auth/", auth_router)
 api.add_router("/models/", models_router)
-api.add_router("/groups/", groups_router)
+api.add_router("/games/", games_router)
 api.add_router("/manufacturers/", manufacturers_router)
 api.add_router("/people/", people_router)
 api.add_router("/themes/", themes_router)
 api.add_router("/systems/", systems_router)
+api.add_router("/series/", series_router)
 api.add_router("/sources/", sources_router)
