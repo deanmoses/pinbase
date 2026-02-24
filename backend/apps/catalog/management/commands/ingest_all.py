@@ -1,7 +1,8 @@
 """Orchestrate the full ingestion pipeline.
 
-Runs: ingest_manufacturers_seed → ingest_manufacturers → ingest_systems →
-      ingest_ipdb → ingest_opdb → ingest_series → ingest_signs → resolve_claims.
+Runs: ingest_machine_types_seed → ingest_manufacturers_seed → ingest_manufacturers →
+      ingest_systems → ingest_ipdb → ingest_opdb → ingest_series → ingest_signs →
+      resolve_claims.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from django.core.management.base import BaseCommand
 
 
 STEPS = [
+    "ingest_machine_types_seed",
     "ingest_manufacturers_seed",
     "ingest_manufacturers",
     "ingest_systems",

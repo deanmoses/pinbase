@@ -4,6 +4,7 @@ from ninja import NinjaAPI
 from apps.accounts.api import auth_router
 from apps.catalog.api import (
     games_router,
+    machine_types_router,
     manufacturers_router,
     models_router,
     people_router,
@@ -32,6 +33,7 @@ def health(request):
 
 
 api.add_router("/auth/", auth_router)
+api.add_router("/machine-types/", machine_types_router)
 api.add_router("/models/", models_router)
 api.add_router("/games/", games_router)
 api.add_router("/manufacturers/", manufacturers_router)

@@ -441,6 +441,38 @@ class Person(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# MachineTypeProfile
+# ---------------------------------------------------------------------------
+
+
+class MachineTypeProfile(models.Model):
+    """Editorial description of a pinball machine era.
+
+    One record per MachineType (PM, EM, SS). Editable directly in admin.
+    Not claim-controlled — single-source museum content.
+    """
+
+    machine_type = models.CharField(
+        max_length=2, choices=MachineModel.MachineType.choices, unique=True
+    )
+    slug = models.SlugField(unique=True)
+    title = models.CharField(max_length=100)
+    display_order = models.PositiveSmallIntegerField(default=0)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["display_order"]
+
+    def __str__(self) -> str:
+        return self.get_machine_type_display()
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.get_machine_type_display(), "type")
+        super().save(*args, **kwargs)
+
+
 class DesignCredit(TimeStampedModel):
     """Links a person to a machine model with a specific role."""
 
