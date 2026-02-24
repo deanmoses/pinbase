@@ -46,3 +46,7 @@ test(api): add health endpoint integration test
 2. Analyze the changes and determine the appropriate type
 3. Write a concise description (under 72 characters)
 4. Add body only if the "why" isn't obvious from the description
+
+## Project-specific notes
+
+- Do NOT stage `frontend/src/lib/api/schema.d.ts` — it is gitignored and should never be committed.
