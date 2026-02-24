@@ -17,7 +17,6 @@
 			player_count: m.player_count ?? '',
 			flipper_count: m.flipper_count ?? '',
 			production_quantity: m.production_quantity,
-			mpu: m.mpu,
 			ipdb_id: m.ipdb_id ?? '',
 			opdb_id: m.opdb_id ?? '',
 			pinside_id: m.pinside_id ?? '',
@@ -138,11 +137,6 @@
 						bind:value={editFields.flipper_count}
 					/>
 				</div>
-			</div>
-
-			<div class="field-group">
-				<label for="ef-mpu">MPU</label>
-				<input id="ef-mpu" type="text" bind:value={editFields.mpu} />
 			</div>
 
 			<div class="field-group">

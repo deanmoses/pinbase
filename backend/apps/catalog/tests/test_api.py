@@ -10,6 +10,7 @@ from apps.catalog.models import (
     ManufacturerEntity,
     MachineModel,
     Person,
+    System,
     Theme,
 )
 from apps.provenance.models import Claim, Source
@@ -211,17 +212,17 @@ class TestModelsAPI:
         assert data["thumbnail_url"] is None
         assert data["hero_image_url"] is None
 
-    def test_get_model_detail_features(self, client, manufacturer, db):
+    def test_get_model_detail_variant_features(self, client, manufacturer, db):
         pm = MachineModel.objects.create(
             name="With Features",
             manufacturer=manufacturer,
             machine_type="SS",
             display_type="dmd",
-            extra_data={"features": ["Castle attack", "Gold trim"]},
+            extra_data={"variant_features": ["Castle attack", "Gold trim"]},
         )
         resp = client.get(f"/api/models/{pm.slug}")
         data = resp.json()
-        assert data["features"] == ["Castle attack", "Gold trim"]
+        assert data["variant_features"] == ["Castle attack", "Gold trim"]
 
     def test_get_model_detail_aliases(self, client, machine_model):
         MachineModel.objects.create(
@@ -229,13 +230,13 @@ class TestModelsAPI:
             machine_type="SS",
             display_type="dmd",
             alias_of=machine_model,
-            extra_data={"features": ["Gold trim"]},
+            extra_data={"variant_features": ["Gold trim"]},
         )
         resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
         assert len(data["aliases"]) == 1
         assert data["aliases"][0]["name"] == "Medieval Madness (LE)"
-        assert data["aliases"][0]["features"] == ["Gold trim"]
+        assert data["aliases"][0]["variant_features"] == ["Gold trim"]
 
     def test_get_model_detail_group(self, client, machine_model, db):
         group = MachineGroup.objects.create(
@@ -541,3 +542,61 @@ class TestSourcesAPI:
         data = resp.json()
         assert len(data) == 1
         assert data[0]["name"] == "IPDB"
+
+
+class TestSystemsAPI:
+    @pytest.fixture
+    def system(self, db, manufacturer):
+        return System.objects.create(
+            name="Williams WPC-95",
+            slug="wpc-95",
+            manufacturer=manufacturer,
+        )
+
+    @pytest.fixture
+    def system_with_machines(self, system, manufacturer):
+        MachineModel.objects.create(
+            name="Medieval Madness",
+            manufacturer=manufacturer,
+            year=1997,
+            machine_type="SS",
+            display_type="dmd",
+            system=system,
+        )
+        MachineModel.objects.create(
+            name="No Good Gofers",
+            manufacturer=manufacturer,
+            year=1997,
+            machine_type="SS",
+            display_type="dmd",
+            system=system,
+        )
+        return system
+
+    def test_get_system_detail(self, client, system_with_machines):
+        resp = client.get("/api/systems/wpc-95")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Williams WPC-95"
+        assert data["slug"] == "wpc-95"
+        assert data["manufacturer_name"] == "Williams"
+        assert len(data["machines"]) == 2
+
+    def test_get_system_detail_machines_sorted_year_desc(
+        self, client, system_with_machines, manufacturer
+    ):
+        MachineModel.objects.create(
+            name="Old Game",
+            manufacturer=manufacturer,
+            year=1990,
+            machine_type="SS",
+            system=system_with_machines,
+        )
+        resp = client.get("/api/systems/wpc-95")
+        data = resp.json()
+        years = [m["year"] for m in data["machines"] if m["year"]]
+        assert years == sorted(years, reverse=True)
+
+    def test_get_system_404(self, client, db):
+        resp = client.get("/api/systems/nonexistent")
+        assert resp.status_code == 404

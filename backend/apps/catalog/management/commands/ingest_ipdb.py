@@ -12,8 +12,9 @@ from __future__ import annotations
 import json
 import logging
 from html import unescape
+from pathlib import Path
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.catalog.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
@@ -37,7 +38,6 @@ CLAIM_FIELDS = {
     "ManufacturerId": "manufacturer",
     "Players": "player_count",
     "ProductionNumber": "production_quantity",
-    "MPU": "mpu",
     "AverageFunRating": "ipdb_rating",
     # Extra data (no dedicated column)
     "NotableFeatures": "notable_features",
@@ -73,6 +73,20 @@ IPDB_TAG_MAP: dict[str, list[str]] = {
     "Circus / Carnival": ["circus"],
     "Auto racing": ["auto-racing"],
 }
+
+
+_SYSTEMS_JSON = Path(__file__).parents[5] / "data" / "systems.json"
+
+
+def _load_mpu_to_system_slug() -> dict[str, str]:
+    """Build {mpu_string: system_slug} from data/systems.json."""
+    with open(_SYSTEMS_JSON) as f:
+        systems = json.load(f)
+    return {
+        mpu: system["slug"]
+        for system in systems
+        for mpu in system.get("mpu_strings", [])
+    }
 
 
 def _parse_ipdb_themes(raw_theme: str) -> list[str]:
@@ -120,6 +134,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         ipdb_path = options["ipdb"]
+        mpu_to_slug = _load_mpu_to_system_slug()
 
         from django.contrib.contenttypes.models import ContentType
 
@@ -188,13 +203,21 @@ class Command(BaseCommand):
         pending_claims: list[Claim] = []
         credit_queue: list[tuple[int, str, str]] = []
         theme_queue: list[tuple[int, list[str]]] = []  # (model_pk, [slugs])
+        unknown_mpu_strings: set[str] = set()
         failed = 0
         failed_ids: list = []
 
         for pm, rec, _was_created in record_models:
             try:
                 self._collect_record_data(
-                    pm, rec, ct_id, pending_claims, credit_queue, theme_queue
+                    pm,
+                    rec,
+                    ct_id,
+                    pending_claims,
+                    credit_queue,
+                    theme_queue,
+                    mpu_to_slug,
+                    unknown_mpu_strings,
                 )
             except Exception:
                 ipdb_id = rec.get("IpdbId", "?")
@@ -204,6 +227,13 @@ class Command(BaseCommand):
 
         if failed_ids:
             self.stderr.write(f"  Failed IDs: {failed_ids}")
+
+        if unknown_mpu_strings:
+            lines = "\n".join(f"  {s}" for s in sorted(unknown_mpu_strings))
+            raise CommandError(
+                f"Unknown MPU strings not in data/systems.json:\n{lines}\n"
+                "Add entries to data/systems.json and run ingest_systems before re-ingesting."
+            )
 
         # --- Bulk-assert all collected claims ---
         claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
@@ -234,6 +264,8 @@ class Command(BaseCommand):
         pending_claims: list[Claim],
         credit_queue: list[tuple[int, str, str]],
         theme_queue: list[tuple[int, list[str]]],
+        mpu_to_slug: dict[str, str],
+        unknown_mpu_strings: set[str],
     ) -> None:
         """Collect claims, credits, and theme slugs for a single IPDB record."""
         ipdb_id = rec.get("IpdbId")
@@ -263,6 +295,25 @@ class Command(BaseCommand):
                     value=value,
                 )
             )
+
+        # MPU: emit 'system' slug claim if known, else collect for deferred error.
+        # Normalize U+FFFD (replacement char from IPDB encoding issues) before lookup.
+        mpu_value = rec.get("MPU", "")
+        if isinstance(mpu_value, str):
+            mpu_value = mpu_value.strip().replace("\ufffd", "")
+        if mpu_value:
+            system_slug = mpu_to_slug.get(mpu_value)
+            if system_slug:
+                pending_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=pm.pk,
+                        field_name="system",
+                        value=system_slug,
+                    )
+                )
+            else:
+                unknown_mpu_strings.add(mpu_value)
 
         # Date fields (year + month from a single IPDB field).
         date_str = rec.get("DateOfManufacture")

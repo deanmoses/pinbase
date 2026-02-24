@@ -53,9 +53,9 @@
 				</span>
 			{/if}
 		</div>
-		{#if model.features.length > 0}
+		{#if model.variant_features.length > 0}
 			<div class="features">
-				{#each model.features as feature (feature)}
+				{#each model.variant_features as feature (feature)}
 					<span class="chip">{feature}</span>
 				{/each}
 			</div>

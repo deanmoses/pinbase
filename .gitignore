@@ -53,5 +53,5 @@ backend/staticfiles/
 backend/media/
 backend/cache/
 
-# Data dumps (large JSON files, not committed)
-data/
+# Data dumps (large files in subdirectories, not committed)
+data/*/

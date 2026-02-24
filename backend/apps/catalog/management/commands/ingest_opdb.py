@@ -462,14 +462,13 @@ class Command(BaseCommand):
             _add("display_type", display_type)
 
         # Extra data fields.
-        for field in (
-            "features",
-            "keywords",
-            "description",
-            "common_name",
-            "shortname",
-            "images",
-        ):
+        # OPDB 'features' are variant labels (LE, SE, shaker motor etc.) — stored
+        # as 'variant_features' to avoid future confusion with gameplay features.
+        opdb_features = rec.get("features")
+        if opdb_features:
+            _add("variant_features", opdb_features)
+
+        for field in ("keywords", "description", "common_name", "shortname", "images"):
             value = rec.get(field)
             if value:
                 _add(field, value)
