@@ -205,7 +205,11 @@ class MachineModelListSchema(Schema):
     manufacturer_slug: Optional[str] = None
     year: Optional[int] = None
     machine_type: str
+    machine_type_slug: Optional[str] = None
+    machine_type_label: str
     display_type: str
+    display_type_slug: Optional[str] = None
+    display_type_label: str
     ipdb_id: Optional[int] = None
     ipdb_rating: Optional[float] = None
     pinside_rating: Optional[float] = None
@@ -221,7 +225,11 @@ class MachineModelDetailSchema(Schema):
     year: Optional[int] = None
     month: Optional[int] = None
     machine_type: str
+    machine_type_slug: Optional[str] = None
+    machine_type_label: str
     display_type: str
+    display_type_slug: Optional[str] = None
+    display_type_label: str
     player_count: Optional[int] = None
     themes: list[ThemeSchema] = []
     production_quantity: str
@@ -444,7 +452,19 @@ def _build_model_list_qs(
     return qs
 
 
-def _serialize_model_list(pm) -> dict:
+def _profile_slug_maps() -> tuple[dict, dict]:
+    """Return (machine_type_slugs, display_type_slugs) dicts keyed by type code.
+
+    Loads at most 9 rows total (3 machine types, 6 display types).
+    """
+    from apps.catalog.models import DisplayTypeProfile, MachineTypeProfile
+
+    mt = {p.machine_type: p.slug for p in MachineTypeProfile.objects.all()}
+    dt = {p.display_type: p.slug for p in DisplayTypeProfile.objects.all()}
+    return mt, dt
+
+
+def _serialize_model_list(pm, mt_slugs: dict, dt_slugs: dict) -> dict:
     thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
     return {
         "name": pm.name,
@@ -453,7 +473,11 @@ def _serialize_model_list(pm) -> dict:
         "manufacturer_slug": pm.manufacturer.slug if pm.manufacturer else None,
         "year": pm.year,
         "machine_type": pm.machine_type,
+        "machine_type_slug": mt_slugs.get(pm.machine_type),
+        "machine_type_label": pm.get_machine_type_display(),
         "display_type": pm.display_type,
+        "display_type_slug": dt_slugs.get(pm.display_type),
+        "display_type_label": pm.get_display_type_display(),
         "ipdb_id": pm.ipdb_id,
         "ipdb_rating": float(pm.ipdb_rating) if pm.ipdb_rating is not None else None,
         "pinside_rating": float(pm.pinside_rating)
@@ -464,7 +488,7 @@ def _serialize_model_list(pm) -> dict:
     }
 
 
-def _serialize_model_detail(pm) -> dict:
+def _serialize_model_detail(pm, mt_slugs: dict, dt_slugs: dict) -> dict:
     """Serialize a MachineModel into the detail response dict.
 
     Expects *pm* to have been fetched with prefetch_related for credits
@@ -518,7 +542,11 @@ def _serialize_model_detail(pm) -> dict:
         "year": pm.year,
         "month": pm.month,
         "machine_type": pm.machine_type,
+        "machine_type_slug": mt_slugs.get(pm.machine_type),
+        "machine_type_label": pm.get_machine_type_display(),
         "display_type": pm.display_type,
+        "display_type_slug": dt_slugs.get(pm.display_type),
+        "display_type_label": pm.get_display_type_display(),
         "player_count": pm.player_count,
         "themes": [{"name": t.name, "slug": t.slug} for t in pm.themes.all()],
         "production_quantity": pm.production_quantity,
@@ -625,7 +653,8 @@ def list_models(
         person=person,
         ordering=ordering,
     )
-    return [_serialize_model_list(pm) for pm in qs]
+    mt_slugs, dt_slugs = _profile_slug_maps()
+    return [_serialize_model_list(pm, mt_slugs, dt_slugs) for pm in qs]
 
 
 @models_router.get("/all/", response=list[MachineModelGridSchema])
@@ -675,7 +704,8 @@ def get_model(request, slug: str):
         ),
         slug=slug,
     )
-    return _serialize_model_detail(pm)
+    mt_slugs, dt_slugs = _profile_slug_maps()
+    return _serialize_model_detail(pm, mt_slugs, dt_slugs)
 
 
 @models_router.patch(
@@ -715,7 +745,8 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
         ),
         slug=slug,
     )
-    return _serialize_model_detail(pm)
+    mt_slugs, dt_slugs = _profile_slug_maps()
+    return _serialize_model_detail(pm, mt_slugs, dt_slugs)
 
 
 # ---------------------------------------------------------------------------
@@ -1320,3 +1351,34 @@ def get_machine_type(request, slug: str):
     from apps.catalog.models import MachineTypeProfile
 
     return get_object_or_404(MachineTypeProfile, slug=slug)
+
+
+# ---------------------------------------------------------------------------
+# Display types
+# ---------------------------------------------------------------------------
+
+display_types_router = Router()
+
+
+class DisplayTypeProfileSchema(Schema):
+    display_type: str
+    slug: str
+    title: str
+    display_order: int
+    description: str
+
+
+@display_types_router.get("/", response=list[DisplayTypeProfileSchema])
+@decorate_view(cache_control(public=True, max_age=300))
+def list_display_types(request):
+    from apps.catalog.models import DisplayTypeProfile
+
+    return list(DisplayTypeProfile.objects.all())
+
+
+@display_types_router.get("/{slug}", response=DisplayTypeProfileSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_display_type(request, slug: str):
+    from apps.catalog.models import DisplayTypeProfile
+
+    return get_object_or_404(DisplayTypeProfile, slug=slug)

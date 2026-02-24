@@ -8,6 +8,7 @@ from apps.provenance.models import Claim
 
 from .models import (
     DesignCredit,
+    DisplayTypeProfile,
     MachineModel,
     MachineTypeProfile,
     Manufacturer,
@@ -144,6 +145,13 @@ class ManufacturerEntityInline(admin.TabularInline):
 class MachineTypeProfileAdmin(admin.ModelAdmin):
     list_display = ("display_order", "machine_type", "title", "slug")
     fields = ("machine_type", "slug", "title", "display_order", "description")
+    readonly_fields = ("slug",)
+
+
+@admin.register(DisplayTypeProfile)
+class DisplayTypeProfileAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "display_type", "title", "slug")
+    fields = ("display_type", "slug", "title", "display_order", "description")
     readonly_fields = ("slug",)
 
 
