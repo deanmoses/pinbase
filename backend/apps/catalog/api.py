@@ -1,6 +1,6 @@
 """API endpoints for the catalog app.
 
-Five routers: models, groups, manufacturers, people, themes.
+Routers: models, games (titles), manufacturers, people, themes, systems, series.
 Wired into the main NinjaAPI instance in config/api.py.
 """
 
@@ -150,7 +150,7 @@ class ThemeDetailSchema(Schema):
     name: str
     slug: str
     description: str = ""
-    machines: list[GroupMachineSchema]
+    machines: list[TitleMachineSchema]
 
 
 class SystemSchema(Schema):
@@ -172,7 +172,7 @@ class SystemDetailSchema(Schema):
     description: str = ""
     manufacturer_name: Optional[str] = None
     manufacturer_slug: Optional[str] = None
-    machines: list[GroupMachineSchema]
+    machines: list[TitleMachineSchema]
 
 
 class DesignCreditSchema(Schema):
@@ -242,11 +242,11 @@ class MachineModelDetailSchema(Schema):
     hero_image_url: Optional[str] = None
     variant_features: list[str] = []
     aliases: list[AliasSchema] = []
-    group_name: Optional[str] = None
-    group_slug: Optional[str] = None
+    title_name: Optional[str] = None
+    title_slug: Optional[str] = None
 
 
-class GroupMachineSchema(Schema):
+class TitleMachineSchema(Schema):
     name: str
     slug: str
     year: Optional[int] = None
@@ -256,19 +256,42 @@ class GroupMachineSchema(Schema):
     thumbnail_url: Optional[str] = None
 
 
-class GroupListSchema(Schema):
+class TitleListSchema(Schema):
     name: str
     slug: str
     short_name: str
     machine_count: int = 0
+    manufacturer_name: Optional[str] = None
+    year: Optional[int] = None
     thumbnail_url: Optional[str] = None
 
 
-class GroupDetailSchema(Schema):
+class SeriesRefSchema(Schema):
+    name: str
+    slug: str
+
+
+class TitleDetailSchema(Schema):
     name: str
     slug: str
     short_name: str
-    machines: list[GroupMachineSchema]
+    machines: list[TitleMachineSchema]
+    series: list[SeriesRefSchema] = []
+
+
+class SeriesListSchema(Schema):
+    name: str
+    slug: str
+    description: str = ""
+    title_count: int = 0
+    thumbnail_url: Optional[str] = None
+
+
+class SeriesDetailSchema(Schema):
+    name: str
+    slug: str
+    description: str = ""
+    titles: list[TitleListSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -518,28 +541,35 @@ def _serialize_model_detail(pm) -> dict:
         "hero_image_url": hero_image_url,
         "variant_features": variant_features,
         "aliases": aliases,
-        "group_name": pm.group.name if pm.group else None,
-        "group_slug": pm.group.slug if pm.group else None,
+        "title_name": pm.title.name if pm.title else None,
+        "title_slug": pm.title.slug if pm.title else None,
     }
 
 
-def _serialize_group_list(group) -> dict:
+def _serialize_title_list(title) -> dict:
     thumbnail_url = None
-    machines = list(group.machine_models.all())
+    manufacturer_name = None
+    year = None
+    machines = list(title.machine_models.all())
     if machines:
         thumbnail_url, _ = _extract_image_urls(machines[0].extra_data or {})
+        first = machines[0]
+        manufacturer_name = first.manufacturer.name if first.manufacturer else None
+        year = first.year
     return {
-        "name": group.name,
-        "slug": group.slug,
-        "short_name": group.short_name,
-        "machine_count": group.machine_count,
+        "name": title.name,
+        "slug": title.slug,
+        "short_name": title.short_name,
+        "machine_count": title.machine_count,
+        "manufacturer_name": manufacturer_name,
+        "year": year,
         "thumbnail_url": thumbnail_url,
     }
 
 
-def _serialize_group_detail(group) -> dict:
+def _serialize_title_detail(title) -> dict:
     machines = []
-    for pm in group.machine_models.all():
+    for pm in title.machine_models.all():
         thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
         machines.append(
             {
@@ -552,11 +582,16 @@ def _serialize_group_detail(group) -> dict:
                 "thumbnail_url": thumbnail_url,
             }
         )
+    series = [
+        {"name": s.name, "slug": s.slug}
+        for s in getattr(title, "series_list", None) or title.series.all()
+    ]
     return {
-        "name": group.name,
-        "slug": group.slug,
-        "short_name": group.short_name,
+        "name": title.name,
+        "slug": title.slug,
+        "short_name": title.short_name,
         "machines": machines,
+        "series": series,
     }
 
 
@@ -628,7 +663,7 @@ def get_model(request, slug: str):
 
     pm = get_object_or_404(
         MachineModel.objects.select_related(
-            "manufacturer", "group", "system"
+            "manufacturer", "title", "system"
         ).prefetch_related(
             "aliases",
             "themes",
@@ -668,7 +703,7 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
 
     pm = get_object_or_404(
         MachineModel.objects.select_related(
-            "manufacturer", "group", "system"
+            "manufacturer", "title", "system"
         ).prefetch_related(
             "aliases",
             "themes",
@@ -684,43 +719,43 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
 
 
 # ---------------------------------------------------------------------------
-# Groups router
+# Games (Titles) router
 # ---------------------------------------------------------------------------
 
-groups_router = Router(tags=["groups"])
+games_router = Router(tags=["games"])
 
 
-@groups_router.get("/", response=list[GroupListSchema])
+@games_router.get("/", response=list[TitleListSchema])
 @paginate(PageNumberPagination, page_size=25)
-def list_groups(request, search: str = ""):
-    from .models import MachineGroup, MachineModel
+def list_games(request, search: str = ""):
+    from .models import MachineModel, Title
 
-    qs = MachineGroup.objects.annotate(
+    qs = Title.objects.annotate(
         machine_count=Count(
             "machine_models", filter=Q(machine_models__alias_of__isnull=True)
         )
     ).prefetch_related(
         Prefetch(
             "machine_models",
-            queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
-                "year", "name"
-            ),
+            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            .select_related("manufacturer")
+            .order_by("year", "name"),
         )
     )
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(short_name__icontains=search))
     qs = qs.order_by("name")
-    return [_serialize_group_list(g) for g in qs]
+    return [_serialize_title_list(t) for t in qs]
 
 
-@groups_router.get("/all/", response=list[GroupListSchema])
+@games_router.get("/all/", response=list[TitleListSchema])
 @decorate_view(cache_control(public=True, max_age=300))
-def list_all_groups(request):
-    """Return every group with minimal fields (no pagination)."""
-    from .models import MachineGroup, MachineModel
+def list_all_games(request):
+    """Return every title with minimal fields (no pagination)."""
+    from .models import MachineModel, Title
 
     qs = (
-        MachineGroup.objects.annotate(
+        Title.objects.annotate(
             machine_count=Count(
                 "machine_models", filter=Q(machine_models__alias_of__isnull=True)
             )
@@ -728,33 +763,34 @@ def list_all_groups(request):
         .prefetch_related(
             Prefetch(
                 "machine_models",
-                queryset=MachineModel.objects.filter(alias_of__isnull=True).order_by(
-                    "year", "name"
-                ),
+                queryset=MachineModel.objects.filter(alias_of__isnull=True)
+                .select_related("manufacturer")
+                .order_by("year", "name"),
             )
         )
         .order_by("-machine_count")
     )
-    return [_serialize_group_list(g) for g in qs]
+    return [_serialize_title_list(t) for t in qs]
 
 
-@groups_router.get("/{slug}", response=GroupDetailSchema)
+@games_router.get("/{slug}", response=TitleDetailSchema)
 @decorate_view(cache_control(public=True, max_age=300))
-def get_group(request, slug: str):
-    from .models import MachineGroup, MachineModel
+def get_game(request, slug: str):
+    from .models import MachineModel, Title
 
-    group = get_object_or_404(
-        MachineGroup.objects.prefetch_related(
+    title = get_object_or_404(
+        Title.objects.prefetch_related(
             Prefetch(
                 "machine_models",
                 queryset=MachineModel.objects.filter(
                     alias_of__isnull=True
                 ).select_related("manufacturer"),
-            )
+            ),
+            "series",
         ),
         slug=slug,
     )
-    return _serialize_group_detail(group)
+    return _serialize_title_detail(title)
 
 
 # ---------------------------------------------------------------------------
@@ -1177,4 +1213,79 @@ def get_system(request, slug: str):
         "manufacturer_name": system.manufacturer.name if system.manufacturer else None,
         "manufacturer_slug": system.manufacturer.slug if system.manufacturer else None,
         "machines": machines,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Series router
+# ---------------------------------------------------------------------------
+
+series_router = Router(tags=["series"])
+
+
+@series_router.get("/", response=list[SeriesListSchema])
+@decorate_view(cache_control(public=True, max_age=300))
+def list_series(request):
+    """Return all series with title count and thumbnail."""
+    from .models import MachineModel, Series
+
+    qs = Series.objects.annotate(title_count=Count("titles")).prefetch_related(
+        Prefetch(
+            "titles__machine_models",
+            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            .exclude(extra_data={})
+            .order_by(F("year").asc(nulls_last=True))
+            .only("id", "extra_data"),
+        )
+    )
+    result = []
+    for s in qs:
+        thumb = None
+        for title in s.titles.all():
+            for pm in title.machine_models.all():
+                t, _ = _extract_image_urls(pm.extra_data or {})
+                if t:
+                    thumb = t
+                    break
+            if thumb:
+                break
+        result.append(
+            {
+                "name": s.name,
+                "slug": s.slug,
+                "description": s.description,
+                "title_count": s.title_count,
+                "thumbnail_url": thumb,
+            }
+        )
+    return result
+
+
+@series_router.get("/{slug}", response=SeriesDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_series(request, slug: str):
+    from .models import MachineModel, Series, Title
+
+    titles_qs = Title.objects.annotate(
+        machine_count=Count(
+            "machine_models",
+            filter=Q(machine_models__alias_of__isnull=True),
+        )
+    ).prefetch_related(
+        Prefetch(
+            "machine_models",
+            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            .select_related("manufacturer")
+            .order_by("year", "name"),
+        )
+    )
+    series = get_object_or_404(
+        Series.objects.prefetch_related(Prefetch("titles", queryset=titles_qs)),
+        slug=slug,
+    )
+    return {
+        "name": series.name,
+        "slug": series.slug,
+        "description": series.description,
+        "titles": [_serialize_title_list(t) for t in series.titles.all()],
     }

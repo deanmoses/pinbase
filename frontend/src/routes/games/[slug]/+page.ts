@@ -6,14 +6,14 @@ export const prerender = false;
 export const ssr = false;
 
 export const load: PageLoad = async ({ params }) => {
-	const { data, response } = await client.GET('/api/groups/{slug}', {
+	const { data, response } = await client.GET('/api/games/{slug}', {
 		params: { path: { slug: params.slug } }
 	});
 
 	if (!data) {
-		if (response?.status === 404) error(404, 'Group not found');
-		error(500, 'Failed to load group');
+		if (response?.status === 404) error(404, 'Game not found');
+		error(500, 'Failed to load game');
 	}
 
-	return { group: data };
+	return { game: data };
 };

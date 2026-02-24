@@ -1,6 +1,7 @@
 """Orchestrate the full ingestion pipeline.
 
-Runs: ingest_manufacturers → ingest_ipdb → ingest_opdb → ingest_signs → resolve_claims.
+Runs: ingest_manufacturers_seed → ingest_manufacturers → ingest_systems →
+      ingest_ipdb → ingest_opdb → ingest_series → ingest_signs → resolve_claims.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ STEPS = [
     "ingest_systems",
     "ingest_ipdb",
     "ingest_opdb",
+    "ingest_series",
     "ingest_signs",
     "resolve_claims",
 ]

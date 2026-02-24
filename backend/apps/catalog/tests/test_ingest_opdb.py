@@ -6,7 +6,7 @@ import tempfile
 import pytest
 from django.core.management import call_command
 
-from apps.catalog.models import MachineGroup, MachineModel
+from apps.catalog.models import MachineModel, Title
 from apps.provenance.models import Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
@@ -121,9 +121,9 @@ class TestIngestOpdbNewFields:
 @pytest.mark.django_db
 @pytest.mark.usefixtures("_run_opdb")
 class TestIngestOpdbGroups:
-    def test_creates_machine_groups(self):
-        assert MachineGroup.objects.count() == 2
-        mm = MachineGroup.objects.get(opdb_id="G1111")
+    def test_creates_titles(self):
+        assert Title.objects.count() == 2
+        mm = Title.objects.get(opdb_id="G1111")
         assert mm.name == "Medieval Madness"
         assert mm.short_name == "MM"
 

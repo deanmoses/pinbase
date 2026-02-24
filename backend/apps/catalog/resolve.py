@@ -20,13 +20,13 @@ from apps.provenance.models import Claim
 from .claims import RELATIONSHIP_NAMESPACES
 from .models import (
     DesignCredit,
-    MachineGroup,
     MachineModel,
     Manufacturer,
     ManufacturerEntity,
     Person,
     System,
     Theme,
+    Title,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,17 +89,17 @@ def _coerce(field_name: str, value):
     return value
 
 
-def _resolve_group(value) -> MachineGroup | None:
-    """Resolve a group claim value to a MachineGroup instance.
+def _resolve_title(value) -> Title | None:
+    """Resolve a group claim value to a Title instance.
 
     The value is expected to be an OPDB group ID string (e.g., "G5pe4").
     """
     if value is None or value == "":
         return None
-    group = MachineGroup.objects.filter(opdb_id=str(value)).first()
-    if not group:
+    title = Title.objects.filter(opdb_id=str(value)).first()
+    if not title:
         logger.warning("Unmatched group claim value: %r", value)
-    return group
+    return title
 
 
 def _resolve_manufacturer(value, source_slug: str = "") -> Manufacturer | None:
@@ -185,7 +185,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     # Reset all resolvable fields to defaults before applying winners.
     # This ensures deactivated claims don't leave stale values.
     machine_model.manufacturer = None
-    machine_model.group = None
+    machine_model.title = None
     machine_model.system = None
     for attr in DIRECT_FIELDS.values():
         field = machine_model._meta.get_field(attr)
@@ -206,7 +206,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
                 claim.value, source_slug=claim.source.slug if claim.source else ""
             )
         elif claim.field_name == "group":
-            machine_model.group = _resolve_group(claim.value)
+            machine_model.title = _resolve_title(claim.value)
         elif claim.field_name == "system":
             machine_model.system = _resolve_system(claim.value, _build_system_lookup())
         elif claim.field_name in DIRECT_FIELDS:
@@ -255,7 +255,7 @@ def resolve_all() -> int:
     """
     # 1. Pre-fetch lookup tables (~3 queries).
     mfr_lookups = _build_manufacturer_lookups()
-    group_lookup = _build_group_lookup()
+    group_lookup = _build_title_lookup()
     system_lookup = _build_system_lookup()
     field_defaults = _get_field_defaults()
 
@@ -283,7 +283,7 @@ def resolve_all() -> int:
     # 7. Bulk write (~1 query, batched).
     update_fields = list(DIRECT_FIELDS.values()) + [
         "manufacturer_id",
-        "group_id",
+        "title_id",
         "system_id",
         "extra_data",
         "updated_at",
@@ -355,9 +355,9 @@ def _build_manufacturer_lookups() -> tuple[
     return ipdb_id_to_mfr, opdb_id_to_mfr, name_to_mfr, trade_name_to_mfr
 
 
-def _build_group_lookup() -> dict[str, MachineGroup]:
-    """Pre-fetch all groups into {opdb_id: MachineGroup}."""
-    return {g.opdb_id: g for g in MachineGroup.objects.all()}
+def _build_title_lookup() -> dict[str, Title]:
+    """Pre-fetch all titles into {opdb_id: Title}."""
+    return {t.opdb_id: t for t in Title.objects.all()}
 
 
 def _build_system_lookup() -> dict[str, System]:
@@ -453,16 +453,14 @@ def _resolve_manufacturer_bulk(
     return None
 
 
-def _resolve_group_bulk(
-    value, group_lookup: dict[str, MachineGroup]
-) -> MachineGroup | None:
-    """Same logic as _resolve_group() but uses pre-fetched dict."""
+def _resolve_title_bulk(value, group_lookup: dict[str, Title]) -> Title | None:
+    """Same logic as _resolve_title() but uses pre-fetched dict."""
     if value is None or value == "":
         return None
-    group = group_lookup.get(str(value))
-    if not group:
+    title = group_lookup.get(str(value))
+    if not title:
         logger.warning("Unmatched group claim value: %r", value)
-    return group
+    return title
 
 
 def _apply_resolution(
@@ -470,13 +468,13 @@ def _apply_resolution(
     winners: dict[str, Claim],
     field_defaults: dict[str, Any],
     mfr_lookups: tuple,
-    group_lookup: dict[str, MachineGroup],
+    group_lookup: dict[str, Title],
     system_lookup: dict[str, System],
 ) -> None:
     """Apply claim winners to a MachineModel instance in memory."""
     # Reset FK fields.
     pm.manufacturer = None
-    pm.group = None
+    pm.title = None
     pm.system = None
 
     # Reset all DIRECT_FIELDS to defaults.
@@ -497,7 +495,7 @@ def _apply_resolution(
                 mfr_lookups=mfr_lookups,
             )
         elif claim.field_name == "group":
-            pm.group = _resolve_group_bulk(claim.value, group_lookup)
+            pm.title = _resolve_title_bulk(claim.value, group_lookup)
         elif claim.field_name == "system":
             pm.system = _resolve_system(claim.value, system_lookup)
         elif claim.field_name in DIRECT_FIELDS:

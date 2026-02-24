@@ -109,17 +109,18 @@ class ManufacturerEntity(TimeStampedModel):
 
 
 # ---------------------------------------------------------------------------
-# MachineGroup
+# Title
 # ---------------------------------------------------------------------------
 
 
-class MachineGroup(TimeStampedModel):
-    """A franchise/title grouping of related machine models.
+class Title(TimeStampedModel):
+    """The canonical identity of a pinball game, independent of edition or variant.
 
-    OPDB defines groups (e.g., "Medieval Madness" spans the 1997 original,
-    the 2015 remake, and LE/SE variants). Like Manufacturer, this is a direct
-    reference entity — no source contests the group's identity itself.
-    Assignment of machine models to groups goes through the claims system.
+    OPDB calls this a "group" (e.g., "Medieval Madness" spans the 1997 original,
+    the 2015 remake, and LE/SE variants). We use "Title" as it is the natural
+    pinball-world term. Like Manufacturer, this is a direct reference entity —
+    no source contests the title's identity itself. Assignment of machine models
+    to titles goes through the claims system.
     """
 
     opdb_id = models.CharField(
@@ -146,7 +147,43 @@ class MachineGroup(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = unique_slug(self, self.name, "group")
+            self.slug = unique_slug(self, self.name, "title")
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Series
+# ---------------------------------------------------------------------------
+
+
+class Series(TimeStampedModel):
+    """A manually-curated grouping of related Titles sharing a thematic lineage.
+
+    e.g., the "Eight Ball" series spans Eight Ball, Eight Ball Deluxe, and
+    Eight Ball Champ. Series are sparse — most Titles belong to none. They can
+    span multiple manufacturers. No data ingest populates them; they are
+    maintained by curators via the admin or seed data.
+    """
+
+    name = models.CharField(max_length=300)
+    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    description = models.TextField(blank=True)
+    titles = models.ManyToManyField(
+        Title,
+        blank=True,
+        related_name="series",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "series"
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.name, "series")
         super().save(*args, **kwargs)
 
 
@@ -258,13 +295,13 @@ class MachineModel(TimeStampedModel):
     )
 
     # Hierarchy
-    group = models.ForeignKey(
-        MachineGroup,
+    title = models.ForeignKey(
+        Title,
         on_delete=models.SET_NULL,
         related_name="machine_models",
         null=True,
         blank=True,
-        help_text="Franchise/title grouping (resolved from claims).",
+        help_text="Title this machine belongs to (resolved from claims).",
     )
     alias_of = models.ForeignKey(
         "self",
