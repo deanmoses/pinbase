@@ -473,6 +473,38 @@ class MachineTypeProfile(models.Model):
         super().save(*args, **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# DisplayTypeProfile
+# ---------------------------------------------------------------------------
+
+
+class DisplayTypeProfile(models.Model):
+    """Editorial description of a pinball display technology.
+
+    One record per DisplayType (reels, lights, alpha, dmd, cga, lcd). Editable
+    directly in admin. Not claim-controlled — single-source museum content.
+    """
+
+    display_type = models.CharField(
+        max_length=10, choices=MachineModel.DisplayType.choices, unique=True
+    )
+    slug = models.SlugField(unique=True)
+    title = models.CharField(max_length=100)
+    display_order = models.PositiveSmallIntegerField(default=0)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["display_order"]
+
+    def __str__(self) -> str:
+        return self.get_display_type_display()
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.get_display_type_display(), "type")
+        super().save(*args, **kwargs)
+
+
 class DesignCredit(TimeStampedModel):
     """Links a person to a machine model with a specific role."""
 

@@ -13,6 +13,7 @@ from django.core.management.base import BaseCommand
 
 STEPS = [
     "ingest_machine_types_seed",
+    "ingest_display_types_seed",
     "ingest_manufacturers_seed",
     "ingest_manufacturers",
     "ingest_systems",
