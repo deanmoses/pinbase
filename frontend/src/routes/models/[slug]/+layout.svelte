@@ -4,6 +4,17 @@
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
 
+	const machineTypeLabels: Record<string, string> = {
+		PM: 'Pure Mechanical',
+		EM: 'Electromechanical',
+		SS: 'Solid State'
+	};
+	const machineTypeSlugs: Record<string, string> = {
+		PM: 'pure-mechanical',
+		EM: 'electromechanical',
+		SS: 'solid-state'
+	};
+
 	let { data, children } = $props();
 	let model = $derived(data.model);
 	let slug = $derived(page.params.slug);
@@ -45,7 +56,13 @@
 					>{model.year}{#if model.month}/{String(model.month).padStart(2, '0')}{/if}</span
 				>
 			{/if}
-			<span>{model.machine_type}</span>
+			{#if model.machine_type && machineTypeSlugs[model.machine_type]}
+				<span>
+					<a href={resolve(`/machine-types/${machineTypeSlugs[model.machine_type]}`)}>
+						{machineTypeLabels[model.machine_type]}
+					</a>
+				</span>
+			{/if}
 			<span>{model.display_type}</span>
 			{#if model.title_slug}
 				<span>

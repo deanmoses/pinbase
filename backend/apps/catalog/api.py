@@ -1289,3 +1289,34 @@ def get_series(request, slug: str):
         "description": series.description,
         "titles": [_serialize_title_list(t) for t in series.titles.all()],
     }
+
+
+# ---------------------------------------------------------------------------
+# Machine types
+# ---------------------------------------------------------------------------
+
+machine_types_router = Router()
+
+
+class MachineTypeProfileSchema(Schema):
+    machine_type: str
+    slug: str
+    title: str
+    display_order: int
+    description: str
+
+
+@machine_types_router.get("/", response=list[MachineTypeProfileSchema])
+@decorate_view(cache_control(public=True, max_age=300))
+def list_machine_types(request):
+    from apps.catalog.models import MachineTypeProfile
+
+    return list(MachineTypeProfile.objects.all())
+
+
+@machine_types_router.get("/{slug}", response=MachineTypeProfileSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_machine_type(request, slug: str):
+    from apps.catalog.models import MachineTypeProfile
+
+    return get_object_or_404(MachineTypeProfile, slug=slug)
