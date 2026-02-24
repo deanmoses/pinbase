@@ -7,6 +7,7 @@ from apps.catalog.models import (
     Manufacturer,
     ManufacturerEntity,
     MachineModel,
+    System,
     Theme,
 )
 from apps.catalog.resolve import resolve_all, resolve_model, resolve_themes
@@ -296,7 +297,7 @@ class TestResolveAll:
             Claim.objects.assert_claim(pm, "name", f"Resolved {i}", source=ipdb)
             Claim.objects.assert_claim(pm, "year", 2000 + i, source=ipdb)
 
-        with django_assert_max_num_queries(14):
+        with django_assert_max_num_queries(15):
             resolve_all()
 
 
@@ -386,3 +387,41 @@ class TestResolveThemes:
             "baseball",
         }
         assert set(pm2.themes.values_list("slug", flat=True)) == {"sports"}
+
+
+@pytest.mark.django_db
+class TestResolveSystem:
+    def test_system_claim_sets_fk(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        system = System.objects.create(name="Williams WPC-95", slug="wpc-95")
+        pm = MachineModel.objects.create(
+            name="Medieval Madness", slug="medieval-madness"
+        )
+        Claim.objects.assert_claim(pm, "system", "wpc-95", source=ipdb)
+
+        resolve_model(pm)
+        pm.refresh_from_db()
+        assert pm.system == system
+
+    def test_unknown_system_slug_logs_warning_no_fk(self):
+        ipdb = Source.objects.create(
+            name="IPDB", slug="ipdb", source_type="database", priority=10
+        )
+        pm = MachineModel.objects.create(name="Mystery Machine", slug="mystery-machine")
+        Claim.objects.assert_claim(pm, "system", "nonexistent-slug", source=ipdb)
+
+        resolve_model(pm)
+        pm.refresh_from_db()
+        assert pm.system is None
+
+    def test_stale_system_cleared(self):
+        system = System.objects.create(name="Williams WPC-95", slug="wpc-95")
+        pm = MachineModel.objects.create(
+            name="Medieval Madness", slug="medieval-madness", system=system
+        )
+        # No system claim — system should be cleared after resolve.
+        resolve_model(pm)
+        pm.refresh_from_db()
+        assert pm.system is None

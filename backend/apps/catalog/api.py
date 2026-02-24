@@ -84,6 +84,7 @@ class ManufacturerDetailSchema(Schema):
     website: str = ""
     entities: list[ManufacturerEntitySchema]
     models: list[ManufacturerModelSchema]
+    systems: list[SystemSchema]
     activity: list[ClaimSchema]
 
 
@@ -152,6 +153,28 @@ class ThemeDetailSchema(Schema):
     machines: list[GroupMachineSchema]
 
 
+class SystemSchema(Schema):
+    name: str
+    slug: str
+
+
+class SystemListSchema(Schema):
+    name: str
+    slug: str
+    manufacturer_name: Optional[str] = None
+    manufacturer_slug: Optional[str] = None
+    machine_count: int = 0
+
+
+class SystemDetailSchema(Schema):
+    name: str
+    slug: str
+    description: str = ""
+    manufacturer_name: Optional[str] = None
+    manufacturer_slug: Optional[str] = None
+    machines: list[GroupMachineSchema]
+
+
 class DesignCreditSchema(Schema):
     person_name: str
     person_slug: str
@@ -162,7 +185,7 @@ class DesignCreditSchema(Schema):
 class AliasSchema(Schema):
     name: str
     slug: str
-    features: list[str] = []
+    variant_features: list[str] = []
 
 
 class MachineModelGridSchema(Schema):
@@ -202,7 +225,8 @@ class MachineModelDetailSchema(Schema):
     player_count: Optional[int] = None
     themes: list[ThemeSchema] = []
     production_quantity: str
-    mpu: str
+    system_name: Optional[str] = None
+    system_slug: Optional[str] = None
     flipper_count: Optional[int] = None
     ipdb_id: Optional[int] = None
     opdb_id: Optional[str] = None
@@ -216,7 +240,7 @@ class MachineModelDetailSchema(Schema):
     activity: list[ClaimSchema]
     thumbnail_url: Optional[str] = None
     hero_image_url: Optional[str] = None
-    features: list[str] = []
+    variant_features: list[str] = []
     aliases: list[AliasSchema] = []
     group_name: Optional[str] = None
     group_slug: Optional[str] = None
@@ -331,9 +355,9 @@ def _extract_image_urls(extra_data: dict) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _extract_features(extra_data: dict) -> list[str]:
-    """Return feature list from extra_data features claim."""
-    features = extra_data.get("features")
+def _extract_variant_features(extra_data: dict) -> list[str]:
+    """Return variant feature list from extra_data variant_features claim."""
+    features = extra_data.get("variant_features")
     if not features or not isinstance(features, list):
         return []
     return [str(f) for f in features]
@@ -452,13 +476,13 @@ def _serialize_model_detail(pm) -> dict:
     activity = _build_activity(activity_claims)
 
     thumbnail_url, hero_image_url = _extract_image_urls(pm.extra_data or {})
-    features = _extract_features(pm.extra_data or {})
+    variant_features = _extract_variant_features(pm.extra_data or {})
 
     aliases = [
         {
             "name": alias.name,
             "slug": alias.slug,
-            "features": _extract_features(alias.extra_data or {}),
+            "variant_features": _extract_variant_features(alias.extra_data or {}),
         }
         for alias in pm.aliases.all()
     ]
@@ -475,7 +499,8 @@ def _serialize_model_detail(pm) -> dict:
         "player_count": pm.player_count,
         "themes": [{"name": t.name, "slug": t.slug} for t in pm.themes.all()],
         "production_quantity": pm.production_quantity,
-        "mpu": pm.mpu,
+        "system_name": pm.system.name if pm.system else None,
+        "system_slug": pm.system.slug if pm.system else None,
         "flipper_count": pm.flipper_count,
         "ipdb_id": pm.ipdb_id,
         "opdb_id": pm.opdb_id,
@@ -491,7 +516,7 @@ def _serialize_model_detail(pm) -> dict:
         "activity": activity,
         "thumbnail_url": thumbnail_url,
         "hero_image_url": hero_image_url,
-        "features": features,
+        "variant_features": variant_features,
         "aliases": aliases,
         "group_name": pm.group.name if pm.group else None,
         "group_slug": pm.group.slug if pm.group else None,
@@ -602,7 +627,9 @@ def get_model(request, slug: str):
     from .models import DesignCredit, MachineModel
 
     pm = get_object_or_404(
-        MachineModel.objects.select_related("manufacturer", "group").prefetch_related(
+        MachineModel.objects.select_related(
+            "manufacturer", "group", "system"
+        ).prefetch_related(
             "aliases",
             "themes",
             Prefetch(
@@ -640,7 +667,9 @@ def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
     invalidate_all()
 
     pm = get_object_or_404(
-        MachineModel.objects.select_related("manufacturer", "group").prefetch_related(
+        MachineModel.objects.select_related(
+            "manufacturer", "group", "system"
+        ).prefetch_related(
             "aliases",
             "themes",
             Prefetch(
@@ -879,12 +908,13 @@ def _serialize_manufacturer_detail(mfr) -> dict:
             }
             for m in mfr.non_alias_models
         ],
+        "systems": [{"name": s.name, "slug": s.slug} for s in mfr.systems.all()],
         "activity": _build_activity(getattr(mfr, "active_claims", [])),
     }
 
 
 def _manufacturer_qs():
-    from .models import MachineModel, Manufacturer, ManufacturerEntity
+    from .models import MachineModel, Manufacturer, ManufacturerEntity, System
 
     return Manufacturer.objects.prefetch_related(
         Prefetch(
@@ -898,6 +928,7 @@ def _manufacturer_qs():
             ),
             to_attr="non_alias_models",
         ),
+        Prefetch("systems", queryset=System.objects.order_by("name")),
         _claims_prefetch(),
     )
 
@@ -1073,3 +1104,77 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
 
     person = get_object_or_404(_person_qs(), slug=person.slug)
     return _serialize_person_detail(person)
+
+
+# ---------------------------------------------------------------------------
+# Systems router
+# ---------------------------------------------------------------------------
+
+systems_router = Router(tags=["systems"])
+
+
+@systems_router.get("/all/", response=list[SystemListSchema])
+@decorate_view(cache_control(public=True, max_age=300))
+def list_all_systems(request):
+    """Return every system with machine count (no pagination)."""
+    from .models import System
+
+    qs = (
+        System.objects.select_related("manufacturer")
+        .annotate(
+            machine_count=Count(
+                "machine_models", filter=Q(machine_models__alias_of__isnull=True)
+            )
+        )
+        .order_by("name")
+    )
+    return [
+        {
+            "name": s.name,
+            "slug": s.slug,
+            "manufacturer_name": s.manufacturer.name if s.manufacturer else None,
+            "manufacturer_slug": s.manufacturer.slug if s.manufacturer else None,
+            "machine_count": s.machine_count,
+        }
+        for s in qs
+    ]
+
+
+@systems_router.get("/{slug}", response=SystemDetailSchema)
+@decorate_view(cache_control(public=True, max_age=300))
+def get_system(request, slug: str):
+    from .models import MachineModel, System
+
+    system = get_object_or_404(
+        System.objects.select_related("manufacturer").prefetch_related(
+            Prefetch(
+                "machine_models",
+                queryset=MachineModel.objects.filter(alias_of__isnull=True)
+                .select_related("manufacturer")
+                .order_by(F("year").desc(nulls_last=True), "name"),
+            )
+        ),
+        slug=slug,
+    )
+    machines = []
+    for pm in system.machine_models.all():
+        thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
+        machines.append(
+            {
+                "name": pm.name,
+                "slug": pm.slug,
+                "year": pm.year,
+                "manufacturer_name": pm.manufacturer.name if pm.manufacturer else None,
+                "manufacturer_slug": pm.manufacturer.slug if pm.manufacturer else None,
+                "machine_type": pm.machine_type,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+    return {
+        "name": system.name,
+        "slug": system.slug,
+        "description": system.description,
+        "manufacturer_name": system.manufacturer.name if system.manufacturer else None,
+        "manufacturer_slug": system.manufacturer.slug if system.manufacturer else None,
+        "machines": machines,
+    }

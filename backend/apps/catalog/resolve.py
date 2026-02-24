@@ -25,6 +25,7 @@ from .models import (
     Manufacturer,
     ManufacturerEntity,
     Person,
+    System,
     Theme,
 )
 
@@ -40,7 +41,6 @@ DIRECT_FIELDS: dict[str, str] = {
     "display_type": "display_type",
     "player_count": "player_count",
     "production_quantity": "production_quantity",
-    "mpu": "mpu",
     "flipper_count": "flipper_count",
     "ipdb_rating": "ipdb_rating",
     "pinside_rating": "pinside_rating",
@@ -186,6 +186,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     # This ensures deactivated claims don't leave stale values.
     machine_model.manufacturer = None
     machine_model.group = None
+    machine_model.system = None
     for attr in DIRECT_FIELDS.values():
         field = machine_model._meta.get_field(attr)
         if hasattr(field, "default") and field.default is not models.NOT_PROVIDED:
@@ -206,6 +207,8 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
             )
         elif claim.field_name == "group":
             machine_model.group = _resolve_group(claim.value)
+        elif claim.field_name == "system":
+            machine_model.system = _resolve_system(claim.value, _build_system_lookup())
         elif claim.field_name in DIRECT_FIELDS:
             attr = DIRECT_FIELDS[claim.field_name]
             setattr(machine_model, attr, _coerce(claim.field_name, claim.value))
@@ -253,6 +256,7 @@ def resolve_all() -> int:
     # 1. Pre-fetch lookup tables (~3 queries).
     mfr_lookups = _build_manufacturer_lookups()
     group_lookup = _build_group_lookup()
+    system_lookup = _build_system_lookup()
     field_defaults = _get_field_defaults()
 
     # 2. Pre-fetch all active claims, grouped by object_id (~1 query).
@@ -264,7 +268,9 @@ def resolve_all() -> int:
     # 4. Resolve each model in memory.
     for pm in all_models:
         winners = claims_by_model.get(pm.pk, {})
-        _apply_resolution(pm, winners, field_defaults, mfr_lookups, group_lookup)
+        _apply_resolution(
+            pm, winners, field_defaults, mfr_lookups, group_lookup, system_lookup
+        )
 
     # 5. Detect opdb_id conflicts across all resolved models.
     _resolve_opdb_conflicts(all_models)
@@ -278,6 +284,7 @@ def resolve_all() -> int:
     update_fields = list(DIRECT_FIELDS.values()) + [
         "manufacturer_id",
         "group_id",
+        "system_id",
         "extra_data",
         "updated_at",
     ]
@@ -351,6 +358,20 @@ def _build_manufacturer_lookups() -> tuple[
 def _build_group_lookup() -> dict[str, MachineGroup]:
     """Pre-fetch all groups into {opdb_id: MachineGroup}."""
     return {g.opdb_id: g for g in MachineGroup.objects.all()}
+
+
+def _build_system_lookup() -> dict[str, System]:
+    """Pre-fetch all systems into {slug: System}."""
+    return {s.slug: s for s in System.objects.all()}
+
+
+def _resolve_system(value, system_lookup: dict[str, System]) -> System | None:
+    if not value:
+        return None
+    result = system_lookup.get(str(value))
+    if not result:
+        logger.warning("Unmatched system claim slug: %r", value)
+    return result
 
 
 def _build_claims_by_model() -> dict[int, dict[str, Claim]]:
@@ -450,11 +471,13 @@ def _apply_resolution(
     field_defaults: dict[str, Any],
     mfr_lookups: tuple,
     group_lookup: dict[str, MachineGroup],
+    system_lookup: dict[str, System],
 ) -> None:
     """Apply claim winners to a MachineModel instance in memory."""
     # Reset FK fields.
     pm.manufacturer = None
     pm.group = None
+    pm.system = None
 
     # Reset all DIRECT_FIELDS to defaults.
     for attr, default in field_defaults.items():
@@ -475,6 +498,8 @@ def _apply_resolution(
             )
         elif claim.field_name == "group":
             pm.group = _resolve_group_bulk(claim.value, group_lookup)
+        elif claim.field_name == "system":
+            pm.system = _resolve_system(claim.value, system_lookup)
         elif claim.field_name in DIRECT_FIELDS:
             attr = DIRECT_FIELDS[claim.field_name]
             setattr(pm, attr, _coerce(claim.field_name, claim.value))
@@ -616,6 +641,22 @@ def resolve_theme(theme: Theme) -> Theme:
     _resolve_simple(theme, THEME_DIRECT_FIELDS)
     theme.save()
     return theme
+
+
+SYSTEM_DIRECT_FIELDS: dict[str, str] = {
+    "name": "name",
+    "description": "description",
+}
+
+
+def resolve_system(system: System) -> System:
+    """Resolve active claims into the given System's fields.
+
+    Returns the saved System.
+    """
+    _resolve_simple(system, SYSTEM_DIRECT_FIELDS)
+    system.save()
+    return system
 
 
 def _resolve_opdb_conflicts(all_models: list[MachineModel]) -> None:

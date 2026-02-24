@@ -13,16 +13,19 @@ from .models import (
     Manufacturer,
     ManufacturerEntity,
     Person,
+    System,
     Theme,
 )
 from .resolve import (
     DIRECT_FIELDS,
     MANUFACTURER_DIRECT_FIELDS,
     PERSON_DIRECT_FIELDS,
+    SYSTEM_DIRECT_FIELDS,
     THEME_DIRECT_FIELDS,
     resolve_manufacturer,
     resolve_model,
     resolve_person,
+    resolve_system,
     resolve_theme,
 )
 
@@ -185,6 +188,25 @@ class ThemeAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         return obj.machine_models.count()
 
 
+@admin.register(System)
+class SystemAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(SYSTEM_DIRECT_FIELDS)
+
+    def _resolve(self, obj):
+        resolve_system(obj)
+
+    list_display = ("name", "manufacturer", "machine_count")
+    search_fields = ("name",)
+    list_filter = ("manufacturer",)
+    autocomplete_fields = ("manufacturer",)
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = (ClaimInline,)
+
+    @admin.display(description="Machines")
+    def machine_count(self, obj):
+        return obj.machine_models.count()
+
+
 @admin.register(Person)
 class PersonAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     CLAIM_FIELDS = frozenset(PERSON_DIRECT_FIELDS)
@@ -204,7 +226,7 @@ class PersonAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
 
 @admin.register(MachineModel)
 class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
-    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {"manufacturer", "group"}
+    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {"manufacturer", "group", "system"}
 
     def _to_claim_value(self, field_name: str, value):
         if field_name == "manufacturer" and value is not None:
@@ -213,6 +235,8 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
             )
         if field_name == "group" and value is not None:
             return value.opdb_id
+        if field_name == "system" and value is not None:
+            return value.slug
         return super()._to_claim_value(field_name, value)
 
     def _resolve(self, obj):
@@ -228,7 +252,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     )
     list_filter = ("machine_type", "display_type", "manufacturer")
     search_fields = ("name", "ipdb_id", "manufacturer__name")
-    autocomplete_fields = ("manufacturer", "group", "alias_of")
+    autocomplete_fields = ("manufacturer", "group", "alias_of", "system")
     inlines = (DesignCreditInline, ThemeInline, ClaimInline)
 
     fieldsets = (
@@ -254,7 +278,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
                     "display_type",
                     "player_count",
                     "production_quantity",
-                    "mpu",
+                    "system",
                     "flipper_count",
                 ),
             },

@@ -10,7 +10,9 @@ from django.core.management.base import BaseCommand
 
 
 STEPS = [
+    "ingest_manufacturers_seed",
     "ingest_manufacturers",
+    "ingest_systems",
     "ingest_ipdb",
     "ingest_opdb",
     "ingest_signs",

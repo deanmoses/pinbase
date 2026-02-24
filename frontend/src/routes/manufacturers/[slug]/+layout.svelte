@@ -17,10 +17,13 @@
 	});
 
 	let isDetail = $derived(
-		!page.url.pathname.endsWith('/edit') && !page.url.pathname.endsWith('/activity')
+		!page.url.pathname.endsWith('/edit') &&
+			!page.url.pathname.endsWith('/activity') &&
+			!page.url.pathname.endsWith('/systems')
 	);
 	let isEdit = $derived(page.url.pathname.endsWith('/edit'));
 	let isActivity = $derived(page.url.pathname.endsWith('/activity'));
+	let isSystems = $derived(page.url.pathname.endsWith('/systems'));
 </script>
 
 <svelte:head>
@@ -40,6 +43,11 @@
 
 	<nav class="tabs" aria-label="Page sections">
 		<a class="tab" class:active={isDetail} href={resolve(`/manufacturers/${slug}`)}>Detail</a>
+		{#if mfr.systems.length > 0}
+			<a class="tab" class:active={isSystems} href={resolve(`/manufacturers/${slug}/systems`)}>
+				Systems
+			</a>
+		{/if}
 		{#if auth.isAuthenticated}
 			<a class="tab" class:active={isEdit} href={resolve(`/manufacturers/${slug}/edit`)}>Edit</a>
 		{/if}

@@ -20,9 +20,9 @@
 			<dt>Production</dt>
 			<dd>{model.production_quantity}</dd>
 		{/if}
-		{#if model.mpu}
-			<dt>MPU</dt>
-			<dd>{model.mpu}</dd>
+		{#if model.system_slug}
+			<dt>System</dt>
+			<dd><a href={resolve(`/systems/${model.system_slug}`)}>{model.system_name}</a></dd>
 		{/if}
 		{#if model.themes.length > 0}
 			<dt>Themes</dt>
@@ -44,8 +44,8 @@
 			{#each model.aliases as alias (alias.slug)}
 				<li>
 					<a href={resolve(`/models/${alias.slug}`)}>{alias.name}</a>
-					{#if alias.features.length > 0}
-						<span class="alias-features">{alias.features.join(', ')}</span>
+					{#if alias.variant_features.length > 0}
+						<span class="alias-features">{alias.variant_features.join(', ')}</span>
 					{/if}
 				</li>
 			{/each}

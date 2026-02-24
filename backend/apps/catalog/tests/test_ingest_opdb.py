@@ -158,13 +158,15 @@ class TestIngestOpdbAliases:
         claims = alias.claims.filter(source=source, is_active=True)
         field_names = set(claims.values_list("field_name", flat=True))
         assert "name" in field_names
-        assert "features" in field_names
+        assert "variant_features" in field_names
         assert "group" in field_names
 
     def test_alias_features_claim(self):
         alias = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
         source = Source.objects.get(slug="opdb")
-        claim = alias.claims.get(source=source, field_name="features", is_active=True)
+        claim = alias.claims.get(
+            source=source, field_name="variant_features", is_active=True
+        )
         assert "Gold trim" in claim.value
 
     def test_total_model_count(self):

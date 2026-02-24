@@ -1,7 +1,10 @@
 """Integration tests for the ingest_ipdb command."""
 
+import json
+
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from apps.catalog.models import DesignCredit, MachineModel, Person
 from apps.provenance.models import Source
@@ -89,3 +92,45 @@ class TestIngestIpdb:
         call_command("ingest_ipdb", ipdb=f"{FIXTURES}/ipdb_sample.json")
         assert MachineModel.objects.count() == 4
         assert Person.objects.count() == 6
+
+    def test_system_claim_created(self):
+        """Medieval Madness has MPU 'Williams WPC-95' → system claim value 'wpc-95'."""
+        pm = MachineModel.objects.get(ipdb_id=4000)
+        source = Source.objects.get(slug="ipdb")
+        claim = pm.claims.filter(
+            source=source, field_name="system", is_active=True
+        ).first()
+        assert claim is not None
+        assert claim.value == "wpc-95"
+
+    def test_no_mpu_no_system_claim(self):
+        """Records without MPU do not produce a system claim."""
+        pm = MachineModel.objects.get(ipdb_id=20)
+        source = Source.objects.get(slug="ipdb")
+        assert not pm.claims.filter(
+            source=source, field_name="system", is_active=True
+        ).exists()
+
+
+@pytest.mark.django_db
+class TestIngestIpdbUnknownMpu:
+    def test_unknown_mpu_raises_command_error(self, tmp_path):
+        fixture = tmp_path / "bad_ipdb.json"
+        fixture.write_text(
+            json.dumps(
+                {
+                    "Data": [
+                        {
+                            "IpdbId": 9999,
+                            "Title": "Mystery Machine",
+                            "ManufacturerId": 999,
+                            "Type": "Solid State (SS)",
+                            "TypeShortName": "SS",
+                            "MPU": "Unknown Board X-99",
+                        }
+                    ]
+                }
+            )
+        )
+        with pytest.raises(CommandError, match="Unknown MPU strings"):
+            call_command("ingest_ipdb", ipdb=str(fixture))
