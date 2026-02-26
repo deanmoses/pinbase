@@ -7,41 +7,43 @@
   { "series_slug": "black-knight", "opdb_id": "GrxPP" },
   { "series_slug": "black-knight", "opdb_id": "GD7Ld" },
 
-  { "series_slug": "indiana-jones", "opdb_id": "G4xZy" },
-  { "series_slug": "indiana-jones", "opdb_id": "G4e1d" },
+  { "franchise_slug": "indiana-jones", "opdb_id": "G4xZy" },
+  { "franchise_slug": "indiana-jones", "opdb_id": "G4e1d" },
 
-  { "series_slug": "jurassic-park", "opdb_id": "G4ZVB" },
-  { "series_slug": "jurassic-park", "opdb_id": "G4kBL" },
-  { "series_slug": "jurassic-park", "opdb_id": "GK17D" },
+  { "franchise_slug": "jurassic-park", "opdb_id": "G4ZVB" },
+  { "franchise_slug": "jurassic-park", "opdb_id": "G4kBL" },
+  { "franchise_slug": "jurassic-park", "opdb_id": "GK17D" },
+  { "franchise_slug": "jurassic-park", "opdb_id": "GxvvB" },
 
-  { "series_slug": "star-trek", "opdb_id": "GRVnd" },
-  { "series_slug": "star-trek", "opdb_id": "G42qQ" },
-  { "series_slug": "star-trek", "opdb_id": "GR6d8" },
-  { "series_slug": "star-trek", "opdb_id": "Gryw4" },
+  { "franchise_slug": "star-trek", "opdb_id": "GRVnd" },
+  { "franchise_slug": "star-trek", "opdb_id": "G42qQ" },
+  { "franchise_slug": "star-trek", "opdb_id": "GR6d8" },
+  { "franchise_slug": "star-trek", "opdb_id": "Gryw4" },
 
-  { "series_slug": "batman", "opdb_id": "GrOpb" },
-  { "series_slug": "batman", "opdb_id": "G59zN" },
-  { "series_slug": "batman", "opdb_id": "G4yVw" },
-  { "series_slug": "batman", "opdb_id": "GRoz4" },
+  { "franchise_slug": "batman", "opdb_id": "GrOpb" },
+  { "franchise_slug": "batman", "opdb_id": "G59zN" },
+  { "franchise_slug": "batman", "opdb_id": "G4yVw" },
+  { "franchise_slug": "batman", "opdb_id": "GRoz4" },
 
-  { "series_slug": "spider-man", "opdb_id": "GrXlr" },
-  { "series_slug": "spider-man", "opdb_id": "G5D94" },
+  { "franchise_slug": "spider-man", "opdb_id": "GrXlr" },
+  { "franchise_slug": "spider-man", "opdb_id": "G5D94" },
+  { "franchise_slug": "spider-man", "opdb_id": "G3EBl" },
 
-  { "series_slug": "terminator", "opdb_id": "GR9Bx" },
-  { "series_slug": "terminator", "opdb_id": "GR91N" },
+  { "franchise_slug": "terminator", "opdb_id": "GR9Bx" },
+  { "franchise_slug": "terminator", "opdb_id": "GR91N" },
 
-  { "series_slug": "kiss", "opdb_id": "G4jXr" },
-  { "series_slug": "kiss", "opdb_id": "G4qX5" },
+  { "franchise_slug": "kiss", "opdb_id": "G4jXr" },
+  { "franchise_slug": "kiss", "opdb_id": "G4qX5" },
 
   { "series_slug": "high-speed", "opdb_id": "GRvzd" },
   { "series_slug": "high-speed", "opdb_id": "Grx8Y" },
 
-  { "series_slug": "harley-davidson", "opdb_id": "Gr2L0" },
-  { "series_slug": "harley-davidson", "opdb_id": "G56lO" },
+  { "franchise_slug": "harley-davidson", "opdb_id": "Gr2L0" },
+  { "franchise_slug": "harley-davidson", "opdb_id": "G56lO" },
 
   { "series_slug": "pinbot", "opdb_id": "G41Z8" },
   { "series_slug": "pinbot", "opdb_id": "GRpee" },
 
-  { "series_slug": "pirates-of-the-caribbean", "opdb_id": "GR7ZX" },
-  { "series_slug": "pirates-of-the-caribbean", "opdb_id": "GRbPY" }
+  { "franchise_slug": "pirates-of-the-caribbean", "opdb_id": "GR7ZX" },
+  { "franchise_slug": "pirates-of-the-caribbean", "opdb_id": "GRbPY" }
 ]

@@ -1,0 +1,47 @@
+[
+  {
+    "slug": "indiana-jones",
+    "name": "Indiana Jones",
+    "description": "Pinball adaptations of the Indiana Jones film franchise, produced by Williams in 1993 and Stern in 2008."
+  },
+  {
+    "slug": "jurassic-park",
+    "name": "Jurassic Park",
+    "description": "Pinball adaptations of the Jurassic Park franchise, produced by Data East in 1993, Sega in 1997, and Stern in 2019."
+  },
+  {
+    "slug": "star-trek",
+    "name": "Star Trek",
+    "description": "Pinball adaptations of the Star Trek franchise across four decades, produced by Bally (1979), Data East (1991), Williams (1993), and Stern (2013)."
+  },
+  {
+    "slug": "batman",
+    "name": "Batman",
+    "description": "Pinball adaptations of the Batman franchise, produced by Data East (1991), Sega (1995), and Stern (2008, 2016)."
+  },
+  {
+    "slug": "spider-man",
+    "name": "Spider-Man",
+    "description": "Pinball adaptations of the Spider-Man franchise, produced by Gottlieb in 1980 and Stern in 2007."
+  },
+  {
+    "slug": "terminator",
+    "name": "Terminator",
+    "description": "Pinball adaptations of the Terminator film franchise, produced by Williams (T2, 1991) and Stern (T3, 2003)."
+  },
+  {
+    "slug": "kiss",
+    "name": "KISS",
+    "description": "Pinball machines based on the rock band KISS, produced by Bally in 1979 and Stern in 2015."
+  },
+  {
+    "slug": "harley-davidson",
+    "name": "Harley Davidson",
+    "description": "Pinball machines themed around the Harley-Davidson motorcycle brand, produced by Bally in 1991 and Stern across multiple editions from 1999–2004."
+  },
+  {
+    "slug": "pirates-of-the-caribbean",
+    "name": "Pirates of the Caribbean",
+    "description": "Pinball adaptations of the Pirates of the Caribbean film franchise, produced by Stern in 2006 and Jersey Jack Pinball in 2018."
+  }
+]

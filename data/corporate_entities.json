@@ -1,0 +1,302 @@
+[
+  {
+    "name": "American Pinball Inc.",
+    "manufacturer_slug": "american-pinball",
+    "year_start": 2016,
+    "year_end": null
+  },
+  {
+    "name": "Atari, Incorporated",
+    "manufacturer_slug": "atari",
+    "year_start": 1976,
+    "year_end": 1983
+  },
+  {
+    "name": "Bally Manufacturing Corporation",
+    "manufacturer_slug": "bally",
+    "year_start": 1931,
+    "year_end": 1983
+  },
+  {
+    "name": "Bally Midway Manufacturing Company",
+    "manufacturer_slug": "bally",
+    "year_start": 1983,
+    "year_end": 1988
+  },
+  {
+    "name": "Bally Wulff",
+    "manufacturer_slug": "bally",
+    "year_start": 1986,
+    "year_end": 1987
+  },
+  {
+    "name": "Midway Manufacturing Company, a subsidiary of WMS Industries, Incorporated",
+    "manufacturer_slug": "bally",
+    "year_start": 1988,
+    "year_end": 1999
+  },
+  {
+    "name": "Capcom Coin-Op, Incorporated",
+    "manufacturer_slug": "capcom",
+    "year_start": 1995,
+    "year_end": 1996
+  },
+  {
+    "name": "Chicago Gaming Company",
+    "manufacturer_slug": "chicago-gaming",
+    "year_start": 2003,
+    "year_end": null
+  },
+  {
+    "name": "Data East Pinball, Incorporated",
+    "manufacturer_slug": "data-east",
+    "year_start": 1986,
+    "year_end": 1994
+  },
+  {
+    "name": "Day One Pinball Manufacturing, Incorporated",
+    "manufacturer_slug": "day-one",
+    "year_start": 2015,
+    "year_end": 2015
+  },
+  {
+    "name": "Dutch Pinball",
+    "manufacturer_slug": "dutch-pinball",
+    "year_start": 2014,
+    "year_end": 2014
+  },
+  {
+    "name": "Game Plan, Incorporated",
+    "manufacturer_slug": "game-plan",
+    "year_start": 1978,
+    "year_end": 1985
+  },
+  {
+    "name": "D. Gottlieb & Company",
+    "manufacturer_slug": "gottlieb",
+    "year_start": 1931,
+    "year_end": 1977
+  },
+  {
+    "name": "D. Gottlieb & Company, a Columbia Pictures Industries Company",
+    "manufacturer_slug": "gottlieb",
+    "year_start": 1977,
+    "year_end": 1983
+  },
+  {
+    "name": "Mylstar Electronics, Incorporated",
+    "manufacturer_slug": "gottlieb",
+    "year_start": 1983,
+    "year_end": 1984
+  },
+  {
+    "name": "Premier Technology",
+    "manufacturer_slug": "gottlieb",
+    "year_start": 1984,
+    "year_end": 1996
+  },
+  {
+    "name": "Haggis Pinball",
+    "manufacturer_slug": "haggis",
+    "year_start": 2021,
+    "year_end": null
+  },
+  {
+    "name": "Homepin Ltd",
+    "manufacturer_slug": "homepin",
+    "year_start": 2018,
+    "year_end": 2018
+  },
+  {
+    "name": "Jersey Jack Pinball, Inc. (Lakewood, NJ)",
+    "manufacturer_slug": "jersey-jack",
+    "year_start": 2013,
+    "year_end": 2019
+  },
+  {
+    "name": "Jersey Jack Pinball, Inc. (Elk Grove Village, IL)",
+    "manufacturer_slug": "jersey-jack",
+    "year_start": 2020,
+    "year_end": null
+  },
+  {
+    "name": "Maquinas Automaticas Computerizadas, S.A.",
+    "manufacturer_slug": "mac-sa",
+    "year_start": 1986,
+    "year_end": 1987
+  },
+  {
+    "name": "MM Computer Games",
+    "manufacturer_slug": "manilamatic",
+    "year_start": null,
+    "year_end": null
+  },
+  {
+    "name": "Mr. Game",
+    "manufacturer_slug": "mr-game",
+    "year_start": 1988,
+    "year_end": 1990
+  },
+  {
+    "name": "Multimorphic, Inc.",
+    "manufacturer_slug": "multimorphic",
+    "year_start": 2017,
+    "year_end": null
+  },
+  {
+    "name": "NSM Apparatebau KG",
+    "manufacturer_slug": "nsm",
+    "year_start": null,
+    "year_end": null
+  },
+  {
+    "name": "NSM/Löwen",
+    "manufacturer_slug": "nsm",
+    "year_start": 1985,
+    "year_end": 1985
+  },
+  {
+    "name": "Playmatic",
+    "manufacturer_slug": "playmatic",
+    "year_start": 1968,
+    "year_end": 1987
+  },
+  {
+    "name": "Quetzal Pinball",
+    "manufacturer_slug": "quetzal",
+    "year_start": 2015,
+    "year_end": null
+  },
+  {
+    "name": "Recel S.A.",
+    "manufacturer_slug": "recel",
+    "year_start": 1974,
+    "year_end": 1986
+  },
+  {
+    "name": "Riot Pinball, LLC",
+    "manufacturer_slug": "riot-pinball",
+    "year_start": 2015,
+    "year_end": 2015
+  },
+  {
+    "name": "Segasa",
+    "manufacturer_slug": "sega",
+    "year_start": 1972,
+    "year_end": 1986
+  },
+  {
+    "name": "Sega Pinball, Incorporated",
+    "manufacturer_slug": "sega",
+    "year_start": 1994,
+    "year_end": 1999
+  },
+  {
+    "name": "Sega Enterprises, Ltd.",
+    "manufacturer_slug": "sega",
+    "year_start": 1971,
+    "year_end": 1979
+  },
+  {
+    "name": "Spooky Pinball LLC",
+    "manufacturer_slug": "spooky",
+    "year_start": 2014,
+    "year_end": null
+  },
+  {
+    "name": "Stern Pinball, Incorporated",
+    "manufacturer_slug": "stern-pinball",
+    "year_start": 1999,
+    "year_end": null
+  },
+  {
+    "name": "Northwestern Mail Box Company",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1932,
+    "year_end": 1933
+  },
+  {
+    "name": "Western Electric Piano Company",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1932,
+    "year_end": 1932
+  },
+  {
+    "name": "Western Manufacturing Company",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1932,
+    "year_end": 1932
+  },
+  {
+    "name": "Southwestern Novelty Company",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1933,
+    "year_end": 1933
+  },
+  {
+    "name": "Western Equipment & Supply Company",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1934,
+    "year_end": 1938
+  },
+  {
+    "name": "Western Products, Incorporated",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1938,
+    "year_end": 1941
+  },
+  {
+    "name": "Stern Electronics, Incorporated",
+    "manufacturer_slug": "stern-electronics",
+    "year_start": 1977,
+    "year_end": 1984
+  },
+  {
+    "name": "Team Pinball",
+    "manufacturer_slug": "team-pinball",
+    "year_start": 2018,
+    "year_end": 2018
+  },
+  {
+    "name": "Tecnoplay",
+    "manufacturer_slug": "tecnoplay",
+    "year_start": 1987,
+    "year_end": 1989
+  },
+  {
+    "name": "Dennard-Williams & Dennard",
+    "manufacturer_slug": "williams",
+    "year_start": 1933,
+    "year_end": 1933
+  },
+  {
+    "name": "Williams Manufacturing Company",
+    "manufacturer_slug": "williams",
+    "year_start": 1944,
+    "year_end": 1958
+  },
+  {
+    "name": "Williams Electronic Manufacturing Corporation",
+    "manufacturer_slug": "williams",
+    "year_start": 1958,
+    "year_end": 1967
+  },
+  {
+    "name": "Williams Electronics, Incorporated",
+    "manufacturer_slug": "williams",
+    "year_start": 1967,
+    "year_end": 1985
+  },
+  {
+    "name": "Williams Electronics Games, Incorporated, a subsidiary of WMS Industries, Incorporated",
+    "manufacturer_slug": "williams",
+    "year_start": 1985,
+    "year_end": 1999
+  },
+  {
+    "name": "Zaccaria",
+    "manufacturer_slug": "zaccaria",
+    "year_start": 1974,
+    "year_end": 1987
+  }
+]
