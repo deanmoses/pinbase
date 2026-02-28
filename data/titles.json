@@ -1,49 +1,217 @@
 [
-  { "series_slug": "eight-ball", "opdb_id": "GrN7J" },
-  { "series_slug": "eight-ball", "opdb_id": "G5KXk" },
-  { "series_slug": "eight-ball", "opdb_id": "G439V" },
-
-  { "series_slug": "black-knight", "opdb_id": "GrO7w" },
-  { "series_slug": "black-knight", "opdb_id": "GrxPP" },
-  { "series_slug": "black-knight", "opdb_id": "GD7Ld" },
-
-  { "franchise_slug": "indiana-jones", "opdb_id": "G4xZy" },
-  { "franchise_slug": "indiana-jones", "opdb_id": "G4e1d" },
-
-  { "franchise_slug": "jurassic-park", "opdb_id": "G4ZVB" },
-  { "franchise_slug": "jurassic-park", "opdb_id": "G4kBL" },
-  { "franchise_slug": "jurassic-park", "opdb_id": "GK17D" },
-  { "franchise_slug": "jurassic-park", "opdb_id": "GxvvB" },
-
-  { "franchise_slug": "star-trek", "opdb_id": "GRVnd" },
-  { "franchise_slug": "star-trek", "opdb_id": "G42qQ" },
-  { "franchise_slug": "star-trek", "opdb_id": "GR6d8" },
-  { "franchise_slug": "star-trek", "opdb_id": "Gryw4" },
-
-  { "franchise_slug": "batman", "opdb_id": "GrOpb" },
-  { "franchise_slug": "batman", "opdb_id": "G59zN" },
-  { "franchise_slug": "batman", "opdb_id": "G4yVw" },
-  { "franchise_slug": "batman", "opdb_id": "GRoz4" },
-
-  { "franchise_slug": "spider-man", "opdb_id": "GrXlr" },
-  { "franchise_slug": "spider-man", "opdb_id": "G5D94" },
-  { "franchise_slug": "spider-man", "opdb_id": "G3EBl" },
-
-  { "franchise_slug": "terminator", "opdb_id": "GR9Bx" },
-  { "franchise_slug": "terminator", "opdb_id": "GR91N" },
-
-  { "franchise_slug": "kiss", "opdb_id": "G4jXr" },
-  { "franchise_slug": "kiss", "opdb_id": "G4qX5" },
-
-  { "series_slug": "high-speed", "opdb_id": "GRvzd" },
-  { "series_slug": "high-speed", "opdb_id": "Grx8Y" },
-
-  { "franchise_slug": "harley-davidson", "opdb_id": "Gr2L0" },
-  { "franchise_slug": "harley-davidson", "opdb_id": "G56lO" },
-
-  { "series_slug": "pinbot", "opdb_id": "G41Z8" },
-  { "series_slug": "pinbot", "opdb_id": "GRpee" },
-
-  { "franchise_slug": "pirates-of-the-caribbean", "opdb_id": "GR7ZX" },
-  { "franchise_slug": "pirates-of-the-caribbean", "opdb_id": "GRbPY" }
+  {
+    "slug": "batman",
+    "name": "Batman",
+    "opdb_group_id": "G4yVw",
+    "franchise_slug": "batman"
+  },
+  {
+    "slug": "batman-66",
+    "name": "Batman 66",
+    "opdb_group_id": "GRoz4",
+    "franchise_slug": "batman"
+  },
+  {
+    "slug": "batman-data-east",
+    "name": "Batman",
+    "opdb_group_id": "GrOpb",
+    "franchise_slug": "batman"
+  },
+  {
+    "slug": "batman-forever",
+    "name": "Batman Forever",
+    "opdb_group_id": "G59zN",
+    "franchise_slug": "batman"
+  },
+  {
+    "slug": "black-knight",
+    "name": "Black Knight",
+    "opdb_group_id": "GrO7w",
+    "series_slug": "black-knight"
+  },
+  {
+    "slug": "black-knight-2000",
+    "name": "Black Knight 2000",
+    "opdb_group_id": "GrxPP",
+    "series_slug": "black-knight"
+  },
+  {
+    "slug": "black-knight-sword-of-rage",
+    "name": "Black Knight: Sword of Rage",
+    "opdb_group_id": "GD7Ld",
+    "series_slug": "black-knight"
+  },
+  {
+    "slug": "bride-of-pinbot",
+    "name": "Bride of Pinbot",
+    "opdb_group_id": "GRpee",
+    "series_slug": "pinbot"
+  },
+  {
+    "slug": "eight-ball",
+    "name": "Eight Ball",
+    "opdb_group_id": "GrN7J",
+    "series_slug": "eight-ball"
+  },
+  {
+    "slug": "eight-ball-champ",
+    "name": "Eight Ball Champ",
+    "opdb_group_id": "G439V",
+    "series_slug": "eight-ball"
+  },
+  {
+    "slug": "eight-ball-deluxe",
+    "name": "Eight Ball Deluxe",
+    "opdb_group_id": "G5KXk",
+    "series_slug": "eight-ball"
+  },
+  {
+    "slug": "harley-davidson",
+    "name": "Harley Davidson",
+    "opdb_group_id": "G56lO",
+    "franchise_slug": "harley-davidson"
+  },
+  {
+    "slug": "harley-davidson-bally",
+    "name": "Harley Davidson",
+    "opdb_group_id": "Gr2L0",
+    "franchise_slug": "harley-davidson"
+  },
+  {
+    "slug": "high-speed",
+    "name": "High Speed",
+    "opdb_group_id": "GRvzd",
+    "series_slug": "high-speed"
+  },
+  {
+    "slug": "indiana-jones",
+    "name": "Indiana Jones",
+    "opdb_group_id": "G4e1d",
+    "franchise_slug": "indiana-jones"
+  },
+  {
+    "slug": "indiana-jones-the-pinball-adventure",
+    "name": "Indiana Jones: The Pinball Adventure",
+    "opdb_group_id": "G4xZy",
+    "franchise_slug": "indiana-jones"
+  },
+  {
+    "slug": "jurassic-park",
+    "name": "Jurassic Park",
+    "opdb_group_id": "G4ZVB",
+    "franchise_slug": "jurassic-park"
+  },
+  {
+    "slug": "jurassic-park-home-edition",
+    "name": "Jurassic Park (Home Edition)",
+    "opdb_group_id": "GxvvB",
+    "franchise_slug": "jurassic-park"
+  },
+  {
+    "slug": "jurassic-park-stern",
+    "name": "Jurassic Park",
+    "opdb_group_id": "GK17D",
+    "franchise_slug": "jurassic-park"
+  },
+  {
+    "slug": "kiss",
+    "name": "KISS",
+    "opdb_group_id": "G4jXr",
+    "franchise_slug": "kiss"
+  },
+  {
+    "slug": "kiss-stern",
+    "name": "KISS",
+    "opdb_group_id": "G4qX5",
+    "franchise_slug": "kiss"
+  },
+  {
+    "slug": "medieval-madness",
+    "name": "Medieval Madness",
+    "opdb_group_id": "G5pe4"
+  },
+  {
+    "slug": "pinbot",
+    "name": "Pinbot",
+    "opdb_group_id": "G41Z8",
+    "series_slug": "pinbot"
+  },
+  {
+    "slug": "pirates-of-the-caribbean",
+    "name": "Pirates of the Caribbean",
+    "opdb_group_id": "GR7ZX",
+    "franchise_slug": "pirates-of-the-caribbean"
+  },
+  {
+    "slug": "pirates-of-the-caribbean-jersey-jack-pinball",
+    "name": "Pirates of the Caribbean",
+    "opdb_group_id": "GRbPY",
+    "franchise_slug": "pirates-of-the-caribbean"
+  },
+  {
+    "slug": "spider-man",
+    "name": "Spider-Man",
+    "opdb_group_id": "G5D94",
+    "franchise_slug": "spider-man"
+  },
+  {
+    "slug": "spider-man-gottlieb",
+    "name": "Spider-Man",
+    "opdb_group_id": "GrXlr",
+    "franchise_slug": "spider-man"
+  },
+  {
+    "slug": "star-trek",
+    "name": "Star Trek",
+    "opdb_group_id": "G42qQ",
+    "franchise_slug": "star-trek"
+  },
+  {
+    "slug": "star-trek-bally",
+    "name": "Star Trek",
+    "opdb_group_id": "GRVnd",
+    "franchise_slug": "star-trek"
+  },
+  {
+    "slug": "star-trek-stern",
+    "name": "Star Trek",
+    "opdb_group_id": "Gryw4",
+    "franchise_slug": "star-trek"
+  },
+  {
+    "slug": "star-trek-the-next-generation",
+    "name": "Star Trek: The Next Generation",
+    "opdb_group_id": "GR6d8",
+    "franchise_slug": "star-trek"
+  },
+  {
+    "slug": "terminator-2-judgment-day",
+    "name": "Terminator 2: Judgment Day",
+    "opdb_group_id": "GR9Bx",
+    "franchise_slug": "terminator"
+  },
+  {
+    "slug": "terminator-3-rise-of-the-machines",
+    "name": "Terminator 3: Rise of the Machines",
+    "opdb_group_id": "GR91N",
+    "franchise_slug": "terminator"
+  },
+  {
+    "slug": "the-getaway-high-speed-ii",
+    "name": "The Getaway: High Speed II",
+    "opdb_group_id": "Grx8Y",
+    "series_slug": "high-speed"
+  },
+  {
+    "slug": "the-lost-world-jurassic-park",
+    "name": "The Lost World Jurassic Park",
+    "opdb_group_id": "G4kBL",
+    "franchise_slug": "jurassic-park"
+  },
+  {
+    "slug": "venom",
+    "name": "Venom",
+    "opdb_group_id": "G3EBl",
+    "franchise_slug": "spider-man"
+  }
 ]
