@@ -4,7 +4,7 @@ Creates or updates CorporateEntity records linked to their parent
 Manufacturer, then asserts editorial claims for name and years_active.
 Also creates Address records from optional headquarters fields.
 
-Runs after ingest_manufacturers_pinbase (for Manufacturer records).
+Runs after ingest_pinbase_manufacturers (for Manufacturer records).
 """
 
 from __future__ import annotations
@@ -54,12 +54,15 @@ class Command(BaseCommand):
             },
         )
         ct_id = ContentType.objects.get_for_model(CorporateEntity).pk
-        pending_claims: list[Claim] = []
-        to_resolve: list[CorporateEntity] = []
 
-        created = 0
-        updated = 0
-        addresses_created = 0
+        # Pre-fetch existing (manufacturer_id, name) pairs for counts.
+        existing_keys = set(
+            CorporateEntity.objects.values_list("manufacturer_id", "name")
+        )
+
+        # Build instances from JSON, tracking which entries have addresses.
+        objs = []
+        valid_entries = []
         missing_mfr: list[str] = []
 
         for entry in entries:
@@ -75,8 +78,6 @@ class Command(BaseCommand):
                 continue
 
             name = entry["name"]
-
-            # Format years_active from year_start/year_end.
             year_start = entry.get("year_start")
             year_end = entry.get("year_end")
             if year_start and year_end:
@@ -86,37 +87,31 @@ class Command(BaseCommand):
             else:
                 years_active = ""
 
-            obj, was_created = CorporateEntity.objects.update_or_create(
-                manufacturer=mfr,
-                name=name,
-                defaults={"years_active": years_active},
+            objs.append(
+                CorporateEntity(manufacturer=mfr, name=name, years_active=years_active)
             )
-            if was_created:
-                created += 1
-            else:
-                updated += 1
+            valid_entries.append(entry)
 
-            pending_claims.append(
-                Claim(
-                    content_type_id=ct_id,
-                    object_id=obj.pk,
-                    field_name="name",
-                    value=name,
-                )
-            )
-            if years_active:
-                pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=obj.pk,
-                        field_name="years_active",
-                        value=years_active,
-                    )
-                )
+        # Bulk upsert: single INSERT ... ON CONFLICT DO UPDATE.
+        objs = CorporateEntity.objects.bulk_create(
+            objs,
+            update_conflicts=True,
+            unique_fields=["manufacturer", "name"],
+            update_fields=["years_active"],
+        )
 
-            to_resolve.append(obj)
+        created = sum(
+            1 for o in objs if (o.manufacturer_id, o.name) not in existing_keys
+        )
+        updated = len(objs) - created
 
-            # Create Address from optional headquarters fields.
+        self.stdout.write(
+            f"  Corporate entities seed: {created} created, {updated} updated"
+        )
+
+        # Create Address records (conditional, small count — stays row-by-row).
+        addresses_created = 0
+        for obj, entry in zip(objs, valid_entries):
             city = entry.get("headquarters_city", "")
             state = entry.get("headquarters_state", "")
             country = entry.get("headquarters_country", "")
@@ -130,9 +125,6 @@ class Command(BaseCommand):
                 if addr_created:
                     addresses_created += 1
 
-        self.stdout.write(
-            f"  Corporate entities seed: {created} created, {updated} updated"
-        )
         if addresses_created:
             self.stdout.write(f"  Addresses: {addresses_created} created")
         if missing_mfr:
@@ -141,13 +133,34 @@ class Command(BaseCommand):
                 + ", ".join(sorted(set(missing_mfr)))
             )
 
+        # Assert claims and resolve.
+        pending_claims: list[Claim] = []
+        for obj in objs:
+            pending_claims.append(
+                Claim(
+                    content_type_id=ct_id,
+                    object_id=obj.pk,
+                    field_name="name",
+                    value=obj.name,
+                )
+            )
+            if obj.years_active:
+                pending_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=obj.pk,
+                        field_name="years_active",
+                        value=obj.years_active,
+                    )
+                )
+
         if pending_claims:
             stats = Claim.objects.bulk_assert_claims(source, pending_claims)
             self.stdout.write(
                 f"  Claims: {stats['unchanged']} unchanged, "
                 f"{stats['created']} created, {stats['superseded']} superseded"
             )
-            for ce in to_resolve:
+            for ce in objs:
                 resolve_corporate_entity(ce)
 
         self.stdout.write(

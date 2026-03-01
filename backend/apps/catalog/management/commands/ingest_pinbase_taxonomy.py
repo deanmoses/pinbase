@@ -113,22 +113,21 @@ class Command(BaseCommand):
             _, parent_model, _ = parent_config
             parent_lookup = {p.slug: p for p in parent_model.objects.all()}
 
-        pending_claims: list[Claim] = []
-
+        # Build model instances from JSON.
+        objs = []
         for entry in data:
             slug = entry["slug"]
             name_value = entry[name_key]
             description = entry.get("description", "")
             display_order = entry.get("display_order", 0)
 
-            # Description is direct editorial content; name and display_order are
-            # also set here for initial creation (claims confirm them later).
-            defaults: dict = {
+            kwargs: dict = {
+                "slug": slug,
                 "name": name_value,
                 "description": description,
             }
             if has_display_order:
-                defaults["display_order"] = display_order
+                kwargs["display_order"] = display_order
 
             if parent_config:
                 fk_field, _, json_fk_key = parent_config
@@ -142,21 +141,35 @@ class Command(BaseCommand):
                         slug,
                     )
                     continue
-                defaults[fk_field] = parent_obj
+                kwargs[fk_field] = parent_obj
 
-            obj, _ = model_class.objects.update_or_create(
-                slug=slug,
-                defaults=defaults,
-            )
+            objs.append(model_class(**kwargs))
 
-            # Assert claims for claim-controlled fields.
+        # Bulk upsert: single INSERT ... ON CONFLICT DO UPDATE.
+        update_fields = ["name", "description"]
+        if has_display_order:
+            update_fields.append("display_order")
+        if parent_config:
+            fk_field, _, _ = parent_config
+            update_fields.append(fk_field)
+
+        objs = model_class.objects.bulk_create(
+            objs,
+            update_conflicts=True,
+            unique_fields=["slug"],
+            update_fields=update_fields,
+        )
+
+        # Assert claims for claim-controlled fields.
+        pending_claims: list[Claim] = []
+        for obj in objs:
             pending_claims.append(
                 Claim(
                     content_type_id=ct.pk,
                     object_id=obj.pk,
                     field_name="name",
                     claim_key="name",
-                    value=name_value,
+                    value=obj.name,
                     citation="",
                 )
             )
@@ -167,7 +180,7 @@ class Command(BaseCommand):
                         object_id=obj.pk,
                         field_name="display_order",
                         claim_key="display_order",
-                        value=display_order,
+                        value=obj.display_order,
                         citation="",
                     )
                 )

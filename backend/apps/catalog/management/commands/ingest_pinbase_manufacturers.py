@@ -41,10 +41,6 @@ class Command(BaseCommand):
         with open(path) as f:
             entries = json.load(f)
 
-        created = 0
-        updated = 0
-        unchanged = 0
-
         source, _ = Source.objects.update_or_create(
             slug="editorial",
             defaults={
@@ -54,35 +50,37 @@ class Command(BaseCommand):
             },
         )
         ct_id = ContentType.objects.get_for_model(Manufacturer).pk
+
+        # Pre-fetch existing slugs for created/updated counts.
+        existing_slugs = set(Manufacturer.objects.values_list("slug", flat=True))
+
+        # Build instances from JSON.
+        objs = [Manufacturer(slug=e["slug"], name=e["name"]) for e in entries]
+
+        # Bulk upsert: single INSERT ... ON CONFLICT DO UPDATE.
+        objs = Manufacturer.objects.bulk_create(
+            objs,
+            update_conflicts=True,
+            unique_fields=["slug"],
+            update_fields=["name"],
+        )
+
+        created = sum(1 for o in objs if o.slug not in existing_slugs)
+        updated = len(objs) - created
+
+        self.stdout.write(f"  Manufacturers seed: {created} created, {updated} updated")
+
+        # Assert claims.
         pending_claims: list[Claim] = []
-        to_resolve: list[Manufacturer] = []
-
-        for entry in entries:
-            slug = entry["slug"]
-            name = entry["name"]
-            defaults = {"name": name}
-            obj, was_created = Manufacturer.objects.update_or_create(
-                slug=slug,
-                defaults=defaults,
-            )
-            if was_created:
-                created += 1
-            elif obj.name != name:
-                updated += 1
-            else:
-                unchanged += 1
-
-            # Always assert a name claim so resolve_manufacturer doesn't
-            # blank the name when only a description claim exists.
+        for obj, entry in zip(objs, entries):
             pending_claims.append(
                 Claim(
                     content_type_id=ct_id,
                     object_id=obj.pk,
                     field_name="name",
-                    value=name,
+                    value=obj.name,
                 )
             )
-
             description = entry.get("description", "")
             if description:
                 pending_claims.append(
@@ -94,20 +92,13 @@ class Command(BaseCommand):
                     )
                 )
 
-            to_resolve.append(obj)
-
-        self.stdout.write(
-            f"  Manufacturers seed: {created} created, {updated} updated, "
-            f"{unchanged} unchanged"
-        )
-
         if pending_claims:
             stats = Claim.objects.bulk_assert_claims(source, pending_claims)
             self.stdout.write(
                 f"  Claims: {stats['unchanged']} unchanged, "
                 f"{stats['created']} created, {stats['superseded']} superseded"
             )
-            for mfr in to_resolve:
-                resolve_manufacturer(mfr)
+            for obj in objs:
+                resolve_manufacturer(obj)
 
         self.stdout.write(self.style.SUCCESS("Manufacturer seed ingestion complete."))

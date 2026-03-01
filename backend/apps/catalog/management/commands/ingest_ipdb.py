@@ -261,7 +261,7 @@ class Command(BaseCommand):
             lines = "\n".join(f"  {s}" for s in sorted(unknown_mpu_strings))
             raise CommandError(
                 f"Unknown MPU strings not in data/systems.json:\n{lines}\n"
-                "Add entries to data/systems.json and run ingest_systems before re-ingesting."
+                "Add entries to data/systems.json and run ingest_pinbase_systems before re-ingesting."
             )
 
         # --- Bulk-assert all collected claims ---

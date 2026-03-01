@@ -4,7 +4,7 @@ Creates or updates Series records with names and descriptions. After OPDB/IPDB
 ingest creates Person records, creates DesignCredit(series=...) records from
 credits.json.
 
-Series-Title M2M memberships are handled by ingest_titles_pinbase.
+Series-Title M2M memberships are handled by ingest_pinbase_titles.
 """
 
 from __future__ import annotations
@@ -45,35 +45,43 @@ class Command(BaseCommand):
         with open(series_path) as f:
             series_entries = json.load(f)
 
-        # Upsert Series records.
-        series_created = series_updated = 0
-        series_by_slug: dict[str, Series] = {}
+        # Pre-fetch existing slugs for counts.
+        existing_slugs = set(Series.objects.values_list("slug", flat=True))
 
-        for entry in series_entries:
-            slug = entry["slug"]
-            name = entry["name"]
-            description = entry.get("description", "")
-            obj, was_created = Series.objects.update_or_create(
-                slug=slug,
-                defaults={"name": name, "description": description},
+        # Build Series instances from JSON.
+        objs = [
+            Series(
+                slug=e["slug"],
+                name=e["name"],
+                description=e.get("description", ""),
             )
-            series_by_slug[slug] = obj
-            if was_created:
-                series_created += 1
-            else:
-                series_updated += 1
+            for e in series_entries
+        ]
+
+        # Bulk upsert: single INSERT ... ON CONFLICT DO UPDATE.
+        objs = Series.objects.bulk_create(
+            objs,
+            update_conflicts=True,
+            unique_fields=["slug"],
+            update_fields=["name", "description"],
+        )
+
+        series_created = sum(1 for o in objs if o.slug not in existing_slugs)
+        series_updated = len(objs) - series_created
+        series_by_slug = {o.slug: o for o in objs}
 
         self.stdout.write(
             f"  Series: {series_created} created, {series_updated} updated"
         )
 
         # Seed series-level design credits.
-        credits_created = credits_skipped = 0
-
         with open(credits_path) as f:
             credit_entries = json.load(f)
 
         people_by_slug = {p.slug: p for p in Person.objects.all()}
+
+        credits_to_create = []
+        credits_skipped = 0
 
         for entry in credit_entries:
             series_slug = entry["series_slug"]
@@ -97,13 +105,18 @@ class Command(BaseCommand):
                 credits_skipped += 1
                 continue
 
-            _, was_created = DesignCredit.objects.get_or_create(
-                series=series_obj,
-                person=person_obj,
-                role=role,
+            credits_to_create.append(
+                DesignCredit(series=series_obj, person=person_obj, role=role)
             )
-            if was_created:
-                credits_created += 1
+
+        # Bulk create, skipping duplicates via the conditional unique constraint.
+        if credits_to_create:
+            created = DesignCredit.objects.bulk_create(
+                credits_to_create, ignore_conflicts=True
+            )
+            credits_created = len(created)
+        else:
+            credits_created = 0
 
         self.stdout.write(
             f"  Credits: {credits_created} created, {credits_skipped} skipped"

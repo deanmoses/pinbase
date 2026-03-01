@@ -1,8 +1,8 @@
 """Orchestrate the full ingestion pipeline.
 
-Runs: ingest_taxonomy_pinbase → ingest_manufacturers_pinbase →
-      ingest_corporate_entities_pinbase → ingest_systems → ingest_ipdb →
-      ingest_opdb → ingest_series → ingest_titles_pinbase → ingest_signs →
+Runs: ingest_pinbase_taxonomy → ingest_pinbase_manufacturers →
+      ingest_pinbase_corporate_entities → ingest_pinbase_systems → ingest_ipdb →
+      ingest_opdb → ingest_pinbase_series → ingest_pinbase_titles → ingest_pinbase_signs →
       resolve_claims.
 """
 
@@ -13,15 +13,15 @@ from django.core.management.base import BaseCommand
 
 
 STEPS = [
-    "ingest_taxonomy_pinbase",
-    "ingest_manufacturers_pinbase",
-    "ingest_corporate_entities_pinbase",
-    "ingest_systems",
+    "ingest_pinbase_taxonomy",
+    "ingest_pinbase_manufacturers",
+    "ingest_pinbase_corporate_entities",
+    "ingest_pinbase_systems",
     "ingest_ipdb",
     "ingest_opdb",
-    "ingest_series",
-    "ingest_titles_pinbase",
-    "ingest_signs",
+    "ingest_pinbase_series",
+    "ingest_pinbase_titles",
+    "ingest_pinbase_signs",
     "resolve_claims",
 ]
 
@@ -53,7 +53,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--csv",
             default="../data/dump1/machine_sign_copy.csv",
-            help="Path to machine_sign_copy.csv for ingest_signs.",
+            help="Path to machine_sign_copy.csv for ingest_pinbase_signs.",
         )
 
     def handle(self, *args, **options):
@@ -77,7 +77,7 @@ class Command(BaseCommand):
                         "groups": opdb_groups,
                         "changelog": opdb_changelog,
                     }
-                elif step == "ingest_signs":
+                elif step == "ingest_pinbase_signs":
                     kwargs = {"csv": csv_path}
                 call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
         finally:
