@@ -21,7 +21,14 @@ from .helpers import (
     _extract_image_urls,
     _extract_variant_features,
 )
-from .schemas import ClaimPatchSchema, ClaimSchema, ThemeSchema
+from .schemas import (
+    ClaimPatchSchema,
+    ClaimSchema,
+    FranchiseRefSchema,
+    GameplayFeatureSchema,
+    SeriesRefSchema,
+    ThemeSchema,
+)
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -101,6 +108,15 @@ class MachineModelDetailSchema(Schema):
     aliases: list[AliasSchema] = []
     title_name: Optional[str] = None
     title_slug: Optional[str] = None
+    cabinet_name: Optional[str] = None
+    cabinet_slug: Optional[str] = None
+    game_format_name: Optional[str] = None
+    game_format_slug: Optional[str] = None
+    display_subtype_name: Optional[str] = None
+    display_subtype_slug: Optional[str] = None
+    gameplay_features: list[GameplayFeatureSchema] = []
+    franchise: Optional[FranchiseRefSchema] = None
+    series: list[SeriesRefSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +296,28 @@ def _serialize_model_detail(pm) -> dict:
         "aliases": aliases,
         "title_name": pm.title.name if pm.title else None,
         "title_slug": pm.title.slug if pm.title else None,
+        "cabinet_name": pm.cabinet.name if pm.cabinet else None,
+        "cabinet_slug": pm.cabinet.slug if pm.cabinet else None,
+        "game_format_name": pm.game_format.name if pm.game_format else None,
+        "game_format_slug": pm.game_format.slug if pm.game_format else None,
+        "display_subtype_name": (
+            pm.display_subtype.name if pm.display_subtype else None
+        ),
+        "display_subtype_slug": (
+            pm.display_subtype.slug if pm.display_subtype else None
+        ),
+        "gameplay_features": [
+            {"name": gf.name, "slug": gf.slug} for gf in pm.gameplay_features.all()
+        ],
+        "franchise": (
+            {"name": pm.title.franchise.name, "slug": pm.title.franchise.slug}
+            if pm.title and pm.title.franchise
+            else None
+        ),
+        "series": [
+            {"name": s.name, "slug": s.slug}
+            for s in (pm.title.series.all() if pm.title else [])
+        ],
     }
 
 
@@ -288,10 +326,20 @@ def _model_detail_qs():
     from ..models import DesignCredit, MachineModel
 
     return MachineModel.objects.select_related(
-        "manufacturer", "title", "system", "technology_generation", "display_type"
+        "manufacturer",
+        "title",
+        "title__franchise",
+        "system",
+        "technology_generation",
+        "display_type",
+        "display_subtype",
+        "cabinet",
+        "game_format",
     ).prefetch_related(
         "aliases",
         "themes",
+        "gameplay_features",
+        "title__series",
         Prefetch(
             "credits",
             queryset=DesignCredit.objects.filter(model__isnull=False).select_related(

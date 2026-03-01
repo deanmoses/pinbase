@@ -135,6 +135,14 @@ class ThemeInline(admin.TabularInline):
     model = MachineModel.themes.through
     extra = 0
     readonly_fields = ("theme",)
+
+
+class GameplayFeatureInline(admin.TabularInline):
+    """Read-only inline — gameplay features are materialized from relationship claims."""
+
+    model = MachineModel.gameplay_features.through
+    extra = 0
+    readonly_fields = ("gameplayfeature",)
     can_delete = False
     verbose_name = "theme"
     verbose_name_plural = "themes"
@@ -335,6 +343,9 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         "system",
         "technology_generation",
         "display_type",
+        "display_subtype",
+        "cabinet",
+        "game_format",
     }
 
     def _to_claim_value(self, field_name: str, value):
@@ -347,6 +358,12 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         if field_name == "technology_generation" and value is not None:
             return value.slug
         if field_name == "display_type" and value is not None:
+            return value.slug
+        if field_name == "display_subtype" and value is not None:
+            return value.slug
+        if field_name == "cabinet" and value is not None:
+            return value.slug
+        if field_name == "game_format" and value is not None:
             return value.slug
         return super()._to_claim_value(field_name, value)
 
@@ -370,8 +387,11 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         "system",
         "technology_generation",
         "display_type",
+        "display_subtype",
+        "cabinet",
+        "game_format",
     )
-    inlines = (DesignCreditInline, ThemeInline, ClaimInline)
+    inlines = (DesignCreditInline, ThemeInline, GameplayFeatureInline, ClaimInline)
 
     fieldsets = (
         (
@@ -394,6 +414,9 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
                 "fields": (
                     "technology_generation",
                     "display_type",
+                    "display_subtype",
+                    "cabinet",
+                    "game_format",
                     "player_count",
                     "production_quantity",
                     "system",

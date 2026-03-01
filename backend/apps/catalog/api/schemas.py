@@ -42,3 +42,13 @@ class TitleMachineSchema(Schema):
 class SeriesRefSchema(Schema):
     name: str
     slug: str
+
+
+class GameplayFeatureSchema(Schema):
+    name: str
+    slug: str
+
+
+class FranchiseRefSchema(Schema):
+    name: str
+    slug: str

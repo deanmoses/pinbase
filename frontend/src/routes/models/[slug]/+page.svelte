@@ -34,6 +34,38 @@
 				{/each}
 			</dd>
 		{/if}
+		{#if model.cabinet_name}
+			<dt>Cabinet</dt>
+			<dd>{model.cabinet_name}</dd>
+		{/if}
+		{#if model.game_format_name}
+			<dt>Format</dt>
+			<dd>{model.game_format_name}</dd>
+		{/if}
+		{#if model.display_subtype_name}
+			<dt>Display</dt>
+			<dd>{model.display_subtype_name}</dd>
+		{/if}
+		{#if model.gameplay_features.length > 0}
+			<dt>Features</dt>
+			<dd>
+				{#each model.gameplay_features as feature, i (feature.slug)}
+					{#if i > 0},
+					{/if}
+					{feature.name}
+				{/each}
+			</dd>
+		{/if}
+		{#if model.series.length > 0}
+			<dt>Series</dt>
+			<dd>
+				{#each model.series as s, i (s.slug)}
+					{#if i > 0},
+					{/if}
+					<a href={resolve(`/series/${s.slug}`)}>{s.name}</a>
+				{/each}
+			</dd>
+		{/if}
 	</dl>
 </section>
 

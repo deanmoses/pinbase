@@ -91,6 +91,12 @@ class CorporateEntity(TimeStampedModel):
         ordering = ["manufacturer", "years_active"]
         verbose_name = "corporate entity"
         verbose_name_plural = "corporate entities"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["manufacturer", "name"],
+                name="catalog_unique_corporate_entity_per_manufacturer",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.years_active:
@@ -581,12 +587,42 @@ class MachineModel(TimeStampedModel):
         blank=True,
         help_text="Display type (resolved from claims).",
     )
+    display_subtype = models.ForeignKey(
+        DisplaySubtype,
+        on_delete=models.SET_NULL,
+        related_name="machine_models",
+        null=True,
+        blank=True,
+        help_text="Display subtype (resolved from claims).",
+    )
+    cabinet = models.ForeignKey(
+        Cabinet,
+        on_delete=models.SET_NULL,
+        related_name="machine_models",
+        null=True,
+        blank=True,
+        help_text="Cabinet form factor (resolved from claims).",
+    )
+    game_format = models.ForeignKey(
+        GameFormat,
+        on_delete=models.SET_NULL,
+        related_name="machine_models",
+        null=True,
+        blank=True,
+        help_text="Game format (resolved from claims).",
+    )
     player_count = models.PositiveSmallIntegerField(null=True, blank=True)
     themes = models.ManyToManyField(
         "Theme",
         blank=True,
         related_name="machine_models",
         help_text="Resolved theme tags (materialized from relationship claims).",
+    )
+    gameplay_features = models.ManyToManyField(
+        "GameplayFeature",
+        blank=True,
+        related_name="machine_models",
+        help_text="Gameplay features (materialized from relationship claims).",
     )
     production_quantity = models.CharField(max_length=100, blank=True)
     system = models.ForeignKey(

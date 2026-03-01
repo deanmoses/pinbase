@@ -23,6 +23,7 @@ RELATIONSHIP_SCHEMAS: dict[str, dict[str, str]] = {
     "credit": {"person_slug": "person", "role": "role"},
     "theme": {"theme_slug": "theme"},
     "tag": {"tag_slug": "tag"},
+    "gameplay_feature": {"gameplay_feature_slug": "gameplay_feature"},
 }
 
 RELATIONSHIP_NAMESPACES = frozenset(RELATIONSHIP_SCHEMAS)

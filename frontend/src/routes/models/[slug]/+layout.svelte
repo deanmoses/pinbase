@@ -64,6 +64,9 @@
 					<a href={resolve(`/titles/${model.title_slug}`)}>{model.title_name}</a>
 				</span>
 			{/if}
+			{#if model.franchise}
+				<span>{model.franchise.name}</span>
+			{/if}
 		</div>
 		{#if model.variant_features.length > 0}
 			<div class="features">
