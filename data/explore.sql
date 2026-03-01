@@ -10,6 +10,12 @@ CREATE OR REPLACE VIEW fandom_manufacturers AS SELECT d.* FROM (SELECT unnest(ma
 -- fandom_persons
 CREATE OR REPLACE VIEW fandom_persons AS SELECT d.* FROM (SELECT unnest(persons) AS d FROM read_json_auto('data/dump1/fandom_persons.json'));
 
+-- pinballmap_machines
+CREATE OR REPLACE VIEW pinballmap_machines AS SELECT d.id, d."name", d.is_active, d.created_at, d.updated_at, d.ipdb_link, d."year", d.manufacturer, d.machine_group_id, d.ipdb_id, d.opdb_id, d.opdb_img, d.opdb_img_height, d.opdb_img_width, d.machine_type, d.machine_display, d.ic_eligible, d.kineticist_url FROM (SELECT unnest(machines) AS d FROM read_json_auto('data/dump1/pinballmap_machines.json'));
+
+-- pinballmap_machine_groups
+CREATE OR REPLACE VIEW pinballmap_machine_groups AS SELECT d.id, d."name", d.created_at, d.updated_at FROM (SELECT unnest(machine_groups) AS d FROM read_json_auto('data/dump1/pinballmap_machine_groups.json'));
+
 -- opdb_groups
 CREATE OR REPLACE VIEW opdb_groups AS SELECT * FROM read_json_auto('data/dump1/opdb_export_groups.json');
 
@@ -148,11 +154,126 @@ CREATE OR REPLACE VIEW opdb_models AS WITH combo_labels AS (SELECT opdb_group_id
 -- catalog_franchises
 CREATE OR REPLACE VIEW catalog_franchises AS SELECT f.slug, f."name", f.description, count(ct.opdb_group_id) AS title_count FROM pinbase_franchises AS f LEFT JOIN catalog_titles AS ct ON ((f.slug = ct.franchise_slug)) GROUP BY f.slug, f."name", f.description ORDER BY title_count DESC;
 
+-- ipdb_manufacturer_resolution
+-- Maps each distinct IPDB Manufacturer string to a resolved manufacturer slug.
+-- Priority: 1) corporate entity lookup on parsed company name,
+--           2) manufacturer name match on trade name,
+--           3) manufacturer name match on company name.
+-- Also parses headquarters location into city/state/country.
+CREATE OR REPLACE VIEW ipdb_manufacturer_resolution AS
+WITH
+  parsed AS (
+    SELECT DISTINCT
+      Manufacturer AS raw_manufacturer,
+      regexp_extract(Manufacturer, '\[Trade Name:\s*(.+?)\]', 1) AS trade_name,
+      regexp_replace(
+        regexp_replace(
+          regexp_replace(
+            regexp_replace(Manufacturer, '\s*\[Trade Name:.*?\]', ''),
+            '\s*\(\d{4}.*?\)', ''),
+          ',\s*of\s+.*$', ''),
+        ',\s*$', '') AS company_name,
+      regexp_extract(Manufacturer, ',\s*of\s+(.+?)(?:\s*\(\d{4}|\s*\[Trade|\s*$)', 1) AS location_raw
+    FROM ipdb_machines
+    WHERE Manufacturer IS NOT NULL
+  ),
+  ce_match AS (
+    SELECT DISTINCT ON (p.raw_manufacturer)
+      p.raw_manufacturer, p.company_name, p.trade_name, p.location_raw,
+      ce.manufacturer_slug, 'corporate_entity' AS resolution_method,
+      ce.headquarters_city AS ce_hq_city,
+      ce.headquarters_state AS ce_hq_state,
+      ce.headquarters_country AS ce_hq_country
+    FROM parsed p
+    INNER JOIN pinbase_corporate_entities ce ON lower(p.company_name) = lower(ce.name)
+  ),
+  unresolved_after_ce AS (
+    SELECT * FROM parsed
+    WHERE raw_manufacturer NOT IN (SELECT raw_manufacturer FROM ce_match)
+  ),
+  trade_match AS (
+    SELECT DISTINCT ON (p.raw_manufacturer)
+      p.raw_manufacturer, p.company_name, p.trade_name, p.location_raw,
+      m.slug AS manufacturer_slug, 'trade_name' AS resolution_method
+    FROM unresolved_after_ce p
+    INNER JOIN pinbase_manufacturers m ON lower(p.trade_name) = lower(m.name)
+    WHERE p.trade_name <> ''
+  ),
+  unresolved_after_trade AS (
+    SELECT * FROM unresolved_after_ce
+    WHERE raw_manufacturer NOT IN (SELECT raw_manufacturer FROM trade_match)
+  ),
+  name_match AS (
+    SELECT DISTINCT ON (p.raw_manufacturer)
+      p.raw_manufacturer, p.company_name, p.trade_name, p.location_raw,
+      m.slug AS manufacturer_slug, 'name_match' AS resolution_method
+    FROM unresolved_after_trade p
+    INNER JOIN pinbase_manufacturers m ON lower(p.company_name) = lower(m.name)
+  ),
+  resolved AS (
+    (SELECT raw_manufacturer, company_name, trade_name, location_raw, manufacturer_slug, resolution_method, ce_hq_city, ce_hq_state, ce_hq_country FROM ce_match)
+    UNION ALL
+    (SELECT raw_manufacturer, company_name, trade_name, location_raw, manufacturer_slug, resolution_method, NULL, NULL, NULL FROM trade_match)
+    UNION ALL
+    (SELECT raw_manufacturer, company_name, trade_name, location_raw, manufacturer_slug, resolution_method, NULL, NULL, NULL FROM name_match)
+  ),
+  -- US states for disambiguating 2-part locations (city+state vs city+country)
+  us_states(state_name) AS (
+    VALUES ('Alabama'),('Alaska'),('Arizona'),('Arkansas'),('California'),('Colorado'),
+    ('Connecticut'),('Delaware'),('Florida'),('Georgia'),('Hawaii'),('Idaho'),
+    ('Illinois'),('Indiana'),('Iowa'),('Kansas'),('Kentucky'),('Louisiana'),
+    ('Maine'),('Maryland'),('Massachusetts'),('Michigan'),('Minnesota'),
+    ('Mississippi'),('Missouri'),('Montana'),('Nebraska'),('Nevada'),
+    ('New Hampshire'),('New Jersey'),('New Mexico'),('New York'),
+    ('North Carolina'),('North Dakota'),('Ohio'),('Oklahoma'),('Oregon'),
+    ('Pennsylvania'),('Rhode Island'),('South Carolina'),('South Dakota'),
+    ('Tennessee'),('Texas'),('Utah'),('Vermont'),('Virginia'),('Washington'),
+    ('West Virginia'),('Wisconsin'),('Wyoming'),
+    -- Typos found in IPDB data
+    ('NewYork'),('SouthCarolina')
+  )
+SELECT
+  r.raw_manufacturer,
+  r.company_name,
+  r.trade_name,
+  r.manufacturer_slug,
+  r.resolution_method,
+  r.location_raw,
+  COALESCE(r.ce_hq_city, CASE
+    WHEN r.location_raw IS NULL OR r.location_raw = '' THEN NULL
+    WHEN len(string_split(r.location_raw, ', ')) >= 2 THEN string_split(r.location_raw, ', ')[1]
+    ELSE NULL
+  END) AS headquarters_city,
+  COALESCE(r.ce_hq_state, CASE
+    WHEN r.location_raw IS NULL OR r.location_raw = '' THEN NULL
+    WHEN len(string_split(r.location_raw, ', ')) >= 3 THEN string_split(r.location_raw, ', ')[2]
+    WHEN len(string_split(r.location_raw, ', ')) = 2
+      AND EXISTS(SELECT 1 FROM us_states WHERE lower(state_name) = lower(string_split(r.location_raw, ', ')[2]))
+      THEN string_split(r.location_raw, ', ')[2]
+    WHEN len(string_split(r.location_raw, ', ')) = 1
+      AND EXISTS(SELECT 1 FROM us_states WHERE lower(state_name) = lower(r.location_raw))
+      THEN r.location_raw
+    ELSE NULL
+  END) AS headquarters_state,
+  COALESCE(r.ce_hq_country, CASE
+    WHEN r.location_raw IS NULL OR r.location_raw = '' THEN NULL
+    WHEN len(string_split(r.location_raw, ', ')) >= 3 THEN string_split(r.location_raw, ', ')[len(string_split(r.location_raw, ', '))]
+    WHEN len(string_split(r.location_raw, ', ')) = 2
+      AND EXISTS(SELECT 1 FROM us_states WHERE lower(state_name) = lower(string_split(r.location_raw, ', ')[2]))
+      THEN 'USA'
+    WHEN len(string_split(r.location_raw, ', ')) = 2 THEN string_split(r.location_raw, ', ')[2]
+    WHEN len(string_split(r.location_raw, ', ')) = 1
+      AND EXISTS(SELECT 1 FROM us_states WHERE lower(state_name) = lower(r.location_raw))
+      THEN 'USA'
+    ELSE r.location_raw
+  END) AS headquarters_country
+FROM resolved r;
+
 -- catalog_ipdb_models
 CREATE OR REPLACE VIEW catalog_ipdb_models AS WITH opdb_link AS ((SELECT ipdb_id, opdb_id AS opdb_machine_id, group_id AS opdb_group_id, opdb_id AS tier_opdb_id FROM opdb_machines WHERE ((is_machine = 't') AND (ipdb_id IS NOT NULL))) UNION ALL (SELECT ipdb_id, opdb_id AS opdb_machine_id, group_id AS opdb_group_id, ((group_id || '-') || machine_id) AS tier_opdb_id FROM opdb_machines WHERE ((is_alias = 't') AND (ipdb_id IS NOT NULL)))), best_link AS (SELECT DISTINCT ON (ipdb_id) * FROM opdb_link ORDER BY ipdb_id, tier_opdb_id)SELECT i.*, o.opdb_machine_id, o.opdb_group_id, o.tier_opdb_id FROM ipdb_machines AS i LEFT JOIN best_link AS o ON ((i.IpdbId = o.ipdb_id));
 
 -- catalog_models
-CREATE OR REPLACE VIEW catalog_models AS WITH opdb AS (SELECT opdb_id, opdb_group_id, machine_id, alias_id, tier_opdb_id, manufacturer, "name", common_name, shortname, manufacture_date, ipdb_id, images, is_default, is_synthetic, 'opdb' AS "source" FROM opdb_models), ipdb_only AS (SELECT CAST(NULL AS VARCHAR) AS opdb_id, CAST(NULL AS VARCHAR) AS opdb_group_id, CAST(NULL AS VARCHAR) AS machine_id, CAST(NULL AS VARCHAR) AS alias_id, CAST(NULL AS VARCHAR) AS tier_opdb_id, im.ManufacturerShortName AS manufacturer, im.Title AS "name", CAST(NULL AS VARCHAR) AS common_name, CAST(NULL AS VARCHAR) AS shortname, CASE  WHEN ((im.DateOfManufacture IS NOT NULL)) THEN (TRY_CAST(CAST(im.DateOfManufacture AS VARCHAR) AS DATE)) ELSE NULL END AS manufacture_date, im.IpdbId AS ipdb_id, CAST(main.list_value() AS STRUCT(title VARCHAR, "primary" BOOLEAN, "type" VARCHAR, urls STRUCT(medium VARCHAR, "large" VARCHAR, small VARCHAR), sizes STRUCT(medium STRUCT(width BIGINT, height BIGINT), "large" STRUCT(width BIGINT, height BIGINT), small STRUCT(width BIGINT, height BIGINT)))[]) AS images, CAST('t' AS BOOLEAN) AS is_default, CAST('f' AS BOOLEAN) AS is_synthetic, 'ipdb' AS "source" FROM ipdb_machines AS im LEFT JOIN opdb_machines AS om ON ((im.IpdbId = om.ipdb_id)) WHERE (om.opdb_id IS NULL)), all_models AS ((SELECT * FROM opdb) UNION ALL (SELECT * FROM ipdb_only))SELECT m.*, COALESCE(om.technology_generation_slug, im.technology_generation_slug) AS technology_generation_slug, COALESCE(pm.display_type_slug, om.display_type_slug, im.display_type_slug) AS display_type_slug, COALESCE(om.system_slug, im.system_slug) AS system_slug FROM all_models AS m LEFT JOIN pinbase_models AS pm ON ((m.opdb_id = pm.opdb_id)) LEFT JOIN opdb_machines AS om ON ((m.opdb_id = om.opdb_id)) LEFT JOIN ipdb_machines AS im ON ((m.ipdb_id = im.IpdbId));
+CREATE OR REPLACE VIEW catalog_models AS WITH opdb AS (SELECT opdb_id, opdb_group_id, machine_id, alias_id, tier_opdb_id, manufacturer, "name", common_name, shortname, manufacture_date, ipdb_id, images, is_default, is_synthetic, 'opdb' AS "source" FROM opdb_models), ipdb_only AS (SELECT CAST(NULL AS VARCHAR) AS opdb_id, CAST(NULL AS VARCHAR) AS opdb_group_id, CAST(NULL AS VARCHAR) AS machine_id, CAST(NULL AS VARCHAR) AS alias_id, CAST(NULL AS VARCHAR) AS tier_opdb_id, COALESCE(imr_mfr."name", NULLIF(imr.trade_name, ''), imr.company_name, im.ManufacturerShortName) AS manufacturer, im.Title AS "name", CAST(NULL AS VARCHAR) AS common_name, CAST(NULL AS VARCHAR) AS shortname, CASE  WHEN ((im.DateOfManufacture IS NOT NULL)) THEN (TRY_CAST(CAST(im.DateOfManufacture AS VARCHAR) AS DATE)) ELSE NULL END AS manufacture_date, im.IpdbId AS ipdb_id, CAST(main.list_value() AS STRUCT(title VARCHAR, "primary" BOOLEAN, "type" VARCHAR, urls STRUCT(medium VARCHAR, "large" VARCHAR, small VARCHAR), sizes STRUCT(medium STRUCT(width BIGINT, height BIGINT), "large" STRUCT(width BIGINT, height BIGINT), small STRUCT(width BIGINT, height BIGINT)))[]) AS images, CAST('t' AS BOOLEAN) AS is_default, CAST('f' AS BOOLEAN) AS is_synthetic, 'ipdb' AS "source" FROM ipdb_machines AS im LEFT JOIN opdb_machines AS om ON ((im.IpdbId = om.ipdb_id)) LEFT JOIN ipdb_manufacturer_resolution AS imr ON ((im.Manufacturer = imr.raw_manufacturer)) LEFT JOIN pinbase_manufacturers AS imr_mfr ON ((imr.manufacturer_slug = imr_mfr.slug)) WHERE (om.opdb_id IS NULL)), all_models AS ((SELECT * FROM opdb) UNION ALL (SELECT * FROM ipdb_only))SELECT m.*, COALESCE(om.technology_generation_slug, im.technology_generation_slug) AS technology_generation_slug, COALESCE(pm.display_type_slug, om.display_type_slug, im.display_type_slug) AS display_type_slug, COALESCE(om.system_slug, im.system_slug) AS system_slug FROM all_models AS m LEFT JOIN pinbase_models AS pm ON ((m.opdb_id = pm.opdb_id)) LEFT JOIN opdb_machines AS om ON ((m.opdb_id = om.opdb_id)) LEFT JOIN ipdb_machines AS im ON ((m.ipdb_id = im.IpdbId));
 
 -- catalog_model_files
 CREATE OR REPLACE VIEW catalog_model_files AS (SELECT cm.opdb_id, cm.ipdb_id, 'image' AS category, oi.image_type, oi.is_primary, oi.image_title AS file_name, CAST(NULL AS VARCHAR) AS file_url, oi.url_small, oi.url_medium, oi.url_large, oi.small_width, oi.small_height, oi.medium_width, oi.medium_height, oi.large_width, oi.large_height, 'opdb' AS "source" FROM opdb_machine_images AS oi INNER JOIN catalog_models AS cm ON ((oi.opdb_id = cm.opdb_id))) UNION ALL (SELECT cm.opdb_id, cm.ipdb_id, imf.category, CAST(NULL AS VARCHAR) AS image_type, CAST(NULL AS BOOLEAN) AS is_primary, imf.file_name, imf.file_url, CAST(NULL AS VARCHAR) AS url_small, CAST(NULL AS VARCHAR) AS url_medium, CAST(NULL AS VARCHAR) AS url_large, CAST(NULL AS BIGINT) AS small_width, CAST(NULL AS BIGINT) AS small_height, CAST(NULL AS BIGINT) AS medium_width, CAST(NULL AS BIGINT) AS medium_height, CAST(NULL AS BIGINT) AS large_width, CAST(NULL AS BIGINT) AS large_height, 'ipdb' AS "source" FROM ipdb_machine_files AS imf INNER JOIN catalog_models AS cm ON ((imf.ipdb_id = cm.ipdb_id)));
