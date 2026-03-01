@@ -57,5 +57,5 @@ backend/cache/
 *.duckdb
 *.duckdb.wal
 
-# Data dumps (large files in subdirectories, not committed)
-data/*/
+# Data dumps (large source files, not committed)
+data/dump1/
