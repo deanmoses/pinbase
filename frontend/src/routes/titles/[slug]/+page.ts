@@ -6,14 +6,14 @@ export const prerender = false;
 export const ssr = false;
 
 export const load: PageLoad = async ({ params }) => {
-	const { data, response } = await client.GET('/api/games/{slug}', {
+	const { data, response } = await client.GET('/api/titles/{slug}', {
 		params: { path: { slug: params.slug } }
 	});
 
 	if (!data) {
-		if (response?.status === 404) error(404, 'Game not found');
-		error(500, 'Failed to load game');
+		if (response?.status === 404) error(404, 'Title not found');
+		error(500, 'Failed to load title');
 	}
 
-	return { game: data };
+	return { title: data };
 };

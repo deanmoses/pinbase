@@ -1,7 +1,7 @@
 """Seed System records from data/systems.json.
 
 Creates or updates System records with editorial slugs, names, and
-manufacturer FKs. Runs after ingest_manufacturers_seed so manufacturer
+manufacturer FKs. Runs after ingest_manufacturers_pinbase so manufacturer
 lookups by slug are reliable.
 
 The mpu_strings field is used only for IPDB ingestion mapping and is

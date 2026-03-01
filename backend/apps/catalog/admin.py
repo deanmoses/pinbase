@@ -7,15 +7,23 @@ from django.contrib.contenttypes.models import ContentType
 from apps.provenance.models import Claim
 
 from .models import (
+    Address,
+    Cabinet,
+    CorporateEntity,
     DesignCredit,
-    DisplayTypeProfile,
+    DisplaySubtype,
+    DisplayType,
+    Franchise,
+    GameFormat,
+    GameplayFeature,
     MachineModel,
-    MachineTypeProfile,
     Manufacturer,
-    ManufacturerEntity,
     Person,
     Series,
     System,
+    Tag,
+    TechnologyGeneration,
+    TechnologySubgeneration,
     Theme,
     Title,
 )
@@ -135,24 +143,91 @@ class ThemeInline(admin.TabularInline):
         return False
 
 
-class ManufacturerEntityInline(admin.TabularInline):
-    model = ManufacturerEntity
+class AddressInline(admin.TabularInline):
+    model = Address
     extra = 0
-    fields = ("name", "ipdb_manufacturer_id", "years_active")
+    fields = ("city", "state", "country")
 
 
-@admin.register(MachineTypeProfile)
-class MachineTypeProfileAdmin(admin.ModelAdmin):
-    list_display = ("display_order", "machine_type", "title", "slug")
-    fields = ("machine_type", "slug", "title", "display_order", "description")
-    readonly_fields = ("slug",)
+class CorporateEntityInline(admin.TabularInline):
+    model = CorporateEntity
+    extra = 0
+    fields = ("name", "years_active")
 
 
-@admin.register(DisplayTypeProfile)
-class DisplayTypeProfileAdmin(admin.ModelAdmin):
-    list_display = ("display_order", "display_type", "title", "slug")
-    fields = ("display_type", "slug", "title", "display_order", "description")
-    readonly_fields = ("slug",)
+# ---------------------------------------------------------------------------
+# Taxonomy models — lightweight admin registrations
+# ---------------------------------------------------------------------------
+
+
+@admin.register(TechnologyGeneration)
+class TechnologyGenerationAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(TechnologySubgeneration)
+class TechnologySubgenerationAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "technology_generation", "slug")
+    list_filter = ("technology_generation",)
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(DisplayType)
+class DisplayTypeAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(DisplaySubtype)
+class DisplaySubtypeAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "display_type", "slug")
+    list_filter = ("display_type",)
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(Cabinet)
+class CabinetAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(GameFormat)
+class GameFormatAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(GameplayFeature)
+class GameplayFeatureAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(Franchise)
+class FranchiseAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+# ---------------------------------------------------------------------------
+# Core models
+# ---------------------------------------------------------------------------
 
 
 @admin.register(Manufacturer)
@@ -165,12 +240,11 @@ class ManufacturerAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     list_display = (
         "name",
         "trade_name",
-        "opdb_manufacturer_id",
         "entity_count",
     )
     search_fields = ("name", "trade_name")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = (ManufacturerEntityInline, ClaimInline)
+    inlines = (CorporateEntityInline, ClaimInline)
 
     @admin.display(description="Entities")
     def entity_count(self, obj):
@@ -255,16 +329,24 @@ class PersonAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
 
 @admin.register(MachineModel)
 class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
-    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {"manufacturer", "title", "system"}
+    CLAIM_FIELDS = frozenset(DIRECT_FIELDS) | {
+        "manufacturer",
+        "title",
+        "system",
+        "technology_generation",
+        "display_type",
+    }
 
     def _to_claim_value(self, field_name: str, value):
         if field_name == "manufacturer" and value is not None:
-            return (
-                value.opdb_manufacturer_id if value.opdb_manufacturer_id else value.name
-            )
+            return value.slug
         if field_name == "title" and value is not None:
             return value.opdb_id
         if field_name == "system" and value is not None:
+            return value.slug
+        if field_name == "technology_generation" and value is not None:
+            return value.slug
+        if field_name == "display_type" and value is not None:
             return value.slug
         return super()._to_claim_value(field_name, value)
 
@@ -275,13 +357,20 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         "name",
         "manufacturer",
         "year",
-        "machine_type",
+        "technology_generation",
         "display_type",
         "ipdb_id",
     )
-    list_filter = ("machine_type", "display_type", "manufacturer")
+    list_filter = ("technology_generation", "display_type", "manufacturer")
     search_fields = ("name", "ipdb_id", "manufacturer__name")
-    autocomplete_fields = ("manufacturer", "title", "alias_of", "system")
+    autocomplete_fields = (
+        "manufacturer",
+        "title",
+        "alias_of",
+        "system",
+        "technology_generation",
+        "display_type",
+    )
     inlines = (DesignCreditInline, ThemeInline, ClaimInline)
 
     fieldsets = (
@@ -303,7 +392,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
             "Specifications",
             {
                 "fields": (
-                    "machine_type",
+                    "technology_generation",
                     "display_type",
                     "player_count",
                     "production_quantity",
@@ -348,7 +437,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
 
 @admin.register(DesignCredit)
 class DesignCreditAdmin(admin.ModelAdmin):
-    list_display = ("person", "role", "model")
+    list_display = ("person", "role", "model", "series")
     list_filter = ("role",)
-    search_fields = ("person__name", "model__name")
-    autocomplete_fields = ("person", "model")
+    search_fields = ("person__name", "model__name", "series__name")
+    autocomplete_fields = ("person", "model", "series")

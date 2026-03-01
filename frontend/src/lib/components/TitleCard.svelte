@@ -15,7 +15,7 @@
 	} = $props();
 </script>
 
-<Card href={resolve(`/games/${slug}`)} title={name} {thumbnailUrl}>
+<Card href={resolve(`/titles/${slug}`)} title={name} {thumbnailUrl}>
 	{#if short_name && short_name !== name}
 		<p class="card-short_name">{short_name}</p>
 	{/if}

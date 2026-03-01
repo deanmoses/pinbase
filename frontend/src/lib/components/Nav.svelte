@@ -8,7 +8,7 @@
 	let mobileNavOpen = $state(false);
 
 	const navItems = [
-		{ href: '/games' as const, label: 'Games' },
+		{ href: '/titles' as const, label: 'Titles' },
 		{ href: '/series' as const, label: 'Series' },
 		{ href: '/manufacturers' as const, label: 'Manufacturers' },
 		{ href: '/people' as const, label: 'People' },

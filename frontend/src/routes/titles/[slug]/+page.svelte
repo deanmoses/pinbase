@@ -1,55 +1,48 @@
 <script lang="ts">
-	import client from '$lib/api/client';
-	import { createAsyncLoader } from '$lib/async-loader.svelte';
+	import { resolve } from '$app/paths';
 	import CardGrid from '$lib/components/CardGrid.svelte';
 	import MachineCard from '$lib/components/MachineCard.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
-	let profile = $derived(data.profile);
-
-	const machines = createAsyncLoader(async () => {
-		const { data: result } = await client.GET('/api/models/', {
-			params: { query: { type: profile.machine_type, ordering: 'year', page_size: 500 } }
-		});
-		return result?.items ?? [];
-	}, []);
+	let title = $derived(data.title);
 </script>
 
 <svelte:head>
-	<title>{pageTitle(profile.title)}</title>
+	<title>{pageTitle(title.name)}</title>
 </svelte:head>
 
 <article>
 	<header>
-		<h1>{profile.title}</h1>
-		{#if profile.description}
-			<div class="description">
-				{#each profile.description.split('\n\n') as paragraph, i (i)}
-					<p>{paragraph}</p>
+		<h1>{title.name}</h1>
+		{#if title.short_name && title.short_name !== title.name}
+			<p class="short_name">{title.short_name}</p>
+		{/if}
+		{#if title.series.length > 0}
+			<p class="series-list">
+				Series:
+				{#each title.series as s, i (s.slug)}
+					{#if i > 0},{/if}
+					<a href={resolve(`/series/${s.slug}`)}>{s.name}</a>
 				{/each}
-			</div>
+			</p>
 		{/if}
 	</header>
 
-	{#if machines.loading}
-		<p class="empty">Loading machines…</p>
-	{:else if machines.error}
-		<p class="empty">Failed to load machines.</p>
-	{:else if machines.data.length === 0}
-		<p class="empty">No machines of this type.</p>
+	{#if title.machines.length === 0}
+		<p class="empty">No machines in this title.</p>
 	{:else}
 		<section>
-			<h2>Machines ({machines.data.length})</h2>
+			<h2>Machines ({title.machines.length})</h2>
 			<CardGrid>
-				{#each machines.data as machine (machine.slug)}
+				{#each title.machines as machine (machine.slug)}
 					<MachineCard
 						slug={machine.slug}
 						name={machine.name}
 						thumbnailUrl={machine.thumbnail_url}
 						manufacturerName={machine.manufacturer_name}
 						year={machine.year}
-						machineType={machine.machine_type}
+						machineType={machine.technology_generation_name}
 					/>
 				{/each}
 			</CardGrid>
@@ -70,14 +63,18 @@
 		font-size: var(--font-size-7);
 		font-weight: 700;
 		color: var(--color-text-primary);
-		margin-bottom: var(--size-4);
+		margin-bottom: var(--size-2);
 	}
 
-	.description p {
+	.short_name {
 		font-size: var(--font-size-2);
 		color: var(--color-text-muted);
-		line-height: var(--font-lineheight-3);
-		margin-bottom: var(--size-3);
+	}
+
+	.series-list {
+		font-size: var(--font-size-1);
+		color: var(--color-text-muted);
+		margin-top: var(--size-1);
 	}
 
 	h2 {

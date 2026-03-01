@@ -1,6 +1,6 @@
 <script lang="ts">
 	import CardGrid from '$lib/components/CardGrid.svelte';
-	import GameCard from '$lib/components/GameCard.svelte';
+	import TitleCard from '$lib/components/TitleCard.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
@@ -26,7 +26,7 @@
 			<h2>Titles ({series.titles.length})</h2>
 			<CardGrid>
 				{#each series.titles as title (title.slug)}
-					<GameCard
+					<TitleCard
 						slug={title.slug}
 						name={title.name}
 						thumbnailUrl={title.thumbnail_url}

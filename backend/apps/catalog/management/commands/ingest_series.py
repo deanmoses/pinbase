@@ -1,11 +1,10 @@
-"""Seed Series records and their Title memberships from data/series.json and data/titles.json.
+"""Seed Series records from data/series.json and design credits from data/credits.json.
 
-Creates or updates Series records, then populates the M2M relation to Title
-using OPDB group IDs from titles.json. Titles not yet in the database are
-skipped with a warning (run ingest_opdb first).
+Creates or updates Series records with names and descriptions. After OPDB/IPDB
+ingest creates Person records, creates DesignCredit(series=...) records from
+credits.json.
 
-Designed to be idempotent: re-running updates series metadata and
-re-reconciles memberships without creating duplicates.
+Series-Title M2M memberships are handled by ingest_titles_pinbase.
 """
 
 from __future__ import annotations
@@ -16,16 +15,16 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from apps.catalog.models import Series, Title
+from apps.catalog.models import DesignCredit, Person, Series
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SERIES_PATH = Path(__file__).parents[5] / "data" / "series.json"
-DEFAULT_TITLES_PATH = Path(__file__).parents[5] / "data" / "titles.json"
+DEFAULT_CREDITS_PATH = Path(__file__).parents[5] / "data" / "credits.json"
 
 
 class Command(BaseCommand):
-    help = "Seed Series records and Title memberships from data/series.json and data/titles.json."
+    help = "Seed Series records and series-level design credits."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -34,21 +33,19 @@ class Command(BaseCommand):
             help="Path to series.json seed file.",
         )
         parser.add_argument(
-            "--titles",
-            default=str(DEFAULT_TITLES_PATH),
-            help="Path to titles.json seed file.",
+            "--credits",
+            default=str(DEFAULT_CREDITS_PATH),
+            help="Path to credits.json seed file.",
         )
 
     def handle(self, *args, **options):
         series_path = options["series"]
-        titles_path = options["titles"]
+        credits_path = options["credits"]
 
         with open(series_path) as f:
             series_entries = json.load(f)
-        with open(titles_path) as f:
-            title_entries = json.load(f)
 
-        # Upsert series records.
+        # Upsert Series records.
         series_created = series_updated = 0
         series_by_slug: dict[str, Series] = {}
 
@@ -70,36 +67,45 @@ class Command(BaseCommand):
             f"  Series: {series_created} created, {series_updated} updated"
         )
 
-        # Build a lookup of Title by opdb_id prefix.
-        # Title.opdb_id stores the group ID (e.g. "G5pe4"), which is the same
-        # value referenced in titles.json.
-        titles_by_opdb_id = {t.opdb_id: t for t in Title.objects.exclude(opdb_id="")}
+        # Seed series-level design credits.
+        credits_created = credits_skipped = 0
 
-        # Reconcile M2M memberships.
-        memberships_added = memberships_skipped = 0
-        for entry in title_entries:
+        with open(credits_path) as f:
+            credit_entries = json.load(f)
+
+        people_by_slug = {p.slug: p for p in Person.objects.all()}
+
+        for entry in credit_entries:
             series_slug = entry["series_slug"]
-            opdb_id = entry["opdb_id"]
+            person_slug = entry["person_slug"]
+            role = entry["role"].lower()
 
             series_obj = series_by_slug.get(series_slug)
             if series_obj is None:
-                logger.warning("Series slug %r not found — skipping", series_slug)
-                memberships_skipped += 1
-                continue
-
-            title_obj = titles_by_opdb_id.get(opdb_id)
-            if title_obj is None:
                 logger.warning(
-                    "Title with opdb_id %r not found (run ingest_opdb first) — skipping",
-                    opdb_id,
+                    "Series slug %r not found — skipping credit", series_slug
                 )
-                memberships_skipped += 1
+                credits_skipped += 1
                 continue
 
-            series_obj.titles.add(title_obj)
-            memberships_added += 1
+            person_obj = people_by_slug.get(person_slug)
+            if person_obj is None:
+                logger.warning(
+                    "Person slug %r not found (run ingest_ipdb/opdb first) — skipping",
+                    person_slug,
+                )
+                credits_skipped += 1
+                continue
+
+            _, was_created = DesignCredit.objects.get_or_create(
+                series=series_obj,
+                person=person_obj,
+                role=role,
+            )
+            if was_created:
+                credits_created += 1
 
         self.stdout.write(
-            f"  Memberships: {memberships_added} added, {memberships_skipped} skipped"
+            f"  Credits: {credits_created} created, {credits_skipped} skipped"
         )
         self.stdout.write(self.style.SUCCESS("Series seed ingestion complete."))

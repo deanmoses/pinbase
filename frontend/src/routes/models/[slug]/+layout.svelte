@@ -45,23 +45,23 @@
 					>{model.year}{#if model.month}/{String(model.month).padStart(2, '0')}{/if}</span
 				>
 			{/if}
-			{#if model.machine_type_slug}
+			{#if model.technology_generation_slug}
 				<span>
-					<a href={resolve(`/machine-types/${model.machine_type_slug}`)}>
-						{model.machine_type_label}
+					<a href={resolve(`/technology-generations/${model.technology_generation_slug}`)}>
+						{model.technology_generation_name}
 					</a>
 				</span>
 			{/if}
 			{#if model.display_type_slug}
 				<span>
 					<a href={resolve(`/display-types/${model.display_type_slug}`)}>
-						{model.display_type_label}
+						{model.display_type_name}
 					</a>
 				</span>
 			{/if}
 			{#if model.title_slug}
 				<span>
-					<a href={resolve(`/games/${model.title_slug}`)}>{model.title_name}</a>
+					<a href={resolve(`/titles/${model.title_slug}`)}>{model.title_name}</a>
 				</span>
 			{/if}
 		</div>

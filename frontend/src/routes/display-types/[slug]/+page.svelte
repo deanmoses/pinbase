@@ -10,19 +10,19 @@
 
 	const machines = createAsyncLoader(async () => {
 		const { data: result } = await client.GET('/api/models/', {
-			params: { query: { display: profile.display_type, ordering: 'year', page_size: 500 } }
+			params: { query: { display: profile.slug, ordering: 'year', page_size: 500 } }
 		});
 		return result?.items ?? [];
 	}, []);
 </script>
 
 <svelte:head>
-	<title>{pageTitle(profile.title)}</title>
+	<title>{pageTitle(profile.name)}</title>
 </svelte:head>
 
 <article>
 	<header>
-		<h1>{profile.title}</h1>
+		<h1>{profile.name}</h1>
 		{#if profile.description}
 			<div class="description">
 				{#each profile.description.split('\n\n') as paragraph, i (i)}
@@ -49,7 +49,7 @@
 						thumbnailUrl={machine.thumbnail_url}
 						manufacturerName={machine.manufacturer_name}
 						year={machine.year}
-						machineType={machine.machine_type}
+						machineType={machine.technology_generation_name}
 					/>
 				{/each}
 			</CardGrid>

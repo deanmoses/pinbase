@@ -1,7 +1,8 @@
 """Orchestrate the full ingestion pipeline.
 
-Runs: ingest_machine_types_seed → ingest_manufacturers_seed → ingest_manufacturers →
-      ingest_systems → ingest_ipdb → ingest_opdb → ingest_series → ingest_signs →
+Runs: ingest_taxonomy_pinbase → ingest_manufacturers_pinbase →
+      ingest_corporate_entities_pinbase → ingest_systems → ingest_ipdb →
+      ingest_opdb → ingest_series → ingest_titles_pinbase → ingest_signs →
       resolve_claims.
 """
 
@@ -12,14 +13,14 @@ from django.core.management.base import BaseCommand
 
 
 STEPS = [
-    "ingest_machine_types_seed",
-    "ingest_display_types_seed",
-    "ingest_manufacturers_seed",
-    "ingest_manufacturers",
+    "ingest_taxonomy_pinbase",
+    "ingest_manufacturers_pinbase",
+    "ingest_corporate_entities_pinbase",
     "ingest_systems",
     "ingest_ipdb",
     "ingest_opdb",
     "ingest_series",
+    "ingest_titles_pinbase",
     "ingest_signs",
     "resolve_claims",
 ]
@@ -68,9 +69,7 @@ class Command(BaseCommand):
             for step in STEPS:
                 self.stdout.write(self.style.MIGRATE_HEADING(f"Running {step}..."))
                 kwargs = {}
-                if step == "ingest_manufacturers":
-                    kwargs = {"ipdb": ipdb_path, "opdb": opdb_path}
-                elif step == "ingest_ipdb":
+                if step == "ingest_ipdb":
                     kwargs = {"ipdb": ipdb_path}
                 elif step == "ingest_opdb":
                     kwargs = {

@@ -71,7 +71,7 @@
 					name={model.name}
 					thumbnailUrl={model.thumbnail_url}
 					year={model.year}
-					machineType={model.machine_type}
+					machineType={model.technology_generation_name}
 				/>
 			{/snippet}
 		</FilterableGrid>

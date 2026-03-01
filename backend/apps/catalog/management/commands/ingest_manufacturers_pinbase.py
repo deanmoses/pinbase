@@ -4,7 +4,7 @@ Creates or updates Manufacturer records with editorial slugs and names.
 Asserts editorial description claims at priority 300 so they win over
 OPDB (200), IPDB (100), and Wikidata (75) during resolve_claims.
 
-Runs before ingest_manufacturers so IPDB/OPDB ingest can match against
+Runs before IPDB/OPDB ingest so those ingesters can match against
 stable slugs.
 """
 
@@ -72,6 +72,17 @@ class Command(BaseCommand):
             else:
                 unchanged += 1
 
+            # Always assert a name claim so resolve_manufacturer doesn't
+            # blank the name when only a description claim exists.
+            pending_claims.append(
+                Claim(
+                    content_type_id=ct_id,
+                    object_id=obj.pk,
+                    field_name="name",
+                    value=name,
+                )
+            )
+
             description = entry.get("description", "")
             if description:
                 pending_claims.append(
@@ -82,7 +93,8 @@ class Command(BaseCommand):
                         value=description,
                     )
                 )
-                to_resolve.append(obj)
+
+            to_resolve.append(obj)
 
         self.stdout.write(
             f"  Manufacturers seed: {created} created, {updated} updated, "
@@ -92,7 +104,7 @@ class Command(BaseCommand):
         if pending_claims:
             stats = Claim.objects.bulk_assert_claims(source, pending_claims)
             self.stdout.write(
-                f"  Description claims: {stats['unchanged']} unchanged, "
+                f"  Claims: {stats['unchanged']} unchanged, "
                 f"{stats['created']} created, {stats['superseded']} superseded"
             )
             for mfr in to_resolve:

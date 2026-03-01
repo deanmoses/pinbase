@@ -6,13 +6,13 @@ export const prerender = false;
 export const ssr = false;
 
 export const load: PageLoad = async ({ params }) => {
-	const { data, response } = await client.GET('/api/machine-types/{slug}', {
+	const { data, response } = await client.GET('/api/technology-generations/{slug}', {
 		params: { path: { slug: params.slug } }
 	});
 
 	if (!data) {
-		if (response?.status === 404) error(404, 'Machine type not found');
-		error(500, 'Failed to load machine type');
+		if (response?.status === 404) error(404, 'Technology generation not found');
+		error(500, 'Failed to load technology generation');
 	}
 
 	return { profile: data };
