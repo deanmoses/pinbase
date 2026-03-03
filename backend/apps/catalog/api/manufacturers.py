@@ -15,6 +15,7 @@ from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
 from ..cache import MANUFACTURERS_ALL_KEY, invalidate_all
+from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _build_activity, _claims_prefetch, _extract_image_urls
 from .schemas import ClaimPatchSchema, ClaimSchema
 
@@ -29,6 +30,7 @@ class ManufacturerGridSchema(Schema):
     trade_name: str
     model_count: int = 0
     thumbnail_url: Optional[str] = None
+    search_text: Optional[str] = None
 
 
 class ManufacturerSchema(Schema):
@@ -160,7 +162,7 @@ manufacturers_router = Router(tags=["manufacturers"])
 
 
 @manufacturers_router.get("/", response=list[ManufacturerSchema])
-@paginate(PageNumberPagination, page_size=50)
+@paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
 def list_manufacturers(request):
     from ..models import Manufacturer
 
@@ -181,6 +183,8 @@ def list_all_manufacturers(request):
 
     from ..models import MachineModel, Manufacturer
 
+    from ..models import CorporateEntity
+
     qs = (
         Manufacturer.objects.annotate(
             model_count=Count("models", filter=Q(models__alias_of__isnull=True))
@@ -193,7 +197,11 @@ def list_all_manufacturers(request):
                 .order_by(F("year").desc(nulls_last=True))
                 .only("id", "manufacturer_id", "year", "extra_data"),
                 to_attr="models_with_images",
-            )
+            ),
+            Prefetch(
+                "entities",
+                queryset=CorporateEntity.objects.prefetch_related("addresses"),
+            ),
         )
         .order_by("-model_count")
     )
@@ -205,6 +213,19 @@ def list_all_manufacturers(request):
             thumb, _ = _extract_image_urls(model.extra_data)
             if thumb:
                 break
+        # Build search text from name, trade_name, entities, and addresses.
+        parts: list[str] = []
+        if mfr.trade_name and mfr.trade_name != mfr.name:
+            parts.append(mfr.trade_name)
+        for entity in mfr.entities.all():
+            parts.append(entity.name)
+            for addr in entity.addresses.all():
+                if addr.city:
+                    parts.append(addr.city)
+                if addr.state:
+                    parts.append(addr.state)
+                if addr.country:
+                    parts.append(addr.country)
         result.append(
             {
                 "name": mfr.name,
@@ -212,6 +233,7 @@ def list_all_manufacturers(request):
                 "trade_name": mfr.trade_name,
                 "model_count": mfr.model_count,
                 "thumbnail_url": thumb,
+                "search_text": " | ".join(parts) if parts else None,
             }
         )
     cache.set(MANUFACTURERS_ALL_KEY, result, timeout=None)

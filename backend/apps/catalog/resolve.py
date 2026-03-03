@@ -241,6 +241,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     resolve_credits(machine_model)
     resolve_themes(machine_model)
     resolve_gameplay_features(machine_model)
+    resolve_tags(machine_model)
 
     return machine_model
 
@@ -323,6 +324,9 @@ def resolve_all() -> int:
 
     # 10. Bulk-resolve gameplay feature relationships.
     _resolve_all_gameplay_features(all_models)
+
+    # 11. Bulk-resolve tag relationships.
+    _resolve_all_tags(all_models)
 
     return len(all_models)
 
@@ -902,6 +906,32 @@ def resolve_gameplay_features(machine_model: MachineModel) -> None:
     machine_model.gameplay_features.set(desired_pks)
 
 
+def resolve_tags(machine_model: MachineModel) -> None:
+    """Resolve tag claims into the M2M for a single machine.
+
+    Picks the winning claim per claim_key. Where ``value["exists"]`` is
+    True, looks up the Tag by slug and sets the M2M.
+    """
+    winners = _pick_relationship_winners(machine_model, "tag")
+
+    desired_pks: set[int] = set()
+    for claim in winners.values():
+        val = claim.value
+        if not val.get("exists", True):
+            continue
+        tag = Tag.objects.filter(slug=val["tag_slug"]).first()
+        if not tag:
+            logger.warning(
+                "Unresolved tag slug %r in tag claim for %s",
+                val["tag_slug"],
+                machine_model.name,
+            )
+            continue
+        desired_pks.add(tag.pk)
+
+    machine_model.tags.set(desired_pks)
+
+
 # ------------------------------------------------------------------
 # Bulk resolution for credits (used by resolve_all)
 # ------------------------------------------------------------------
@@ -1174,6 +1204,94 @@ def _resolve_all_gameplay_features(all_models: list[MachineModel]) -> None:
         pk, model_id, feature_id = row
         desired = desired_by_model.get(model_id, set())
         if feature_id not in desired:
+            to_delete_pks.append(pk)
+
+    if to_delete_pks:
+        through.objects.filter(pk__in=to_delete_pks).delete()
+    if to_create:
+        through.objects.bulk_create(to_create, batch_size=2000)
+
+
+def _resolve_all_tags(all_models: list[MachineModel]) -> None:
+    """Bulk-resolve tag claims into M2M rows for all models.
+
+    Follows the same pattern as ``_resolve_all_themes()``.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(MachineModel)
+
+    # Pre-fetch tag slug→pk lookup.
+    tag_lookup: dict[str, int] = dict(Tag.objects.values_list("slug", "pk"))
+
+    # Pre-fetch all active tag claims with priority annotation.
+    tag_claims = (
+        Claim.objects.filter(is_active=True, content_type=ct, field_name="tag")
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    )
+
+    # Pick winner per (object_id, claim_key).
+    winners_by_model: dict[int, list[Claim]] = {}
+    seen: set[tuple[int, str]] = set()
+    for claim in tag_claims:
+        key = (claim.object_id, claim.claim_key)
+        if key not in seen:
+            seen.add(key)
+            winners_by_model.setdefault(claim.object_id, []).append(claim)
+
+    # Desired tags from winning claims.
+    desired_by_model: dict[int, set[int]] = {}
+    for model_id, claims_list in winners_by_model.items():
+        desired: set[int] = set()
+        for claim in claims_list:
+            val = claim.value
+            if not val.get("exists", True):
+                continue
+            tag_pk = tag_lookup.get(val["tag_slug"])
+            if tag_pk is None:
+                logger.warning(
+                    "Unresolved tag slug %r in tag claim (model pk=%s)",
+                    val["tag_slug"],
+                    model_id,
+                )
+                continue
+            desired.add(tag_pk)
+        desired_by_model[model_id] = desired
+
+    # Pre-fetch existing M2M through-table rows.
+    through = MachineModel.tags.through
+    existing_by_model: dict[int, set[int]] = {}
+    for row in through.objects.values_list("machinemodel_id", "tag_id"):
+        existing_by_model.setdefault(row[0], set()).add(row[1])
+
+    # Diff and apply for ALL models.
+    all_model_ids = {pm.pk for pm in all_models}
+    to_create = []
+    to_delete_pks: list[int] = []
+
+    for model_id in all_model_ids:
+        desired = desired_by_model.get(model_id, set())
+        existing = existing_by_model.get(model_id, set())
+
+        for tag_pk in desired - existing:
+            to_create.append(through(machinemodel_id=model_id, tag_id=tag_pk))
+
+    # Build a lookup for deletions.
+    for row in through.objects.filter(machinemodel_id__in=all_model_ids).values_list(
+        "pk", "machinemodel_id", "tag_id"
+    ):
+        pk, model_id, tag_id = row
+        desired = desired_by_model.get(model_id, set())
+        if tag_id not in desired:
             to_delete_pks.append(pk)
 
     if to_delete_pks:

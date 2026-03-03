@@ -11,6 +11,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.pagination import PageNumberPagination, paginate
 
+from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _extract_image_urls, _serialize_title_machine
 from .schemas import SeriesRefSchema, TitleMachineSchema
 
@@ -97,8 +98,8 @@ titles_router = Router(tags=["titles"])
 
 
 @titles_router.get("/", response=list[TitleListSchema])
-@paginate(PageNumberPagination, page_size=25)
-def list_titles(request, search: str = ""):
+@paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
+def list_titles(request):
     from ..models import Title
 
     qs = Title.objects.annotate(
@@ -106,8 +107,6 @@ def list_titles(request, search: str = ""):
             "machine_models", filter=Q(machine_models__alias_of__isnull=True)
         )
     ).prefetch_related(_title_models_prefetch())
-    if search:
-        qs = qs.filter(Q(name__icontains=search) | Q(short_name__icontains=search))
     qs = qs.order_by("name")
     return [_serialize_title_list(t) for t in qs]
 

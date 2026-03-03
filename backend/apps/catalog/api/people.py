@@ -15,6 +15,7 @@ from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
 from ..cache import PEOPLE_ALL_KEY, invalidate_all
+from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _build_activity, _claims_prefetch, _extract_image_urls
 from .schemas import ClaimPatchSchema, ClaimSchema
 
@@ -127,7 +128,7 @@ people_router = Router(tags=["people"])
 
 
 @people_router.get("/", response=list[PersonSchema])
-@paginate(PageNumberPagination, page_size=50)
+@paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
 def list_people(request):
     from ..models import Person
 

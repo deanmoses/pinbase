@@ -113,17 +113,6 @@ class TestModelsAPI:
         assert data["count"] == 1
         assert data["items"][0]["name"] == "The Mandalorian"
 
-    def test_list_models_search(self, client, machine_model, another_model):
-        resp = client.get("/api/models/?search=Medieval")
-        data = resp.json()
-        assert data["count"] == 1
-        assert data["items"][0]["name"] == "Medieval Madness"
-
-    def test_list_models_search_manufacturer(self, client, machine_model):
-        resp = client.get("/api/models/?search=Williams")
-        data = resp.json()
-        assert data["count"] == 1
-
     def test_list_models_filter_person(self, client, machine_model, person):
         DesignCredit.objects.create(model=machine_model, person=person, role="design")
         resp = client.get("/api/models/?person=pat-lawlor")
@@ -283,13 +272,6 @@ class TestTitlesAPI:
         assert item["name"] == "Medieval Madness"
         assert item["short_name"] == "MM"
         assert item["machine_count"] == 2
-
-    def test_list_titles_search(self, client, title_with_machines, db):
-        Title.objects.create(name="Attack From Mars", opdb_id="G1234", short_name="AFM")
-        resp = client.get("/api/titles/?search=MM")
-        data = resp.json()
-        assert data["count"] == 1
-        assert data["items"][0]["short_name"] == "MM"
 
     def test_list_titles_thumbnail(self, client, title_with_machines):
         resp = client.get("/api/titles/")

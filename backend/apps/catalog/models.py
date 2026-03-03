@@ -624,6 +624,12 @@ class MachineModel(TimeStampedModel):
         related_name="machine_models",
         help_text="Gameplay features (materialized from relationship claims).",
     )
+    tags = models.ManyToManyField(
+        "Tag",
+        blank=True,
+        related_name="machine_models",
+        help_text="Classification tags (materialized from relationship claims).",
+    )
     production_quantity = models.CharField(max_length=100, blank=True)
     system = models.ForeignKey(
         "System",

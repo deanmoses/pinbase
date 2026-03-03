@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.db.models import F, Prefetch, Q, TextField
-from django.db.models.functions import Cast
+from django.db.models import F, Prefetch
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -15,6 +14,7 @@ from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
 from ..cache import MODELS_ALL_KEY, invalidate_all
+from .constants import DEFAULT_PAGE_SIZE
 from .helpers import (
     _build_activity,
     _claims_prefetch,
@@ -43,6 +43,8 @@ class MachineModelGridSchema(Schema):
     technology_generation_name: Optional[str] = None
     thumbnail_url: Optional[str] = None
     shortname: Optional[str] = None
+    search_text: Optional[str] = None
+    title_slug: Optional[str] = None
 
 
 class MachineModelListSchema(Schema):
@@ -125,7 +127,6 @@ class MachineModelDetailSchema(Schema):
 
 
 def _build_model_list_qs(
-    search: str = "",
     manufacturer: str = "",
     type: str = "",
     display: str = "",
@@ -138,22 +139,11 @@ def _build_model_list_qs(
 
     qs = (
         MachineModel.objects.select_related(
-            "manufacturer", "technology_generation", "display_type"
+            "manufacturer", "technology_generation", "display_type", "title"
         )
         .prefetch_related("themes")
         .filter(alias_of__isnull=True)
     )
-
-    if search:
-        text_q = (
-            Q(name__icontains=search)
-            | Q(manufacturer__name__icontains=search)
-            | Q(themes__name__icontains=search)
-        )
-        # Search extra_data by casting to text.
-        text_q |= Q(**{"extra_data_text__icontains": search})
-        qs = qs.annotate(extra_data_text=Cast("extra_data", TextField())).filter(text_q)
-        qs = qs.distinct()
 
     if manufacturer:
         qs = qs.filter(manufacturer__slug=manufacturer)
@@ -358,10 +348,9 @@ models_router = Router(tags=["models"])
 
 
 @models_router.get("/", response=list[MachineModelListSchema])
-@paginate(PageNumberPagination, page_size=25)
+@paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
 def list_models(
     request,
-    search: str = "",
     manufacturer: str = "",
     type: str = "",
     display: str = "",
@@ -371,7 +360,6 @@ def list_models(
     ordering: str = "-year",
 ):
     qs = _build_model_list_qs(
-        search=search,
         manufacturer=manufacturer,
         type=type,
         display=display,
@@ -383,16 +371,82 @@ def list_models(
     return [_serialize_model_list(pm) for pm in qs]
 
 
+def _build_search_text(pm) -> str:
+    """Build a pipe-separated search text from all related entity names."""
+    parts: list[str] = []
+    if pm.manufacturer:
+        parts.append(pm.manufacturer.name)
+        if (
+            pm.manufacturer.trade_name
+            and pm.manufacturer.trade_name != pm.manufacturer.name
+        ):
+            parts.append(pm.manufacturer.trade_name)
+        for entity in pm.manufacturer.entities.all():
+            parts.append(entity.name)
+            for addr in entity.addresses.all():
+                if addr.city:
+                    parts.append(addr.city)
+                if addr.state:
+                    parts.append(addr.state)
+                if addr.country:
+                    parts.append(addr.country)
+    if pm.system:
+        parts.append(pm.system.name)
+    if pm.technology_generation:
+        parts.append(pm.technology_generation.name)
+    if pm.display_type:
+        parts.append(pm.display_type.name)
+    if pm.display_subtype:
+        parts.append(pm.display_subtype.name)
+    if pm.cabinet:
+        parts.append(pm.cabinet.name)
+    if pm.game_format:
+        parts.append(pm.game_format.name)
+    for theme in pm.themes.all():
+        parts.append(theme.name)
+    for tag in pm.tags.all():
+        parts.append(tag.name)
+    for gf in pm.gameplay_features.all():
+        parts.append(gf.name)
+    for credit in pm.credits.all():
+        parts.append(credit.person.name)
+    shortname = (pm.extra_data or {}).get("shortname")
+    if shortname:
+        parts.append(shortname)
+    return " | ".join(parts)
+
+
 @models_router.get("/all/", response=list[MachineModelGridSchema])
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_models(request):
     """Return every non-alias model with minimal fields (no pagination)."""
     from django.core.cache import cache
 
+    from ..models import DesignCredit
+
     result = cache.get(MODELS_ALL_KEY)
     if result is not None:
         return result
-    qs = _build_model_list_qs()
+    qs = (
+        _build_model_list_qs()
+        .prefetch_related(
+            "tags",
+            "gameplay_features",
+            "manufacturer__entities__addresses",
+            Prefetch(
+                "credits",
+                queryset=DesignCredit.objects.filter(
+                    model__isnull=False
+                ).select_related("person"),
+            ),
+        )
+        .select_related(
+            "system",
+            "display_subtype",
+            "cabinet",
+            "game_format",
+        )
+    )
     result = []
     for pm in qs:
         thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
@@ -409,6 +463,8 @@ def list_all_models(request):
                 ),
                 "thumbnail_url": thumbnail_url,
                 "shortname": pm.extra_data.get("shortname") or None,
+                "search_text": _build_search_text(pm),
+                "title_slug": pm.title.slug if pm.title else None,
             }
         )
     cache.set(MODELS_ALL_KEY, result, timeout=None)

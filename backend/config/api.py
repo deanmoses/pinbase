@@ -4,6 +4,7 @@ from ninja import NinjaAPI
 from apps.accounts.api import auth_router
 from apps.catalog.api import (
     display_types_router,
+    franchises_router,
     titles_router,
     manufacturers_router,
     models_router,
@@ -43,4 +44,5 @@ api.add_router("/people/", people_router)
 api.add_router("/themes/", themes_router)
 api.add_router("/systems/", systems_router)
 api.add_router("/series/", series_router)
+api.add_router("/franchises/", franchises_router)
 api.add_router("/sources/", sources_router)
