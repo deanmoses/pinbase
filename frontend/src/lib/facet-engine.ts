@@ -415,6 +415,135 @@ export function buildSingleRefOptions(
 	}));
 }
 
+// ---------------------------------------------------------------------------
+// Active filter label extraction (for removable chip display)
+// ---------------------------------------------------------------------------
+
+export interface ActiveFilterLabel {
+	/** Unique key for keyed-each, e.g. "techGeneration:solid-state" */
+	key: string;
+	/** Human-readable label, e.g. "Solid State" */
+	label: string;
+	/** Which filter field this belongs to (for removal) */
+	field: keyof FilterState;
+	/** For themes (array field), which specific slug to remove */
+	value?: string;
+}
+
+export function getActiveFilterLabels(
+	filters: FilterState,
+	allTitles: FacetedTitle[]
+): ActiveFilterLabel[] {
+	const labels: ActiveFilterLabel[] = [];
+
+	// Build slug→name lookup maps by scanning allTitles once
+	const techGenNames = new Map<string, string>();
+	const displayTypeNames = new Map<string, string>();
+	const manufacturerNames = new Map<string, string>();
+	const personNames = new Map<string, string>();
+	const themeNames = new Map<string, string>();
+	const systemNames = new Map<string, string>();
+	const franchiseNames = new Map<string, string>();
+	const seriesNames = new Map<string, string>();
+
+	for (const t of allTitles) {
+		for (const ref of t.tech_generations) techGenNames.set(ref.slug, ref.name);
+		for (const ref of t.display_types) displayTypeNames.set(ref.slug, ref.name);
+		if (t.manufacturer_slug && t.manufacturer_name)
+			manufacturerNames.set(t.manufacturer_slug, t.manufacturer_name);
+		for (const ref of t.persons) personNames.set(ref.slug, ref.name);
+		for (const ref of t.themes) themeNames.set(ref.slug, ref.name);
+		for (const ref of t.systems) systemNames.set(ref.slug, ref.name);
+		if (t.franchise) franchiseNames.set(t.franchise.slug, t.franchise.name);
+		for (const ref of t.series) seriesNames.set(ref.slug, ref.name);
+	}
+
+	if (filters.techGeneration) {
+		labels.push({
+			key: `techGeneration:${filters.techGeneration}`,
+			label: techGenNames.get(filters.techGeneration) ?? filters.techGeneration,
+			field: 'techGeneration'
+		});
+	}
+	if (filters.displayType) {
+		labels.push({
+			key: `displayType:${filters.displayType}`,
+			label: displayTypeNames.get(filters.displayType) ?? filters.displayType,
+			field: 'displayType'
+		});
+	}
+	if (filters.manufacturer) {
+		labels.push({
+			key: `manufacturer:${filters.manufacturer}`,
+			label: manufacturerNames.get(filters.manufacturer) ?? filters.manufacturer,
+			field: 'manufacturer'
+		});
+	}
+	if (filters.person) {
+		labels.push({
+			key: `person:${filters.person}`,
+			label: personNames.get(filters.person) ?? filters.person,
+			field: 'person'
+		});
+	}
+	for (const slug of filters.themes) {
+		labels.push({
+			key: `themes:${slug}`,
+			label: themeNames.get(slug) ?? slug,
+			field: 'themes',
+			value: slug
+		});
+	}
+	if (filters.playerCount != null) {
+		labels.push({
+			key: `playerCount:${filters.playerCount}`,
+			label: `${filters.playerCount >= 6 ? '6+' : filters.playerCount} players`,
+			field: 'playerCount'
+		});
+	}
+	if (filters.system) {
+		labels.push({
+			key: `system:${filters.system}`,
+			label: systemNames.get(filters.system) ?? filters.system,
+			field: 'system'
+		});
+	}
+	if (filters.franchise) {
+		labels.push({
+			key: `franchise:${filters.franchise}`,
+			label: franchiseNames.get(filters.franchise) ?? filters.franchise,
+			field: 'franchise'
+		});
+	}
+	if (filters.series) {
+		labels.push({
+			key: `series:${filters.series}`,
+			label: seriesNames.get(filters.series) ?? filters.series,
+			field: 'series'
+		});
+	}
+	if (filters.yearMin != null || filters.yearMax != null) {
+		const parts: string[] = [];
+		if (filters.yearMin != null) parts.push(String(filters.yearMin));
+		parts.push('\u2013');
+		if (filters.yearMax != null) parts.push(String(filters.yearMax));
+		labels.push({
+			key: 'year',
+			label: `Year: ${parts.join('')}`,
+			field: 'yearMin'
+		});
+	}
+	if (filters.ratingMin != null) {
+		labels.push({
+			key: 'ratingMin',
+			label: `Rating \u2265 ${filters.ratingMin}`,
+			field: 'ratingMin'
+		});
+	}
+
+	return labels;
+}
+
 export function buildPlayerCountOptions(
 	counts: Map<number, number>
 ): { value: number; label: string; count: number }[] {

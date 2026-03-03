@@ -8,6 +8,7 @@ import {
 	buildFacetRefOptions,
 	buildSingleRefOptions,
 	buildPlayerCountOptions,
+	getActiveFilterLabels,
 	type FacetedTitle,
 	type FilterState
 } from './facet-engine';
@@ -404,6 +405,106 @@ describe('filtersFromParams', () => {
 		expect(f.franchise).toBe('star-wars');
 		expect(f.series).toBe('castle');
 		expect(f.ratingMin).toBe(7.5);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getActiveFilterLabels
+// ---------------------------------------------------------------------------
+
+describe('getActiveFilterLabels', () => {
+	it('returns empty array when no filters active', () => {
+		expect(getActiveFilterLabels(emptyFilterState(), allTitles)).toEqual([]);
+	});
+
+	it('resolves tech generation slug to name', () => {
+		const state = { ...emptyFilterState(), techGeneration: 'solid-state' };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('Solid State');
+		expect(labels[0].field).toBe('techGeneration');
+	});
+
+	it('resolves display type slug to name', () => {
+		const state = { ...emptyFilterState(), displayType: 'dmd' };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('DMD');
+	});
+
+	it('resolves manufacturer slug to name', () => {
+		const state = { ...emptyFilterState(), manufacturer: 'williams' };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('Williams');
+	});
+
+	it('resolves person slug to name', () => {
+		const state = { ...emptyFilterState(), person: 'pat-lawlor' };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('Pat Lawlor');
+	});
+
+	it('produces one chip per theme', () => {
+		const state = { ...emptyFilterState(), themes: ['sports', 'pool'] };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(2);
+		expect(labels[0].label).toBe('Sports');
+		expect(labels[0].value).toBe('sports');
+		expect(labels[1].label).toBe('Pool');
+		expect(labels[1].value).toBe('pool');
+	});
+
+	it('formats player count with 6+ for >= 6', () => {
+		const state = { ...emptyFilterState(), playerCount: 6 };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('6+ players');
+	});
+
+	it('formats player count normally for < 6', () => {
+		const state = { ...emptyFilterState(), playerCount: 4 };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('4 players');
+	});
+
+	it('produces combined year range label', () => {
+		const state = { ...emptyFilterState(), yearMin: 1990, yearMax: 2000 };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('Year: 1990\u20132000');
+		expect(labels[0].field).toBe('yearMin');
+	});
+
+	it('produces year label for min only', () => {
+		const state = { ...emptyFilterState(), yearMin: 1990 };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels[0].label).toBe('Year: 1990\u2013');
+	});
+
+	it('produces rating label', () => {
+		const state = { ...emptyFilterState(), ratingMin: 7.5 };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(1);
+		expect(labels[0].label).toBe('Rating \u2265 7.5');
+	});
+
+	it('falls back to raw slug when name not found', () => {
+		const state = { ...emptyFilterState(), techGeneration: 'unknown-gen' };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels[0].label).toBe('unknown-gen');
+	});
+
+	it('resolves franchise and series', () => {
+		const state = { ...emptyFilterState(), franchise: 'star-wars', series: 'star-wars-series' };
+		const labels = getActiveFilterLabels(state, allTitles);
+		expect(labels).toHaveLength(2);
+		const franchiseLabel = labels.find((l) => l.field === 'franchise');
+		const seriesLabel = labels.find((l) => l.field === 'series');
+		expect(franchiseLabel!.label).toBe('Star Wars');
+		expect(seriesLabel!.label).toBe('Star Wars Series');
 	});
 });
 

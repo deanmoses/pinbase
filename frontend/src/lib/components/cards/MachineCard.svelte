@@ -8,7 +8,6 @@
 		thumbnailUrl = null,
 		manufacturerName = null,
 		year = null,
-		machineType = null,
 		ipdbRating = null,
 		pinsideRating = null,
 		roles = null
@@ -18,13 +17,12 @@
 		thumbnailUrl?: string | null;
 		manufacturerName?: string | null;
 		year?: number | null;
-		machineType?: string | null;
 		ipdbRating?: number | null;
 		pinsideRating?: number | null;
 		roles?: string[] | null;
 	} = $props();
 
-	let hasMeta = $derived(!!manufacturerName || !!year || !!machineType);
+	let hasMeta = $derived(!!manufacturerName || !!year);
 	let hasRatings = $derived(!!ipdbRating || !!pinsideRating);
 </script>
 
@@ -36,9 +34,6 @@
 			{/if}
 			{#if year}
 				<span>{year}</span>
-			{/if}
-			{#if machineType}
-				<span>{machineType}</span>
 			{/if}
 		</div>
 	{/if}

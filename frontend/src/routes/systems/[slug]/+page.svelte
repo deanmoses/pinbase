@@ -40,7 +40,6 @@
 						thumbnailUrl={machine.thumbnail_url}
 						manufacturerName={machine.manufacturer_name}
 						year={machine.year}
-						machineType={machine.technology_generation_name}
 					/>
 				{/each}
 			</CardGrid>
