@@ -333,6 +333,11 @@ class TestManufacturersAPI:
         assert data["items"][0]["model_count"] == 1
 
     def test_get_manufacturer_detail(self, client, manufacturer, machine_model):
+        title = Title.objects.create(
+            name="Medieval Madness", opdb_id="G5pe4", short_name="MM"
+        )
+        machine_model.title = title
+        machine_model.save()
         CorporateEntity.objects.create(
             manufacturer=manufacturer,
             name="Williams Manufacturing Company",
@@ -344,8 +349,8 @@ class TestManufacturersAPI:
         assert data["name"] == "Williams"
         assert len(data["entities"]) == 1
         assert data["entities"][0]["name"] == "Williams Manufacturing Company"
-        assert len(data["models"]) == 1
-        assert data["models"][0]["name"] == "Medieval Madness"
+        assert len(data["titles"]) == 1
+        assert data["titles"][0]["name"] == "Medieval Madness"
 
     def test_get_manufacturer_entities_ordered_by_years(self, client, manufacturer):
         CorporateEntity.objects.create(
@@ -402,19 +407,27 @@ class TestManufacturersAPI:
         assert data[0]["thumbnail_url"] == "https://img.opdb.org/year-md.jpg"
 
     def test_get_manufacturer_detail_nulls_last(self, client, manufacturer, db):
+        t1 = Title.objects.create(
+            name="No Year Title", opdb_id="T-noyear", short_name="NYT"
+        )
+        t2 = Title.objects.create(
+            name="Has Year Title", opdb_id="T-hasyear", short_name="HYT"
+        )
         MachineModel.objects.create(
             name="No Year Game",
             manufacturer=manufacturer,
+            title=t1,
         )
         MachineModel.objects.create(
             name="Has Year Game",
             manufacturer=manufacturer,
             year=2020,
+            title=t2,
         )
         resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
         data = resp.json()
-        names = [m["name"] for m in data["models"]]
-        assert names[-1] == "No Year Game"
+        names = [t["name"] for t in data["titles"]]
+        assert names[-1] == "No Year Title"
 
 
 class TestPeopleAPI:
@@ -428,33 +441,41 @@ class TestPeopleAPI:
         assert data["items"][0]["credit_count"] == 1
 
     def test_get_person_detail(self, client, person, machine_model):
+        title = Title.objects.create(
+            name="Medieval Madness", opdb_id="G5pe4-p", short_name="MM"
+        )
+        machine_model.title = title
+        machine_model.save()
         DesignCredit.objects.create(model=machine_model, person=person, role="design")
         resp = client.get(f"/api/people/{person.slug}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Pat Lawlor"
-        assert len(data["machines"]) == 1
-        assert data["machines"][0]["model_name"] == "Medieval Madness"
-        assert data["machines"][0]["roles"] == ["Design"]
-        assert data["machines"][0]["year"] == 1997
+        assert len(data["titles"]) == 1
+        assert data["titles"][0]["name"] == "Medieval Madness"
+        assert data["titles"][0]["roles"] == ["Design"]
+        assert data["titles"][0]["year"] == 1997
 
     def test_get_person_detail_year_desc_nulls_last(
         self, client, person, manufacturer, db
     ):
+        t1 = Title.objects.create(name="Old Title", opdb_id="T-old")
+        t2 = Title.objects.create(name="New Title", opdb_id="T-new")
+        t3 = Title.objects.create(name="No Year Title", opdb_id="T-noyear-p")
         old = MachineModel.objects.create(
-            name="Old Game", manufacturer=manufacturer, year=1990
+            name="Old Game", manufacturer=manufacturer, year=1990, title=t1
         )
         new = MachineModel.objects.create(
-            name="New Game", manufacturer=manufacturer, year=2020
+            name="New Game", manufacturer=manufacturer, year=2020, title=t2
         )
         no_year = MachineModel.objects.create(
-            name="No Year Game", manufacturer=manufacturer
+            name="No Year Game", manufacturer=manufacturer, title=t3
         )
         for m in (old, new, no_year):
             DesignCredit.objects.create(model=m, person=person, role="design")
         resp = client.get(f"/api/people/{person.slug}")
-        names = [m["model_name"] for m in resp.json()["machines"]]
-        assert names == ["New Game", "Old Game", "No Year Game"]
+        names = [t["name"] for t in resp.json()["titles"]]
+        assert names == ["New Title", "Old Title", "No Year Title"]
 
 
 class TestAllEndpointCache:
@@ -509,17 +530,25 @@ class TestSystemsAPI:
 
     @pytest.fixture
     def system_with_machines(self, system, manufacturer):
+        t1 = Title.objects.create(
+            name="Medieval Madness", opdb_id="G5pe4-s", short_name="MM"
+        )
+        t2 = Title.objects.create(
+            name="No Good Gofers", opdb_id="T-ngg", short_name="NGG"
+        )
         MachineModel.objects.create(
             name="Medieval Madness",
             manufacturer=manufacturer,
             year=1997,
             system=system,
+            title=t1,
         )
         MachineModel.objects.create(
             name="No Good Gofers",
             manufacturer=manufacturer,
             year=1997,
             system=system,
+            title=t2,
         )
         return system
 
@@ -530,20 +559,22 @@ class TestSystemsAPI:
         assert data["name"] == "Williams WPC-95"
         assert data["slug"] == "wpc-95"
         assert data["manufacturer_name"] == "Williams"
-        assert len(data["machines"]) == 2
+        assert len(data["titles"]) == 2
 
-    def test_get_system_detail_machines_sorted_year_desc(
+    def test_get_system_detail_titles_sorted_year_desc(
         self, client, system_with_machines, manufacturer
     ):
+        t3 = Title.objects.create(name="Old Title", opdb_id="T-old-s")
         MachineModel.objects.create(
             name="Old Game",
             manufacturer=manufacturer,
             year=1990,
             system=system_with_machines,
+            title=t3,
         )
         resp = client.get("/api/systems/wpc-95")
         data = resp.json()
-        years = [m["year"] for m in data["machines"] if m["year"]]
+        years = [t["year"] for t in data["titles"] if t["year"]]
         assert years == sorted(years, reverse=True)
 
     def test_get_system_404(self, client, db):

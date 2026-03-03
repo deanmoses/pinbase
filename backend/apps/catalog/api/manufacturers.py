@@ -17,7 +17,7 @@ from ninja.security import django_auth
 from ..cache import MANUFACTURERS_ALL_KEY, invalidate_all
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _build_activity, _claims_prefetch, _extract_image_urls
-from .schemas import ClaimPatchSchema, ClaimSchema
+from .schemas import ClaimPatchSchema, ClaimSchema, RelatedTitleSchema
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -38,14 +38,6 @@ class ManufacturerSchema(Schema):
     slug: str
     trade_name: str
     model_count: int = 0
-
-
-class ManufacturerModelSchema(Schema):
-    name: str
-    slug: str
-    year: Optional[int] = None
-    technology_generation_name: Optional[str] = None
-    thumbnail_url: str | None = None
 
 
 class AddressSchema(Schema):
@@ -77,7 +69,7 @@ class ManufacturerDetailSchema(Schema):
     logo_url: str | None = None
     website: str = ""
     entities: list[CorporateEntitySchema]
-    models: list[ManufacturerModelSchema]
+    titles: list[RelatedTitleSchema]
     systems: list[SystemSchema]
     activity: list[ClaimSchema]
 
@@ -85,6 +77,33 @@ class ManufacturerDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _collect_titles(models, *, include_manufacturer: bool = False) -> list[dict]:
+    """Group models by title into a deduplicated title list."""
+    titles: dict[str, dict] = {}
+    for m in models:
+        if m.title is None:
+            continue
+        key = m.title.slug
+        if key not in titles:
+            thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
+            entry: dict = {
+                "name": m.title.name,
+                "slug": m.title.slug,
+                "year": m.year,
+                "thumbnail_url": thumbnail_url,
+            }
+            if include_manufacturer:
+                entry["manufacturer_name"] = (
+                    m.manufacturer.name if m.manufacturer else None
+                )
+            titles[key] = entry
+        elif titles[key]["thumbnail_url"] is None:
+            thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
+            if thumbnail_url:
+                titles[key]["thumbnail_url"] = thumbnail_url
+    return list(titles.values())
 
 
 def _serialize_manufacturer_detail(mfr) -> dict:
@@ -115,18 +134,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
             }
             for e in mfr.entities.all()
         ],
-        "models": [
-            {
-                "name": m.name,
-                "slug": m.slug,
-                "year": m.year,
-                "technology_generation_name": (
-                    m.technology_generation.name if m.technology_generation else None
-                ),
-                "thumbnail_url": _extract_image_urls(m.extra_data or {})[0],
-            }
-            for m in mfr.non_alias_models
-        ],
+        "titles": _collect_titles(mfr.non_alias_models),
         "systems": [{"name": s.name, "slug": s.slug} for s in mfr.systems.all()],
         "activity": _build_activity(getattr(mfr, "active_claims", [])),
     }
@@ -145,7 +153,7 @@ def _manufacturer_qs():
         Prefetch(
             "models",
             queryset=MachineModel.objects.filter(alias_of__isnull=True)
-            .select_related("technology_generation")
+            .select_related("technology_generation", "title")
             .order_by(F("year").desc(nulls_last=True), "name"),
             to_attr="non_alias_models",
         ),

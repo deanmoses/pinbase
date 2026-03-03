@@ -10,8 +10,8 @@ from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
 
-from .helpers import _serialize_title_machine
-from .schemas import TitleMachineSchema
+from .helpers import _extract_image_urls
+from .schemas import RelatedTitleSchema
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -32,7 +32,7 @@ class SystemDetailSchema(Schema):
     description: str = ""
     manufacturer_name: Optional[str] = None
     manufacturer_slug: Optional[str] = None
-    machines: list[TitleMachineSchema]
+    titles: list[RelatedTitleSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -79,18 +79,35 @@ def get_system(request, slug: str):
             Prefetch(
                 "machine_models",
                 queryset=MachineModel.objects.filter(alias_of__isnull=True)
-                .select_related("manufacturer", "technology_generation")
+                .select_related("manufacturer", "title")
                 .order_by(F("year").desc(nulls_last=True), "name"),
             )
         ),
         slug=slug,
     )
-    machines = [_serialize_title_machine(pm) for pm in system.machine_models.all()]
+    titles: dict[str, dict] = {}
+    for m in system.machine_models.all():
+        if m.title is None:
+            continue
+        key = m.title.slug
+        if key not in titles:
+            thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
+            titles[key] = {
+                "name": m.title.name,
+                "slug": m.title.slug,
+                "year": m.year,
+                "manufacturer_name": (m.manufacturer.name if m.manufacturer else None),
+                "thumbnail_url": thumbnail_url,
+            }
+        elif titles[key]["thumbnail_url"] is None:
+            thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
+            if thumbnail_url:
+                titles[key]["thumbnail_url"] = thumbnail_url
     return {
         "name": system.name,
         "slug": system.slug,
         "description": system.description,
         "manufacturer_name": system.manufacturer.name if system.manufacturer else None,
         "manufacturer_slug": system.manufacturer.slug if system.manufacturer else None,
-        "machines": machines,
+        "titles": list(titles.values()),
     }

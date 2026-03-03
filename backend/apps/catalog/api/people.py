@@ -17,7 +17,7 @@ from ninja.security import django_auth
 from ..cache import PEOPLE_ALL_KEY, invalidate_all
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _build_activity, _claims_prefetch, _extract_image_urls
-from .schemas import ClaimPatchSchema, ClaimSchema
+from .schemas import ClaimPatchSchema, ClaimSchema, RelatedTitleSchema
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -37,12 +37,8 @@ class PersonSchema(Schema):
     credit_count: int = 0
 
 
-class PersonMachineSchema(Schema):
-    model_name: str
-    model_slug: str
-    year: int | None = None
-    roles: list[str]
-    thumbnail_url: str | None = None
+class PersonTitleSchema(RelatedTitleSchema):
+    roles: list[str] = []
 
 
 class PersonDetailSchema(Schema):
@@ -58,7 +54,7 @@ class PersonDetailSchema(Schema):
     birth_place: str | None = None
     nationality: str | None = None
     photo_url: str | None = None
-    machines: list[PersonMachineSchema]
+    titles: list[PersonTitleSchema]
     activity: list[ClaimSchema]
 
 
@@ -71,23 +67,34 @@ def _serialize_person_detail(person) -> dict:
     """Serialize a Person into the detail response dict.
 
     Expects *person* to have been fetched with prefetch_related for credits
-    (select_related model) and claims (to_attr="active_claims").
+    (select_related model, model__title, model__manufacturer) and claims
+    (to_attr="active_claims").
     """
-    machines: dict[str, dict] = {}
+    titles: dict[str, dict] = {}
     for c in person.credits.all():
-        if c.model is None:
-            continue  # skip series-level credits
-        slug_key = c.model.slug
-        if slug_key not in machines:
-            thumbnail_url, _ = _extract_image_urls(c.model.extra_data or {})
-            machines[slug_key] = {
-                "model_name": c.model.name,
-                "model_slug": slug_key,
+        if c.model is None or c.model.title is None:
+            continue
+        title = c.model.title
+        key = title.slug
+        if key not in titles:
+            thumbnail_url = _extract_image_urls(c.model.extra_data or {})[0]
+            titles[key] = {
+                "name": title.name,
+                "slug": title.slug,
                 "year": c.model.year,
-                "roles": [],
+                "manufacturer_name": (
+                    c.model.manufacturer.name if c.model.manufacturer else None
+                ),
                 "thumbnail_url": thumbnail_url,
+                "roles": [],
             }
-        machines[slug_key]["roles"].append(c.get_role_display())
+        elif titles[key]["thumbnail_url"] is None:
+            thumbnail_url = _extract_image_urls(c.model.extra_data or {})[0]
+            if thumbnail_url:
+                titles[key]["thumbnail_url"] = thumbnail_url
+        role_display = c.get_role_display()
+        if role_display not in titles[key]["roles"]:
+            titles[key]["roles"].append(role_display)
     return {
         "name": person.name,
         "slug": person.slug,
@@ -101,7 +108,7 @@ def _serialize_person_detail(person) -> dict:
         "birth_place": person.birth_place,
         "nationality": person.nationality,
         "photo_url": person.photo_url,
-        "machines": list(machines.values()),
+        "titles": list(titles.values()),
         "activity": _build_activity(getattr(person, "active_claims", [])),
     }
 
@@ -113,7 +120,7 @@ def _person_qs():
         Prefetch(
             "credits",
             queryset=DesignCredit.objects.filter(model__isnull=False)
-            .select_related("model")
+            .select_related("model__title", "model__manufacturer")
             .order_by(F("model__year").desc(nulls_last=True), "model__name"),
         ),
         _claims_prefetch(),

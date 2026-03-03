@@ -186,16 +186,18 @@ titles_router = Router(tags=["titles"])
 
 @titles_router.get("/", response=list[TitleListSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_titles(request):
+def list_titles(request, display: str = ""):
     from ..models import Title
 
-    qs = (
-        Title.objects.annotate(
-            machine_count=Count(
-                "machine_models", filter=Q(machine_models__alias_of__isnull=True)
-            )
+    qs = Title.objects.annotate(
+        machine_count=Count(
+            "machine_models", filter=Q(machine_models__alias_of__isnull=True)
         )
-        .select_related("franchise")
+    )
+    if display:
+        qs = qs.filter(machine_models__display_type__slug=display).distinct()
+    qs = (
+        qs.select_related("franchise")
         .prefetch_related(_title_models_prefetch(), "series")
         .order_by("name")
     )

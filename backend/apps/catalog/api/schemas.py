@@ -39,6 +39,16 @@ class TitleMachineSchema(Schema):
     thumbnail_url: Optional[str] = None
 
 
+class RelatedTitleSchema(Schema):
+    """A title shown in a related-entity list context (manufacturer, system, etc.)."""
+
+    name: str
+    slug: str
+    year: Optional[int] = None
+    manufacturer_name: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+
+
 class SeriesRefSchema(Schema):
     name: str
     slug: str

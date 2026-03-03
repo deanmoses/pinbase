@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SearchableGrid from '$lib/components/grid/SearchableGrid.svelte';
-	import MachineCard from '$lib/components/cards/MachineCard.svelte';
+	import TitleCard from '$lib/components/cards/TitleCard.svelte';
 
 	let { data } = $props();
 	let mfr = $derived(data.manufacturer);
@@ -54,23 +54,23 @@
 	</dl>
 {/if}
 
-{#if mfr.models.length === 0}
-	<p class="empty">No models listed for this manufacturer.</p>
+{#if mfr.titles.length === 0}
+	<p class="empty">No titles listed for this manufacturer.</p>
 {:else}
 	<section>
-		<h2>Models ({mfr.models.length})</h2>
+		<h2>Titles ({mfr.titles.length})</h2>
 		<SearchableGrid
-			items={mfr.models}
+			items={mfr.titles}
 			filterFields={(item) => [item.name]}
-			placeholder="Search models..."
-			entityName="model"
+			placeholder="Search titles..."
+			entityName="title"
 		>
-			{#snippet children(model)}
-				<MachineCard
-					slug={model.slug}
-					name={model.name}
-					thumbnailUrl={model.thumbnail_url}
-					year={model.year}
+			{#snippet children(title)}
+				<TitleCard
+					slug={title.slug}
+					name={title.name}
+					thumbnailUrl={title.thumbnail_url}
+					year={title.year}
 				/>
 			{/snippet}
 		</SearchableGrid>
