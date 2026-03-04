@@ -44,7 +44,6 @@
 			initialRun = false;
 			return;
 		}
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() is used in the template literal
 		replaceState(`${resolve('/titles')}${search ? `?${search}` : ''}`, {});
 	});
 

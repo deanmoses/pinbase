@@ -14,7 +14,7 @@ from apps.catalog.api import (
     technology_generations_router,
     themes_router,
 )
-from apps.provenance.api import sources_router
+from apps.provenance.api import review_router, sources_router
 
 api = NinjaAPI(
     title="Pinbase API",
@@ -46,3 +46,4 @@ api.add_router("/systems/", systems_router)
 api.add_router("/series/", series_router)
 api.add_router("/franchises/", franchises_router)
 api.add_router("/sources/", sources_router)
+api.add_router("/review/", review_router)

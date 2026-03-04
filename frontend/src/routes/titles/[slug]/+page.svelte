@@ -3,6 +3,7 @@
 	import CardGrid from '$lib/components/grid/CardGrid.svelte';
 	import MachineCard from '$lib/components/cards/MachineCard.svelte';
 	import { pageTitle } from '$lib/constants';
+	import { resolveHref } from '$lib/utils';
 
 	let { data } = $props();
 	let title = $derived(data.title);
@@ -13,6 +14,27 @@
 </svelte:head>
 
 <article>
+	{#if title.needs_review}
+		<aside class="review-banner">
+			<strong>Needs review</strong>
+			<p>{title.needs_review_notes}</p>
+			{#if title.review_links.length > 0}
+				<p class="review-links">
+					{#each title.review_links as link, i (link.url)}
+						{#if i > 0}
+							·
+						{/if}
+						{#if link.url.startsWith('/')}
+							<a href={resolveHref(link.url)}>{link.label}</a>
+						{:else}
+							<a href={link.url} target="_blank" rel="noopener">{link.label}</a>
+						{/if}
+					{/each}
+				</p>
+			{/if}
+		</aside>
+	{/if}
+
 	<header>
 		<h1>{title.name}</h1>
 		{#if title.series.length > 0}
@@ -49,6 +71,29 @@
 <style>
 	article {
 		max-width: 64rem;
+	}
+
+	.review-banner {
+		background-color: color-mix(in srgb, var(--color-warning) 12%, transparent);
+		border: 1px solid var(--color-warning);
+		border-radius: var(--radius-2);
+		padding: var(--size-3) var(--size-4);
+		margin-bottom: var(--size-5);
+		font-size: var(--font-size-1);
+		color: var(--color-text-primary);
+	}
+
+	.review-banner strong {
+		color: var(--color-warning);
+	}
+
+	.review-banner p {
+		margin-top: var(--size-1);
+	}
+
+	.review-links a {
+		color: var(--color-warning);
+		text-decoration: underline;
 	}
 
 	header {

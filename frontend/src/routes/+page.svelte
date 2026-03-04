@@ -72,7 +72,6 @@
 			} else {
 				url.searchParams.delete('q');
 			}
-			// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() is used in the template literal
 			replaceState(`${resolve('/')}${url.search}`, {});
 		}
 	});

@@ -380,8 +380,8 @@ class Title(TimeStampedModel):
     opdb_id = models.CharField(
         max_length=50,
         unique=True,
-        verbose_name="OPDB group ID",
-        help_text='OPDB group identifier, e.g., "G5pe4"',
+        verbose_name="group ID",
+        help_text='OPDB group ID (e.g., "G5pe4") or synthetic ID (e.g., "ipdb:1234").',
     )
     name = models.CharField(max_length=300)
     slug = models.SlugField(max_length=300, unique=True, blank=True)
@@ -397,6 +397,14 @@ class Title(TimeStampedModel):
         related_name="titles",
         null=True,
         blank=True,
+    )
+    needs_review = models.BooleanField(
+        default=False,
+        help_text="Title was auto-generated and may need human review.",
+    )
+    needs_review_notes = models.TextField(
+        blank=True,
+        help_text="Context for reviewers about why this title needs attention.",
     )
 
     class Meta:

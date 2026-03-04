@@ -48,10 +48,18 @@ class TitleListSchema(Schema):
     ipdb_rating_max: Optional[float] = None
 
 
+class ReviewLinkSchema(Schema):
+    label: str
+    url: str
+
+
 class TitleDetailSchema(Schema):
     name: str
     slug: str
     short_name: str
+    needs_review: bool = False
+    needs_review_notes: str = ""
+    review_links: list[ReviewLinkSchema] = []
     machines: list[TitleMachineSchema]
     series: list[SeriesRefSchema] = []
 
@@ -148,16 +156,58 @@ def _serialize_title_list(title) -> dict:
     }
 
 
+def _build_review_links(title) -> list[dict]:
+    """Build external/internal review links for a needs_review title."""
+    from ..models import Title
+
+    links: list[dict] = []
+    opdb_id = title.opdb_id
+
+    # IPDB link (synthetic IDs are "ipdb:{id}").
+    if opdb_id.startswith("ipdb:"):
+        ipdb_id = opdb_id.split(":")[1]
+        links.append(
+            {
+                "label": f"IPDB #{ipdb_id}",
+                "url": f"https://www.ipdb.org/machine.cgi?id={ipdb_id}",
+            }
+        )
+
+    # Related titles by name match (only OPDB-backed ones).
+    import re
+
+    base_name = re.sub(r"\s*\([^)]*\)\s*$", "", title.name).strip()
+    related = (
+        Title.objects.filter(Q(name__iexact=title.name) | Q(name__iexact=base_name))
+        .exclude(pk=title.pk)
+        .exclude(opdb_id__startswith="ipdb:")
+    )
+    for rt in related:
+        links.append({"label": rt.name, "url": f"/titles/{rt.slug}"})
+        links.append(
+            {
+                "label": f"OPDB {rt.opdb_id}",
+                "url": f"https://opdb.org/machines/{rt.opdb_id}",
+            }
+        )
+
+    return links
+
+
 def _serialize_title_detail(title) -> dict:
     machines = [_serialize_title_machine(pm) for pm in title.machine_models.all()]
     series = [
         {"name": s.name, "slug": s.slug}
         for s in getattr(title, "series_list", None) or title.series.all()
     ]
+    review_links = _build_review_links(title) if title.needs_review else []
     return {
         "name": title.name,
         "slug": title.slug,
         "short_name": title.short_name,
+        "needs_review": title.needs_review,
+        "needs_review_notes": title.needs_review_notes,
+        "review_links": review_links,
         "machines": machines,
         "series": series,
     }

@@ -19,6 +19,7 @@ STEPS = [
     "ingest_pinbase_systems",
     "ingest_ipdb",
     "ingest_opdb",
+    "generate_ipdb_titles",
     "ingest_pinbase_series",
     "ingest_pinbase_titles",
     "ingest_pinbase_signs",
