@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
 	import client from '$lib/api/client';
 	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import ActiveFilterChips from '$lib/components/ActiveFilterChips.svelte';
@@ -34,7 +33,7 @@
 	// -----------------------------------------------------------------------
 	// Filter state — initialized from URL, synced back on change
 	// -----------------------------------------------------------------------
-	let filters = $state(filtersFromParams(page.url.searchParams));
+	let filters = $state(filtersFromParams(new URLSearchParams(window.location.search)));
 
 	let initialRun = true;
 	$effect(() => {
