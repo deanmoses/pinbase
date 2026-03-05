@@ -13,7 +13,7 @@ from ninja.pagination import PageNumberPagination, paginate
 
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _extract_image_urls, _serialize_title_machine
-from .machine_models import DesignCreditSchema
+from .machine_models import DesignCreditSchema, MachineModelDetailSchema
 from .schemas import SeriesRefSchema, TitleMachineSchema
 
 # ---------------------------------------------------------------------------
@@ -64,6 +64,7 @@ class TitleDetailSchema(Schema):
     machines: list[TitleMachineSchema]
     series: list[SeriesRefSchema] = []
     credits: list[DesignCreditSchema] = []
+    model_detail: Optional[MachineModelDetailSchema] = None
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +222,14 @@ def _serialize_title_detail(title) -> dict:
                     }
                 )
 
+    # For single-model titles, include full model detail inline.
+    model_detail = None
+    if len(machines) == 1:
+        from .machine_models import _model_detail_qs, _serialize_model_detail
+
+        pm = _model_detail_qs().get(slug=machines[0]["slug"])
+        model_detail = _serialize_model_detail(pm)
+
     return {
         "name": title.name,
         "slug": title.slug,
@@ -231,6 +240,7 @@ def _serialize_title_detail(title) -> dict:
         "machines": machines,
         "series": series,
         "credits": credits,
+        "model_detail": model_detail,
     }
 
 
