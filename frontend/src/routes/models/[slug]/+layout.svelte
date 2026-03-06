@@ -26,6 +26,11 @@
 
 <TwoColumnLayout heroImageUrl={model.hero_image_url} heroImageAlt="{model.name} backglass">
 	{#snippet header()}
+		{#if model.title_slug}
+			<a class="kicker" href={resolve(`/titles/${model.title_slug}`)}>
+				{model.title_name}
+			</a>
+		{/if}
 		<h1>{model.name}</h1>
 		<div class="meta">
 			{#if model.manufacturer_name}
@@ -251,6 +256,19 @@
 </TwoColumnLayout>
 
 <style>
+	.kicker {
+		font-size: var(--font-size-1);
+		font-weight: 500;
+		color: var(--color-text-muted);
+		text-decoration: none;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.kicker:hover {
+		color: var(--color-accent);
+	}
+
 	h1 {
 		font-size: var(--font-size-7);
 		font-weight: 700;
