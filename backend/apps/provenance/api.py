@@ -45,8 +45,8 @@ class ReviewClaimSchema(Schema):
     review_links: list[ReviewLinkSchema] = []
 
 
-sources_router = Router(tags=["sources"])
-review_router = Router(tags=["review"])
+sources_router = Router(tags=["sources", "private"])
+review_router = Router(tags=["review", "private"])
 
 
 @sources_router.get("/", response=list[SourceSchema])

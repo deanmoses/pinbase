@@ -522,7 +522,10 @@ def get_model(request, slug: str):
 
 
 @models_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=MachineModelDetailSchema
+    "/{slug}/claims/",
+    auth=django_auth,
+    response=MachineModelDetailSchema,
+    tags=["private"],
 )
 def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve the model."""

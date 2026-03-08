@@ -22,7 +22,7 @@ api = NinjaAPI(
 )
 
 
-@api.get("/health")
+@api.get("/health", tags=["private"])
 def health(request):
     from django.db import connection
 

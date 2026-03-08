@@ -18,28 +18,62 @@
 		}
 	`;
 
+	/** Remove endpoints tagged "private" from the OpenAPI spec before display. */
+	function filterSchema(schema: Record<string, unknown>): Record<string, unknown> {
+		const paths = schema.paths as Record<string, Record<string, Record<string, unknown>>>;
+		const filtered: typeof paths = {};
+		for (const [path, methods] of Object.entries(paths)) {
+			const kept: Record<string, Record<string, unknown>> = {};
+			for (const [method, details] of Object.entries(methods)) {
+				const tags = (details.tags as string[]) ?? [];
+				if (!tags.includes('private')) {
+					kept[method] = details;
+				}
+			}
+			if (Object.keys(kept).length > 0) {
+				filtered[path] = kept;
+			}
+		}
+		return { ...schema, paths: filtered };
+	}
+
 	$effect(() => {
-		const script = document.createElement('script');
-		script.src = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference';
-		script.onload = () => {
-			// @ts-expect-error — Scalar loaded via CDN
-			Scalar.createApiReference('#scalar-api-reference', {
-				url: '/api/openapi.json',
-				theme: 'none',
-				layout: 'modern',
-				showSidebar: true,
-				hideClientButton: true,
-				customCss: scalarCustomCss
-			});
-			scalarLoaded = true;
-		};
-		script.onerror = () => {
-			scalarError = 'Failed to load API reference. Please try refreshing the page.';
-		};
-		document.head.appendChild(script);
+		const controller = new AbortController();
+
+		(async () => {
+			let spec: Record<string, unknown>;
+			try {
+				const res = await fetch('/api/openapi.json', { signal: controller.signal });
+				spec = filterSchema(await res.json());
+			} catch {
+				if (!controller.signal.aborted) {
+					scalarError = 'Failed to load API reference. Please try refreshing the page.';
+				}
+				return;
+			}
+
+			const script = document.createElement('script');
+			script.src = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference';
+			script.onload = () => {
+				// @ts-expect-error — Scalar loaded via CDN
+				Scalar.createApiReference('#scalar-api-reference', {
+					content: JSON.stringify(spec),
+					theme: 'none',
+					layout: 'modern',
+					showSidebar: true,
+					hideClientButton: true,
+					customCss: scalarCustomCss
+				});
+				scalarLoaded = true;
+			};
+			script.onerror = () => {
+				scalarError = 'Failed to load API reference. Please try refreshing the page.';
+			};
+			document.head.appendChild(script);
+		})();
 
 		return () => {
-			script.remove();
+			controller.abort();
 		};
 	});
 </script>

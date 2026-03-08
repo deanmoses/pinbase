@@ -194,7 +194,9 @@ def get_person(request, slug: str):
     return _serialize_person_detail(person)
 
 
-@people_router.patch("/{slug}/claims/", auth=django_auth, response=PersonDetailSchema)
+@people_router.patch(
+    "/{slug}/claims/", auth=django_auth, response=PersonDetailSchema, tags=["private"]
+)
 def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     from apps.provenance.models import Claim

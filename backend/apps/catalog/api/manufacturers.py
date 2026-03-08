@@ -256,7 +256,10 @@ def get_manufacturer(request, slug: str):
 
 
 @manufacturers_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=ManufacturerDetailSchema
+    "/{slug}/claims/",
+    auth=django_auth,
+    response=ManufacturerDetailSchema,
+    tags=["private"],
 )
 def patch_manufacturer_claims(request, slug: str, data: ClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""

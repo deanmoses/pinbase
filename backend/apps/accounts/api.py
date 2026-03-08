@@ -6,7 +6,7 @@ from typing import Optional
 
 from ninja import Router, Schema
 
-auth_router = Router(tags=["auth"])
+auth_router = Router(tags=["auth", "private"])
 
 
 class AuthStatusSchema(Schema):
