@@ -2,7 +2,8 @@
 
 Runs: ingest_pinbase_taxonomy → ingest_pinbase_manufacturers →
       ingest_pinbase_corporate_entities → ingest_pinbase_systems → ingest_ipdb →
-      ingest_opdb → ingest_pinbase_series → ingest_pinbase_titles → ingest_pinbase_signs →
+      ingest_opdb → generate_ipdb_titles → ingest_pinbase_models →
+      ingest_pinbase_series → ingest_pinbase_titles → ingest_pinbase_signs →
       resolve_claims.
 """
 
@@ -20,6 +21,7 @@ STEPS = [
     "ingest_ipdb",
     "ingest_opdb",
     "generate_ipdb_titles",
+    "ingest_pinbase_models",
     "ingest_pinbase_series",
     "ingest_pinbase_titles",
     "ingest_pinbase_signs",

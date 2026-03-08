@@ -43,8 +43,9 @@ class Command(BaseCommand):
         franchises_by_slug = {f.slug: f for f in Franchise.objects.all()}
         series_by_slug = {s.slug: s for s in Series.objects.all()}
 
-        franchise_set = membership_set = skipped = 0
+        franchise_set = membership_set = name_set = skipped = 0
         franchise_changed: list[Title] = []
+        name_changed: list[Title] = []
         series_memberships: dict[Series, list[Title]] = defaultdict(list)
 
         for entry in entries:
@@ -57,6 +58,13 @@ class Command(BaseCommand):
                 )
                 skipped += 1
                 continue
+
+            # Override name if provided.
+            name = entry.get("name")
+            if name and title.name != name:
+                title.name = name
+                name_changed.append(title)
+                name_set += 1
 
             # Set franchise FK.
             franchise_slug = entry.get("franchise_slug")
@@ -89,12 +97,20 @@ class Command(BaseCommand):
                 t.updated_at = now
             Title.objects.bulk_update(franchise_changed, ["franchise", "updated_at"])
 
+        # Bulk update name changes.
+        if name_changed:
+            now = timezone.now()
+            for t in name_changed:
+                t.updated_at = now
+            Title.objects.bulk_update(name_changed, ["name", "updated_at"])
+
         # Batch M2M adds per series.
         for series, titles in series_memberships.items():
             series.titles.add(*titles)
 
         self.stdout.write(
             f"  Titles: {franchise_set} franchise links, "
-            f"{membership_set} series memberships, {skipped} skipped"
+            f"{membership_set} series memberships, "
+            f"{name_set} name overrides, {skipped} skipped"
         )
         self.stdout.write(self.style.SUCCESS("Titles seed ingestion complete."))
