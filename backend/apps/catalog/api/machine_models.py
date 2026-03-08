@@ -121,6 +121,9 @@ class MachineModelDetailSchema(Schema):
     gameplay_features: list[GameplayFeatureSchema] = []
     franchise: Optional[FranchiseRefSchema] = None
     series: list[SeriesRefSchema] = []
+    alias_of_name: Optional[str] = None
+    alias_of_slug: Optional[str] = None
+    variant_siblings: list[AliasSchema] = []
     title_models: list[TitleMachineSchema] = []
 
 
@@ -250,6 +253,19 @@ def _serialize_model_detail(pm) -> dict:
         for alias in pm.aliases.all()
     ]
 
+    # Build sibling variants: other aliases of the same parent.
+    variant_siblings = []
+    if pm.alias_of_id is not None:
+        variant_siblings = [
+            {
+                "name": sib.name,
+                "slug": sib.slug,
+                "variant_features": _extract_variant_features(sib.extra_data or {}),
+            }
+            for sib in pm.alias_of.aliases.all()
+            if sib.pk != pm.pk
+        ]
+
     return {
         "name": pm.name,
         "slug": pm.slug,
@@ -287,6 +303,9 @@ def _serialize_model_detail(pm) -> dict:
         "hero_image_url": hero_image_url,
         "variant_features": variant_features,
         "aliases": aliases,
+        "alias_of_name": pm.alias_of.name if pm.alias_of else None,
+        "alias_of_slug": pm.alias_of.slug if pm.alias_of else None,
+        "variant_siblings": variant_siblings,
         "title_name": pm.title.name if pm.title else None,
         "title_slug": pm.title.slug if pm.title else None,
         "cabinet_name": pm.cabinet.name if pm.cabinet else None,
@@ -314,7 +333,9 @@ def _serialize_model_detail(pm) -> dict:
         "title_models": [
             _serialize_title_machine(sibling)
             for sibling in (pm.title.machine_models.all() if pm.title else [])
-            if sibling.alias_of_id is None and sibling.pk != pm.pk
+            if sibling.alias_of_id is None
+            and sibling.pk != pm.pk
+            and sibling.pk != pm.alias_of_id
         ],
     }
 
@@ -333,8 +354,10 @@ def _model_detail_qs():
         "display_subtype",
         "cabinet",
         "game_format",
+        "alias_of",
     ).prefetch_related(
         "aliases",
+        "alias_of__aliases",
         "themes",
         "gameplay_features",
         "title__series",

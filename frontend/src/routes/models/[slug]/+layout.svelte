@@ -211,6 +211,34 @@
 			</section>
 		{/if}
 
+		{#if model.alias_of_slug}
+			<section class="sidebar-section">
+				<h3>Parent Game</h3>
+				<p class="sidebar-note">This machine is a variant of:</p>
+				<ul class="sidebar-list">
+					<li>
+						<a href={resolve(`/models/${model.alias_of_slug}`)}>{model.alias_of_name}</a>
+					</li>
+				</ul>
+			</section>
+		{/if}
+
+		{#if model.variant_siblings && model.variant_siblings.length > 0}
+			<section class="sidebar-section">
+				<h3>Other Variants</h3>
+				<ul class="sidebar-list">
+					{#each model.variant_siblings as sibling (sibling.slug)}
+						<li>
+							<a href={resolve(`/models/${sibling.slug}`)}>{sibling.name}</a>
+							{#if sibling.variant_features.length > 0}
+								<span class="muted">{sibling.variant_features.join(', ')}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
 		{#if model.title_models && model.title_models.length > 0}
 			<section class="sidebar-section">
 				<h3>Other Models</h3>
@@ -411,6 +439,12 @@
 	.rating-label {
 		font-size: var(--font-size-0);
 		color: var(--color-text-muted);
+	}
+
+	.sidebar-note {
+		font-size: var(--font-size-0);
+		color: var(--color-text-muted);
+		margin: 0 0 var(--size-1) 0;
 	}
 
 	.sidebar-list {
