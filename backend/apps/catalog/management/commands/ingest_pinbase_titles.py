@@ -18,6 +18,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
+from apps.catalog.claims import build_relationship_claim
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
 from apps.catalog.models import Franchise, Series, Title
 from apps.provenance.models import Claim, Source
@@ -141,6 +142,22 @@ class Command(BaseCommand):
                         )
                     )
 
+            # Assert abbreviation claims.
+            for abbr in entry.get("abbreviations", []):
+                claim_key, value = build_relationship_claim(
+                    "abbreviation", {"value": abbr}
+                )
+                touched_ids.add(title.pk)
+                pending_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=title.pk,
+                        field_name="abbreviation",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
             # Collect series membership (M2M, not claim-controlled).
             series_slug = entry.get("series_slug")
             if series_slug:
@@ -158,12 +175,17 @@ class Command(BaseCommand):
 
         # Resolve touched titles so fields reflect winning claims.
         if touched_ids:
+            from apps.catalog.resolve import resolve_all_title_abbreviations
+
             franchise_lookup = {f.slug: f for f in Franchise.objects.all()}
             _resolve_bulk(
                 Title,
                 TITLE_DIRECT_FIELDS,
                 fk_handlers={"franchise": ("franchise", franchise_lookup)},
                 object_ids=touched_ids,
+            )
+            resolve_all_title_abbreviations(
+                list(Title.objects.all()), title_ids=touched_ids
             )
 
         # Update slugs in two passes to handle swaps (e.g. A→B and B→C).

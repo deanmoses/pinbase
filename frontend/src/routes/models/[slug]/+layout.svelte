@@ -253,19 +253,25 @@
 			excludeSlug={model.alias_of_slug ?? model.slug}
 		/>
 
-		<div class="external-ids">
-			{#if model.ipdb_id}
-				<a href="https://www.ipdb.org/machine.cgi?id={model.ipdb_id}">
-					IPDB #{model.ipdb_id}
-				</a>
-			{/if}
-			{#if model.opdb_id}
-				<a href="https://opdb.org/machines/{model.opdb_id}"> OPDB </a>
-			{/if}
-			{#if model.pinside_id}
-				<a href="https://pinside.com/pinball/machine/{model.pinside_id}"> Pinside </a>
-			{/if}
-		</div>
+		{#if model.ipdb_id || model.opdb_id || model.pinside_id}
+			<section class="sidebar-section">
+				<h3>External Links</h3>
+				<p class="section-note">See this model on other sites:</p>
+				<div class="external-ids">
+					{#if model.ipdb_id}
+						<a href="https://www.ipdb.org/machine.cgi?id={model.ipdb_id}">
+							Internet Pinball Database
+						</a>
+					{/if}
+					{#if model.opdb_id}
+						<a href="https://opdb.org/machines/{model.opdb_id}"> Open Pinball Database </a>
+					{/if}
+					{#if model.pinside_id}
+						<a href="https://pinside.com/pinball/machine/{model.pinside_id}"> Pinside </a>
+					{/if}
+				</div>
+			</section>
+		{/if}
 	{/snippet}
 </TwoColumnLayout>
 
@@ -448,6 +454,12 @@
 	.muted {
 		color: var(--color-text-muted);
 		font-size: var(--font-size-0);
+	}
+
+	.section-note {
+		font-size: var(--font-size-0);
+		color: var(--color-text-muted);
+		margin: 0 0 var(--size-2);
 	}
 
 	.external-ids {

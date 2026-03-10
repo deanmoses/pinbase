@@ -284,22 +284,28 @@
 				</section>
 			{/if}
 
-			<div class="external-ids">
-				{#if md.ipdb_id}
-					<a href="https://www.ipdb.org/machine.cgi?id={md.ipdb_id}">
-						IPDB #{md.ipdb_id}
-					</a>
-				{/if}
-				{#if md.opdb_id}
-					<a href="https://opdb.org/machines/{md.opdb_id}"> OPDB </a>
-				{/if}
-				{#if md.pinside_id}
-					<a href="https://pinside.com/pinball/machine/{md.pinside_id}"> Pinside </a>
-				{/if}
-			</div>
+			{#if md.ipdb_id || md.opdb_id || md.pinside_id}
+				<section class="sidebar-section">
+					<h3>External Links</h3>
+					<p class="section-note">See this title on other sites:</p>
+					<div class="external-ids">
+						{#if md.ipdb_id}
+							<a href="https://www.ipdb.org/machine.cgi?id={md.ipdb_id}">
+								Internet Pinball Database
+							</a>
+						{/if}
+						{#if md.opdb_id}
+							<a href="https://opdb.org/machines/{md.opdb_id}"> Open Pinball Database </a>
+						{/if}
+						{#if md.pinside_id}
+							<a href="https://pinside.com/pinball/machine/{md.pinside_id}"> Pinside </a>
+						{/if}
+					</div>
+				</section>
+			{/if}
 		{:else}
 			<!-- Multi-model: agreed specs across all models -->
-			{#if specs.technology_generation_slug || specs.display_type_slug || specs.player_count || specs.system_slug || specs.cabinet_name || specs.game_format_name || specs.display_subtype_name || specs.production_quantity || (specs.themes && specs.themes.length > 0)}
+			{#if specs.technology_generation_slug || specs.display_type_slug || specs.player_count || specs.system_slug || specs.cabinet_name || specs.game_format_name || specs.display_subtype_name || specs.production_quantity || (specs.themes && specs.themes.length > 0) || title.abbreviations.length > 0}
 				<section class="sidebar-section">
 					<h3>Specifications</h3>
 					<dl>
@@ -608,6 +614,12 @@
 
 	.sidebar-list li:not(:last-child) {
 		border-bottom: 1px solid var(--color-border-soft);
+	}
+
+	.section-note {
+		font-size: var(--font-size-0);
+		color: var(--color-text-muted);
+		margin: 0 0 var(--size-2);
 	}
 
 	.external-ids {

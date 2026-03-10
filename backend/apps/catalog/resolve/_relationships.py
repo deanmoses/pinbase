@@ -612,6 +612,15 @@ def resolve_model_abbreviations(machine_model: MachineModel) -> None:
             continue
         desired.add(val["value"])
 
+    # Deduplicate: remove abbreviations that already exist on the title.
+    if machine_model.title_id:
+        title_abbrs = set(
+            TitleAbbreviation.objects.filter(
+                title_id=machine_model.title_id
+            ).values_list("value", flat=True)
+        )
+        desired -= title_abbrs
+
     existing = set(machine_model.abbreviations.values_list("value", flat=True))
 
     for value in desired - existing:
@@ -709,6 +718,36 @@ def resolve_all_title_abbreviations(
         TitleAbbreviation.objects.bulk_create(to_create, batch_size=2000)
 
 
+def _get_title_abbrs_for_models(
+    model_ids: set[int],
+) -> dict[int, set[str]]:
+    """Return {model_id: set(abbreviation_values)} from each model's title."""
+    # Get model_id -> title_id mapping.
+    model_title_map = dict(
+        MachineModel.objects.filter(pk__in=model_ids, title__isnull=False).values_list(
+            "pk", "title_id"
+        )
+    )
+    if not model_title_map:
+        return {}
+
+    # Get title_id -> set of abbreviation values.
+    title_ids = set(model_title_map.values())
+    title_abbrs: dict[int, set[str]] = {}
+    for title_id, value in TitleAbbreviation.objects.filter(
+        title_id__in=title_ids
+    ).values_list("title_id", "value"):
+        title_abbrs.setdefault(title_id, set()).add(value)
+
+    # Map back to model_id.
+    result: dict[int, set[str]] = {}
+    for model_id, title_id in model_title_map.items():
+        abbrs = title_abbrs.get(title_id)
+        if abbrs:
+            result[model_id] = abbrs
+    return result
+
+
 def resolve_all_model_abbreviations(
     all_models: list[MachineModel],
     *,
@@ -758,8 +797,15 @@ def resolve_all_model_abbreviations(
             desired.add(val["value"])
         desired_by_model[model_id] = desired
 
-    # Pre-fetch existing ModelAbbreviation rows.
+    # Deduplicate: remove model abbreviations that already exist on the title.
     all_model_ids = model_ids if model_ids is not None else {pm.pk for pm in all_models}
+    title_abbrs_by_model = _get_title_abbrs_for_models(all_model_ids)
+    for model_id in list(desired_by_model):
+        title_abbrs = title_abbrs_by_model.get(model_id, set())
+        if title_abbrs:
+            desired_by_model[model_id] -= title_abbrs
+
+    # Pre-fetch existing ModelAbbreviation rows.
     existing_by_model: dict[int, set[str]] = {}
     for row in ModelAbbreviation.objects.filter(
         machine_model_id__in=all_model_ids

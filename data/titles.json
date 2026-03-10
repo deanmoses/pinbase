@@ -9,19 +9,28 @@
     "slug": "ac-dc",
     "name": "AC/DC",
     "opdb_group_id": "G43W4",
-    "franchise_slug": "ac-dc"
+    "franchise_slug": "ac-dc",
+    "abbreviations": [
+      "ACDC"
+    ]
   },
   {
     "slug": "aerosmith",
     "name": "Aerosmith",
     "opdb_group_id": "Gr16e",
-    "franchise_slug": "aerosmith"
+    "franchise_slug": "aerosmith",
+    "abbreviations": [
+      "AS"
+    ]
   },
   {
     "slug": "alice-cooper",
     "name": "Alice Cooper's Nightmare Castle",
     "opdb_group_id": "GrlXK",
-    "franchise_slug": "alice-cooper"
+    "franchise_slug": "alice-cooper",
+    "abbreviations": [
+      "ACNC"
+    ]
   },
   {
     "slug": "alien",
@@ -33,13 +42,19 @@
     "slug": "apollo-13",
     "name": "Apollo 13",
     "opdb_group_id": "G411e",
-    "franchise_slug": "apollo-13"
+    "franchise_slug": "apollo-13",
+    "abbreviations": [
+      "A13"
+    ]
   },
   {
     "slug": "austin-powers",
     "name": "Austin Powers",
     "opdb_group_id": "G43BW",
-    "franchise_slug": "austin-powers"
+    "franchise_slug": "austin-powers",
+    "abbreviations": [
+      "AP"
+    ]
   },
   {
     "slug": "avatar",
@@ -51,91 +66,136 @@
     "slug": "avengers-infinity-quest",
     "name": "Avengers: Infinity Quest",
     "opdb_group_id": "Gj66P",
-    "franchise_slug": "the-avengers"
+    "franchise_slug": "the-avengers",
+    "abbreviations": [
+      "A:IQ"
+    ]
   },
   {
     "slug": "back-to-the-future",
     "name": "Back to the Future",
     "opdb_group_id": "GRpbW",
-    "franchise_slug": "back-to-the-future"
+    "franchise_slug": "back-to-the-future",
+    "abbreviations": [
+      "BTTF"
+    ]
   },
   {
     "slug": "barb-wire",
     "name": "Barb Wire",
     "opdb_group_id": "GRwyv",
-    "franchise_slug": "barb-wire"
+    "franchise_slug": "barb-wire",
+    "abbreviations": [
+      "BW"
+    ]
   },
   {
     "slug": "batman",
     "name": "Batman",
     "opdb_group_id": "G4yVw",
-    "franchise_slug": "batman"
+    "franchise_slug": "batman",
+    "abbreviations": [
+      "BDK"
+    ]
   },
   {
     "slug": "batman-66",
     "name": "Batman 66",
     "opdb_group_id": "GRoz4",
-    "franchise_slug": "batman"
+    "franchise_slug": "batman",
+    "abbreviations": [
+      "B66"
+    ]
   },
   {
     "slug": "batman-data-east",
     "name": "Batman",
     "opdb_group_id": "GrOpb",
-    "franchise_slug": "batman"
+    "franchise_slug": "batman",
+    "abbreviations": [
+      "BM"
+    ]
   },
   {
     "slug": "batman-forever",
     "name": "Batman Forever",
     "opdb_group_id": "G59zN",
-    "franchise_slug": "batman"
+    "franchise_slug": "batman",
+    "abbreviations": [
+      "BF"
+    ]
   },
   {
     "slug": "baywatch",
     "name": "Baywatch",
     "opdb_group_id": "Grxvy",
-    "franchise_slug": "baywatch"
+    "franchise_slug": "baywatch",
+    "abbreviations": [
+      "BW"
+    ]
   },
   {
     "slug": "big-buck-hunter",
     "name": "Big Buck Hunter Pro",
     "opdb_group_id": "G4N6n",
-    "franchise_slug": "big-buck-hunter"
+    "franchise_slug": "big-buck-hunter",
+    "abbreviations": [
+      "BBH"
+    ]
   },
   {
     "slug": "black-knight",
     "name": "Black Knight",
     "opdb_group_id": "GrO7w",
-    "series_slug": "black-knight"
+    "series_slug": "black-knight",
+    "abbreviations": [
+      "BK"
+    ]
   },
   {
     "slug": "black-knight-2000",
     "name": "Black Knight 2000",
     "opdb_group_id": "GrxPP",
-    "series_slug": "black-knight"
+    "series_slug": "black-knight",
+    "abbreviations": [
+      "BK2K"
+    ]
   },
   {
     "slug": "black-knight-sword-of-rage",
     "name": "Black Knight: Sword of Rage",
     "opdb_group_id": "GD7Ld",
-    "series_slug": "black-knight"
+    "series_slug": "black-knight",
+    "abbreviations": [
+      "BK:SR"
+    ]
   },
   {
     "slug": "black-velvet",
     "name": "Black Velvet",
     "opdb_group_id": "GRw0Z",
-    "franchise_slug": "black-velvet"
+    "franchise_slug": "black-velvet",
+    "abbreviations": [
+      "BV"
+    ]
   },
   {
     "slug": "bride-of-pinbot",
     "name": "Bride of Pinbot",
     "opdb_group_id": "GRpee",
-    "series_slug": "pinbot"
+    "series_slug": "pinbot",
+    "abbreviations": [
+      "BOP"
+    ]
   },
   {
     "slug": "bugs-bunnys-birthday-ball",
     "name": "Bugs Bunny's Birthday Ball",
     "opdb_group_id": "GRozL",
-    "franchise_slug": "looney-tunes"
+    "franchise_slug": "looney-tunes",
+    "abbreviations": [
+      "BBBB"
+    ]
   },
   {
     "slug": "camel",
@@ -147,61 +207,91 @@
     "slug": "charlies-angels",
     "name": "Charlie’s Angels",
     "opdb_group_id": "G5Woz",
-    "franchise_slug": "charlies-angels"
+    "franchise_slug": "charlies-angels",
+    "abbreviations": [
+      "CA"
+    ]
   },
   {
     "slug": "close-encounters",
     "name": "Close Encounters of the Third Kind",
     "opdb_group_id": "G4qvL",
-    "franchise_slug": "close-encounters"
+    "franchise_slug": "close-encounters",
+    "abbreviations": [
+      "CE3K"
+    ]
   },
   {
     "slug": "congo",
     "name": "Congo",
     "opdb_group_id": "GrNd0",
-    "franchise_slug": "congo"
+    "franchise_slug": "congo",
+    "abbreviations": [
+      "CNG"
+    ]
   },
   {
     "slug": "creature-from-the-black-lagoon",
     "name": "Creature from the Black Lagoon",
     "opdb_group_id": "GrNWn",
-    "franchise_slug": "universal-monsters"
+    "franchise_slug": "universal-monsters",
+    "abbreviations": [
+      "CFTBL"
+    ]
   },
   {
     "slug": "csi",
     "name": "CSI: Crime Scene Investigation",
     "opdb_group_id": "GRokz",
-    "franchise_slug": "csi"
+    "franchise_slug": "csi",
+    "abbreviations": [
+      "CSI"
+    ]
   },
   {
     "slug": "deadpool",
     "name": "Deadpool",
     "opdb_group_id": "G6lnq",
-    "franchise_slug": "deadpool"
+    "franchise_slug": "deadpool",
+    "abbreviations": [
+      "DP"
+    ]
   },
   {
     "slug": "demolition-man",
     "name": "Demolition Man",
     "opdb_group_id": "G5bv3",
-    "franchise_slug": "demolition-man"
+    "franchise_slug": "demolition-man",
+    "abbreviations": [
+      "DM"
+    ]
   },
   {
     "slug": "dirty-harry",
     "name": "Dirty Harry",
     "opdb_group_id": "GrJ2Z",
-    "franchise_slug": "dirty-harry"
+    "franchise_slug": "dirty-harry",
+    "abbreviations": [
+      "DH"
+    ]
   },
   {
     "slug": "doctor-who",
     "name": "Doctor Who",
     "opdb_group_id": "G4x2Y",
-    "franchise_slug": "doctor-who"
+    "franchise_slug": "doctor-who",
+    "abbreviations": [
+      "DW"
+    ]
   },
   {
     "slug": "dolly-parton",
     "name": "Dolly Parton",
     "opdb_group_id": "G43Yq",
-    "franchise_slug": "dolly-parton"
+    "franchise_slug": "dolly-parton",
+    "abbreviations": [
+      "DP"
+    ]
   },
   {
     "slug": "dominos",
@@ -213,7 +303,10 @@
     "slug": "dracula",
     "name": "Bram Stoker's Dracula",
     "opdb_group_id": "G41do",
-    "franchise_slug": "dracula"
+    "franchise_slug": "dracula",
+    "abbreviations": [
+      "BSD"
+    ]
   },
   {
     "slug": "dune",
@@ -225,37 +318,55 @@
     "slug": "eight-ball",
     "name": "Eight Ball",
     "opdb_group_id": "GrN7J",
-    "series_slug": "eight-ball"
+    "series_slug": "eight-ball",
+    "abbreviations": [
+      "EB"
+    ]
   },
   {
     "slug": "eight-ball-champ",
     "name": "Eight Ball Champ",
     "opdb_group_id": "G439V",
-    "series_slug": "eight-ball"
+    "series_slug": "eight-ball",
+    "abbreviations": [
+      "EBC"
+    ]
   },
   {
     "slug": "eight-ball-deluxe",
     "name": "Eight Ball Deluxe",
     "opdb_group_id": "G5KXk",
-    "series_slug": "eight-ball"
+    "series_slug": "eight-ball",
+    "abbreviations": [
+      "EBD"
+    ]
   },
   {
     "slug": "elton-john",
     "name": "Captain Fantastic and the Brown Dirt Cowboy",
     "opdb_group_id": "GRveZ",
-    "franchise_slug": "elton-john"
+    "franchise_slug": "elton-john",
+    "abbreviations": [
+      "CF"
+    ]
   },
   {
     "slug": "elvira-and-the-party-monsters",
     "name": "Elvira and the Party Monsters",
     "opdb_group_id": "Grlxp",
-    "franchise_slug": "elvira"
+    "franchise_slug": "elvira",
+    "abbreviations": [
+      "EATPM"
+    ]
   },
   {
     "slug": "elviras-house-of-horrors",
     "name": "Elvira's House of Horrors",
     "opdb_group_id": "GZVOd",
-    "franchise_slug": "elvira"
+    "franchise_slug": "elvira",
+    "abbreviations": [
+      "E:HoH"
+    ]
   },
   {
     "slug": "elvis",
@@ -267,7 +378,10 @@
     "slug": "evel-knievel",
     "name": "Evel Knievel",
     "opdb_group_id": "G59wx",
-    "franchise_slug": "evel-knievel"
+    "franchise_slug": "evel-knievel",
+    "abbreviations": [
+      "EK"
+    ]
   },
   {
     "slug": "family-guy",
@@ -279,31 +393,46 @@
     "slug": "flash-gordon",
     "name": "Flash Gordon",
     "opdb_group_id": "G5728",
-    "franchise_slug": "flash-gordon"
+    "franchise_slug": "flash-gordon",
+    "abbreviations": [
+      "FG"
+    ]
   },
   {
     "slug": "frankenstein",
     "name": "Mary Shelley's Frankenstein",
     "opdb_group_id": "GRB7E",
-    "franchise_slug": "frankenstein"
+    "franchise_slug": "frankenstein",
+    "abbreviations": [
+      "MSF"
+    ]
   },
   {
     "slug": "game-of-thrones",
     "name": "Game of Thrones",
     "opdb_group_id": "G41d5",
-    "franchise_slug": "game-of-thrones"
+    "franchise_slug": "game-of-thrones",
+    "abbreviations": [
+      "GOT"
+    ]
   },
   {
     "slug": "ghostbusters",
     "name": "Ghostbusters",
     "opdb_group_id": "GR9Nr",
-    "franchise_slug": "ghostbusters"
+    "franchise_slug": "ghostbusters",
+    "abbreviations": [
+      "GB"
+    ]
   },
   {
     "slug": "gilligans-island",
     "name": "Gilligan's Island",
     "opdb_group_id": "GRBxQ",
-    "franchise_slug": "gilligans-island"
+    "franchise_slug": "gilligans-island",
+    "abbreviations": [
+      "GI"
+    ]
   },
   {
     "slug": "godzilla",
@@ -315,7 +444,10 @@
     "slug": "godzilla-stern",
     "name": "Godzilla",
     "opdb_group_id": "GweeP",
-    "franchise_slug": "godzilla"
+    "franchise_slug": "godzilla",
+    "abbreviations": [
+      "GZ"
+    ]
   },
   {
     "slug": "goldeneye",
@@ -327,25 +459,37 @@
     "slug": "guardians-of-the-galaxy",
     "name": "Guardians of the Galaxy",
     "opdb_group_id": "GRWvz",
-    "franchise_slug": "guardians-of-the-galaxy"
+    "franchise_slug": "guardians-of-the-galaxy",
+    "abbreviations": [
+      "GOTG"
+    ]
   },
   {
     "slug": "guns-n-roses",
     "name": "Guns N' Roses",
     "opdb_group_id": "GrPKV",
-    "franchise_slug": "guns-n-roses"
+    "franchise_slug": "guns-n-roses",
+    "abbreviations": [
+      "GNR"
+    ]
   },
   {
     "slug": "guns-n-roses-jersey-jack-pinball",
     "name": "Guns N' Roses",
     "opdb_group_id": "GqZZ1",
-    "franchise_slug": "guns-n-roses"
+    "franchise_slug": "guns-n-roses",
+    "abbreviations": [
+      "GNR"
+    ]
   },
   {
     "slug": "harlem-globetrotters",
     "name": "Harlem Globetrotters On Tour",
     "opdb_group_id": "GRnwQ",
-    "franchise_slug": "harlem-globetrotters"
+    "franchise_slug": "harlem-globetrotters",
+    "abbreviations": [
+      "HARLEM"
+    ]
   },
   {
     "slug": "harley-davidson",
@@ -357,19 +501,28 @@
     "slug": "harley-davidson-bally",
     "name": "Harley Davidson",
     "opdb_group_id": "Gr2L0",
-    "franchise_slug": "harley-davidson"
+    "franchise_slug": "harley-davidson",
+    "abbreviations": [
+      "HD"
+    ]
   },
   {
     "slug": "heavy-metal",
     "name": "Heavy Metal",
     "opdb_group_id": "GoEej",
-    "franchise_slug": "heavy-metal"
+    "franchise_slug": "heavy-metal",
+    "abbreviations": [
+      "HM"
+    ]
   },
   {
     "slug": "high-speed",
     "name": "High Speed",
     "opdb_group_id": "GRvzd",
-    "series_slug": "high-speed"
+    "series_slug": "high-speed",
+    "abbreviations": [
+      "HS"
+    ]
   },
   {
     "slug": "hook",
@@ -381,85 +534,127 @@
     "slug": "hot-wheels",
     "name": "Hot Wheels",
     "opdb_group_id": "GEL31",
-    "franchise_slug": "hot-wheels"
+    "franchise_slug": "hot-wheels",
+    "abbreviations": [
+      "HW"
+    ]
   },
   {
     "slug": "independence-day",
     "name": "Independence Day",
     "opdb_group_id": "G4doQ",
-    "franchise_slug": "independence-day"
+    "franchise_slug": "independence-day",
+    "abbreviations": [
+      "ID4"
+    ]
   },
   {
     "slug": "indiana-jones",
     "name": "Indiana Jones",
     "opdb_group_id": "G4e1d",
-    "franchise_slug": "indiana-jones"
+    "franchise_slug": "indiana-jones",
+    "abbreviations": [
+      "IJ4"
+    ]
   },
   {
     "slug": "indiana-jones-the-pinball-adventure",
     "name": "Indiana Jones: The Pinball Adventure",
     "opdb_group_id": "G4xZy",
-    "franchise_slug": "indiana-jones"
+    "franchise_slug": "indiana-jones",
+    "abbreviations": [
+      "IJ"
+    ]
   },
   {
     "slug": "iron-maiden",
     "name": "Iron Maiden: Legacy of the Beast",
     "opdb_group_id": "G4dOQ",
-    "franchise_slug": "iron-maiden"
+    "franchise_slug": "iron-maiden",
+    "abbreviations": [
+      "LotB"
+    ]
   },
   {
     "slug": "iron-man",
     "name": "Iron Man",
     "opdb_group_id": "GRVq4",
-    "franchise_slug": "iron-man"
+    "franchise_slug": "iron-man",
+    "abbreviations": [
+      "IM"
+    ]
   },
   {
     "slug": "james-bond-007",
     "name": "James Bond 007",
     "opdb_group_id": "GQKyP",
-    "franchise_slug": "james-bond"
+    "franchise_slug": "james-bond",
+    "abbreviations": [
+      "007"
+    ]
   },
   {
     "slug": "james-bond-007-60th-anniversary",
     "name": "James Bond 007 60th Anniversary",
     "opdb_group_id": "Ge1Dy",
-    "franchise_slug": "james-bond"
+    "franchise_slug": "james-bond",
+    "abbreviations": [
+      "007"
+    ]
   },
   {
     "slug": "james-bond-007-gottlieb",
     "name": "James Bond 007",
     "opdb_group_id": "G4PXJ",
-    "franchise_slug": "james-bond"
+    "franchise_slug": "james-bond",
+    "abbreviations": [
+      "JB"
+    ]
   },
   {
     "slug": "johnny-mnemonic",
     "name": "Johnny Mnemonic",
     "opdb_group_id": "GR6W8",
-    "franchise_slug": "johnny-mnemonic"
+    "franchise_slug": "johnny-mnemonic",
+    "abbreviations": [
+      "JM"
+    ]
   },
   {
     "slug": "judge-dredd",
     "name": "Judge Dredd",
     "opdb_group_id": "GRoZw",
-    "franchise_slug": "judge-dredd"
+    "franchise_slug": "judge-dredd",
+    "abbreviations": [
+      "JD"
+    ]
   },
   {
     "slug": "jurassic-park",
     "name": "Jurassic Park",
     "opdb_group_id": "G4ZVB",
-    "franchise_slug": "jurassic-park"
+    "franchise_slug": "jurassic-park",
+    "abbreviations": [
+      "JP"
+    ]
   },
   {
     "slug": "jurassic-park-home-edition",
     "name": "Jurassic Park (Home Edition)",
     "opdb_group_id": "GxvvB",
-    "franchise_slug": "jurassic-park"
+    "franchise_slug": "jurassic-park",
+    "abbreviations": [
+      "JP"
+    ]
   },
   {
     "slug": "jurassic-park-stern",
     "name": "Jurassic Park",
     "opdb_group_id": "GK17D",
-    "franchise_slug": "jurassic-park"
+    "franchise_slug": "jurassic-park",
+    "abbreviations": [
+      "JP"
+    ]
   },
   {
     "slug": "kiss",
@@ -477,60 +672,90 @@
     "slug": "last-action-hero",
     "name": "Last Action Hero",
     "opdb_group_id": "GRwyq",
-    "franchise_slug": "last-action-hero"
+    "franchise_slug": "last-action-hero",
+    "abbreviations": [
+      "LAH"
+    ]
   },
   {
     "slug": "led-zeppelin",
     "name": "Led Zeppelin",
     "opdb_group_id": "Gweel",
-    "franchise_slug": "led-zeppelin"
+    "franchise_slug": "led-zeppelin",
+    "abbreviations": [
+      "LZ"
+    ]
   },
   {
     "slug": "lethal-weapon",
     "name": "Lethal Weapon 3",
     "opdb_group_id": "GRokL",
-    "franchise_slug": "lethal-weapon"
+    "franchise_slug": "lethal-weapon",
+    "abbreviations": [
+      "LW3"
+    ]
   },
   {
     "slug": "lord-of-the-rings",
     "name": "Lord of the Rings",
     "opdb_group_id": "GrqZX",
-    "franchise_slug": "lord-of-the-rings"
+    "franchise_slug": "lord-of-the-rings",
+    "abbreviations": [
+      "LOTR"
+    ]
   },
   {
     "slug": "lost-in-space",
     "name": "Lost In Space",
     "opdb_group_id": "GR91x",
-    "franchise_slug": "lost-in-space"
+    "franchise_slug": "lost-in-space",
+    "abbreviations": [
+      "LIS"
+    ]
   },
   {
     "slug": "maverick",
     "name": "Maverick",
     "opdb_group_id": "GrN9V",
-    "franchise_slug": "maverick"
+    "franchise_slug": "maverick",
+    "abbreviations": [
+      "MAV"
+    ]
   },
   {
     "slug": "medieval-madness",
     "name": "Medieval Madness",
-    "opdb_group_id": "G5pe4"
+    "opdb_group_id": "G5pe4",
+    "abbreviations": [
+      "MM"
+    ]
   },
   {
     "slug": "metallica",
     "name": "Metallica",
     "opdb_group_id": "GRBE4",
-    "franchise_slug": "metallica"
+    "franchise_slug": "metallica",
+    "abbreviations": [
+      "MET"
+    ]
   },
   {
     "slug": "monopoly",
     "name": "Monopoly",
     "opdb_group_id": "G48w3",
-    "franchise_slug": "monopoly"
+    "franchise_slug": "monopoly",
+    "abbreviations": [
+      "MON"
+    ]
   },
   {
     "slug": "monster-bash",
     "name": "Monster Bash",
     "opdb_group_id": "Gr3EW",
-    "franchise_slug": "universal-monsters"
+    "franchise_slug": "universal-monsters",
+    "abbreviations": [
+      "MB"
+    ]
   },
   {
     "slug": "muhammad-ali",
@@ -560,19 +785,28 @@
     "slug": "nba-fastbreak",
     "name": "NBA Fastbreak",
     "opdb_group_id": "GrO0D",
-    "franchise_slug": "nba"
+    "franchise_slug": "nba",
+    "abbreviations": [
+      "NBAFB"
+    ]
   },
   {
     "slug": "nightmare-on-elm-street",
     "name": "Freddy: A Nightmare On Elm Street",
     "opdb_group_id": "GRzB7",
-    "franchise_slug": "nightmare-on-elm-street"
+    "franchise_slug": "nightmare-on-elm-street",
+    "abbreviations": [
+      "FREDDY"
+    ]
   },
   {
     "slug": "no-fear",
     "name": "No Fear: Dangerous Sports",
     "opdb_group_id": "Gr2Y2",
-    "franchise_slug": "no-fear"
+    "franchise_slug": "no-fear",
+    "abbreviations": [
+      "NF"
+    ]
   },
   {
     "slug": "pabst-blue-ribbon",
@@ -584,19 +818,28 @@
     "slug": "pinbot",
     "name": "Pinbot",
     "opdb_group_id": "G41Z8",
-    "series_slug": "pinbot"
+    "series_slug": "pinbot",
+    "abbreviations": [
+      "PB"
+    ]
   },
   {
     "slug": "pirates-of-the-caribbean",
     "name": "Pirates of the Caribbean",
     "opdb_group_id": "GR7ZX",
-    "franchise_slug": "pirates-of-the-caribbean"
+    "franchise_slug": "pirates-of-the-caribbean",
+    "abbreviations": [
+      "POTC"
+    ]
   },
   {
     "slug": "pirates-of-the-caribbean-jersey-jack-pinball",
     "name": "Pirates of the Caribbean",
     "opdb_group_id": "GRbPY",
-    "franchise_slug": "pirates-of-the-caribbean"
+    "franchise_slug": "pirates-of-the-caribbean",
+    "abbreviations": [
+      "POTC"
+    ]
   },
   {
     "slug": "playboy",
@@ -620,25 +863,37 @@
     "slug": "playboy-stern",
     "name": "Playboy",
     "opdb_group_id": "GrPKO",
-    "franchise_slug": "playboy"
+    "franchise_slug": "playboy",
+    "abbreviations": [
+      "PB"
+    ]
   },
   {
     "slug": "popeye",
     "name": "Popeye Saves the Earth",
     "opdb_group_id": "GR0lW",
-    "franchise_slug": "popeye"
+    "franchise_slug": "popeye",
+    "abbreviations": [
+      "PSTE"
+    ]
   },
   {
     "slug": "rick-and-morty",
     "name": "Rick and Morty",
     "opdb_group_id": "GQKb2",
-    "franchise_slug": "rick-and-morty"
+    "franchise_slug": "rick-and-morty",
+    "abbreviations": [
+      "RM"
+    ]
   },
   {
     "slug": "ripleys-believe-it-or-not",
     "name": "Ripley's Believe It or Not!",
     "opdb_group_id": "GRWyB",
-    "franchise_slug": "ripleys-believe-it-or-not"
+    "franchise_slug": "ripleys-believe-it-or-not",
+    "abbreviations": [
+      "RBION"
+    ]
   },
   {
     "slug": "road-runner",
@@ -650,7 +905,10 @@
     "slug": "rob-zombie",
     "name": "Rob Zombie's Spookshow International",
     "opdb_group_id": "G5pp2",
-    "franchise_slug": "rob-zombie"
+    "franchise_slug": "rob-zombie",
+    "abbreviations": [
+      "RZ"
+    ]
   },
   {
     "slug": "robocop",
@@ -668,25 +926,37 @@
     "slug": "rocky-and-bullwinkle",
     "name": "Adventures of Rocky and Bullwinkle and Friends",
     "opdb_group_id": "G5vnL",
-    "franchise_slug": "rocky-and-bullwinkle"
+    "franchise_slug": "rocky-and-bullwinkle",
+    "abbreviations": [
+      "R&B"
+    ]
   },
   {
     "slug": "rollercoaster-tycoon",
     "name": "RollerCoaster Tycoon",
     "opdb_group_id": "Grybw",
-    "franchise_slug": "rollercoaster-tycoon"
+    "franchise_slug": "rollercoaster-tycoon",
+    "abbreviations": [
+      "RCT"
+    ]
   },
   {
     "slug": "rollergames",
     "name": "Rollergames",
     "opdb_group_id": "Gr1Ko",
-    "franchise_slug": "rollergames"
+    "franchise_slug": "rollergames",
+    "abbreviations": [
+      "RG"
+    ]
   },
   {
     "slug": "rolling-stones",
     "name": "Rolling Stones",
     "opdb_group_id": "G5Qz4",
-    "franchise_slug": "the-rolling-stones"
+    "franchise_slug": "the-rolling-stones",
+    "abbreviations": [
+      "RS"
+    ]
   },
   {
     "slug": "rush",
@@ -698,7 +968,10 @@
     "slug": "scared-stiff",
     "name": "Scared Stiff",
     "opdb_group_id": "G4xbP",
-    "franchise_slug": "elvira"
+    "franchise_slug": "elvira",
+    "abbreviations": [
+      "SS"
+    ]
   },
   {
     "slug": "shaq",
@@ -710,31 +983,46 @@
     "slug": "south-park",
     "name": "South Park",
     "opdb_group_id": "G4qbD",
-    "franchise_slug": "south-park"
+    "franchise_slug": "south-park",
+    "abbreviations": [
+      "SP"
+    ]
   },
   {
     "slug": "space-jam",
     "name": "Space Jam",
     "opdb_group_id": "G482d",
-    "franchise_slug": "space-jam"
+    "franchise_slug": "space-jam",
+    "abbreviations": [
+      "SJ"
+    ]
   },
   {
     "slug": "spider-man",
     "name": "Spider-Man",
     "opdb_group_id": "G5D94",
-    "franchise_slug": "spider-man"
+    "franchise_slug": "spider-man",
+    "abbreviations": [
+      "SM"
+    ]
   },
   {
     "slug": "spider-man-gottlieb",
     "name": "Spider-Man",
     "opdb_group_id": "GrXlr",
-    "franchise_slug": "spider-man"
+    "franchise_slug": "spider-man",
+    "abbreviations": [
+      "SM"
+    ]
   },
   {
     "slug": "spider-man-home-edition",
     "name": "Spider-Man (Home Edition)",
     "opdb_group_id": "G2Ld3",
-    "franchise_slug": "spider-man"
+    "franchise_slug": "spider-man",
+    "abbreviations": [
+      "SM"
+    ]
   },
   {
     "slug": "star-trek",
@@ -752,13 +1040,19 @@
     "slug": "star-trek-stern",
     "name": "Star Trek",
     "opdb_group_id": "Gryw4",
-    "franchise_slug": "star-trek"
+    "franchise_slug": "star-trek",
+    "abbreviations": [
+      "ST"
+    ]
   },
   {
     "slug": "star-trek-the-next-generation",
     "name": "Star Trek: The Next Generation",
     "opdb_group_id": "GR6d8",
-    "franchise_slug": "star-trek"
+    "franchise_slug": "star-trek",
+    "abbreviations": [
+      "STTNG"
+    ]
   },
   {
     "slug": "star-wars",
@@ -770,61 +1064,91 @@
     "slug": "star-wars-data-east",
     "name": "Star Wars",
     "opdb_group_id": "G420r",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "SWDE"
+    ]
   },
   {
     "slug": "star-wars-episode-i",
     "name": "Star Wars Episode I",
     "opdb_group_id": "GRL9r",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "SWE1"
+    ]
   },
   {
     "slug": "star-wars-fall-of-the-empire",
     "name": "Star Wars: Fall of the Empire",
     "opdb_group_id": "Gxv81",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "SW:FotE"
+    ]
   },
   {
     "slug": "star-wars-home-edition",
     "name": "Star Wars (Home Edition)",
     "opdb_group_id": "GpePX",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "SW"
+    ]
   },
   {
     "slug": "star-wars-stern",
     "name": "Star Wars",
     "opdb_group_id": "G5vLR",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "SW"
+    ]
   },
   {
     "slug": "star-wars-trilogy",
     "name": "Star Wars Trilogy",
     "opdb_group_id": "GrybN",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "SWT"
+    ]
   },
   {
     "slug": "stargate",
     "name": "Stargate",
     "opdb_group_id": "G50pv",
-    "franchise_slug": "stargate"
+    "franchise_slug": "stargate",
+    "abbreviations": [
+      "SG"
+    ]
   },
   {
     "slug": "starship-troopers",
     "name": "Starship Troopers",
     "opdb_group_id": "G5we0",
-    "franchise_slug": "starship-troopers"
+    "franchise_slug": "starship-troopers",
+    "abbreviations": [
+      "SST"
+    ]
   },
   {
     "slug": "stranger-things",
     "name": "Stranger Things",
     "opdb_group_id": "Gzy89",
-    "franchise_slug": "stranger-things"
+    "franchise_slug": "stranger-things",
+    "abbreviations": [
+      "ST"
+    ]
   },
   {
     "slug": "super-mario-bros",
     "name": "Super Mario Bros.",
     "opdb_group_id": "GRBzQ",
-    "franchise_slug": "super-mario-bros"
+    "franchise_slug": "super-mario-bros",
+    "abbreviations": [
+      "SMB"
+    ]
   },
   {
     "slug": "superman",
@@ -836,7 +1160,10 @@
     "slug": "tales-from-the-crypt",
     "name": "Tales from the Crypt",
     "opdb_group_id": "GR6wO",
-    "franchise_slug": "tales-from-the-crypt"
+    "franchise_slug": "tales-from-the-crypt",
+    "abbreviations": [
+      "TFTC"
+    ]
   },
   {
     "slug": "ted-nugent",
@@ -848,31 +1175,46 @@
     "slug": "teenage-mutant-ninja-turtles",
     "name": "Teenage Mutant Ninja Turtles",
     "opdb_group_id": "Gd2Xb",
-    "franchise_slug": "teenage-mutant-ninja-turtles"
+    "franchise_slug": "teenage-mutant-ninja-turtles",
+    "abbreviations": [
+      "TMNT"
+    ]
   },
   {
     "slug": "terminator-2-judgment-day",
     "name": "Terminator 2: Judgment Day",
     "opdb_group_id": "GR9Bx",
-    "franchise_slug": "terminator"
+    "franchise_slug": "terminator",
+    "abbreviations": [
+      "T2"
+    ]
   },
   {
     "slug": "terminator-3-rise-of-the-machines",
     "name": "Terminator 3: Rise of the Machines",
     "opdb_group_id": "GR91N",
-    "franchise_slug": "terminator"
+    "franchise_slug": "terminator",
+    "abbreviations": [
+      "T3"
+    ]
   },
   {
     "slug": "the-addams-family",
     "name": "The Addams Family",
     "opdb_group_id": "G4ODR",
-    "franchise_slug": "the-addams-family"
+    "franchise_slug": "the-addams-family",
+    "abbreviations": [
+      "TAF"
+    ]
   },
   {
     "slug": "the-avengers",
     "name": "The Avengers",
     "opdb_group_id": "GRzNR",
-    "franchise_slug": "the-avengers"
+    "franchise_slug": "the-avengers",
+    "abbreviations": [
+      "TAV"
+    ]
   },
   {
     "slug": "the-beatles",
@@ -884,7 +1226,10 @@
     "slug": "the-big-lebowski",
     "name": "The Big Lebowski",
     "opdb_group_id": "G5WBr",
-    "franchise_slug": "the-big-lebowski"
+    "franchise_slug": "the-big-lebowski",
+    "abbreviations": [
+      "TBL"
+    ]
   },
   {
     "slug": "the-empire-strikes-back",
@@ -896,7 +1241,10 @@
     "slug": "the-flintstones",
     "name": "The Flintstones",
     "opdb_group_id": "GRK95",
-    "franchise_slug": "the-flintstones"
+    "franchise_slug": "the-flintstones",
+    "abbreviations": [
+      "FS"
+    ]
   },
   {
     "slug": "the-flintstones-innovative-concepts-ice",
@@ -908,13 +1256,19 @@
     "slug": "the-getaway-high-speed-ii",
     "name": "The Getaway: High Speed II",
     "opdb_group_id": "Grx8Y",
-    "series_slug": "high-speed"
+    "series_slug": "high-speed",
+    "abbreviations": [
+      "HS2"
+    ]
   },
   {
     "slug": "the-hobbit",
     "name": "The Hobbit",
     "opdb_group_id": "G5bYr",
-    "franchise_slug": "lord-of-the-rings"
+    "franchise_slug": "lord-of-the-rings",
+    "abbreviations": [
+      "TH"
+    ]
   },
   {
     "slug": "the-incredible-hulk",
@@ -932,13 +1286,19 @@
     "slug": "the-lost-world-jurassic-park",
     "name": "The Lost World Jurassic Park",
     "opdb_group_id": "G4kBL",
-    "franchise_slug": "jurassic-park"
+    "franchise_slug": "jurassic-park",
+    "abbreviations": [
+      "LW"
+    ]
   },
   {
     "slug": "the-mandalorian",
     "name": "The Mandalorian",
     "opdb_group_id": "GBLLP",
-    "franchise_slug": "star-wars"
+    "franchise_slug": "star-wars",
+    "abbreviations": [
+      "MANDO"
+    ]
   },
   {
     "slug": "the-munsters",
@@ -950,13 +1310,19 @@
     "slug": "the-rolling-stones",
     "name": "The Rolling Stones",
     "opdb_group_id": "GredR",
-    "franchise_slug": "the-rolling-stones"
+    "franchise_slug": "the-rolling-stones",
+    "abbreviations": [
+      "TRS"
+    ]
   },
   {
     "slug": "the-shadow",
     "name": "The Shadow",
     "opdb_group_id": "G4jPX",
-    "franchise_slug": "the-shadow"
+    "franchise_slug": "the-shadow",
+    "abbreviations": [
+      "TS"
+    ]
   },
   {
     "slug": "the-simpsons",
@@ -968,7 +1334,10 @@
     "slug": "the-simpsons-pinball-party",
     "name": "The Simpsons Pinball Party",
     "opdb_group_id": "GRvBL",
-    "franchise_slug": "the-simpsons"
+    "franchise_slug": "the-simpsons",
+    "abbreviations": [
+      "TSPP"
+    ]
   },
   {
     "slug": "the-sopranos",
@@ -980,31 +1349,46 @@
     "slug": "the-walking-dead",
     "name": "The Walking Dead",
     "opdb_group_id": "G5nz5",
-    "franchise_slug": "the-walking-dead"
+    "franchise_slug": "the-walking-dead",
+    "abbreviations": [
+      "TWD"
+    ]
   },
   {
     "slug": "the-whos-tommy-pinball-wizard",
     "name": "The Who's Tommy Pinball Wizard",
     "opdb_group_id": "GR6do",
-    "franchise_slug": "the-who"
+    "franchise_slug": "the-who",
+    "abbreviations": [
+      "TOMMY"
+    ]
   },
   {
     "slug": "the-wizard-of-oz",
     "name": "The Wizard of Oz",
     "opdb_group_id": "G4xyR",
-    "franchise_slug": "the-wizard-of-oz"
+    "franchise_slug": "the-wizard-of-oz",
+    "abbreviations": [
+      "WOZ"
+    ]
   },
   {
     "slug": "the-x-files",
     "name": "The X Files",
     "opdb_group_id": "G4jPq",
-    "franchise_slug": "the-x-files"
+    "franchise_slug": "the-x-files",
+    "abbreviations": [
+      "XF"
+    ]
   },
   {
     "slug": "transformers",
     "name": "Transformers",
     "opdb_group_id": "GRnPz",
-    "franchise_slug": "transformers"
+    "franchise_slug": "transformers",
+    "abbreviations": [
+      "TF"
+    ]
   },
   {
     "slug": "transformers-the-pin",
@@ -1016,13 +1400,19 @@
     "slug": "tron",
     "name": "TRON: Legacy",
     "opdb_group_id": "GrkL5",
-    "franchise_slug": "tron"
+    "franchise_slug": "tron",
+    "abbreviations": [
+      "TRON"
+    ]
   },
   {
     "slug": "twilight-zone",
     "name": "Twilight Zone",
     "opdb_group_id": "GrXzD",
-    "franchise_slug": "twilight-zone"
+    "franchise_slug": "twilight-zone",
+    "abbreviations": [
+      "TZ"
+    ]
   },
   {
     "slug": "twister",
@@ -1040,19 +1430,28 @@
     "slug": "waterworld",
     "name": "Waterworld",
     "opdb_group_id": "G4JK7",
-    "franchise_slug": "waterworld"
+    "franchise_slug": "waterworld",
+    "abbreviations": [
+      "WW"
+    ]
   },
   {
     "slug": "wheel-of-fortune",
     "name": "Wheel of Fortune",
     "opdb_group_id": "G417d",
-    "franchise_slug": "wheel-of-fortune"
+    "franchise_slug": "wheel-of-fortune",
+    "abbreviations": [
+      "WoF"
+    ]
   },
   {
     "slug": "willy-wonka",
     "name": "Willy Wonka & The Chocolate Factory",
     "opdb_group_id": "GYWBZ",
-    "franchise_slug": "willy-wonka"
+    "franchise_slug": "willy-wonka",
+    "abbreviations": [
+      "WONKA"
+    ]
   },
   {
     "slug": "wizard",
@@ -1064,29 +1463,44 @@
     "slug": "world-poker-tour",
     "name": "World Poker Tour",
     "opdb_group_id": "G5poe",
-    "franchise_slug": "world-poker-tour"
+    "franchise_slug": "world-poker-tour",
+    "abbreviations": [
+      "WPT"
+    ]
   },
   {
     "slug": "wwf",
     "name": "WWF Royal Rumble",
     "opdb_group_id": "G57y6",
-    "franchise_slug": "wwf"
+    "franchise_slug": "wwf",
+    "abbreviations": [
+      "WWF"
+    ]
   },
   {
     "slug": "x-men",
     "name": "X-Men",
     "opdb_group_id": "Grj6X",
-    "franchise_slug": "x-men"
+    "franchise_slug": "x-men",
+    "abbreviations": [
+      "XM"
+    ]
   },
   {
     "slug": "evil-dead",
     "name": "Evil Dead",
-    "opdb_group_id": "GYWvw"
+    "opdb_group_id": "GYWvw",
+    "abbreviations": [
+      "ED"
+    ]
   },
   {
     "slug": "the-texas-chainsaw-massacre",
     "name": "The Texas Chainsaw Massacre",
-    "opdb_group_id": "G0lkp"
+    "opdb_group_id": "G0lkp",
+    "abbreviations": [
+      "TCM"
+    ]
   },
   {
     "slug": "ultraman-kaiju-rumble",
