@@ -3,6 +3,8 @@
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
+	import TabNav from '$lib/components/TabNav.svelte';
+	import Tab from '$lib/components/Tab.svelte';
 
 	let { data, children } = $props();
 	let mfr = $derived(data.manufacturer);
@@ -37,20 +39,16 @@
 		{/if}
 	</header>
 
-	<nav class="tabs" aria-label="Page sections">
-		<a class="tab" class:active={isDetail} href={resolve(`/manufacturers/${slug}`)}>Titles</a>
+	<TabNav>
+		<Tab active={isDetail} href={resolve(`/manufacturers/${slug}`)}>Titles</Tab>
 		{#if mfr.systems.length > 0}
-			<a class="tab" class:active={isSystems} href={resolve(`/manufacturers/${slug}/systems`)}>
-				Systems
-			</a>
+			<Tab active={isSystems} href={resolve(`/manufacturers/${slug}/systems`)}>Systems</Tab>
 		{/if}
 		{#if auth.isAuthenticated}
-			<a class="tab" class:active={isEdit} href={resolve(`/manufacturers/${slug}/edit`)}>Edit</a>
+			<Tab active={isEdit} href={resolve(`/manufacturers/${slug}/edit`)}>Edit</Tab>
 		{/if}
-		<a class="tab" class:active={isActivity} href={resolve(`/manufacturers/${slug}/activity`)}>
-			Activity
-		</a>
-	</nav>
+		<Tab active={isActivity} href={resolve(`/manufacturers/${slug}/activity`)}>Activity</Tab>
+	</TabNav>
 
 	{@render children()}
 </article>
@@ -82,34 +80,5 @@
 		color: var(--color-text-secondary);
 		margin-top: var(--size-2);
 		line-height: var(--font-lineheight-3);
-	}
-
-	.tabs {
-		display: flex;
-		gap: 0;
-		border-bottom: 2px solid var(--color-border-soft);
-		margin-bottom: var(--size-6);
-	}
-
-	.tab {
-		padding: var(--size-2) var(--size-4);
-		font-size: var(--font-size-1);
-		font-weight: 500;
-		color: var(--color-text-muted);
-		text-decoration: none;
-		border-bottom: 2px solid transparent;
-		margin-bottom: -2px;
-		transition:
-			color 0.15s,
-			border-color 0.15s;
-	}
-
-	.tab:hover {
-		color: var(--color-text-primary);
-	}
-
-	.tab.active {
-		color: var(--color-accent);
-		border-bottom-color: var(--color-accent);
 	}
 </style>
