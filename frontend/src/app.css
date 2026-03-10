@@ -105,6 +105,10 @@ a:hover {
 	text-decoration: underline;
 }
 
+:where(li, dd, figcaption) {
+	max-inline-size: none;
+}
+
 /* ========================================
    UTILITY
    ======================================== */

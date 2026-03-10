@@ -3,7 +3,7 @@
 Fetches (or loads from local dumps) three categories of data:
 
 - **Games** (Category:Machines) — parses ``{{Infobox Title}}`` designer fields
-  and creates ``DesignCredit`` rows for matched game+person pairs.
+  and creates ``Credit`` rows for matched game+person pairs.
 - **Persons** (Category:People) — creates missing ``Person`` records and asserts
   a ``bio`` claim from the page's prose stub.
 - **Manufacturers** (Category:Manufacturers) — asserts structured claims
@@ -275,17 +275,17 @@ class Command(BaseCommand):
                 f"{credit_stats['swept']} swept"
             )
 
-        # Resolve credit claims into materialized DesignCredit rows.
+        # Resolve credit claims into materialized Credit rows.
         resolve_all_credits([], model_ids=matched_machine_ids)
 
         # ------------------------------------------------------------------
         # 8. Ingest persons.
         # ------------------------------------------------------------------
         # Preload machine → credited persons for near-duplicate detection.
-        from apps.catalog.models import DesignCredit
+        from apps.catalog.models import Credit
 
         machine_credited_persons: dict[int, list[Person]] = {}
-        for dc in DesignCredit.objects.select_related("person").all():
+        for dc in Credit.objects.select_related("person").all():
             machine_credited_persons.setdefault(dc.model_id, []).append(dc.person)
 
         person_ct_id = ContentType.objects.get_for_model(Person).pk

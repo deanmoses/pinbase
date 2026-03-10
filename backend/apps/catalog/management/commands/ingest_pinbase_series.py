@@ -1,7 +1,7 @@
 """Seed Series records from data/series.json and design credits from data/credits.json.
 
 Creates or updates Series records with names and descriptions. After OPDB/IPDB
-ingest creates Person records, creates DesignCredit(series=...) records from
+ingest creates Person records, creates Credit(series=...) records from
 credits.json.
 
 Series-Title M2M memberships are handled by ingest_pinbase_titles.
@@ -13,9 +13,9 @@ import json
 import logging
 from pathlib import Path
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
-from apps.catalog.models import DesignCredit, Person, Series
+from apps.catalog.models import Credit, CreditRole, Person, Series
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,11 @@ class Command(BaseCommand):
             credit_entries = json.load(f)
 
         people_by_slug = {p.slug: p for p in Person.objects.all()}
+        role_lookup = {r.slug: r for r in CreditRole.objects.all()}
+        if not role_lookup:
+            raise CommandError(
+                "CreditRole table is empty — run ingest_pinbase_taxonomy first."
+            )
 
         credits_to_create = []
         credits_skipped = 0
@@ -86,7 +91,7 @@ class Command(BaseCommand):
         for entry in credit_entries:
             series_slug = entry["series_slug"]
             person_slug = entry["person_slug"]
-            role = entry["role"].lower()
+            role_slug = entry["role"].lower()
 
             series_obj = series_by_slug.get(series_slug)
             if series_obj is None:
@@ -105,13 +110,19 @@ class Command(BaseCommand):
                 credits_skipped += 1
                 continue
 
+            role_obj = role_lookup.get(role_slug)
+            if role_obj is None:
+                logger.warning("Unknown credit role %r — skipping", role_slug)
+                credits_skipped += 1
+                continue
+
             credits_to_create.append(
-                DesignCredit(series=series_obj, person=person_obj, role=role)
+                Credit(series=series_obj, person=person_obj, role=role_obj)
             )
 
         # Bulk create, skipping duplicates via the conditional unique constraint.
         if credits_to_create:
-            created = DesignCredit.objects.bulk_create(
+            created = Credit.objects.bulk_create(
                 credits_to_create, ignore_conflicts=True
             )
             credits_created = len(created)

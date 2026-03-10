@@ -6,14 +6,14 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.catalog.models import DesignCredit, MachineModel, Person
+from apps.catalog.models import Credit, MachineModel, Person
 from apps.provenance.models import Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
 
 
 @pytest.fixture
-def _run_ipdb(db):
+def _run_ipdb(db, credit_roles):
     """Run ingest_ipdb with the sample fixture."""
     call_command("ingest_ipdb", ipdb=f"{FIXTURES}/ipdb_sample.json")
 
@@ -64,15 +64,17 @@ class TestIngestIpdb:
 
     def test_credits_created(self):
         pm = MachineModel.objects.get(ipdb_id=4000)
-        credits = DesignCredit.objects.filter(model=pm)
+        credits = Credit.objects.filter(model=pm)
         assert credits.count() == 4
-        assert credits.filter(role="design", person__name="Brian Eddy").exists()
-        assert credits.filter(role="art", person__name="John Youssi").exists()
-        assert credits.filter(role="software", person__name="Lyman Sheats").exists()
+        assert credits.filter(role__slug="design", person__name="Brian Eddy").exists()
+        assert credits.filter(role__slug="art", person__name="John Youssi").exists()
+        assert credits.filter(
+            role__slug="software", person__name="Lyman Sheats"
+        ).exists()
 
     def test_multi_credit_string(self):
         pm = MachineModel.objects.get(ipdb_id=61)
-        design_credits = DesignCredit.objects.filter(model=pm, role="design")
+        design_credits = Credit.objects.filter(model=pm, role__slug="design")
         assert design_credits.count() == 2
         names = set(design_credits.values_list("person__name", flat=True))
         assert names == {"Pat Lawlor", "Larry DeMar"}

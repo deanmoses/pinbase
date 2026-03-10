@@ -13,7 +13,7 @@ from apps.catalog.ingestion.fandom_wiki import (
     parse_manufacturer_pages,
     parse_person_pages,
 )
-from apps.catalog.models import DesignCredit, MachineModel, Manufacturer, Person
+from apps.catalog.models import Credit, CreditRole, MachineModel, Manufacturer, Person
 from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
@@ -28,7 +28,7 @@ MANUFACTURERS_SAMPLE = f"{FIXTURES}/fandom_manufacturers_sample.json"
 
 
 @pytest.fixture
-def _seed_db(db):
+def _seed_db(db, credit_roles):
     """Pre-seed the DB with machines and persons for matching."""
     addams = MachineModel.objects.create(name="The Addams Family", year=1992)
     medieval = MachineModel.objects.create(name="Medieval Madness", year=1997)
@@ -40,7 +40,8 @@ def _seed_db(db):
     # Greg Freres is in the fixture for Medieval Madness but NOT in the DB.
 
     # Pre-existing credit (should not be duplicated on re-run).
-    DesignCredit.objects.create(model=addams, person=pat, role="design")
+    role = CreditRole.objects.get(slug="design")
+    Credit.objects.create(model=addams, person=pat, role=role)
 
     return {
         "addams": addams,
@@ -80,8 +81,8 @@ class TestIngestFandom:
         """John Youssi's art credit for The Addams Family should be created."""
         addams = MachineModel.objects.get(name="The Addams Family")
         john_y = Person.objects.get(name="John Youssi")
-        assert DesignCredit.objects.filter(
-            model=addams, person=john_y, role="art"
+        assert Credit.objects.filter(
+            model=addams, person=john_y, role__slug="art"
         ).exists()
 
     def test_animation_credit_created(self):
@@ -94,15 +95,15 @@ class TestIngestFandom:
         addams = MachineModel.objects.get(name="The Addams Family")
         pat = Person.objects.get(name="Pat Lawlor")
         assert (
-            DesignCredit.objects.filter(model=addams, person=pat, role="design").count()
+            Credit.objects.filter(model=addams, person=pat, role__slug="design").count()
             == 1
         )
 
     def test_medieval_madness_design_credit(self):
         medieval = MachineModel.objects.get(name="Medieval Madness")
         brian = Person.objects.get(name="Brian Eddy")
-        assert DesignCredit.objects.filter(
-            model=medieval, person=brian, role="design"
+        assert Credit.objects.filter(
+            model=medieval, person=brian, role__slug="design"
         ).exists()
 
     def test_unmatched_game_skipped(self):
@@ -126,7 +127,7 @@ class TestIngestFandom:
         addams = MachineModel.objects.get(name="The Addams Family")
         john_y = Person.objects.get(name="John Youssi")
         assert (
-            DesignCredit.objects.filter(model=addams, person=john_y, role="art").count()
+            Credit.objects.filter(model=addams, person=john_y, role__slug="art").count()
             == 1
         )
 
@@ -158,7 +159,7 @@ class TestFromDumpEmpty:
             from_dump_manufacturers=mfrs_path,
         )
         assert Source.objects.filter(slug="fandom").exists()
-        assert DesignCredit.objects.count() == 0
+        assert Credit.objects.count() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -284,11 +285,12 @@ class TestParseGamePages:
 
 
 @pytest.fixture
-def _seed_persons_db(db):
+def _seed_persons_db(db, credit_roles):
     """Seed DB for person ingestion tests."""
     addams = MachineModel.objects.create(name="The Addams Family", year=1992)
     pat = Person.objects.create(name="Pat Lawlor")
-    DesignCredit.objects.create(model=addams, person=pat, role="design")
+    role = CreditRole.objects.get(slug="design")
+    Credit.objects.create(model=addams, person=pat, role=role)
     return {"addams": addams, "pat": pat}
 
 

@@ -48,7 +48,7 @@ import requests
 SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
 USER_AGENT = "Pinbase/1.0 (Project of The Flip pinball museum; contact via github.com/deanmoses/pinbase)"
 
-# Wikidata property → DesignCredit.role mapping.
+# Wikidata property → Credit.role mapping.
 # Only properties that link humans to pinball machines and have meaningful
 # coverage in Wikidata are included here.
 PROP_TO_ROLE: dict[str, str] = {

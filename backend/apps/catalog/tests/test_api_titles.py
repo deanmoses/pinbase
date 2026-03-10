@@ -2,7 +2,8 @@ import pytest
 from django.core.cache import cache
 
 from apps.catalog.models import (
-    DesignCredit,
+    Credit,
+    CreditRole,
     DisplayType,
     Franchise,
     MachineModel,
@@ -107,7 +108,7 @@ class TestTitlesAllFacets:
         cache.clear()
 
     @pytest.fixture
-    def faceted_title(self, db, manufacturer, solid_state):
+    def faceted_title(self, db, manufacturer, solid_state, credit_roles):
         title = Title.objects.create(
             name="Medieval Madness", opdb_id="G5pe4", short_name="MM"
         )
@@ -121,6 +122,7 @@ class TestTitlesAllFacets:
         wpc = System.objects.create(name="WPC-95", slug="wpc-95")
         person = Person.objects.create(name="Pat Lawlor")
         theme = Theme.objects.create(name="Medieval", slug="medieval")
+        role = CreditRole.objects.get(slug="design")
 
         m1 = MachineModel.objects.create(
             name="Medieval Madness",
@@ -134,7 +136,7 @@ class TestTitlesAllFacets:
             ipdb_rating=8.5,
         )
         m1.themes.add(theme)
-        DesignCredit.objects.create(model=m1, person=person, role="design")
+        Credit.objects.create(model=m1, person=person, role=role)
 
         # Second model with different year to test year_min/year_max
         MachineModel.objects.create(

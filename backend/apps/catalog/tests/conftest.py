@@ -2,6 +2,7 @@ import pytest
 from django.test import Client
 
 from apps.catalog.models import (
+    CreditRole,
     MachineModel,
     Manufacturer,
     Person,
@@ -41,6 +42,23 @@ def manufacturer(db):
 @pytest.fixture
 def stern(db):
     return Manufacturer.objects.create(name="Stern", trade_name="Stern")
+
+
+@pytest.fixture
+def credit_roles(db):
+    """Seed all credit roles for tests that need them."""
+    import json
+    from pathlib import Path
+
+    data = json.loads(
+        (Path(__file__).parents[4] / "data" / "credit_roles.json").read_text()
+    )
+    return CreditRole.objects.bulk_create(
+        [CreditRole(**entry) for entry in data],
+        update_conflicts=True,
+        unique_fields=["slug"],
+        update_fields=["name", "display_order"],
+    )
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 from apps.catalog.models import (
-    DesignCredit,
+    Credit,
+    CreditRole,
     MachineModel,
     Title,
 )
@@ -39,8 +40,11 @@ class TestModelsAPI:
         assert data["count"] == 1
         assert data["items"][0]["name"] == "The Mandalorian"
 
-    def test_list_models_filter_person(self, client, machine_model, person):
-        DesignCredit.objects.create(model=machine_model, person=person, role="design")
+    def test_list_models_filter_person(
+        self, client, machine_model, person, credit_roles
+    ):
+        role = CreditRole.objects.get(slug="design")
+        Credit.objects.create(model=machine_model, person=person, role=role)
         resp = client.get("/api/models/?person=pat-lawlor")
         data = resp.json()
         assert data["count"] == 1
@@ -97,8 +101,11 @@ class TestModelsAPI:
         data = resp.json()
         assert data["items"][0]["thumbnail_url"] == "https://img.opdb.org/md.jpg"
 
-    def test_get_model_detail(self, client, machine_model, person, source):
-        DesignCredit.objects.create(model=machine_model, person=person, role="design")
+    def test_get_model_detail(
+        self, client, machine_model, person, source, credit_roles
+    ):
+        role = CreditRole.objects.get(slug="design")
+        Credit.objects.create(model=machine_model, person=person, role=role)
         Claim.objects.assert_claim(
             machine_model, "year", 1997, "IPDB entry", source=source
         )

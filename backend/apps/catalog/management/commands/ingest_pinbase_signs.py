@@ -4,7 +4,7 @@ Asserts Claims for editorial fields on MachineModel (name, year, month,
 manufacturer, manufacturer address, production quantity) and description
 on Title (hoisted from educational text).
 
-Creates DesignCredit records from the Heading/Info columns.
+Creates Credit records from the Heading/Info columns.
 
 Matches MachineModels by IPDB ID. Rows without an IPDB ID are skipped.
 """
@@ -14,11 +14,11 @@ from __future__ import annotations
 import csv
 import logging
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
 from apps.catalog.ingestion.parsers import parse_credit_string
-from apps.catalog.models import DesignCredit, MachineModel, Person, Title
+from apps.catalog.models import Credit, CreditRole, MachineModel, Person, Title
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def _parse_month(s: str | None) -> int | None:
 
 
 def _heading_to_role(heading: str) -> str | None:
-    """Map a heading string to a DesignCredit role, or None if unrecognized."""
+    """Map a heading string to a Credit role, or None if unrecognized."""
     normalized = heading.strip().lower().rstrip(": ")
     return HEADING_ROLE_MAP.get(normalized)
 
@@ -310,26 +310,36 @@ class Command(BaseCommand):
             f"{persons_created} created"
         )
 
-        existing_credits: set[tuple[int, int, str]] = set(
-            DesignCredit.objects.values_list("model_id", "person_id", "role")
+        role_lookup = {r.slug: r for r in CreditRole.objects.all()}
+        if not role_lookup:
+            raise CommandError(
+                "CreditRole table is empty — run ingest_pinbase_taxonomy first."
+            )
+
+        existing_credits: set[tuple[int, int, int]] = set(
+            Credit.objects.values_list("model_id", "person_id", "role_id")
         )
 
-        new_credits: list[DesignCredit] = []
-        for pm_pk, name, role in credit_queue:
+        new_credits: list[Credit] = []
+        for pm_pk, name, role_slug in credit_queue:
             person = existing_persons.get(name.lower())
             if not person:
                 logger.warning("Person %r not found after bulk_create", name)
                 continue
-            credit_key = (pm_pk, person.pk, role)
+            role_obj = role_lookup.get(role_slug)
+            if not role_obj:
+                logger.warning("Unknown credit role %r — skipping", role_slug)
+                continue
+            credit_key = (pm_pk, person.pk, role_obj.pk)
             if credit_key not in existing_credits:
                 new_credits.append(
-                    DesignCredit(model_id=pm_pk, person_id=person.pk, role=role)
+                    Credit(model_id=pm_pk, person_id=person.pk, role=role_obj)
                 )
                 existing_credits.add(credit_key)
 
         credits_created = len(new_credits)
         if new_credits:
-            DesignCredit.objects.bulk_create(new_credits)
+            Credit.objects.bulk_create(new_credits)
 
         self.stdout.write(
             f"  Design credits: "

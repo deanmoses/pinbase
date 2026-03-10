@@ -337,6 +337,31 @@ class Tag(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class CreditRole(TimeStampedModel):
+    """A credit role category: Design, Art, Software, etc.
+
+    Seeded from credit_roles.json.
+    """
+
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    display_order = models.PositiveSmallIntegerField(default=0)
+    description = models.TextField(blank=True)
+
+    claims = GenericRelation("provenance.Claim")
+
+    class Meta:
+        ordering = ["display_order"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.name, "creditrole")
+        super().save(*args, **kwargs)
+
+
 class Franchise(TimeStampedModel):
     """An IP grouping that spans manufacturers and eras.
 
@@ -693,7 +718,7 @@ class MachineModel(TimeStampedModel):
 
 
 # ---------------------------------------------------------------------------
-# Person / DesignCredit
+# Person / Credit
 # ---------------------------------------------------------------------------
 
 
@@ -742,20 +767,8 @@ class Person(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class DesignCredit(TimeStampedModel):
+class Credit(TimeStampedModel):
     """Links a person to a machine model or series with a specific role."""
-
-    class Role(models.TextChoices):
-        CONCEPT = "concept", "Concept"
-        DESIGN = "design", "Design"
-        ART = "art", "Art"
-        MECHANICS = "mechanics", "Mechanics"
-        MUSIC = "music", "Music"
-        SOUND = "sound", "Sound"
-        VOICE = "voice", "Voice"
-        SOFTWARE = "software", "Software"
-        ANIMATION = "animation", "Dots/Animation"
-        OTHER = "other", "Other"
 
     model = models.ForeignKey(
         MachineModel,
@@ -776,10 +789,14 @@ class DesignCredit(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="credits",
     )
-    role = models.CharField(max_length=20, choices=Role.choices)
+    role = models.ForeignKey(
+        CreditRole,
+        on_delete=models.PROTECT,
+        related_name="credits",
+    )
 
     class Meta:
-        ordering = ["role", "person__name"]
+        ordering = ["role__display_order", "person__name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["model", "person", "role"],
@@ -802,4 +819,4 @@ class DesignCredit(TimeStampedModel):
 
     def __str__(self) -> str:
         target = self.model.name if self.model else self.series.name
-        return f"{self.person.name} — {self.get_role_display()} on {target}"
+        return f"{self.person.name} — {self.role.name} on {target}"

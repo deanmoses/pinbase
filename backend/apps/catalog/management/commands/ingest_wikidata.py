@@ -93,13 +93,13 @@ class Command(BaseCommand):
         )
 
         # 5. Load existing Person records and a set of person PKs that have credits.
-        from apps.catalog.models import DesignCredit
+        from apps.catalog.models import Credit
 
         existing_persons: dict[str, Person] = {
             p.name.lower(): p for p in Person.objects.all()
         }
         persons_with_credits: set[int] = set(
-            DesignCredit.objects.values_list("person_id", flat=True).distinct()
+            Credit.objects.values_list("person_id", flat=True).distinct()
         )
 
         ct_id = ContentType.objects.get_for_model(Person).pk
@@ -198,7 +198,7 @@ class Command(BaseCommand):
                 f"{credit_stats['superseded']} superseded, "
                 f"{credit_stats['swept']} swept"
             )
-            # Resolve credit claims into materialized DesignCredit rows.
+            # Resolve credit claims into materialized Credit rows.
             resolve_all_credits([], model_ids=matched_machine_ids)
         else:
             self.stdout.write("  Credit claims: 0 (no matches)")

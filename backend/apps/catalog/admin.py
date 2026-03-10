@@ -10,7 +10,8 @@ from .models import (
     Address,
     Cabinet,
     CorporateEntity,
-    DesignCredit,
+    Credit,
+    CreditRole,
     DisplaySubtype,
     DisplayType,
     Franchise,
@@ -117,13 +118,16 @@ class ClaimInline(GenericTabularInline):
         return False
 
 
-class DesignCreditInline(admin.TabularInline):
+class CreditInline(admin.TabularInline):
     """Read-only inline — credits are materialized from relationship claims."""
 
-    model = DesignCredit
+    model = Credit
     extra = 0
     readonly_fields = ("person", "role")
     can_delete = False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("role")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -221,6 +225,13 @@ class GameplayFeatureAdmin(admin.ModelAdmin):
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
+    list_display = ("display_order", "name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(CreditRole)
+class CreditRoleAdmin(admin.ModelAdmin):
     list_display = ("display_order", "name", "slug")
     search_fields = ("name",)
     prepopulated_fields = {"slug": ("name",)}
@@ -391,7 +402,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         "cabinet",
         "game_format",
     )
-    inlines = (DesignCreditInline, ThemeInline, GameplayFeatureInline, ClaimInline)
+    inlines = (CreditInline, ThemeInline, GameplayFeatureInline, ClaimInline)
 
     fieldsets = (
         (
@@ -451,9 +462,9 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         return {"slug": ("name",)}
 
 
-@admin.register(DesignCredit)
-class DesignCreditAdmin(admin.ModelAdmin):
+@admin.register(Credit)
+class CreditAdmin(admin.ModelAdmin):
     list_display = ("person", "role", "model", "series")
     list_filter = ("role",)
     search_fields = ("person__name", "model__name", "series__name")
-    autocomplete_fields = ("person", "model", "series")
+    autocomplete_fields = ("person", "model", "series", "role")

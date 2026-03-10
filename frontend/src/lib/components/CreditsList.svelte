@@ -2,22 +2,43 @@
 	import { resolve } from '$app/paths';
 	import type { components } from '$lib/api/schema';
 
-	type Credit = components['schemas']['DesignCreditSchema'];
+	type Credit = components['schemas']['CreditSchema'];
 
 	let { credits }: { credits: Credit[] } = $props();
+
+	let grouped = $derived.by(() => {
+		const groups: { role: string; people: { name: string; slug: string }[] }[] = [];
+		for (const c of credits) {
+			const last = groups[groups.length - 1];
+			if (last && last.role === c.role_display) {
+				last.people.push({ name: c.person_name, slug: c.person_slug });
+			} else {
+				groups.push({
+					role: c.role_display,
+					people: [{ name: c.person_name, slug: c.person_slug }]
+				});
+			}
+		}
+		return groups;
+	});
 </script>
 
 {#if credits.length > 0}
 	<section class="credits">
 		<h2>Credits</h2>
-		<ul>
-			{#each credits as credit (credit.person_slug + credit.role)}
-				<li>
-					<a href={resolve(`/people/${credit.person_slug}`)}>{credit.person_name}</a>
-					<span class="role">{credit.role_display}</span>
-				</li>
+		<dl>
+			{#each grouped as group (group.role)}
+				<div class="credit-row">
+					<dt>{group.role} by:</dt>
+					<dd>
+						{#each group.people as person, i (person.slug)}
+							{#if i > 0},&nbsp;{/if}
+							<a href={resolve(`/people/${person.slug}`)}>{person.name}</a>
+						{/each}
+					</dd>
+				</div>
 			{/each}
-		</ul>
+		</dl>
 	</section>
 {/if}
 
@@ -33,21 +54,26 @@
 		margin-bottom: var(--size-6);
 	}
 
-	ul {
-		list-style: none;
-		padding: 0;
+	dl {
+		margin: 0;
 	}
 
-	li {
+	.credit-row {
 		display: flex;
-		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--size-2);
 		padding: var(--size-2) 0;
 		border-bottom: 1px solid var(--color-border-soft);
 		font-size: var(--font-size-1);
 	}
 
-	.role {
+	dt {
 		color: var(--color-text-muted);
 		font-size: var(--font-size-0);
+		white-space: nowrap;
+	}
+
+	dd {
+		margin: 0;
 	}
 </style>

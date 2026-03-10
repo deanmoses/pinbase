@@ -14,7 +14,7 @@ def _invalidate_cache(sender, **kwargs):
 def connect():
     """Connect cache-invalidation signals. Called from AppConfig.ready()."""
     from .models import (
-        DesignCredit,
+        Credit,
         MachineModel,
         Manufacturer,
         Person,
@@ -25,7 +25,7 @@ def connect():
         MachineModel,
         Manufacturer,
         Person,
-        DesignCredit,
+        Credit,
         Title,
     ):
         uid = f"invalidate_cache_{model.__name__}"

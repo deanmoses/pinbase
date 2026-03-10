@@ -162,6 +162,7 @@ class TestPersonAdminClaims:
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("credit_roles")
 class TestMachineModelAdminClaims:
     def test_changed_year_asserts_claim(self, admin_request):
         pm = MachineModel.objects.create(name="Medieval Madness")

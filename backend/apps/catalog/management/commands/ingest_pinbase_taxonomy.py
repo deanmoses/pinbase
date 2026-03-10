@@ -17,6 +17,7 @@ from django.core.management.base import BaseCommand
 
 from apps.catalog.models import (
     Cabinet,
+    CreditRole,
     DisplaySubtype,
     DisplayType,
     Franchise,
@@ -44,6 +45,7 @@ TAXONOMY_REGISTRY = [
     ("game_formats.json", GameFormat, "name", True, None),
     ("gameplay_features.json", GameplayFeature, "name", True, None),
     ("tags.json", Tag, "name", True, None),
+    ("credit_roles.json", CreditRole, "name", True, None),
     ("franchises.json", Franchise, "name", False, None),
     # Child models (parents must be seeded first).
     (

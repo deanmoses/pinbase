@@ -12,7 +12,8 @@ from django.db.models import Case, F, IntegerField, Value, When
 from apps.provenance.models import Claim
 
 from ..models import (
-    DesignCredit,
+    Credit,
+    CreditRole,
     GameplayFeature,
     MachineModel,
     Person,
@@ -30,15 +31,25 @@ logger = logging.getLogger(__name__)
 
 
 def resolve_credits(machine_model: MachineModel) -> None:
-    """Resolve credit claims into DesignCredit rows for a single machine.
+    """Resolve credit claims into Credit rows for a single machine.
 
     Picks the winning claim per claim_key. Where ``value["exists"]`` is
-    True, looks up the Person by slug and materializes a DesignCredit.
+    True, looks up the Person by slug and materializes a Credit.
     """
     winners = _pick_relationship_winners(machine_model, "credit")
 
+    role_lookup: dict[str, int] = dict(CreditRole.objects.values_list("slug", "pk"))
+    if not role_lookup:
+        if winners:
+            logger.warning(
+                "CreditRole table is empty — skipping credit resolution for %s. "
+                "Run ingest_pinbase_taxonomy to seed credit roles.",
+                machine_model.name,
+            )
+        return
+
     # Desired credits from winning claims.
-    desired: set[tuple[int, str]] = set()  # (person_id, role)
+    desired: set[tuple[int, int]] = set()  # (person_id, role_id)
     for claim in winners.values():
         val = claim.value
         if not val.get("exists", True):
@@ -51,24 +62,32 @@ def resolve_credits(machine_model: MachineModel) -> None:
                 machine_model.name,
             )
             continue
-        desired.add((person.pk, val["role"]))
+        role_id = role_lookup.get(val["role"])
+        if role_id is None:
+            logger.warning(
+                "Unresolved credit role %r in credit claim for %s",
+                val["role"],
+                machine_model.name,
+            )
+            continue
+        desired.add((person.pk, role_id))
 
     # Existing credits.
-    existing = set(machine_model.credits.values_list("person_id", "role"))
+    existing = set(machine_model.credits.values_list("person_id", "role_id"))
 
     # Diff and apply.
     to_create = desired - existing
     to_delete = existing - desired
 
     if to_delete:
-        for person_id, role in to_delete:
-            machine_model.credits.filter(person_id=person_id, role=role).delete()
+        for person_id, role_id in to_delete:
+            machine_model.credits.filter(person_id=person_id, role_id=role_id).delete()
 
     if to_create:
-        DesignCredit.objects.bulk_create(
+        Credit.objects.bulk_create(
             [
-                DesignCredit(model=machine_model, person_id=person_id, role=role)
-                for person_id, role in to_create
+                Credit(model=machine_model, person_id=person_id, role_id=role_id)
+                for person_id, role_id in to_create
             ]
         )
 
@@ -163,7 +182,7 @@ def resolve_all_credits(
     *,
     model_ids: set[int] | None = None,
 ) -> None:
-    """Bulk-resolve credit claims into DesignCredit rows.
+    """Bulk-resolve credit claims into Credit rows.
 
     If *model_ids* is given, only claims and rows for those models are
     queried.  Otherwise all models in *all_models* are processed.
@@ -172,10 +191,15 @@ def resolve_all_credits(
 
     ct = ContentType.objects.get_for_model(MachineModel)
 
-    # Pre-fetch person slug→pk lookup.
-    person_lookup: dict[str, int] = {}
-    for slug, pk in Person.objects.values_list("slug", "pk"):
-        person_lookup[slug] = pk
+    # Pre-fetch person slug→pk and role slug→pk lookups.
+    person_lookup: dict[str, int] = dict(Person.objects.values_list("slug", "pk"))
+    role_lookup: dict[str, int] = dict(CreditRole.objects.values_list("slug", "pk"))
+    if not role_lookup:
+        logger.warning(
+            "CreditRole table is empty — skipping bulk credit resolution. "
+            "Run ingest_pinbase_taxonomy to seed credit roles."
+        )
+        return
 
     # Pre-fetch active credit claims with priority annotation.
     credit_qs = Claim.objects.filter(
@@ -206,9 +230,9 @@ def resolve_all_credits(
             winners_by_model.setdefault(claim.object_id, []).append(claim)
 
     # Desired credits from winning claims.
-    desired_by_model: dict[int, set[tuple[int, str]]] = {}
+    desired_by_model: dict[int, set[tuple[int, int]]] = {}
     for model_id, claims_list in winners_by_model.items():
-        desired: set[tuple[int, str]] = set()
+        desired: set[tuple[int, int]] = set()
         for claim in claims_list:
             val = claim.value
             if not val.get("exists", True):
@@ -221,42 +245,50 @@ def resolve_all_credits(
                     model_id,
                 )
                 continue
-            desired.add((person_pk, val["role"]))
+            role_pk = role_lookup.get(val["role"])
+            if role_pk is None:
+                logger.warning(
+                    "Unresolved credit role %r in credit claim (model pk=%s)",
+                    val["role"],
+                    model_id,
+                )
+                continue
+            desired.add((person_pk, role_pk))
         desired_by_model[model_id] = desired
 
-    # Pre-fetch existing DesignCredit rows (model-linked only, not series credits).
+    # Pre-fetch existing Credit rows (model-linked only, not series credits).
     all_model_ids = model_ids if model_ids is not None else {pm.pk for pm in all_models}
-    existing_by_model: dict[int, set[tuple[int, str]]] = {}
-    dc_qs = DesignCredit.objects.filter(model_id__in=all_model_ids)
-    for dc in dc_qs.values_list("model_id", "person_id", "role"):
+    existing_by_model: dict[int, set[tuple[int, int]]] = {}
+    dc_qs = Credit.objects.filter(model_id__in=all_model_ids)
+    for dc in dc_qs.values_list("model_id", "person_id", "role_id"):
         existing_by_model.setdefault(dc[0], set()).add((dc[1], dc[2]))
 
     # Diff and apply.
-    to_create: list[DesignCredit] = []
+    to_create: list[Credit] = []
     to_delete_pks: list[int] = []
 
     for model_id in all_model_ids:
         desired = desired_by_model.get(model_id, set())
         existing = existing_by_model.get(model_id, set())
 
-        for person_id, role in desired - existing:
+        for person_id, role_id in desired - existing:
             to_create.append(
-                DesignCredit(model_id=model_id, person_id=person_id, role=role)
+                Credit(model_id=model_id, person_id=person_id, role_id=role_id)
             )
 
     # Build a lookup for deletions.
-    for dc in DesignCredit.objects.filter(model_id__in=all_model_ids).values_list(
-        "pk", "model_id", "person_id", "role"
+    for dc in Credit.objects.filter(model_id__in=all_model_ids).values_list(
+        "pk", "model_id", "person_id", "role_id"
     ):
-        pk, model_id, person_id, role = dc
+        pk, model_id, person_id, role_id = dc
         desired = desired_by_model.get(model_id, set())
-        if (person_id, role) not in desired:
+        if (person_id, role_id) not in desired:
             to_delete_pks.append(pk)
 
     if to_delete_pks:
-        DesignCredit.objects.filter(pk__in=to_delete_pks).delete()
+        Credit.objects.filter(pk__in=to_delete_pks).delete()
     if to_create:
-        DesignCredit.objects.bulk_create(to_create, batch_size=2000)
+        Credit.objects.bulk_create(to_create, batch_size=2000)
 
 
 def resolve_all_themes(

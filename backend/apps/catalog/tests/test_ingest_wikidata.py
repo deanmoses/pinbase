@@ -4,7 +4,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.catalog.ingestion.wikidata_sparql import parse_wikidata_date
-from apps.catalog.models import DesignCredit, MachineModel, Person
+from apps.catalog.models import Credit, CreditRole, MachineModel, Person
 from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
@@ -17,15 +17,16 @@ SAMPLE = f"{FIXTURES}/wikidata_sample.json"
 
 
 @pytest.fixture
-def _seed_db(db):
+def _seed_db(db, credit_roles):
     """Pre-seed the DB with persons and machine credits for matching."""
     # Steve Ritchie exists and has credits on machines whose titles overlap
     # with the Wikidata fixture ("Black Knight", "Terminator 2: Judgment Day").
     steve = Person.objects.create(name="Steve Ritchie")
     bk = MachineModel.objects.create(name="Black Knight", year=1980)
     t2 = MachineModel.objects.create(name="Terminator 2: Judgment Day", year=1991)
-    DesignCredit.objects.create(model=bk, person=steve, role="design")
-    DesignCredit.objects.create(model=t2, person=steve, role="design")
+    role = CreditRole.objects.get(slug="design")
+    Credit.objects.create(model=bk, person=steve, role=role)
+    Credit.objects.create(model=t2, person=steve, role=role)
 
     # Pat Designer exists but has NO credits in the DB.
     Person.objects.create(name="Pat Designer")
@@ -155,15 +156,15 @@ class TestIngestWikidata:
     def test_design_credit_created(self):
         steve = Person.objects.get(name="Steve Ritchie")
         bk = MachineModel.objects.get(name="Black Knight")
-        assert DesignCredit.objects.filter(
-            person=steve, model=bk, role="design"
+        assert Credit.objects.filter(
+            person=steve, model=bk, role__slug="design"
         ).exists()
 
     def test_both_credits_created(self):
         steve = Person.objects.get(name="Steve Ritchie")
         t2 = MachineModel.objects.get(name="Terminator 2: Judgment Day")
-        assert DesignCredit.objects.filter(
-            person=steve, model=t2, role="design"
+        assert Credit.objects.filter(
+            person=steve, model=t2, role__slug="design"
         ).exists()
 
     def test_credit_idempotent(self):
@@ -171,13 +172,13 @@ class TestIngestWikidata:
         steve = Person.objects.get(name="Steve Ritchie")
         bk = MachineModel.objects.get(name="Black Knight")
         assert (
-            DesignCredit.objects.filter(person=steve, model=bk, role="design").count()
+            Credit.objects.filter(person=steve, model=bk, role__slug="design").count()
             == 1
         )
 
     def test_unmatched_machine_skipped(self):
         """Pat Designer's credit points to 'Mystery Machine', not in DB — no crash."""
-        assert DesignCredit.objects.filter(person__name="Pat Designer").count() == 0
+        assert Credit.objects.filter(person__name="Pat Designer").count() == 0
 
 
 @pytest.mark.django_db

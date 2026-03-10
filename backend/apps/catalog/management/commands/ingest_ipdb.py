@@ -1,9 +1,9 @@
 """Ingest pinball machines from an IPDB JSON dump.
 
 Creates MachineModel records, asserts Claims for each field, and creates
-Person/DesignCredit records for design credits.
+Person/Credit records for design credits.
 
-Claims, Persons, and DesignCredits are collected during the main loop and
+Claims, Persons, and Credits are collected during the main loop and
 written in bulk after all records are processed.
 """
 
@@ -56,7 +56,7 @@ CLAIM_FIELDS = {
     "ModelNumber": "model_number",
 }
 
-# IPDB credit field → DesignCredit role.
+# IPDB credit field → Credit role.
 CREDIT_FIELDS = {
     "DesignBy": "design",
     "ArtBy": "art",
@@ -471,7 +471,7 @@ class Command(BaseCommand):
     ) -> None:
         """Create Persons and assert credit claims from the credit queue.
 
-        Person records and name claims are created as before.  DesignCredit
+        Person records and name claims are created as before.  Credit
         rows are no longer created directly — instead, credit relationship
         claims are asserted and materialized by the resolution layer.
         """
@@ -561,7 +561,7 @@ class Command(BaseCommand):
             f"{credit_stats['swept']} swept"
         )
 
-        # Resolve credit claims into materialized DesignCredit rows.
+        # Resolve credit claims into materialized Credit rows.
         resolve_all_credits([], model_ids=all_model_ids)
 
     def _bulk_create_themes(

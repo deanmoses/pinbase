@@ -53,7 +53,7 @@ FANDOM_API = "https://pinball.fandom.com/api.php"
 FANDOM_WIKI_BASE = "https://pinball.fandom.com/wiki"
 USER_AGENT = "Pinbase/1.0 (Project of The Flip pinball museum; contact via github.com/deanmoses/pinbase)"
 
-# Map of bold-label text in the infobox designer field → DesignCredit.role value.
+# Map of bold-label text in the infobox designer field → Credit.role value.
 # Keys are lowercase for case-insensitive matching.
 _LABEL_TO_ROLE: dict[str, str] = {
     "designers": "design",
@@ -105,7 +105,7 @@ _YEAR_RE = re.compile(r"\d{4}")
 @dataclass
 class FandomCredit:
     person_name: str
-    role: str  # DesignCredit.role value
+    role: str  # Credit.role value
 
 
 @dataclass

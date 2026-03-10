@@ -13,7 +13,7 @@ from ninja.pagination import PageNumberPagination, paginate
 
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import _extract_image_urls, _serialize_title_machine
-from .machine_models import DesignCreditSchema, MachineModelDetailSchema
+from .machine_models import CreditSchema, MachineModelDetailSchema
 from .schemas import SeriesRefSchema, ThemeSchema, TitleMachineSchema
 from ..cache import TITLES_ALL_KEY
 
@@ -84,7 +84,7 @@ class TitleDetailSchema(Schema):
     hero_image_url: Optional[str] = None
     machines: list[TitleMachineSchema]
     series: list[SeriesRefSchema] = []
-    credits: list[DesignCreditSchema] = []
+    credits: list[CreditSchema] = []
     agreed_specs: AgreedSpecsSchema = AgreedSpecsSchema()
     model_detail: Optional[MachineModelDetailSchema] = None
 
@@ -326,15 +326,16 @@ def _serialize_title_detail(title) -> dict:
     for pm in model_objs:
         model_keys: set[tuple[str, str]] = set()
         for c in pm.credits.all():
-            key = (c.person.slug, c.role)
+            key = (c.person.slug, c.role.slug)
             model_keys.add(key)
             credit_data.setdefault(
                 key,
                 {
                     "person_name": c.person.name,
                     "person_slug": c.person.slug,
-                    "role": c.role,
-                    "role_display": c.get_role_display(),
+                    "role": c.role.slug,
+                    "role_display": c.role.name,
+                    "role_sort_order": c.role.display_order,
                 },
             )
         credit_sets.append(model_keys)
@@ -391,7 +392,7 @@ def _title_models_prefetch():
             "cabinet",
             "game_format",
         )
-        .prefetch_related("themes", "credits__person", "aliases")
+        .prefetch_related("themes", "credits__person", "credits__role", "aliases")
         .order_by("year", "name"),
     )
 

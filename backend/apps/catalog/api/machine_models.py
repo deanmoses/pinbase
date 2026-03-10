@@ -66,11 +66,12 @@ class MachineModelListSchema(Schema):
     thumbnail_url: Optional[str] = None
 
 
-class DesignCreditSchema(Schema):
+class CreditSchema(Schema):
     person_name: str
     person_slug: str
     role: str
     role_display: str
+    role_sort_order: int
 
 
 class AliasSchema(Schema):
@@ -103,7 +104,7 @@ class MachineModelDetailSchema(Schema):
     pinside_rating: Optional[float] = None
     title_description: str = ""
     extra_data: dict
-    credits: list[DesignCreditSchema]
+    credits: list[CreditSchema]
     activity: list[ClaimSchema]
     thumbnail_url: Optional[str] = None
     hero_image_url: Optional[str] = None
@@ -217,8 +218,9 @@ def _serialize_model_detail(pm) -> dict:
         {
             "person_name": c.person.name,
             "person_slug": c.person.slug,
-            "role": c.role,
-            "role_display": c.get_role_display(),
+            "role": c.role.slug,
+            "role_display": c.role.name,
+            "role_sort_order": c.role.display_order,
         }
         for c in pm.credits.all()
     ]
@@ -338,7 +340,7 @@ def _serialize_model_detail(pm) -> dict:
 
 def _model_detail_qs():
     """Return the queryset used for model detail / patch endpoints."""
-    from ..models import DesignCredit, MachineModel
+    from ..models import Credit, MachineModel
 
     return MachineModel.objects.select_related(
         "manufacturer",
@@ -366,8 +368,8 @@ def _model_detail_qs():
         ),
         Prefetch(
             "credits",
-            queryset=DesignCredit.objects.filter(model__isnull=False).select_related(
-                "person"
+            queryset=Credit.objects.filter(model__isnull=False).select_related(
+                "person", "role"
             ),
         ),
         _claims_prefetch(),
@@ -456,7 +458,7 @@ def list_all_models(request):
     """Return every model (including aliases) with minimal fields (no pagination)."""
     from django.core.cache import cache
 
-    from ..models import DesignCredit, MachineModel
+    from ..models import Credit, MachineModel
 
     result = cache.get(MODELS_ALL_KEY)
     if result is not None:
@@ -480,9 +482,9 @@ def list_all_models(request):
             "manufacturer__entities__addresses",
             Prefetch(
                 "credits",
-                queryset=DesignCredit.objects.filter(
-                    model__isnull=False
-                ).select_related("person"),
+                queryset=Credit.objects.filter(model__isnull=False).select_related(
+                    "person", "role"
+                ),
             ),
         )
         .order_by("name")

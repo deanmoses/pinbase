@@ -92,7 +92,7 @@ def _serialize_person_detail(person) -> dict:
             thumbnail_url = _extract_image_urls(c.model.extra_data or {})[0]
             if thumbnail_url:
                 titles[key]["thumbnail_url"] = thumbnail_url
-        role_display = c.get_role_display()
+        role_display = c.role.name
         if role_display not in titles[key]["roles"]:
             titles[key]["roles"].append(role_display)
     return {
@@ -114,13 +114,13 @@ def _serialize_person_detail(person) -> dict:
 
 
 def _person_qs():
-    from ..models import DesignCredit, Person
+    from ..models import Credit, Person
 
     return Person.objects.prefetch_related(
         Prefetch(
             "credits",
-            queryset=DesignCredit.objects.filter(model__isnull=False)
-            .select_related("model__title", "model__manufacturer")
+            queryset=Credit.objects.filter(model__isnull=False)
+            .select_related("model__title", "model__manufacturer", "role")
             .order_by(F("model__year").desc(nulls_last=True), "model__name"),
         ),
         _claims_prefetch(),

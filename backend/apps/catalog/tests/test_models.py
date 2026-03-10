@@ -3,7 +3,8 @@ from django.db import IntegrityError
 
 from apps.catalog.models import (
     CorporateEntity,
-    DesignCredit,
+    Credit,
+    CreditRole,
     Manufacturer,
     Person,
     MachineModel,
@@ -159,27 +160,27 @@ class TestPerson:
         assert p2.slug == "brian-eddy-2"
 
 
-# --- DesignCredit ---
+# --- Credit ---
 
 
-class TestDesignCredit:
-    def test_create(self, machine_model, person):
-        credit = DesignCredit.objects.create(
-            model=machine_model, person=person, role="design"
-        )
+class TestCredit:
+    def test_create(self, machine_model, person, credit_roles):
+        role = CreditRole.objects.get(slug="design")
+        credit = Credit.objects.create(model=machine_model, person=person, role=role)
         assert "Brian Eddy" in str(credit)
         assert "Design" in str(credit)
 
-    def test_unique_constraint(self, machine_model, person):
-        DesignCredit.objects.create(model=machine_model, person=person, role="design")
+    def test_unique_constraint(self, machine_model, person, credit_roles):
+        role = CreditRole.objects.get(slug="design")
+        Credit.objects.create(model=machine_model, person=person, role=role)
         with pytest.raises(IntegrityError):
-            DesignCredit.objects.create(
-                model=machine_model, person=person, role="design"
-            )
+            Credit.objects.create(model=machine_model, person=person, role=role)
 
-    def test_different_roles_ok(self, machine_model, person):
-        DesignCredit.objects.create(model=machine_model, person=person, role="design")
-        DesignCredit.objects.create(model=machine_model, person=person, role="concept")
+    def test_different_roles_ok(self, machine_model, person, credit_roles):
+        design = CreditRole.objects.get(slug="design")
+        concept = CreditRole.objects.get(slug="concept")
+        Credit.objects.create(model=machine_model, person=person, role=design)
+        Credit.objects.create(model=machine_model, person=person, role=concept)
         assert machine_model.credits.count() == 2
 
 
