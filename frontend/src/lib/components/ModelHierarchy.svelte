@@ -20,13 +20,13 @@
 		models,
 		heading = 'Models',
 		currentSlug = undefined,
-		aliasOfSlug = undefined,
+		variantOfSlug = undefined,
 		excludeSlug = undefined
 	}: {
 		models: Model[];
 		heading?: string;
 		currentSlug?: string;
-		aliasOfSlug?: string;
+		variantOfSlug?: string;
 		excludeSlug?: string;
 	} = $props();
 
@@ -45,7 +45,7 @@
 			{#each filteredModels as parent (parent.slug)}
 				<li
 					class:current={currentSlug !== undefined &&
-						(parent.slug === currentSlug || parent.slug === aliasOfSlug)}
+						(parent.slug === currentSlug || parent.slug === variantOfSlug)}
 				>
 					<a href={resolve(`/models/${parent.slug}`)}>{parent.name}</a>
 					{#if parent.year}

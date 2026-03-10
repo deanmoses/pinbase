@@ -39,7 +39,7 @@ def get_theme(request, slug: str):
         Theme.objects.prefetch_related(
             Prefetch(
                 "machine_models",
-                queryset=MachineModel.objects.filter(alias_of__isnull=True)
+                queryset=MachineModel.objects.filter(variant_of__isnull=True)
                 .select_related("manufacturer", "technology_generation")
                 .order_by(F("year").desc(nulls_last=True), "name"),
             )

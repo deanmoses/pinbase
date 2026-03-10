@@ -52,7 +52,7 @@ def list_all_systems(request):
         System.objects.select_related("manufacturer")
         .annotate(
             machine_count=Count(
-                "machine_models", filter=Q(machine_models__alias_of__isnull=True)
+                "machine_models", filter=Q(machine_models__variant_of__isnull=True)
             )
         )
         .order_by("name")
@@ -78,7 +78,7 @@ def get_system(request, slug: str):
         System.objects.select_related("manufacturer").prefetch_related(
             Prefetch(
                 "machine_models",
-                queryset=MachineModel.objects.filter(alias_of__isnull=True)
+                queryset=MachineModel.objects.filter(variant_of__isnull=True)
                 .select_related("manufacturer", "title")
                 .order_by(F("year").desc(nulls_last=True), "name"),
             )

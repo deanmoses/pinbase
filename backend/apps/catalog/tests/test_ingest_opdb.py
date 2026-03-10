@@ -146,33 +146,33 @@ class TestIngestOpdbGroups:
 @pytest.mark.usefixtures("_run_opdb")
 class TestIngestOpdbAliases:
     def test_alias_created(self):
-        alias = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
-        assert alias.name == "Medieval Madness (LE)"
+        variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        assert variant.name == "Medieval Madness (LE)"
 
     def test_alias_linked_to_parent(self):
         parent = MachineModel.objects.get(opdb_id="G1111-MTest1")
-        alias = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
-        assert alias.alias_of == parent
+        variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        assert variant.variant_of == parent
 
     def test_alias_has_claims(self):
-        alias = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
         source = Source.objects.get(slug="opdb")
-        claims = alias.claims.filter(source=source, is_active=True)
+        claims = variant.claims.filter(source=source, is_active=True)
         field_names = set(claims.values_list("field_name", flat=True))
         assert "name" in field_names
         assert "variant_features" in field_names
         assert "group" in field_names
 
     def test_alias_features_claim(self):
-        alias = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
         source = Source.objects.get(slug="opdb")
-        claim = alias.claims.get(
+        claim = variant.claims.get(
             source=source, field_name="variant_features", is_active=True
         )
         assert "Gold trim" in claim.value
 
     def test_total_model_count(self):
-        # 4 from IPDB + 1 new OPDB machine (G2222) + 1 alias (G1111-AAlias)
+        # 4 from IPDB + 1 new OPDB machine (G2222) + 1 variant (G1111-AAlias)
         # + 2 from non-physical group (1 promoted + 1 variant) = 8
         assert MachineModel.objects.count() == 8
 
@@ -187,13 +187,13 @@ class TestIngestOpdbNonPhysical:
     def test_premium_alias_promoted(self):
         """The alias with 'Premium edition' feature should be a standalone model."""
         pm = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
-        assert pm.alias_of is None
+        assert pm.variant_of is None
 
     def test_le_alias_points_to_promoted(self):
         """The remaining alias should point to the promoted model."""
         promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
         variant = MachineModel.objects.get(opdb_id="G3333-MCombo-ALE")
-        assert variant.alias_of == promoted
+        assert variant.variant_of == promoted
 
     def test_non_physical_idempotent(self):
         """Re-running ingest should not change the result."""
@@ -207,8 +207,8 @@ class TestIngestOpdbNonPhysical:
         # Verify relationships preserved.
         promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
         variant = MachineModel.objects.get(opdb_id="G3333-MCombo-ALE")
-        assert promoted.alias_of is None
-        assert variant.alias_of == promoted
+        assert promoted.variant_of is None
+        assert variant.variant_of == promoted
 
 
 @pytest.mark.django_db
@@ -239,8 +239,8 @@ class TestOpdbNonPhysicalHeuristics:
         call_command("ingest_opdb", opdb=path)
         le = MachineModel.objects.get(opdb_id="GTEST-MNP-ALE")
         ce = MachineModel.objects.get(opdb_id="GTEST-MNP-ACE")
-        assert le.alias_of is None
-        assert ce.alias_of == le
+        assert le.variant_of is None
+        assert ce.variant_of == le
 
     def test_pe_preferred_over_ce(self):
         """Platinum Edition is promoted over Collector's Edition."""
@@ -268,8 +268,8 @@ class TestOpdbNonPhysicalHeuristics:
         call_command("ingest_opdb", opdb=path)
         pe = MachineModel.objects.get(opdb_id="GTEST-MNP2-APE")
         ce = MachineModel.objects.get(opdb_id="GTEST-MNP2-ACE")
-        assert pe.alias_of is None
-        assert ce.alias_of == pe
+        assert pe.variant_of is None
+        assert ce.variant_of == pe
 
     def test_ce_never_promoted_when_alternative_exists(self):
         """Collector's Edition is always a variant, even without known features."""
@@ -297,8 +297,8 @@ class TestOpdbNonPhysicalHeuristics:
         call_command("ingest_opdb", opdb=path)
         std = MachineModel.objects.get(opdb_id="GTEST-MNP3-AStd")
         ce = MachineModel.objects.get(opdb_id="GTEST-MNP3-ACE")
-        assert std.alias_of is None
-        assert ce.alias_of == std
+        assert std.variant_of is None
+        assert ce.variant_of == std
 
 
 @pytest.mark.django_db
@@ -410,4 +410,4 @@ class TestOpdbAliasEdgeCases:
         call_command("ingest_opdb", opdb=path)
         parent = MachineModel.objects.get(opdb_id="GNEW-M1")
         alias = MachineModel.objects.get(opdb_id="GNEW-M1-AAlias")
-        assert alias.alias_of == parent
+        assert alias.variant_of == parent

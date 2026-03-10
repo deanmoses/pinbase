@@ -421,7 +421,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     autocomplete_fields = (
         "manufacturer",
         "title",
-        "alias_of",
+        "variant_of",
         "system",
         "technology_generation",
         "display_type",
@@ -446,7 +446,7 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
                     "slug",
                     "manufacturer",
                     "title",
-                    "alias_of",
+                    "variant_of",
                     "year",
                     "month",
                 ),

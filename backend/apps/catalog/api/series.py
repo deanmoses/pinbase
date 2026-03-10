@@ -87,7 +87,7 @@ def list_series(request):
     qs = Series.objects.annotate(title_count=Count("titles")).prefetch_related(
         Prefetch(
             "titles__machine_models",
-            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            queryset=MachineModel.objects.filter(variant_of__isnull=True)
             .exclude(extra_data={})
             .order_by(F("year").asc(nulls_last=True))
             .only("id", "extra_data"),
@@ -124,13 +124,13 @@ def get_series(request, slug: str):
     titles_qs = Title.objects.annotate(
         machine_count=Count(
             "machine_models",
-            filter=Q(machine_models__alias_of__isnull=True),
+            filter=Q(machine_models__variant_of__isnull=True),
         )
     ).prefetch_related(
         "abbreviations",
         Prefetch(
             "machine_models",
-            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            queryset=MachineModel.objects.filter(variant_of__isnull=True)
             .select_related("manufacturer")
             .order_by("year", "name"),
         ),

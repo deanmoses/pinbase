@@ -74,7 +74,7 @@ class CreditSchema(Schema):
     role_sort_order: int
 
 
-class AliasSchema(Schema):
+class VariantSchema(Schema):
     name: str
     slug: str
     year: Optional[int] = None
@@ -111,7 +111,7 @@ class MachineModelDetailSchema(Schema):
     thumbnail_url: Optional[str] = None
     hero_image_url: Optional[str] = None
     variant_features: list[str] = []
-    aliases: list[AliasSchema] = []
+    variants: list[VariantSchema] = []
     title_name: Optional[str] = None
     title_slug: Optional[str] = None
     cabinet_name: Optional[str] = None
@@ -123,10 +123,10 @@ class MachineModelDetailSchema(Schema):
     gameplay_features: list[GameplayFeatureSchema] = []
     franchise: Optional[FranchiseRefSchema] = None
     series: list[SeriesRefSchema] = []
-    alias_of_name: Optional[str] = None
-    alias_of_slug: Optional[str] = None
-    alias_of_year: Optional[int] = None
-    variant_siblings: list[AliasSchema] = []
+    variant_of_name: Optional[str] = None
+    variant_of_slug: Optional[str] = None
+    variant_of_year: Optional[int] = None
+    variant_siblings: list[VariantSchema] = []
     title_models: list[TitleMachineSchema] = []
 
 
@@ -151,7 +151,7 @@ def _build_model_list_qs(
             "manufacturer", "technology_generation", "display_type", "title"
         )
         .prefetch_related("themes")
-        .filter(alias_of__isnull=True)
+        .filter(variant_of__isnull=True)
     )
 
     if manufacturer:
@@ -248,19 +248,19 @@ def _serialize_model_detail(pm) -> dict:
     thumbnail_url, hero_image_url = _extract_image_urls(pm.extra_data or {})
     variant_features = _extract_variant_features(pm.extra_data or {})
 
-    aliases = [
+    variants = [
         {
-            "name": alias.name,
-            "slug": alias.slug,
-            "year": alias.year,
-            "variant_features": _extract_variant_features(alias.extra_data or {}),
+            "name": v.name,
+            "slug": v.slug,
+            "year": v.year,
+            "variant_features": _extract_variant_features(v.extra_data or {}),
         }
-        for alias in pm.aliases.all()
+        for v in pm.variants.all()
     ]
 
-    # Build sibling variants: other aliases of the same parent.
+    # Build sibling variants: other variants of the same parent.
     variant_siblings = []
-    if pm.alias_of_id is not None:
+    if pm.variant_of_id is not None:
         variant_siblings = [
             {
                 "name": sib.name,
@@ -268,7 +268,7 @@ def _serialize_model_detail(pm) -> dict:
                 "year": sib.year,
                 "variant_features": _extract_variant_features(sib.extra_data or {}),
             }
-            for sib in pm.alias_of.aliases.all()
+            for sib in pm.variant_of.variants.all()
             if sib.pk != pm.pk
         ]
 
@@ -308,10 +308,10 @@ def _serialize_model_detail(pm) -> dict:
         "thumbnail_url": thumbnail_url,
         "hero_image_url": hero_image_url,
         "variant_features": variant_features,
-        "aliases": aliases,
-        "alias_of_name": pm.alias_of.name if pm.alias_of else None,
-        "alias_of_slug": pm.alias_of.slug if pm.alias_of else None,
-        "alias_of_year": pm.alias_of.year if pm.alias_of else None,
+        "variants": variants,
+        "variant_of_name": pm.variant_of.name if pm.variant_of else None,
+        "variant_of_slug": pm.variant_of.slug if pm.variant_of else None,
+        "variant_of_year": pm.variant_of.year if pm.variant_of else None,
         "variant_siblings": variant_siblings,
         "title_name": pm.title.name if pm.title else None,
         "title_slug": pm.title.slug if pm.title else None,
@@ -340,7 +340,7 @@ def _serialize_model_detail(pm) -> dict:
         "title_models": [
             _serialize_title_machine(sibling)
             for sibling in (pm.title.machine_models.all() if pm.title else [])
-            if sibling.alias_of_id is None
+            if sibling.variant_of_id is None
         ],
     }
 
@@ -359,19 +359,19 @@ def _model_detail_qs():
         "display_subtype",
         "cabinet",
         "game_format",
-        "alias_of",
+        "variant_of",
     ).prefetch_related(
-        "aliases",
-        "alias_of__aliases",
+        "variants",
+        "variant_of__variants",
         "themes",
         "gameplay_features",
         "abbreviations",
         "title__series",
         Prefetch(
             "title__machine_models",
-            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            queryset=MachineModel.objects.filter(variant_of__isnull=True)
             .select_related("manufacturer", "technology_generation")
-            .prefetch_related("aliases")
+            .prefetch_related("variants")
             .order_by("year", "name"),
         ),
         Prefetch(
@@ -462,7 +462,7 @@ def _build_search_text(pm) -> str:
 @models_router.get("/all/", response=list[MachineModelGridSchema])
 @decorate_view(cache_control(public=True, max_age=300))
 def list_all_models(request):
-    """Return every model (including aliases) with minimal fields (no pagination)."""
+    """Return every model (including variants) with minimal fields (no pagination)."""
     from django.core.cache import cache
 
     from ..models import Credit, MachineModel
@@ -485,7 +485,7 @@ def list_all_models(request):
             "themes",
             "tags",
             "gameplay_features",
-            "aliases",
+            "variants",
             "abbreviations",
             "manufacturer__entities__addresses",
             Prefetch(

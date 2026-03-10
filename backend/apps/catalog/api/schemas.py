@@ -28,7 +28,7 @@ class ThemeSchema(Schema):
 
 
 class TitleMachineVariantSchema(Schema):
-    """A variant (alias) of a machine model, shown nested under its parent."""
+    """A variant of a machine model, shown nested under its parent."""
 
     name: str
     slug: str

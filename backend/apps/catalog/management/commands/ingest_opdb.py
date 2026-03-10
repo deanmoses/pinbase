@@ -1,8 +1,8 @@
 """Ingest pinball machines from an OPDB JSON dump.
 
 Matches existing MachineModels by ipdb_id cross-reference, then by opdb_id,
-then creates new records. Ingests both machines and aliases (with alias_of FK).
-Optionally processes groups and changelog data.
+then creates new records. Ingests both machines and OPDB aliases (stored as
+variant_of FK). Optionally processes groups and changelog data.
 
 Claims are collected during the main loops and written in bulk afterward.
 """
@@ -275,9 +275,9 @@ class Command(BaseCommand):
                     pm.opdb_id = opdb_id
                     by_opdb_id[opdb_id] = pm
                     promoted_update.append(pm)
-                # Clear alias_of if it was previously set (e.g. from a prior run).
-                if pm.alias_of_id is not None:
-                    pm.alias_of = None
+                # Clear variant_of if it was previously set (e.g. from a prior run).
+                if pm.variant_of_id is not None:
+                    pm.variant_of = None
                     if pm not in promoted_update:
                         promoted_update.append(pm)
             else:
@@ -301,7 +301,7 @@ class Command(BaseCommand):
             MachineModel.objects.bulk_create(promoted_new)
         if promoted_update:
             MachineModel.objects.bulk_update(
-                promoted_update, ["opdb_id", "alias_of_id"]
+                promoted_update, ["opdb_id", "variant_of_id"]
             )
 
         if promoted_count:
@@ -310,10 +310,10 @@ class Command(BaseCommand):
                 f"{len(non_phys_groups)} non-physical groups"
             )
 
-        # --- Phase 1d: Match/create normal aliases ---
-        new_alias_models: list[MachineModel] = []
-        alias_models_needing_update: list[MachineModel] = []
-        alias_models: list[tuple[MachineModel, dict]] = []
+        # --- Phase 1d: Match/create normal aliases (stored as variants) ---
+        new_variant_models: list[MachineModel] = []
+        variant_models_needing_update: list[MachineModel] = []
+        variant_models: list[tuple[MachineModel, dict]] = []
         alias_linked = 0
         alias_created = 0
         alias_skipped = 0
@@ -357,38 +357,38 @@ class Command(BaseCommand):
                         by_opdb_id[opdb_id] = pm
                         needs_update = True
                 # Link to parent.
-                if pm.alias_of_id != parent.pk:
-                    pm.alias_of = parent
+                if pm.variant_of_id != parent.pk:
+                    pm.variant_of = parent
                     needs_update = True
                 if needs_update:
-                    alias_models_needing_update.append(pm)
+                    variant_models_needing_update.append(pm)
             else:
                 alias_created += 1
                 slug = generate_unique_slug(name, existing_slugs)
                 pm = MachineModel(
-                    name=name, opdb_id=opdb_id, alias_of=parent, slug=slug
+                    name=name, opdb_id=opdb_id, variant_of=parent, slug=slug
                 )
-                new_alias_models.append(pm)
+                new_variant_models.append(pm)
                 by_opdb_id[opdb_id] = pm
                 if ipdb_id:
                     by_ipdb_id[ipdb_id] = pm
 
-            alias_models.append((pm, rec))
+            variant_models.append((pm, rec))
 
-        if new_alias_models:
-            MachineModel.objects.bulk_create(new_alias_models)
-        if alias_models_needing_update:
+        if new_variant_models:
+            MachineModel.objects.bulk_create(new_variant_models)
+        if variant_models_needing_update:
             MachineModel.objects.bulk_update(
-                alias_models_needing_update, ["opdb_id", "alias_of_id"]
+                variant_models_needing_update, ["opdb_id", "variant_of_id"]
             )
 
         self.stdout.write(
             f"  Aliases — Linked: {alias_linked}, Created: {alias_created}, "
             f"Skipped: {alias_skipped}"
         )
-        if new_alias_models:
+        if new_variant_models:
             self.stdout.write(
-                f"    New: {format_names([pm.name for pm in new_alias_models])}"
+                f"    New: {format_names([pm.name for pm in new_variant_models])}"
             )
 
         # --- Phase 2: Collect claims ---
@@ -413,7 +413,7 @@ class Command(BaseCommand):
                 failed += 1
                 failed_ids.append(opdb_id)
 
-        for pm, rec in alias_models:
+        for pm, rec in variant_models:
             try:
                 self._collect_claims(
                     pm,

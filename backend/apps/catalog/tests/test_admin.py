@@ -236,14 +236,14 @@ class TestMachineModelAdminClaims:
         )
         assert claim.value == "G5pe4"
 
-    def test_non_claim_field_alias_of_creates_no_claim(self, admin_request):
+    def test_non_claim_field_variant_of_creates_no_claim(self, admin_request):
         parent = MachineModel.objects.create(name="Medieval Madness")
         pm = MachineModel.objects.create(name="Medieval Madness LE")
-        pm.alias_of = parent
+        pm.variant_of = parent
 
         mma = MachineModelAdmin(MachineModel, AdminSite())
         form = _MockForm(
-            ["alias_of"], {"name": "Medieval Madness LE", "alias_of": parent}
+            ["variant_of"], {"name": "Medieval Madness LE", "variant_of": parent}
         )
         mma.save_model(admin_request, pm, form, change=True)
 

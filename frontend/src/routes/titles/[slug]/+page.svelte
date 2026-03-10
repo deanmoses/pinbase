@@ -254,14 +254,14 @@
 
 			<RatingsSidebarSection ipdbRating={md.ipdb_rating} pinsideRating={md.pinside_rating} />
 
-			{#if md.aliases.length > 0}
+			{#if md.variants.length > 0}
 				<SidebarSection heading="Variants">
 					<SidebarList>
-						{#each md.aliases as alias (alias.slug)}
+						{#each md.variants as variant (variant.slug)}
 							<SidebarListItem>
-								<a href={resolve(`/models/${alias.slug}`)}>{alias.name}</a>
-								{#if alias.year}
-									<span class="muted">{alias.year}</span>
+								<a href={resolve(`/models/${variant.slug}`)}>{variant.name}</a>
+								{#if variant.year}
+									<span class="muted">{variant.year}</span>
 								{/if}
 							</SidebarListItem>
 						{/each}

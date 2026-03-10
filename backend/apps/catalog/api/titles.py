@@ -36,7 +36,7 @@ class TitleListSchema(Schema):
     manufacturer_slug: Optional[str] = None
     year: Optional[int] = None
     thumbnail_url: Optional[str] = None
-    # Facet data — aggregated from non-alias models
+    # Facet data — aggregated from non-variant models
     tech_generations: list[FacetRef] = []
     display_types: list[FacetRef] = []
     player_counts: list[int] = []
@@ -112,7 +112,7 @@ def _serialize_title_list(title) -> dict:
     year = None
     machines = list(title.machine_models.all())
 
-    # Collect facet data from all non-alias models
+    # Collect facet data from all non-variant models
     tech_gen_pairs = []
     display_type_pairs = []
     player_counts_set: set[int] = set()
@@ -382,7 +382,7 @@ def _title_models_prefetch():
 
     return Prefetch(
         "machine_models",
-        queryset=MachineModel.objects.filter(alias_of__isnull=True)
+        queryset=MachineModel.objects.filter(variant_of__isnull=True)
         .select_related(
             "manufacturer",
             "technology_generation",
@@ -392,7 +392,7 @@ def _title_models_prefetch():
             "cabinet",
             "game_format",
         )
-        .prefetch_related("themes", "credits__person", "credits__role", "aliases")
+        .prefetch_related("themes", "credits__person", "credits__role", "variants")
         .order_by("year", "name"),
     )
 
@@ -411,7 +411,7 @@ def list_titles(request, display: str = ""):
 
     qs = Title.objects.annotate(
         machine_count=Count(
-            "machine_models", filter=Q(machine_models__alias_of__isnull=True)
+            "machine_models", filter=Q(machine_models__variant_of__isnull=True)
         )
     )
     if display:
@@ -439,11 +439,11 @@ def list_all_titles(request):
     qs = (
         Title.objects.annotate(
             machine_count=Count(
-                "machine_models", filter=Q(machine_models__alias_of__isnull=True)
+                "machine_models", filter=Q(machine_models__variant_of__isnull=True)
             ),
             latest_year=Max(
                 "machine_models__year",
-                filter=Q(machine_models__alias_of__isnull=True),
+                filter=Q(machine_models__variant_of__isnull=True),
             ),
         )
         .select_related("franchise")

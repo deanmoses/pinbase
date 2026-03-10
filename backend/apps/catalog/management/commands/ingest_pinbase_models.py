@@ -2,8 +2,8 @@
 
 Creates MachineModel records that don't yet exist (with opdb_id, ipdb_id,
 name, slug), then asserts editorial claims with the pinbase source
-(priority 300) which outranks OPDB.  Also sets variant_of (alias_of FK)
-relationships based on slug references.
+(priority 300) which outranks OPDB.  Also sets variant_of FK relationships
+based on slug references.
 """
 
 from __future__ import annotations
@@ -156,7 +156,7 @@ class Command(BaseCommand):
             f"{claim_stats['duplicates_removed']} duplicates removed"
         )
 
-        # --- variant_of: set alias_of FK based on slug references ---
+        # --- variant_of: set variant_of FK based on slug references ---
         # Build slug→MachineModel lookup from entries that have both slug and opdb_id.
         slug_to_mm: dict[str, MachineModel] = {}
         for entry in entries:
@@ -175,15 +175,15 @@ class Command(BaseCommand):
         variant_updated: list[MachineModel] = []
         variant_set = 0
 
-        # First pass: clear alias_of on parent models (fixes circular references
+        # First pass: clear variant_of on parent models (fixes circular references
         # when models.json overrides an ingest_opdb heuristic).
         for slug in parent_slugs:
             parent = slug_to_mm.get(slug)
-            if parent and parent.alias_of_id is not None:
-                parent.alias_of = None
+            if parent and parent.variant_of_id is not None:
+                parent.variant_of = None
                 variant_updated.append(parent)
 
-        # Second pass: set alias_of on variant models.
+        # Second pass: set variant_of on variant models.
         for entry in entries:
             variant_of_slug = entry.get("variant_of")
             if not variant_of_slug:
@@ -204,14 +204,14 @@ class Command(BaseCommand):
                     )
                 continue
 
-            if mm.alias_of_id != parent.pk:
-                mm.alias_of = parent
+            if mm.variant_of_id != parent.pk:
+                mm.variant_of = parent
                 if mm not in variant_updated:
                     variant_updated.append(mm)
             variant_set += 1
 
         if variant_updated:
-            MachineModel.objects.bulk_update(variant_updated, ["alias_of_id"])
+            MachineModel.objects.bulk_update(variant_updated, ["variant_of_id"])
 
         if variant_set:
             self.stdout.write(

@@ -41,10 +41,10 @@ class MachineModel(TimeStampedModel):
         blank=True,
         help_text="Title this machine belongs to (resolved from claims).",
     )
-    alias_of = models.ForeignKey(
+    variant_of = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
-        related_name="aliases",
+        related_name="variants",
         null=True,
         blank=True,
         help_text="Parent machine model if this is a cosmetic/LE variant.",

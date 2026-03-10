@@ -110,7 +110,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
     """Serialize a Manufacturer into the detail response dict.
 
     Expects *mfr* to have been fetched with prefetch_related for entities,
-    non_alias_models, and claims (to_attr="active_claims").
+    non_variant_models, and claims (to_attr="active_claims").
     """
     return {
         "name": mfr.name,
@@ -134,7 +134,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
             }
             for e in mfr.entities.all()
         ],
-        "titles": _collect_titles(mfr.non_alias_models),
+        "titles": _collect_titles(mfr.non_variant_models),
         "systems": [{"name": s.name, "slug": s.slug} for s in mfr.systems.all()],
         "activity": _build_activity(getattr(mfr, "active_claims", [])),
     }
@@ -152,10 +152,10 @@ def _manufacturer_qs():
         ),
         Prefetch(
             "models",
-            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            queryset=MachineModel.objects.filter(variant_of__isnull=True)
             .select_related("technology_generation", "title")
             .order_by(F("year").desc(nulls_last=True), "name"),
-            to_attr="non_alias_models",
+            to_attr="non_variant_models",
         ),
         Prefetch("systems", queryset=System.objects.order_by("name")),
         _claims_prefetch(),
@@ -195,12 +195,12 @@ def list_all_manufacturers(request):
 
     qs = (
         Manufacturer.objects.annotate(
-            model_count=Count("models", filter=Q(models__alias_of__isnull=True))
+            model_count=Count("models", filter=Q(models__variant_of__isnull=True))
         )
         .prefetch_related(
             Prefetch(
                 "models",
-                queryset=MachineModel.objects.filter(alias_of__isnull=True)
+                queryset=MachineModel.objects.filter(variant_of__isnull=True)
                 .exclude(extra_data={})
                 .order_by(F("year").desc(nulls_last=True))
                 .only("id", "manufacturer_id", "year", "extra_data"),

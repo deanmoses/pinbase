@@ -67,12 +67,12 @@ class TestTitlesAPI:
         assert data["name"] == "Medieval Madness"
         assert len(data["machines"]) == 2
 
-    def test_get_title_detail_excludes_aliases(self, client, title_with_machines):
+    def test_get_title_detail_excludes_variants(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
             title=title_with_machines,
-            alias_of=parent,
+            variant_of=parent,
         )
         resp = client.get(f"/api/titles/{title_with_machines.slug}")
         data = resp.json()
@@ -80,12 +80,12 @@ class TestTitlesAPI:
         names = [m["name"] for m in data["machines"]]
         assert "Medieval Madness (LE)" not in names
 
-    def test_machine_count_excludes_aliases(self, client, title_with_machines):
+    def test_machine_count_excludes_variants(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
             title=title_with_machines,
-            alias_of=parent,
+            variant_of=parent,
         )
         resp = client.get("/api/titles/")
         data = resp.json()
@@ -200,14 +200,14 @@ class TestTitlesAllFacets:
         # Both models are solid-state, but should be deduped to 1
         assert len(data[0]["tech_generations"]) == 1
 
-    def test_all_titles_excludes_alias_models(self, client, faceted_title):
-        """Alias models should not contribute facet data."""
+    def test_all_titles_excludes_variant_models(self, client, faceted_title):
+        """Variant models should not contribute facet data."""
         parent = MachineModel.objects.get(name="Medieval Madness")
         lcd = DisplayType.objects.create(name="LCD", slug="lcd")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
             title=faceted_title,
-            alias_of=parent,
+            variant_of=parent,
             display_type=lcd,
         )
         resp = client.get("/api/titles/all/")

@@ -99,20 +99,20 @@ def _serialize_title_machine(pm) -> dict:
     """Serialize a MachineModel for use in title/theme/system machine lists."""
     thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
 
-    # Include variants (aliases) only when prefetched to avoid N+1 queries.
-    aliases = (
-        pm.aliases.all()
-        if "aliases" in getattr(pm, "_prefetched_objects_cache", {})
+    # Include variants only when prefetched to avoid N+1 queries.
+    variant_qs = (
+        pm.variants.all()
+        if "variants" in getattr(pm, "_prefetched_objects_cache", {})
         else []
     )
     variants = [
         {
-            "name": a.name,
-            "slug": a.slug,
-            "year": a.year,
-            "thumbnail_url": _extract_image_urls(a.extra_data or {})[0],
+            "name": v.name,
+            "slug": v.slug,
+            "year": v.year,
+            "thumbnail_url": _extract_image_urls(v.extra_data or {})[0],
         }
-        for a in aliases
+        for v in variant_qs
     ]
 
     return {

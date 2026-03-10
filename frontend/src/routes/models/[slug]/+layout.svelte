@@ -190,14 +190,14 @@
 
 		<RatingsSidebarSection ipdbRating={model.ipdb_rating} pinsideRating={model.pinside_rating} />
 
-		{#if model.aliases.length > 0}
+		{#if model.variants.length > 0}
 			<SidebarSection heading="Variants">
 				<SidebarList>
-					{#each model.aliases as alias (alias.slug)}
+					{#each model.variants as variant (variant.slug)}
 						<SidebarListItem>
-							<a href={resolve(`/models/${alias.slug}`)}>{alias.name}</a>
-							{#if alias.year}
-								<span class="muted">{alias.year}</span>
+							<a href={resolve(`/models/${variant.slug}`)}>{variant.name}</a>
+							{#if variant.year}
+								<span class="muted">{variant.year}</span>
 							{/if}
 						</SidebarListItem>
 					{/each}
@@ -205,13 +205,13 @@
 			</SidebarSection>
 		{/if}
 
-		{#if model.alias_of_slug}
+		{#if model.variant_of_slug}
 			<SidebarSection heading="Parent Game">
 				<SidebarList>
 					<SidebarListItem>
-						<a href={resolve(`/models/${model.alias_of_slug}`)}>{model.alias_of_name}</a>
-						{#if model.alias_of_year}
-							<span class="muted">{model.alias_of_year}</span>
+						<a href={resolve(`/models/${model.variant_of_slug}`)}>{model.variant_of_name}</a>
+						{#if model.variant_of_year}
+							<span class="muted">{model.variant_of_year}</span>
 						{/if}
 					</SidebarListItem>
 				</SidebarList>
@@ -236,7 +236,7 @@
 		<ModelHierarchy
 			models={model.title_models}
 			heading="Other Models"
-			excludeSlug={model.alias_of_slug ?? model.slug}
+			excludeSlug={model.variant_of_slug ?? model.slug}
 		/>
 
 		<ExternalLinksSidebarSection

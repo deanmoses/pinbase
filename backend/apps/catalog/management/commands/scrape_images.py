@@ -173,7 +173,7 @@ class Command(BaseCommand):
             },
         )
 
-        qs = MachineModel.objects.filter(alias_of__isnull=True).order_by(
+        qs = MachineModel.objects.filter(variant_of__isnull=True).order_by(
             "-year", "name"
         )
         if year_min:

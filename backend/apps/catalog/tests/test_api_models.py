@@ -71,20 +71,20 @@ class TestModelsAPI:
         names = [m["name"] for m in data["items"]]
         assert names == ["Alpha", "Zeta"]
 
-    def test_list_models_excludes_aliases(self, client, machine_model):
+    def test_list_models_excludes_variants(self, client, machine_model):
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
-            alias_of=machine_model,
+            variant_of=machine_model,
         )
         resp = client.get("/api/models/")
         data = resp.json()
         assert data["count"] == 1
         assert data["items"][0]["name"] == "Medieval Madness"
 
-    def test_all_models_includes_aliases(self, client, machine_model):
+    def test_all_models_includes_variants(self, client, machine_model):
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
-            alias_of=machine_model,
+            variant_of=machine_model,
         )
         resp = client.get("/api/models/all/")
         names = [m["name"] for m in resp.json()]
@@ -148,17 +148,17 @@ class TestModelsAPI:
         data = resp.json()
         assert data["variant_features"] == ["Castle attack", "Gold trim"]
 
-    def test_get_model_detail_aliases(self, client, machine_model):
+    def test_get_model_detail_variants(self, client, machine_model):
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
-            alias_of=machine_model,
+            variant_of=machine_model,
             extra_data={"variant_features": ["Gold trim"]},
         )
         resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
-        assert len(data["aliases"]) == 1
-        assert data["aliases"][0]["name"] == "Medieval Madness (LE)"
-        assert data["aliases"][0]["variant_features"] == ["Gold trim"]
+        assert len(data["variants"]) == 1
+        assert data["variants"][0]["name"] == "Medieval Madness (LE)"
+        assert data["variants"][0]["variant_features"] == ["Gold trim"]
 
     def test_get_model_detail_title(self, client, machine_model, db):
         title = Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")

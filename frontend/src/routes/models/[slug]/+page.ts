@@ -10,7 +10,7 @@ export const load: PageLoad = async ({ parent }) => {
 		model.title_slug &&
 		model.title_models.length === 1 &&
 		model.title_models[0].variants.length === 0 &&
-		!model.alias_of_slug
+		!model.variant_of_slug
 	) {
 		redirect(301, `/titles/${model.title_slug}`);
 	}

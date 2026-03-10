@@ -99,13 +99,13 @@ def get_franchise(request, slug: str):
     titles_qs = Title.objects.annotate(
         machine_count=Count(
             "machine_models",
-            filter=Q(machine_models__alias_of__isnull=True),
+            filter=Q(machine_models__variant_of__isnull=True),
         )
     ).prefetch_related(
         "abbreviations",
         Prefetch(
             "machine_models",
-            queryset=MachineModel.objects.filter(alias_of__isnull=True)
+            queryset=MachineModel.objects.filter(variant_of__isnull=True)
             .select_related("manufacturer")
             .order_by("year", "name"),
         ),
