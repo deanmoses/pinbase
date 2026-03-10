@@ -1,12 +1,11 @@
-"""Set Title franchise FK and Series memberships from data/titles.json.
+"""Create and enrich Title records from data/titles.json.
 
-Asserts name and franchise claims on Title records, then resolves them.
-Slug overrides and Series M2M memberships are applied directly (not
-claim-controlled).
+Creates Title records that don't yet exist (with opdb_id, name, slug),
+then asserts name and franchise claims and resolves them.  Slug overrides
+and Series M2M memberships are applied directly (not claim-controlled).
 
 Runs after:
   - ingest_pinbase_taxonomy (for Franchise records)
-  - ingest_opdb (for Title records)
   - ingest_pinbase_series (for Series records)
 """
 
@@ -19,6 +18,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
+from apps.catalog.ingestion.bulk_utils import generate_unique_slug
 from apps.catalog.models import Franchise, Series, Title
 from apps.provenance.models import Claim, Source
 
@@ -60,8 +60,32 @@ class Command(BaseCommand):
 
         # Build lookups.
         titles_by_opdb_id = {t.opdb_id: t for t in Title.objects.all()}
+        existing_slugs: set[str] = set(Title.objects.values_list("slug", flat=True))
         franchises_by_slug = {f.slug: f for f in Franchise.objects.all()}
         series_by_slug = {s.slug: s for s in Series.objects.all()}
+
+        # Pass 1: create Titles that don't exist yet.
+        new_titles: list[Title] = []
+        for entry in entries:
+            opdb_group_id = entry["opdb_group_id"]
+            if opdb_group_id in titles_by_opdb_id:
+                continue
+            slug = entry.get("slug") or generate_unique_slug(
+                entry.get("name", ""), existing_slugs
+            )
+            new_titles.append(
+                Title(
+                    opdb_id=opdb_group_id,
+                    name=entry.get("name", ""),
+                    slug=slug,
+                )
+            )
+            existing_slugs.add(slug)
+
+        titles_created = len(new_titles)
+        if new_titles:
+            Title.objects.bulk_create(new_titles)
+            titles_by_opdb_id = {t.opdb_id: t for t in Title.objects.all()}
 
         membership_set = slug_set = skipped = 0
         pending_claims: list[Claim] = []
@@ -179,7 +203,7 @@ class Command(BaseCommand):
             series.titles.add(*titles)
 
         self.stdout.write(
-            f"  Titles: {membership_set} series memberships, "
+            f"  Titles: {titles_created} created, {membership_set} series memberships, "
             f"{slug_set} slug overrides, {skipped} skipped"
         )
         if claim_stats:

@@ -33,6 +33,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
+from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.ingestion.fandom_wiki import (
     FandomManufacturer,
     fetch_game_pages,
@@ -196,9 +197,7 @@ class Command(BaseCommand):
         existing_machines: dict[str, MachineModel] = {
             m.name.lower(): m for m in MachineModel.objects.all()
         }
-        existing_persons: dict[str, Person] = {
-            p.name.lower(): p for p in Person.objects.all()
-        }
+        existing_persons = build_person_lookup()
 
         # ------------------------------------------------------------------
         # 7. Ingest game credits (as relationship claims).
@@ -297,7 +296,7 @@ class Command(BaseCommand):
         pending_person_claims: list[Claim] = []
 
         # Refresh existing_persons after any credits-section changes.
-        existing_persons = {p.name.lower(): p for p in Person.objects.all()}
+        existing_persons = build_person_lookup()
 
         for fp in fandom_persons:
             # Skip persons with no game credits — not useful to create.

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
+from django.db.models.functions import Lower
 
 from apps.core.models import TimeStampedModel, unique_slug
 
-__all__ = ["Person", "Credit"]
+__all__ = ["Person", "PersonAlias", "Credit"]
 
 
 class Person(TimeStampedModel):
@@ -53,6 +54,29 @@ class Person(TimeStampedModel):
         if not self.slug:
             self.slug = unique_slug(self, self.name, "person")
         super().save(*args, **kwargs)
+
+
+class PersonAlias(TimeStampedModel):
+    """An alternate name for a Person, used to match variant spellings from
+    external sources (e.g. "Keith Johnson" → "Keith P. Johnson").
+
+    Populated from data/people.json by ingest_pinbase_people.
+    """
+
+    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name="aliases")
+    value = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ["value"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("value"),
+                name="catalog_unique_person_alias_lower",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.value} → {self.person.name}"
 
 
 class Credit(TimeStampedModel):

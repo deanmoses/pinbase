@@ -1,10 +1,14 @@
 """Orchestrate the full ingestion pipeline.
 
+Pinbase curated data is ingested first so it bootstraps the entities that
+external sources (IPDB, OPDB) will match against and enrich:
+
 Runs: ingest_pinbase_taxonomy → ingest_pinbase_manufacturers →
-      ingest_pinbase_corporate_entities → ingest_pinbase_systems → ingest_ipdb →
-      ingest_opdb → ingest_ipdb_titles → ingest_pinbase_models →
-      ingest_pinbase_series → ingest_pinbase_titles → ingest_pinbase_signs →
-      resolve_claims.
+      ingest_pinbase_corporate_entities → ingest_pinbase_systems →
+      ingest_pinbase_people → ingest_pinbase_series →
+      ingest_pinbase_titles → ingest_pinbase_models →
+      ingest_ipdb → ingest_opdb → ingest_ipdb_titles →
+      ingest_pinbase_signs → resolve_claims.
 """
 
 from __future__ import annotations
@@ -14,16 +18,20 @@ from django.core.management.base import BaseCommand
 
 
 STEPS = [
+    # Phase 1: Pinbase curated data — bootstrap entities.
     "ingest_pinbase_taxonomy",
     "ingest_pinbase_manufacturers",
     "ingest_pinbase_corporate_entities",
     "ingest_pinbase_systems",
+    "ingest_pinbase_people",
+    "ingest_pinbase_series",
+    "ingest_pinbase_titles",
+    "ingest_pinbase_models",
+    # Phase 2: External sources — match existing records, create new ones.
     "ingest_ipdb",
     "ingest_opdb",
     "ingest_ipdb_titles",
-    "ingest_pinbase_models",
-    "ingest_pinbase_series",
-    "ingest_pinbase_titles",
+    # Phase 3: Enrichment + resolution.
     "ingest_pinbase_signs",
     "resolve_claims",
 ]
