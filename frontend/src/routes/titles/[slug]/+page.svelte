@@ -4,6 +4,11 @@
 	import ModelDetailBody from '$lib/components/ModelDetailBody.svelte';
 	import ModelHierarchy from '$lib/components/ModelHierarchy.svelte';
 	import CreditsList from '$lib/components/CreditsList.svelte';
+	import ExternalLinksSidebarSection from '$lib/components/ExternalLinksSidebarSection.svelte';
+	import RatingsSidebarSection from '$lib/components/RatingsSidebarSection.svelte';
+	import SidebarList from '$lib/components/SidebarList.svelte';
+	import SidebarListItem from '$lib/components/SidebarListItem.svelte';
+	import SidebarSection from '$lib/components/SidebarSection.svelte';
 	import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 	import { pageTitle } from '$lib/constants';
 	import { resolveHref } from '$lib/utils';
@@ -176,8 +181,7 @@
 	{#snippet sidebar()}
 		{#if md}
 			<!-- Single-model: full specs from model detail -->
-			<section class="sidebar-section">
-				<h3>Specifications</h3>
+			<SidebarSection heading="Specifications">
 				<dl>
 					{#if md.technology_generation_slug}
 						<dt>Generation</dt>
@@ -246,68 +250,35 @@
 						</dd>
 					{/if}
 				</dl>
-			</section>
+			</SidebarSection>
 
-			{#if md.ipdb_rating || md.pinside_rating}
-				<section class="sidebar-section">
-					<h3>Ratings</h3>
-					<div class="rating-row">
-						{#if md.ipdb_rating}
-							<div class="rating-badge">
-								<span class="rating-value">{md.ipdb_rating.toFixed(1)}</span>
-								<span class="rating-label">IPDB</span>
-							</div>
-						{/if}
-						{#if md.pinside_rating}
-							<div class="rating-badge">
-								<span class="rating-value">{md.pinside_rating.toFixed(1)}</span>
-								<span class="rating-label">Pinside</span>
-							</div>
-						{/if}
-					</div>
-				</section>
-			{/if}
+			<RatingsSidebarSection ipdbRating={md.ipdb_rating} pinsideRating={md.pinside_rating} />
 
 			{#if md.aliases.length > 0}
-				<section class="sidebar-section">
-					<h3>Variants</h3>
-					<ul class="sidebar-list">
+				<SidebarSection heading="Variants">
+					<SidebarList>
 						{#each md.aliases as alias (alias.slug)}
-							<li>
+							<SidebarListItem>
 								<a href={resolve(`/models/${alias.slug}`)}>{alias.name}</a>
-								{#if alias.variant_features.length > 0}
-									<span class="muted">{alias.variant_features.join(', ')}</span>
+								{#if alias.year}
+									<span class="muted">{alias.year}</span>
 								{/if}
-							</li>
+							</SidebarListItem>
 						{/each}
-					</ul>
-				</section>
+					</SidebarList>
+				</SidebarSection>
 			{/if}
 
-			{#if md.ipdb_id || md.opdb_id || md.pinside_id}
-				<section class="sidebar-section">
-					<h3>External Links</h3>
-					<p class="section-note">See this title on other sites:</p>
-					<div class="external-ids">
-						{#if md.ipdb_id}
-							<a href="https://www.ipdb.org/machine.cgi?id={md.ipdb_id}">
-								Internet Pinball Database
-							</a>
-						{/if}
-						{#if md.opdb_id}
-							<a href="https://opdb.org/machines/{md.opdb_id}"> Open Pinball Database </a>
-						{/if}
-						{#if md.pinside_id}
-							<a href="https://pinside.com/pinball/machine/{md.pinside_id}"> Pinside </a>
-						{/if}
-					</div>
-				</section>
-			{/if}
+			<ExternalLinksSidebarSection
+				ipdbId={md.ipdb_id}
+				opdbId={md.opdb_id}
+				pinsideId={md.pinside_id}
+				note="See this title on other sites:"
+			/>
 		{:else}
 			<!-- Multi-model: agreed specs across all models -->
 			{#if specs.technology_generation_slug || specs.display_type_slug || specs.player_count || specs.system_slug || specs.cabinet_name || specs.game_format_name || specs.display_subtype_name || specs.production_quantity || (specs.themes && specs.themes.length > 0) || title.abbreviations.length > 0}
-				<section class="sidebar-section">
-					<h3>Specifications</h3>
+				<SidebarSection heading="Specifications">
 					<dl>
 						{#if specs.technology_generation_slug}
 							<dt>Generation</dt>
@@ -369,20 +340,19 @@
 							<dd>{specs.display_subtype_name}</dd>
 						{/if}
 					</dl>
-				</section>
+				</SidebarSection>
 			{/if}
 
 			{#if title.series.length > 0}
-				<section class="sidebar-section">
-					<h3>Series</h3>
-					<ul class="sidebar-list">
+				<SidebarSection heading="Series">
+					<SidebarList>
 						{#each title.series as s (s.slug)}
-							<li>
+							<SidebarListItem>
 								<a href={resolve(`/series/${s.slug}`)}>{s.name}</a>
-							</li>
+							</SidebarListItem>
 						{/each}
-					</ul>
-				</section>
+					</SidebarList>
+				</SidebarSection>
 			{/if}
 
 			{#if title.machines.length > 0}
@@ -539,93 +509,26 @@
 	}
 
 	/* Sidebar */
-	.sidebar-section {
-		padding-bottom: var(--size-3);
-		border-bottom: 1px solid var(--color-border-soft);
-	}
-
-	.sidebar-section h3 {
-		font-size: var(--font-size-1);
-		font-weight: 600;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-1);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.sidebar-section dl {
+	dl {
 		display: grid;
 		grid-template-columns: auto 1fr;
 		gap: 0 var(--size-3);
 		align-items: baseline;
 	}
 
-	.sidebar-section dt,
-	.sidebar-section dd {
+	dt,
+	dd {
 		font-size: var(--font-size-0);
 		margin: 0;
 		padding: 2px 0;
 	}
 
-	.sidebar-section dt {
+	dt {
 		color: var(--color-text-muted);
 		font-weight: 500;
 	}
 
-	.sidebar-section dd {
+	dd {
 		color: var(--color-text-primary);
-	}
-
-	.rating-row {
-		display: flex;
-		gap: var(--size-3);
-	}
-
-	.rating-badge {
-		display: flex;
-		align-items: baseline;
-		gap: var(--size-1);
-	}
-
-	.rating-value {
-		font-size: var(--font-size-3);
-		font-weight: 700;
-		color: var(--color-accent);
-	}
-
-	.rating-label {
-		font-size: var(--font-size-0);
-		color: var(--color-text-muted);
-	}
-
-	.sidebar-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-
-	.sidebar-list li {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		padding: var(--size-1) 0;
-		font-size: var(--font-size-0);
-	}
-
-	.sidebar-list li:not(:last-child) {
-		border-bottom: 1px solid var(--color-border-soft);
-	}
-
-	.section-note {
-		font-size: var(--font-size-0);
-		color: var(--color-text-muted);
-		margin: 0 0 var(--size-2);
-	}
-
-	.external-ids {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--size-3);
-		font-size: var(--font-size-0);
 	}
 </style>

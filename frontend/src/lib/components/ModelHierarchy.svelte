@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import SidebarList from './SidebarList.svelte';
+	import SidebarSection from './SidebarSection.svelte';
 
 	interface Variant {
 		name: string;
@@ -38,9 +40,8 @@
 </script>
 
 {#if filteredModels.length > 0}
-	<section class="sidebar-section">
-		<h3>{heading}</h3>
-		<ul class="sidebar-list">
+	<SidebarSection {heading}>
+		<SidebarList>
 			{#each filteredModels as parent (parent.slug)}
 				<li
 					class:current={currentSlug !== undefined &&
@@ -63,43 +64,23 @@
 					</li>
 				{/each}
 			{/each}
-		</ul>
-	</section>
+		</SidebarList>
+	</SidebarSection>
 {/if}
 
 <style>
-	.sidebar-section {
-		padding-bottom: var(--size-3);
-		border-bottom: 1px solid var(--color-border-soft);
-	}
-
-	.sidebar-section h3 {
-		font-size: var(--font-size-1);
-		font-weight: 600;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-1);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.sidebar-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-
-	.sidebar-list li {
+	li {
 		display: flex;
 		align-items: baseline;
 		padding: var(--size-1) 0;
 		font-size: var(--font-size-0);
 	}
 
-	.sidebar-list li > a {
+	li > a {
 		flex: 1;
 	}
 
-	.sidebar-list li:not(:last-child):not(.variant-indent):not(:has(+ .variant-indent)) {
+	li:not(:last-child):not(.variant-indent):not(:has(+ .variant-indent)) {
 		border-bottom: 1px solid var(--color-border-soft);
 	}
 

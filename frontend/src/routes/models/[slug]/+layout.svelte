@@ -3,7 +3,12 @@
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
+	import ExternalLinksSidebarSection from '$lib/components/ExternalLinksSidebarSection.svelte';
 	import ModelHierarchy from '$lib/components/ModelHierarchy.svelte';
+	import RatingsSidebarSection from '$lib/components/RatingsSidebarSection.svelte';
+	import SidebarList from '$lib/components/SidebarList.svelte';
+	import SidebarListItem from '$lib/components/SidebarListItem.svelte';
+	import SidebarSection from '$lib/components/SidebarSection.svelte';
 	import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 
 	let { data, children } = $props();
@@ -95,8 +100,7 @@
 	{/snippet}
 
 	{#snippet sidebar()}
-		<section class="sidebar-section">
-			<h3>Specifications</h3>
+		<SidebarSection heading="Specifications">
 			<dl>
 				{#if model.technology_generation_slug}
 					<dt>Generation</dt>
@@ -182,69 +186,51 @@
 					</dd>
 				{/if}
 			</dl>
-		</section>
+		</SidebarSection>
 
-		{#if model.ipdb_rating || model.pinside_rating}
-			<section class="sidebar-section">
-				<h3>Ratings</h3>
-				<div class="rating-row">
-					{#if model.ipdb_rating}
-						<div class="rating-badge">
-							<span class="rating-value">{model.ipdb_rating.toFixed(1)}</span>
-							<span class="rating-label">IPDB</span>
-						</div>
-					{/if}
-					{#if model.pinside_rating}
-						<div class="rating-badge">
-							<span class="rating-value">{model.pinside_rating.toFixed(1)}</span>
-							<span class="rating-label">Pinside</span>
-						</div>
-					{/if}
-				</div>
-			</section>
-		{/if}
+		<RatingsSidebarSection ipdbRating={model.ipdb_rating} pinsideRating={model.pinside_rating} />
 
 		{#if model.aliases.length > 0}
-			<section class="sidebar-section">
-				<h3>Variants</h3>
-				<ul class="sidebar-list">
+			<SidebarSection heading="Variants">
+				<SidebarList>
 					{#each model.aliases as alias (alias.slug)}
-						<li>
+						<SidebarListItem>
 							<a href={resolve(`/models/${alias.slug}`)}>{alias.name}</a>
-							{#if alias.variant_features.length > 0}
-								<span class="muted">{alias.variant_features.join(', ')}</span>
+							{#if alias.year}
+								<span class="muted">{alias.year}</span>
 							{/if}
-						</li>
+						</SidebarListItem>
 					{/each}
-				</ul>
-			</section>
+				</SidebarList>
+			</SidebarSection>
 		{/if}
 
 		{#if model.alias_of_slug}
-			<section class="sidebar-section">
-				<h3>Parent Game</h3>
-				<ul class="sidebar-list">
-					<li>
+			<SidebarSection heading="Parent Game">
+				<SidebarList>
+					<SidebarListItem>
 						<a href={resolve(`/models/${model.alias_of_slug}`)}>{model.alias_of_name}</a>
-					</li>
-				</ul>
-			</section>
+						{#if model.alias_of_year}
+							<span class="muted">{model.alias_of_year}</span>
+						{/if}
+					</SidebarListItem>
+				</SidebarList>
+			</SidebarSection>
 		{/if}
 
 		{#if model.variant_siblings && model.variant_siblings.length > 0}
-			<section class="sidebar-section">
-				<h3>Other Variants</h3>
-				<ul class="sidebar-list">
+			<SidebarSection heading="Other Variants">
+				<SidebarList>
 					{#each model.variant_siblings as sibling (sibling.slug)}
-						<li>
+						<SidebarListItem>
 							<a href={resolve(`/models/${sibling.slug}`)}>{sibling.name}</a>
-							{#if sibling.variant_features.length > 0}
-								<span class="muted">{sibling.variant_features.join(', ')}</span>
+							{#if sibling.year}
+								<span class="muted">{sibling.year}</span>
 							{/if}
-						</li>
+						</SidebarListItem>
 					{/each}
-				</ul>
-			</section>
+				</SidebarList>
+			</SidebarSection>
 		{/if}
 
 		<ModelHierarchy
@@ -253,25 +239,12 @@
 			excludeSlug={model.alias_of_slug ?? model.slug}
 		/>
 
-		{#if model.ipdb_id || model.opdb_id || model.pinside_id}
-			<section class="sidebar-section">
-				<h3>External Links</h3>
-				<p class="section-note">See this model on other sites:</p>
-				<div class="external-ids">
-					{#if model.ipdb_id}
-						<a href="https://www.ipdb.org/machine.cgi?id={model.ipdb_id}">
-							Internet Pinball Database
-						</a>
-					{/if}
-					{#if model.opdb_id}
-						<a href="https://opdb.org/machines/{model.opdb_id}"> Open Pinball Database </a>
-					{/if}
-					{#if model.pinside_id}
-						<a href="https://pinside.com/pinball/machine/{model.pinside_id}"> Pinside </a>
-					{/if}
-				</div>
-			</section>
-		{/if}
+		<ExternalLinksSidebarSection
+			ipdbId={model.ipdb_id}
+			opdbId={model.opdb_id}
+			pinsideId={model.pinside_id}
+			note="See this model on other sites:"
+		/>
 	{/snippet}
 </TwoColumnLayout>
 
@@ -374,98 +347,31 @@
 	}
 
 	/* Sidebar */
-	.sidebar-section {
-		padding-bottom: var(--size-3);
-		border-bottom: 1px solid var(--color-border-soft);
-	}
-
-	.sidebar-section h3 {
-		font-size: var(--font-size-1);
-		font-weight: 600;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-1);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.sidebar-section dl {
+	dl {
 		display: grid;
 		grid-template-columns: auto 1fr;
 		gap: 0 var(--size-3);
 		align-items: baseline;
 	}
 
-	.sidebar-section dt,
-	.sidebar-section dd {
+	dt,
+	dd {
 		font-size: var(--font-size-0);
 		margin: 0;
 		padding: 2px 0;
 	}
 
-	.sidebar-section dt {
+	dt {
 		color: var(--color-text-muted);
 		font-weight: 500;
 	}
 
-	.sidebar-section dd {
+	dd {
 		color: var(--color-text-primary);
-	}
-
-	.rating-row {
-		display: flex;
-		gap: var(--size-3);
-	}
-
-	.rating-badge {
-		display: flex;
-		align-items: baseline;
-		gap: var(--size-1);
-	}
-
-	.rating-value {
-		font-size: var(--font-size-3);
-		font-weight: 700;
-		color: var(--color-accent);
-	}
-
-	.rating-label {
-		font-size: var(--font-size-0);
-		color: var(--color-text-muted);
-	}
-
-	.sidebar-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-
-	.sidebar-list li {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		padding: var(--size-1) 0;
-		font-size: var(--font-size-0);
-	}
-
-	.sidebar-list li:not(:last-child) {
-		border-bottom: 1px solid var(--color-border-soft);
 	}
 
 	.muted {
 		color: var(--color-text-muted);
-		font-size: var(--font-size-0);
-	}
-
-	.section-note {
-		font-size: var(--font-size-0);
-		color: var(--color-text-muted);
-		margin: 0 0 var(--size-2);
-	}
-
-	.external-ids {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--size-3);
 		font-size: var(--font-size-0);
 	}
 </style>
