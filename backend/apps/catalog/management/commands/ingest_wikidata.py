@@ -21,6 +21,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
+from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.ingestion.wikidata_sparql import (
     WikidataPerson,
     fetch_sparql,
@@ -95,9 +96,7 @@ class Command(BaseCommand):
         # 5. Load existing Person records and a set of person PKs that have credits.
         from apps.catalog.models import Credit
 
-        existing_persons: dict[str, Person] = {
-            p.name.lower(): p for p in Person.objects.all()
-        }
+        existing_persons = build_person_lookup()
         persons_with_credits: set[int] = set(
             Credit.objects.values_list("person_id", flat=True).distinct()
         )

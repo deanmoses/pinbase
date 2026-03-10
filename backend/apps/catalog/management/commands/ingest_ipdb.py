@@ -18,6 +18,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.catalog.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
+from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.ingestion.ipdb_title_fixes import TITLE_FIXES
 from apps.catalog.ingestion.parsers import (
     parse_credit_string,
@@ -498,10 +499,8 @@ class Command(BaseCommand):
 
         from django.contrib.contenttypes.models import ContentType
 
-        # Discover all unique person names needed.
-        existing_persons: dict[str, Person] = {
-            p.name.lower(): p for p in Person.objects.all()
-        }
+        # Discover all unique person names needed (includes aliases).
+        existing_persons = build_person_lookup()
         existing_slugs: set[str] = set(Person.objects.values_list("slug", flat=True))
 
         new_persons: list[Person] = []
@@ -516,8 +515,8 @@ class Command(BaseCommand):
         persons_created = len(new_persons)
         if new_persons:
             Person.objects.bulk_create(new_persons)
-            # Refresh to get PKs.
-            existing_persons = {p.name.lower(): p for p in Person.objects.all()}
+            # Refresh to get PKs (includes aliases).
+            existing_persons = build_person_lookup()
 
         self.stdout.write(
             f"  Persons: {len(existing_persons) - persons_created} existing, "

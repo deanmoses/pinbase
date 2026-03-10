@@ -1,8 +1,8 @@
 """Seed Series records from data/series.json and design credits from data/credits.json.
 
-Creates or updates Series records with names and descriptions. After OPDB/IPDB
-ingest creates Person records, creates Credit(series=...) records from
-credits.json.
+Creates or updates Series records with names and descriptions. Person records
+must exist before credits can be created (run ingest_pinbase_people first).
+Creates Credit(series=...) records from credits.json.
 
 Series-Title M2M memberships are handled by ingest_pinbase_titles.
 """
@@ -104,7 +104,7 @@ class Command(BaseCommand):
             person_obj = people_by_slug.get(person_slug)
             if person_obj is None:
                 logger.warning(
-                    "Person slug %r not found (run ingest_ipdb/opdb first) — skipping",
+                    "Person slug %r not found (run ingest_pinbase_people first) — skipping",
                     person_slug,
                 )
                 credits_skipped += 1

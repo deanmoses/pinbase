@@ -18,6 +18,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
 from apps.catalog.ingestion.parsers import parse_credit_string
+from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.models import Credit, CreditRole, MachineModel, Person, Title
 from apps.provenance.models import Claim, Source
 
@@ -286,9 +287,7 @@ class Command(BaseCommand):
         if not credit_queue:
             return
 
-        existing_persons: dict[str, Person] = {
-            p.name.lower(): p for p in Person.objects.all()
-        }
+        existing_persons = build_person_lookup()
         existing_slugs: set[str] = set(Person.objects.values_list("slug", flat=True))
 
         new_persons: list[Person] = []
@@ -303,7 +302,7 @@ class Command(BaseCommand):
         persons_created = len(new_persons)
         if new_persons:
             Person.objects.bulk_create(new_persons)
-            existing_persons = {p.name.lower(): p for p in Person.objects.all()}
+            existing_persons = build_person_lookup()
 
         self.stdout.write(
             f"  Persons: {len(existing_persons) - persons_created} existing, "
