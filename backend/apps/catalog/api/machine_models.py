@@ -77,6 +77,7 @@ class CreditSchema(Schema):
 class AliasSchema(Schema):
     name: str
     slug: str
+    year: Optional[int] = None
     variant_features: list[str] = []
 
 
@@ -124,6 +125,7 @@ class MachineModelDetailSchema(Schema):
     series: list[SeriesRefSchema] = []
     alias_of_name: Optional[str] = None
     alias_of_slug: Optional[str] = None
+    alias_of_year: Optional[int] = None
     variant_siblings: list[AliasSchema] = []
     title_models: list[TitleMachineSchema] = []
 
@@ -250,6 +252,7 @@ def _serialize_model_detail(pm) -> dict:
         {
             "name": alias.name,
             "slug": alias.slug,
+            "year": alias.year,
             "variant_features": _extract_variant_features(alias.extra_data or {}),
         }
         for alias in pm.aliases.all()
@@ -262,6 +265,7 @@ def _serialize_model_detail(pm) -> dict:
             {
                 "name": sib.name,
                 "slug": sib.slug,
+                "year": sib.year,
                 "variant_features": _extract_variant_features(sib.extra_data or {}),
             }
             for sib in pm.alias_of.aliases.all()
@@ -307,6 +311,7 @@ def _serialize_model_detail(pm) -> dict:
         "aliases": aliases,
         "alias_of_name": pm.alias_of.name if pm.alias_of else None,
         "alias_of_slug": pm.alias_of.slug if pm.alias_of else None,
+        "alias_of_year": pm.alias_of.year if pm.alias_of else None,
         "variant_siblings": variant_siblings,
         "title_name": pm.title.name if pm.title else None,
         "title_slug": pm.title.slug if pm.title else None,
