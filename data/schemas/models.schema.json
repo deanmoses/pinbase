@@ -24,6 +24,15 @@
         "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
         "description": "Slug of the base model if this is a variant/edition"
       },
+      "is_remake": {
+        "type": "boolean",
+        "description": "Set to false to reject an incorrect OPDB Remake tag"
+      },
+      "remake_of": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "description": "Slug of the original model this is a remake of"
+      },
       "is_conversion": {
         "type": "boolean",
         "description": "Whether this model is a conversion of another machine"

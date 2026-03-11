@@ -54,7 +54,7 @@ class Command(BaseCommand):
             slug = entry["slug"]
             name = entry["name"]
             description = entry.get("description", "")
-            mfr_slug = entry.get("manufacturer_slug")
+            mfr_slug = entry.get("manufacturer")
 
             mfr = None
             if mfr_slug:
