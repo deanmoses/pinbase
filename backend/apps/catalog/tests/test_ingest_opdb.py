@@ -7,6 +7,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.catalog.models import MachineModel, Title
+from apps.catalog.resolve import resolve_model
 from apps.provenance.models import Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
@@ -152,6 +153,8 @@ class TestIngestOpdbAliases:
     def test_alias_linked_to_parent(self):
         parent = MachineModel.objects.get(opdb_id="G1111-MTest1")
         variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        resolve_model(variant)
+        variant.refresh_from_db()
         assert variant.variant_of == parent
 
     def test_alias_has_claims(self):
@@ -193,6 +196,8 @@ class TestIngestOpdbNonPhysical:
         """The remaining alias should point to the promoted model."""
         promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
         variant = MachineModel.objects.get(opdb_id="G3333-MCombo-ALE")
+        resolve_model(variant)
+        variant.refresh_from_db()
         assert variant.variant_of == promoted
 
     def test_non_physical_idempotent(self):
@@ -204,9 +209,13 @@ class TestIngestOpdbNonPhysical:
             groups=f"{FIXTURES}/opdb_groups_sample.json",
         )
         assert MachineModel.objects.count() == initial_count
-        # Verify relationships preserved.
+        # Verify relationships preserved after resolution.
         promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
         variant = MachineModel.objects.get(opdb_id="G3333-MCombo-ALE")
+        resolve_model(promoted)
+        resolve_model(variant)
+        promoted.refresh_from_db()
+        variant.refresh_from_db()
         assert promoted.variant_of is None
         assert variant.variant_of == promoted
 
@@ -239,6 +248,10 @@ class TestOpdbNonPhysicalHeuristics:
         call_command("ingest_opdb", opdb=path)
         le = MachineModel.objects.get(opdb_id="GTEST-MNP-ALE")
         ce = MachineModel.objects.get(opdb_id="GTEST-MNP-ACE")
+        resolve_model(le)
+        resolve_model(ce)
+        le.refresh_from_db()
+        ce.refresh_from_db()
         assert le.variant_of is None
         assert ce.variant_of == le
 
@@ -268,6 +281,10 @@ class TestOpdbNonPhysicalHeuristics:
         call_command("ingest_opdb", opdb=path)
         pe = MachineModel.objects.get(opdb_id="GTEST-MNP2-APE")
         ce = MachineModel.objects.get(opdb_id="GTEST-MNP2-ACE")
+        resolve_model(pe)
+        resolve_model(ce)
+        pe.refresh_from_db()
+        ce.refresh_from_db()
         assert pe.variant_of is None
         assert ce.variant_of == pe
 
@@ -297,6 +314,10 @@ class TestOpdbNonPhysicalHeuristics:
         call_command("ingest_opdb", opdb=path)
         std = MachineModel.objects.get(opdb_id="GTEST-MNP3-AStd")
         ce = MachineModel.objects.get(opdb_id="GTEST-MNP3-ACE")
+        resolve_model(std)
+        resolve_model(ce)
+        std.refresh_from_db()
+        ce.refresh_from_db()
         assert std.variant_of is None
         assert ce.variant_of == std
 
@@ -410,4 +431,159 @@ class TestOpdbAliasEdgeCases:
         call_command("ingest_opdb", opdb=path)
         parent = MachineModel.objects.get(opdb_id="GNEW-M1")
         alias = MachineModel.objects.get(opdb_id="GNEW-M1-AAlias")
+        resolve_model(alias)
+        alias.refresh_from_db()
         assert alias.variant_of == parent
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("_run_opdb")
+class TestOpdbFKClaimGuards:
+    """Structural guard: every FK set on a model must be backed by an OPDB claim."""
+
+    # FK fields that _collect_claims emits for OPDB records.
+    OPDB_FK_FIELDS = [
+        "manufacturer",
+        "technology_generation",
+        "display_type",
+        "title",
+        "variant_of",
+    ]
+
+    def test_variant_of_claim_matches_resolved_fk(self):
+        """Every model with variant_of set must have a matching OPDB claim."""
+        source = Source.objects.get(slug="opdb")
+        for pm in MachineModel.objects.all():
+            resolve_model(pm)
+        for pm in MachineModel.objects.filter(variant_of__isnull=False).select_related(
+            "variant_of"
+        ):
+            claim = pm.claims.filter(
+                source=source, field_name="variant_of", is_active=True
+            ).first()
+            assert claim is not None, (
+                f"{pm.slug} has variant_of={pm.variant_of.slug} but no OPDB claim"
+            )
+            assert claim.value == pm.variant_of.slug, (
+                f"{pm.slug} variant_of claim value={claim.value} "
+                f"!= resolved FK slug={pm.variant_of.slug}"
+            )
+
+    @pytest.mark.parametrize("fk_field", OPDB_FK_FIELDS)
+    def test_fk_field_has_opdb_claim(self, fk_field):
+        """OPDB-authoritative models with an FK set must have a backing claim."""
+        source = Source.objects.get(slug="opdb")
+        # Scope to models that have an opdb_id (OPDB-authoritative).
+        fk_attr = f"{fk_field}_id"
+        models_with_fk = MachineModel.objects.filter(
+            opdb_id__isnull=False,
+            **{f"{fk_attr}__isnull": False},
+        )
+        for pm in models_with_fk:
+            assert pm.claims.filter(
+                source=source, field_name=fk_field, is_active=True
+            ).exists(), (
+                f"{pm.slug} (opdb_id={pm.opdb_id}) has {fk_field} set "
+                f"but no active OPDB claim"
+            )
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("_run_opdb")
+class TestOpdbAliasVariantOfClaims:
+    """variant_of must go through the claims system so it survives resolution."""
+
+    def test_alias_variant_of_claim_exists(self):
+        """OPDB ingest should emit a variant_of claim for aliases."""
+        parent = MachineModel.objects.get(opdb_id="G1111-MTest1")
+        variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        source = Source.objects.get(slug="opdb")
+        claim = variant.claims.get(
+            source=source, field_name="variant_of", is_active=True
+        )
+        assert claim.value == parent.slug
+
+    def test_alias_variant_of_survives_resolution(self):
+        """variant_of must persist after resolve_model (claims-based resolution)."""
+        parent = MachineModel.objects.get(opdb_id="G1111-MTest1")
+        variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
+        resolve_model(variant)
+        variant.refresh_from_db()
+        assert variant.variant_of == parent
+
+    def test_nonphysical_variant_of_claim_exists(self):
+        """Remaining aliases in non-physical groups should have variant_of claims."""
+        promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
+        variant = MachineModel.objects.get(opdb_id="G3333-MCombo-ALE")
+        source = Source.objects.get(slug="opdb")
+        claim = variant.claims.get(
+            source=source, field_name="variant_of", is_active=True
+        )
+        assert claim.value == promoted.slug
+
+    def test_nonphysical_variant_of_survives_resolution(self):
+        """Non-physical group variant_of must persist after resolution."""
+        promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
+        variant = MachineModel.objects.get(opdb_id="G3333-MCombo-ALE")
+        resolve_model(variant)
+        variant.refresh_from_db()
+        assert variant.variant_of == promoted
+
+    def test_promoted_alias_no_variant_of_after_resolution(self):
+        """Promoted aliases should have no variant_of claim or FK after resolution."""
+        promoted = MachineModel.objects.get(opdb_id="G3333-MCombo-APrem")
+        source = Source.objects.get(slug="opdb")
+        assert not promoted.claims.filter(
+            source=source, field_name="variant_of", is_active=True
+        ).exists()
+        resolve_model(promoted)
+        promoted.refresh_from_db()
+        assert promoted.variant_of is None
+
+
+@pytest.mark.django_db
+class TestOpdbVariantOfSweep:
+    """Stale variant_of claims must be swept on rerun."""
+
+    def test_rerun_promotion_clears_stale_variant_of(self):
+        """When a parent becomes non-physical, alias gets promoted and variant_of is swept."""
+        # Run 1: physical parent + alias → alias is a variant.
+        path1 = _opdb_dump(
+            machines=[{"opdb_id": "GSWP-M1", "name": "Sweep Parent"}],
+            aliases=[
+                {
+                    "opdb_id": "GSWP-M1-APrem",
+                    "name": "Sweep (Premium)",
+                    "features": ["Premium edition"],
+                },
+            ],
+        )
+        call_command("ingest_opdb", opdb=path1)
+        variant = MachineModel.objects.get(opdb_id="GSWP-M1-APrem")
+        resolve_model(variant)
+        variant.refresh_from_db()
+        parent = MachineModel.objects.get(opdb_id="GSWP-M1")
+        assert variant.variant_of == parent
+
+        # Run 2: parent becomes non-physical → alias is promoted to standalone.
+        path2 = _opdb_dump(
+            machines=[
+                {
+                    "opdb_id": "GSWP-M1",
+                    "name": "Sweep (Premium/LE)",
+                    "physical_machine": 0,
+                },
+            ],
+            aliases=[
+                {
+                    "opdb_id": "GSWP-M1-APrem",
+                    "name": "Sweep (Premium)",
+                    "features": ["Premium edition"],
+                },
+            ],
+        )
+        call_command("ingest_opdb", opdb=path2)
+        variant.refresh_from_db()
+        resolve_model(variant)
+        variant.refresh_from_db()
+        assert variant.variant_of is None

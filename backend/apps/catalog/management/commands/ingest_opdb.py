@@ -275,11 +275,9 @@ class Command(BaseCommand):
                     pm.opdb_id = opdb_id
                     by_opdb_id[opdb_id] = pm
                     promoted_update.append(pm)
-                # Clear variant_of if it was previously set (e.g. from a prior run).
-                if pm.variant_of_id is not None:
-                    pm.variant_of = None
-                    if pm not in promoted_update:
-                        promoted_update.append(pm)
+                # Stale variant_of claims from prior runs are swept by
+                # bulk_assert_claims(sweep_field="variant_of"); no direct
+                # model mutation needed here.
             else:
                 slug = generate_unique_slug(name, existing_slugs)
                 pm = MachineModel(name=name, opdb_id=opdb_id, slug=slug)
@@ -300,9 +298,7 @@ class Command(BaseCommand):
         if promoted_new:
             MachineModel.objects.bulk_create(promoted_new)
         if promoted_update:
-            MachineModel.objects.bulk_update(
-                promoted_update, ["opdb_id", "variant_of_id"]
-            )
+            MachineModel.objects.bulk_update(promoted_update, ["opdb_id"])
 
         if promoted_count:
             self.stdout.write(
@@ -347,6 +343,9 @@ class Command(BaseCommand):
             if not pm:
                 pm = by_opdb_id.get(opdb_id)
 
+            # Inject parent slug so _collect_claims can emit a variant_of claim.
+            rec["_variant_of_slug"] = parent.slug
+
             if pm:
                 alias_linked += 1
                 needs_update = False
@@ -356,18 +355,12 @@ class Command(BaseCommand):
                         pm.opdb_id = opdb_id
                         by_opdb_id[opdb_id] = pm
                         needs_update = True
-                # Link to parent.
-                if pm.variant_of_id != parent.pk:
-                    pm.variant_of = parent
-                    needs_update = True
                 if needs_update:
                     variant_models_needing_update.append(pm)
             else:
                 alias_created += 1
                 slug = generate_unique_slug(name, existing_slugs)
-                pm = MachineModel(
-                    name=name, opdb_id=opdb_id, variant_of=parent, slug=slug
-                )
+                pm = MachineModel(name=name, opdb_id=opdb_id, slug=slug)
                 new_variant_models.append(pm)
                 by_opdb_id[opdb_id] = pm
                 if ipdb_id:
@@ -378,9 +371,7 @@ class Command(BaseCommand):
         if new_variant_models:
             MachineModel.objects.bulk_create(new_variant_models)
         if variant_models_needing_update:
-            MachineModel.objects.bulk_update(
-                variant_models_needing_update, ["opdb_id", "variant_of_id"]
-            )
+            MachineModel.objects.bulk_update(variant_models_needing_update, ["opdb_id"])
 
         self.stdout.write(
             f"  Aliases — Linked: {alias_linked}, Created: {alias_created}, "
@@ -434,7 +425,20 @@ class Command(BaseCommand):
             self.stderr.write(f"  Failed IDs: {failed_ids}")
 
         # --- Bulk-assert all collected claims ---
-        claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
+        # Sweep stale variant_of claims: if a model was previously a variant
+        # but is now standalone (e.g. promoted from non-physical group), the
+        # old variant_of claim must be deactivated.
+        variant_of_scope: set[tuple[int, int]] = set()
+        for pm, _rec in machine_models:
+            variant_of_scope.add((ct_id, pm.pk))
+        for pm, _rec in variant_models:
+            variant_of_scope.add((ct_id, pm.pk))
+        claim_stats = Claim.objects.bulk_assert_claims(
+            source,
+            pending_claims,
+            sweep_field="variant_of",
+            authoritative_scope=variant_of_scope,
+        )
         self.stdout.write(
             f"  Claims: {claim_stats['unchanged']} unchanged, "
             f"{claim_stats['created']} created, "
@@ -687,6 +691,11 @@ class Command(BaseCommand):
         opdb_features = rec.get("features")
         if opdb_features:
             _add("variant_features", opdb_features)
+
+        # variant_of: injected by Phase 1d alias processing as parent slug.
+        variant_of_slug = rec.get("_variant_of_slug")
+        if variant_of_slug:
+            _add("variant_of", variant_of_slug)
 
         for field in ("keywords", "description", "common_name", "images"):
             value = rec.get(field)
