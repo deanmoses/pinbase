@@ -258,11 +258,11 @@ CREATE OR REPLACE VIEW catalog_systems AS
 SELECT
   ps.slug,
   ps."name",
-  ps.manufacturer_slug,
+  ps.manufacturer,
   count(DISTINCT cm.model_key) AS model_count
 FROM pinbase_systems AS ps
 LEFT JOIN catalog_models AS cm ON ps.slug = cm.system_slug
-GROUP BY ps.slug, ps."name", ps.manufacturer_slug
+GROUP BY ps.slug, ps."name", ps.manufacturer
 ORDER BY model_count DESC;
 
 CREATE OR REPLACE VIEW catalog_technology_generations AS
