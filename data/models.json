@@ -30,6 +30,12 @@
     "ipdb_id": 6372
   },
   {
+    "slug": "aerosmith-pro",
+    "name": "Aerosmith (Pro)",
+    "opdb_id": "Gr16e-MnKEX",
+    "ipdb_id": 6370
+  },
+  {
     "slug": "alien-limited-edition",
     "opdb_id": "G4PBO-MYep0",
     "name": "Alien (Limited Edition)"
@@ -310,6 +316,12 @@
     "ipdb_id": 6351
   },
   {
+    "slug": "dialed-in-standard-edition",
+    "name": "Dialed In! (Standard Edition)",
+    "opdb_id": "G4X2l-MYepl",
+    "ipdb_id": 6350
+  },
+  {
     "slug": "disney-tron-legacy-limited-edition",
     "opdb_id": "GrkL5-MJoNN",
     "name": "Disney TRON: Legacy (Limited Edition)",
@@ -568,6 +580,12 @@
     "ipdb_id": 6476
   },
   {
+    "slug": "guardians-of-the-galaxy-pro",
+    "name": "Guardians of the Galaxy (Pro)",
+    "opdb_id": "GRWvz-Mp4yl",
+    "ipdb_id": 6474
+  },
+  {
     "slug": "guns-n-roses-collectors-edition",
     "opdb_id": "GqZZ1-MZeoE",
     "name": "Guns N' Roses (Collector's Edition)",
@@ -578,6 +596,12 @@
     "opdb_id": "GqZZ1-M85y9",
     "name": "Guns N' Roses (Limited Edition)",
     "ipdb_id": 6765
+  },
+  {
+    "slug": "guns-n-roses-standard-edition",
+    "name": "Guns N' Roses (Standard Edition)",
+    "opdb_id": "GqZZ1-M1r5Y",
+    "ipdb_id": 6764
   },
   {
     "slug": "halloween-collectors-edition",
@@ -656,6 +680,12 @@
     "opdb_id": "G4dOQ-MW970",
     "name": "Iron Maiden: Legacy of the Beast (Limited Edition)",
     "ipdb_id": 6557
+  },
+  {
+    "slug": "iron-maiden-legacy-of-the-beast-pro",
+    "name": "Iron Maiden: Legacy of the Beast (Pro)",
+    "opdb_id": "G4dOQ-MyNbb",
+    "ipdb_id": 6555
   },
   {
     "slug": "james-bond-007-limited-edition",
@@ -818,6 +848,12 @@
     "name": "Legends of Valhalla (Deluxe Limited Edition)",
     "opdb_id": "GWyyq-MwNK5-AObnw",
     "variant_of": "legends-of-valhalla-classic"
+  },
+  {
+    "slug": "legends-of-wrestlemania-limited-edition",
+    "name": "Legends of Wrestlemania (Limited Edition)",
+    "opdb_id": "GR6Or-MKNYR",
+    "ipdb_id": 6216
   },
   {
     "slug": "lexy-lightspeed-secret-agent-showdown",
@@ -988,6 +1024,12 @@
     "ipdb_id": 6493
   },
   {
+    "slug": "pirates-of-the-caribbean-standard-edition",
+    "name": "Pirates of the Caribbean (Standard Edition)",
+    "opdb_id": "GRbPY-MePOP",
+    "ipdb_id": 6492
+  },
+  {
     "slug": "play-pool",
     "name": "Play Pool",
     "opdb_id": "G5n1Q-MXrnx",
@@ -1065,6 +1107,12 @@
     "opdb_id": "G5pp2-MBRK4",
     "name": "Rob Zombie's Spookshow International (Limited Edition)",
     "ipdb_id": 6417
+  },
+  {
+    "slug": "rob-zombies-spookshow-international-standard-edition",
+    "name": "Rob Zombie's Spookshow International (Standard Edition)",
+    "opdb_id": "G5pp2-ME0eP",
+    "ipdb_id": 6416
   },
   {
     "slug": "rock-star",
@@ -1368,6 +1416,12 @@
     "ipdb_id": 5940
   },
   {
+    "slug": "the-avengers-pro",
+    "name": "The Avengers (Pro)",
+    "opdb_id": "GRzNR-MLlEj",
+    "ipdb_id": 5938
+  },
+  {
     "slug": "the-godfather-collectors-edition",
     "name": "The Godfather (Collector's Edition)",
     "opdb_id": "Gd2ox-MW9qj-A1loo",
@@ -1382,6 +1436,12 @@
     "slug": "the-hobbit-limited-edition",
     "opdb_id": "G5bYr-MLezO-A9dNe",
     "name": "The Hobbit (Limited Edition)"
+  },
+  {
+    "slug": "the-hobbit-standard-edition",
+    "name": "The Hobbit (Standard Edition)",
+    "opdb_id": "G5bYr-MLezO",
+    "ipdb_id": 6222
   },
   {
     "slug": "the-hunter",
@@ -1476,6 +1536,12 @@
     "name": "The Wizard of Oz (Limited Edition)"
   },
   {
+    "slug": "the-wizard-of-oz-standard-edition",
+    "name": "The Wizard of Oz (Standard Edition)",
+    "opdb_id": "G4xyR-MJ2v0",
+    "ipdb_id": 5800
+  },
+  {
     "slug": "tiger",
     "name": "Tiger",
     "opdb_id": "GRw8o-Mz2lw",
@@ -1531,6 +1597,12 @@
     "opdb_id": "GRnPz-Mx0XO",
     "name": "Transformers (Limited Edition)",
     "ipdb_id": 5753
+  },
+  {
+    "slug": "transformers-pro",
+    "name": "Transformers (Pro)",
+    "opdb_id": "GRnPz-MLBzV",
+    "ipdb_id": 5709
   },
   {
     "slug": "ultraman-kaiju-rumble-collectors-edition",
@@ -1615,11 +1687,23 @@
     "ipdb_id": 6648
   },
   {
+    "slug": "willy-wonka-standard-edition",
+    "name": "Willy Wonka & The Chocolate Factory (Standard Edition)",
+    "opdb_id": "GYWBZ-MkPrr",
+    "ipdb_id": 6647
+  },
+  {
     "slug": "world-defender",
     "name": "World Defender",
     "opdb_id": "GR9NQ-MRjop",
     "is_conversion": true,
     "ipdb_id": 3519
+  },
+  {
+    "slug": "wrestlemania-pro",
+    "name": "WrestleMania (Pro)",
+    "opdb_id": "GR6Or-MwNex",
+    "ipdb_id": 6215
   },
   {
     "slug": "x-men-limited-edition",
@@ -1631,6 +1715,12 @@
     "opdb_id": "Grj6X-MJNV1-AOwN1",
     "name": "X-Men Magneto (Limited Edition)",
     "ipdb_id": 5823
+  },
+  {
+    "slug": "x-men-pro",
+    "name": "X-Men (Pro)",
+    "opdb_id": "Grj6X-MJwj5",
+    "ipdb_id": 5822
   },
   {
     "slug": "x-men-wolverine-limited-edition",
