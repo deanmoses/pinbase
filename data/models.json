@@ -27,7 +27,13 @@
     "slug": "aerosmith-limited-edition",
     "opdb_id": "Gr16e-M5Rbv",
     "name": "Aerosmith (Limited Edition)",
-    "ipdb_id": 6372
+    "ipdb_id": 6372,
+    "variant_of": "aerosmith-premium"
+  },
+  {
+    "slug": "aerosmith-premium",
+    "opdb_id": "Gr16e-Mq1k3",
+    "ipdb_id": 6371
   },
   {
     "slug": "aerosmith-pro",
