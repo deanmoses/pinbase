@@ -633,6 +633,7 @@
     "slug": "funhouse-remake-collectors-edition",
     "name": "Funhouse (Remake Collector's Edition)",
     "title": "funhouse",
+    "remake_of": "funhouse",
     "opdb_id": "G5Dz7-MdEod-AOL3d"
   },
   {
@@ -640,6 +641,7 @@
     "name": "Funhouse (Remake Limited Edition)",
     "title": "funhouse",
     "variant_of": "funhouse-remake-collectors-edition",
+    "remake_of": "funhouse",
     "opdb_id": "G5Dz7-MdEod-AR8Nb"
   },
   {
@@ -1195,12 +1197,14 @@
     "name": "Metallica Remastered (Limited Edition)",
     "title": "metallica-remastered",
     "variant_of": "metallica-remastered-premium",
+    "remake_of": "metallica-premium",
     "opdb_id": "GO0q3-MOEy8-ARrPz"
   },
   {
     "slug": "metallica-remastered-premium",
     "name": "Metallica Remastered (Premium)",
     "title": "metallica-remastered",
+    "remake_of": "metallica-premium",
     "opdb_id": "GO0q3-MOEy8-ARol7"
   },
   {
@@ -1998,6 +2002,7 @@
     "name": "Total Nuclear Annihilation (Collector's Edition)",
     "title": "total-nuclear-annihilation",
     "variant_of": "total-nuclear-annihilation",
+    "is_remake": false,
     "opdb_id": "GRD79-M0odk-AObBw"
   },
   {

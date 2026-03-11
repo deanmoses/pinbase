@@ -368,8 +368,13 @@ SELECT
   -- Pinbase editorial claims
   COALESCE(pm.is_conversion, false) AS is_conversion,
   pm.converted_from,
-  -- is_remake: pinbase remake_of (300) > OPDB feature tag (200).
-  (pm.remake_of IS NOT NULL OR list_contains(m.features, 'Remake')) AS is_remake,
+  -- is_remake: pinbase is_remake/remake_of (300) > OPDB feature tag (200).
+  -- is_remake=false in pinbase explicitly rejects an incorrect OPDB tag.
+  CASE
+    WHEN pm.is_remake = false THEN false
+    WHEN pm.remake_of IS NOT NULL THEN true
+    ELSE list_contains(m.features, 'Remake')
+  END AS is_remake,
   pm.remake_of,
   -- variant_of: pinbase (300) > OPDB alias (200).
   -- OPDB alias variant_of is suppressed for clones (different manufacturer)
