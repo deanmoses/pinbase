@@ -32,23 +32,19 @@
 </svelte:head>
 
 <div class="home">
-	<section class="hero">
-		<h1 class="site-title">{SITE_NAME}</h1>
-		<p class="tagline">Cataloging every pinball machine ever made</p>
-		<form class="hero-search" onsubmit={handleSubmit}>
-			<input
-				type="search"
-				placeholder="Search titles, manufacturers, people..."
-				aria-label="Search the catalog"
-				bind:value={searchQuery}
-			/>
-		</form>
-	</section>
+	<form class="hero-search" onsubmit={handleSubmit}>
+		<input
+			type="search"
+			placeholder="Search titles, manufacturers, people..."
+			aria-label="Search the catalog"
+			bind:value={searchQuery}
+		/>
+	</form>
 
 	<nav class="explore-links">
 		<a href={resolve('/titles')} class="explore-card">
 			<span class="explore-label">Titles</span>
-			<span class="explore-desc">Browse thousands of pinball machines from the 1930s to today</span>
+			<span class="explore-desc">Thousands of pinball machines from the 1930s to today</span>
 		</a>
 		<a href={resolve('/manufacturers')} class="explore-card">
 			<span class="explore-label">Manufacturers</span>
@@ -79,30 +75,9 @@
 </div>
 
 <style>
-	.home {
-		padding: var(--size-5) 0;
-	}
-
-	.hero {
-		text-align: center;
-		padding: var(--size-10) 0 var(--size-8);
-	}
-
-	.site-title {
-		font-size: var(--font-size-8);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-2);
-	}
-
-	.tagline {
-		font-size: var(--font-size-3);
-		color: var(--color-text-muted);
-	}
-
 	.hero-search {
 		max-width: 36rem;
-		margin: var(--size-6) auto 0;
+		margin: 0 auto var(--size-5);
 	}
 
 	.hero-search input[type='search'] {
