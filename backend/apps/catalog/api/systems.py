@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -26,6 +26,11 @@ class SystemListSchema(Schema):
     machine_count: int = 0
 
 
+class SiblingSystemSchema(Schema):
+    name: str
+    slug: str
+
+
 class SystemDetailSchema(Schema):
     name: str
     slug: str
@@ -33,6 +38,7 @@ class SystemDetailSchema(Schema):
     manufacturer_name: Optional[str] = None
     manufacturer_slug: Optional[str] = None
     titles: list[RelatedTitleSchema]
+    sibling_systems: list[SiblingSystemSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +109,16 @@ def get_system(request, slug: str):
             thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
             if thumbnail_url:
                 titles[key]["thumbnail_url"] = thumbnail_url
+    sibling_systems = []
+    if system.manufacturer:
+        sibling_systems = list(
+            System.objects.filter(manufacturer=system.manufacturer)
+            .exclude(pk=system.pk)
+            .annotate(latest_year=Max("machine_models__year"))
+            .order_by(F("latest_year").desc(nulls_last=True), "name")
+            .values("name", "slug")
+        )
+
     return {
         "name": system.name,
         "slug": system.slug,
@@ -110,4 +126,5 @@ def get_system(request, slug: str):
         "manufacturer_name": system.manufacturer.name if system.manufacturer else None,
         "manufacturer_slug": system.manufacturer.slug if system.manufacturer else None,
         "titles": list(titles.values()),
+        "sibling_systems": sibling_systems,
     }

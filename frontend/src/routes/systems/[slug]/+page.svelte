@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import CardGrid from '$lib/components/grid/CardGrid.svelte';
+	import SidebarList from '$lib/components/SidebarList.svelte';
+	import SidebarListItem from '$lib/components/SidebarListItem.svelte';
+	import SidebarSection from '$lib/components/SidebarSection.svelte';
 	import TitleCard from '$lib/components/cards/TitleCard.svelte';
+	import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
@@ -15,43 +19,59 @@
 <article>
 	<header>
 		<h1>{system.name}</h1>
-		{#if system.manufacturer_name}
-			<p class="manufacturer">
-				By <a href={resolve(`/manufacturers/${system.manufacturer_slug}`)}
-					>{system.manufacturer_name}</a
-				>
-			</p>
-		{/if}
-		{#if system.description}
-			<p class="description">{system.description}</p>
-		{/if}
 	</header>
 
-	{#if system.titles.length === 0}
-		<p class="empty">No titles on this system.</p>
-	{:else}
-		<section>
-			<h2>Titles ({system.titles.length})</h2>
-			<CardGrid>
-				{#each system.titles as title (title.slug)}
-					<TitleCard
-						slug={title.slug}
-						name={title.name}
-						thumbnailUrl={title.thumbnail_url}
-						manufacturerName={title.manufacturer_name}
-						year={title.year}
-					/>
-				{/each}
-			</CardGrid>
-		</section>
-	{/if}
+	<TwoColumnLayout>
+		{#snippet main()}
+			{#if system.description}
+				<p class="description">{system.description}</p>
+			{/if}
+
+			{#if system.titles.length === 0}
+				<p class="empty">No titles on this system.</p>
+			{:else}
+				<section>
+					<h2>Titles ({system.titles.length})</h2>
+					<CardGrid>
+						{#each system.titles as title (title.slug)}
+							<TitleCard
+								slug={title.slug}
+								name={title.name}
+								thumbnailUrl={title.thumbnail_url}
+								manufacturerName={title.manufacturer_name}
+								year={title.year}
+							/>
+						{/each}
+					</CardGrid>
+				</section>
+			{/if}
+		{/snippet}
+
+		{#snippet sidebar()}
+			{#if system.manufacturer_name}
+				<SidebarSection heading="Manufacturer">
+					<a href={resolve(`/manufacturers/${system.manufacturer_slug}`)}
+						>{system.manufacturer_name}</a
+					>
+				</SidebarSection>
+			{/if}
+
+			{#if system.sibling_systems.length > 0}
+				<SidebarSection heading="Other Systems By This Manufacturer">
+					<SidebarList>
+						{#each system.sibling_systems as sibling (sibling.slug)}
+							<SidebarListItem>
+								<a href={resolve(`/systems/${sibling.slug}`)}>{sibling.name}</a>
+							</SidebarListItem>
+						{/each}
+					</SidebarList>
+				</SidebarSection>
+			{/if}
+		{/snippet}
+	</TwoColumnLayout>
 </article>
 
 <style>
-	article {
-		max-width: 64rem;
-	}
-
 	header {
 		margin-bottom: var(--size-6);
 	}
@@ -63,16 +83,11 @@
 		margin-bottom: var(--size-2);
 	}
 
-	.manufacturer {
-		font-size: var(--font-size-2);
-		color: var(--color-text-muted);
-		margin-bottom: var(--size-2);
-	}
-
 	.description {
 		font-size: var(--font-size-2);
 		color: var(--color-text-muted);
 		line-height: var(--font-lineheight-3);
+		margin-bottom: var(--size-4);
 	}
 
 	h2 {
