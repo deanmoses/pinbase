@@ -12,6 +12,13 @@
 
 	let searchQuery = $state('');
 	let recentModels = $state<RecentModel[]>([]);
+	let titleCount = $state<number | null>(null);
+	let manufacturerCount = $state<number | null>(null);
+	let peopleCount = $state<number | null>(null);
+
+	function fmt(n: number): string {
+		return n.toLocaleString();
+	}
 
 	function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -22,8 +29,16 @@
 	}
 
 	onMount(async () => {
-		const { data } = await client.GET('/api/models/recent/');
-		if (data) recentModels = data;
+		const [recentRes, statsRes] = await Promise.all([
+			client.GET('/api/models/recent/'),
+			client.GET('/api/stats')
+		]);
+		if (recentRes.data) recentModels = recentRes.data;
+		if (statsRes.data) {
+			titleCount = statsRes.data.titles;
+			manufacturerCount = statsRes.data.manufacturers;
+			peopleCount = statsRes.data.people;
+		}
 	});
 </script>
 
@@ -44,15 +59,23 @@
 	<nav class="explore-links">
 		<a href={resolve('/titles')} class="explore-card">
 			<span class="explore-label">Titles</span>
-			<span class="explore-desc">Thousands of pinball machines from the 1930s to today</span>
+			<span class="explore-desc"
+				>{titleCount !== null ? fmt(titleCount) : 'Thousands of'} pinball machines from the 1930s to today</span
+			>
 		</a>
 		<a href={resolve('/manufacturers')} class="explore-card">
 			<span class="explore-label">Manufacturers</span>
-			<span class="explore-desc">From Gottlieb and Bally to Stern and Jersey Jack</span>
+			<span class="explore-desc"
+				>{manufacturerCount !== null ? fmt(manufacturerCount) : 'Hundreds of'} companies from Gottlieb
+				and Bally to Stern and Jersey Jack</span
+			>
 		</a>
 		<a href={resolve('/people')} class="explore-card">
 			<span class="explore-label">People</span>
-			<span class="explore-desc">The designers, artists, and engineers behind the games</span>
+			<span class="explore-desc"
+				>{peopleCount !== null ? fmt(peopleCount) : 'Hundreds of'} designers, artists, and engineers behind
+				the games</span
+			>
 		</a>
 	</nav>
 

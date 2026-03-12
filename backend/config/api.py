@@ -1,5 +1,5 @@
 from django.conf import settings
-from ninja import NinjaAPI
+from ninja import NinjaAPI, Schema
 
 from apps.accounts.api import auth_router
 from apps.catalog.api import (
@@ -20,6 +20,30 @@ api = NinjaAPI(
     title="Pinbase API",
     urls_namespace="api",
 )
+
+
+# Endpoints tagged "private" are excluded from the public API docs page.
+# The API docs expose catalog data endpoints; internal/website endpoints
+# (health checks, stats for the homepage, etc.) use tags=["private"].
+
+
+class StatsSchema(Schema):
+    titles: int
+    models: int
+    manufacturers: int
+    people: int
+
+
+@api.get("/stats", response=StatsSchema, tags=["private"])
+def stats(request):
+    from apps.catalog.models import Manufacturer, MachineModel, Person, Title
+
+    return {
+        "titles": Title.objects.count(),
+        "models": MachineModel.objects.count(),
+        "manufacturers": Manufacturer.objects.count(),
+        "people": Person.objects.count(),
+    }
 
 
 @api.get("/health", tags=["private"])
