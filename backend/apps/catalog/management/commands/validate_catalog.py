@@ -11,10 +11,12 @@ Exit codes:
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
@@ -35,6 +37,11 @@ from apps.catalog.models import (
 from apps.provenance.models import Claim
 
 logger = logging.getLogger(__name__)
+
+# Default location for golden records. Overridden in tests via monkeypatch.
+GOLDEN_RECORDS_PATH = (
+    Path(__file__).resolve().parents[4] / "data" / "golden_records.json"
+)
 
 
 @dataclass
@@ -404,6 +411,102 @@ def check_summary_stats(result: ValidationResult) -> None:
     result.note(f"Active claims: {Claim.objects.filter(is_active=True).count()}")
 
 
+def check_golden_records(result: ValidationResult) -> None:
+    """Verify well-known records match expected values after ingestion.
+
+    Loads assertions from data/golden_records.json and checks each one
+    against the resolved catalog. Missing records and field mismatches
+    are errors — if a well-known machine is wrong, something broke.
+    """
+    golden_path = GOLDEN_RECORDS_PATH
+    if not golden_path.exists():
+        result.note("golden_records.json not found — skipping spot checks")
+        return
+
+    data = json.loads(golden_path.read_text())
+    failures = 0
+
+    # --- Models ---
+    for entry in data.get("models", []):
+        slug = entry["slug"]
+        expect = entry["expect"]
+        pm = MachineModel.objects.filter(slug=slug).first()
+        if pm is None:
+            result.error(f"Golden record model {slug!r} not found")
+            failures += 1
+            continue
+
+        for field_name, expected in expect.items():
+            actual = _get_golden_field(pm, field_name)
+            if actual != expected:
+                result.error(
+                    f"Golden record model {slug!r}: "
+                    f"{field_name}={actual!r}, expected {expected!r}"
+                )
+                failures += 1
+
+    # --- Titles ---
+    for entry in data.get("titles", []):
+        slug = entry["slug"]
+        expect = entry["expect"]
+        title = Title.objects.filter(slug=slug).first()
+        if title is None:
+            result.error(f"Golden record title {slug!r} not found")
+            failures += 1
+            continue
+
+        for field_name, expected in expect.items():
+            actual = _get_golden_field(title, field_name)
+            if actual != expected:
+                result.error(
+                    f"Golden record title {slug!r}: "
+                    f"{field_name}={actual!r}, expected {expected!r}"
+                )
+                failures += 1
+
+    # --- Manufacturers ---
+    for entry in data.get("manufacturers", []):
+        slug = entry["slug"]
+        expect = entry["expect"]
+        mfr = Manufacturer.objects.filter(slug=slug).first()
+        if mfr is None:
+            result.error(f"Golden record manufacturer {slug!r} not found")
+            failures += 1
+            continue
+
+        for field_name, expected in expect.items():
+            actual = _get_golden_field(mfr, field_name)
+            if actual != expected:
+                result.error(
+                    f"Golden record manufacturer {slug!r}: "
+                    f"{field_name}={actual!r}, expected {expected!r}"
+                )
+                failures += 1
+
+    if failures:
+        result.error(f"{failures} golden record assertion(s) failed")
+    else:
+        checked = (
+            len(data.get("models", []))
+            + len(data.get("titles", []))
+            + len(data.get("manufacturers", []))
+        )
+        result.note(f"All {checked} golden record(s) passed")
+
+
+def _get_golden_field(obj, field_name: str):
+    """Extract a field value from a model instance for golden record comparison.
+
+    Handles FK slug lookups (e.g., manufacturer_slug → obj.manufacturer.slug).
+    """
+    if field_name.endswith("_slug"):
+        # FK slug: e.g., "manufacturer_slug" → obj.manufacturer.slug
+        fk_attr = field_name.removesuffix("_slug")
+        related = getattr(obj, fk_attr, None)
+        return related.slug if related is not None else None
+    return getattr(obj, field_name, None)
+
+
 def models_F(name: str):
     """Wrapper to avoid top-level import of F for self-referential lookups."""
     from django.db.models import F
@@ -414,6 +517,7 @@ def models_F(name: str):
 # Registry of all checks, in execution order.
 ALL_CHECKS = [
     check_summary_stats,
+    check_golden_records,
     check_nameless_models,
     check_nameless_titles,
     check_nameless_persons,

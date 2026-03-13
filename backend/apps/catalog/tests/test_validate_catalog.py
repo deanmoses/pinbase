@@ -1,10 +1,13 @@
 """Tests for the validate_catalog management command."""
 
+import json
+
 import pytest
 from django.core.management import call_command
 
 from apps.catalog.models import (
     CreditRole,
+    Franchise,
     MachineModel,
     Manufacturer,
     Person,
@@ -206,3 +209,186 @@ class TestUncuratedThemes:
         captured = capsys.readouterr()
         assert "auto-created" in captured.out
         assert "basebal" in captured.out
+
+
+class TestGoldenRecords:
+    """Test the golden records spot-check system."""
+
+    @pytest.fixture
+    def golden_file(self, tmp_path, monkeypatch):
+        """Create a temporary golden_records.json and patch the path."""
+        import apps.catalog.management.commands.validate_catalog as mod
+
+        path = tmp_path / "golden_records.json"
+
+        def _write(data):
+            path.write_text(json.dumps(data))
+            monkeypatch.setattr(mod, "GOLDEN_RECORDS_PATH", path)
+            return path
+
+        return _write
+
+    def test_golden_model_passes(self, db, golden_file, capsys):
+        mfr = Manufacturer.objects.create(name="Stern", slug="stern-pinball")
+        t = Title.objects.create(
+            name="Godzilla", slug="godzilla-stern", opdb_id="GweeP"
+        )
+        MachineModel.objects.create(
+            name="Godzilla (Premium)",
+            slug="godzilla-premium",
+            manufacturer=mfr,
+            title=t,
+            ipdb_id=6842,
+            opdb_id="GweeP-Ml9pZ-ARZoY",
+        )
+        golden_file(
+            {
+                "models": [
+                    {
+                        "slug": "godzilla-premium",
+                        "expect": {
+                            "name": "Godzilla (Premium)",
+                            "manufacturer_slug": "stern-pinball",
+                            "title_slug": "godzilla-stern",
+                            "ipdb_id": 6842,
+                            "opdb_id": "GweeP-Ml9pZ-ARZoY",
+                        },
+                    }
+                ],
+                "titles": [],
+                "manufacturers": [],
+            }
+        )
+        call_command("validate_catalog")
+        captured = capsys.readouterr()
+        assert "golden record(s) passed" in captured.out
+        assert "0 error(s)" in captured.out
+
+    def test_golden_model_wrong_field_is_error(self, db, golden_file, capsys):
+        mfr = Manufacturer.objects.create(name="Stern", slug="stern-pinball")
+        MachineModel.objects.create(
+            name="Godzilla (Premium)",
+            slug="godzilla-premium",
+            manufacturer=mfr,
+            ipdb_id=6842,
+        )
+        golden_file(
+            {
+                "models": [
+                    {
+                        "slug": "godzilla-premium",
+                        "expect": {"ipdb_id": 9999},
+                    }
+                ],
+                "titles": [],
+                "manufacturers": [],
+            }
+        )
+        with pytest.raises(SystemExit, match="1"):
+            call_command("validate_catalog")
+        captured = capsys.readouterr()
+        assert "ipdb_id=6842" in captured.out
+        assert "expected 9999" in captured.out
+
+    def test_golden_model_missing_is_error(self, db, golden_file, capsys):
+        golden_file(
+            {
+                "models": [
+                    {
+                        "slug": "nonexistent-machine",
+                        "expect": {"name": "Nope"},
+                    }
+                ],
+                "titles": [],
+                "manufacturers": [],
+            }
+        )
+        with pytest.raises(SystemExit, match="1"):
+            call_command("validate_catalog")
+        captured = capsys.readouterr()
+        assert "not found" in captured.out
+
+    def test_golden_title_passes(self, db, golden_file, capsys):
+        f = Franchise.objects.create(name="Godzilla", slug="godzilla")
+        Title.objects.create(
+            name="Godzilla",
+            slug="godzilla-stern",
+            opdb_id="GweeP",
+            franchise=f,
+        )
+        golden_file(
+            {
+                "models": [],
+                "titles": [
+                    {
+                        "slug": "godzilla-stern",
+                        "expect": {
+                            "name": "Godzilla",
+                            "opdb_id": "GweeP",
+                            "franchise_slug": "godzilla",
+                        },
+                    }
+                ],
+                "manufacturers": [],
+            }
+        )
+        call_command("validate_catalog")
+        captured = capsys.readouterr()
+        assert "golden record(s) passed" in captured.out
+
+    def test_golden_variant_of_checked(self, db, golden_file, capsys):
+        mfr = Manufacturer.objects.create(name="Stern", slug="stern-pinball")
+        parent = MachineModel.objects.create(
+            name="Godzilla (Premium)",
+            slug="godzilla-premium",
+            manufacturer=mfr,
+        )
+        MachineModel.objects.create(
+            name="Godzilla (LE)",
+            slug="godzilla-le",
+            manufacturer=mfr,
+            variant_of=parent,
+        )
+        golden_file(
+            {
+                "models": [
+                    {
+                        "slug": "godzilla-le",
+                        "expect": {"variant_of_slug": "godzilla-premium"},
+                    }
+                ],
+                "titles": [],
+                "manufacturers": [],
+            }
+        )
+        call_command("validate_catalog")
+        captured = capsys.readouterr()
+        assert "0 error(s)" in captured.out
+
+    def test_golden_conversion_checked(self, db, golden_file, capsys):
+        parent = MachineModel.objects.create(name="Eight Ball", slug="eight-ball")
+        MachineModel.objects.create(
+            name="Challenger",
+            slug="challenger",
+            is_conversion=True,
+            converted_from=parent,
+        )
+        golden_file(
+            {
+                "models": [
+                    {
+                        "slug": "challenger",
+                        "expect": {
+                            "is_conversion": True,
+                            "converted_from_slug": "eight-ball",
+                            "variant_of_slug": None,
+                        },
+                    }
+                ],
+                "titles": [],
+                "manufacturers": [],
+            }
+        )
+        call_command("validate_catalog")
+        captured = capsys.readouterr()
+        assert "0 error(s)" in captured.out
