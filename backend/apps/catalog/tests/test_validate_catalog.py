@@ -17,6 +17,16 @@ from apps.catalog.models import (
 from apps.provenance.models import Claim, Source
 
 
+@pytest.fixture(autouse=True)
+def _no_golden_records(monkeypatch, tmp_path):
+    """Point golden records at an empty fixture so unrelated tests skip them."""
+    import apps.catalog.management.commands.validate_catalog as mod
+
+    empty = tmp_path / "golden_records.json"
+    empty.write_text(json.dumps({"models": [], "titles": [], "manufacturers": []}))
+    monkeypatch.setattr(mod, "GOLDEN_RECORDS_PATH", empty)
+
+
 @pytest.fixture
 def ipdb(db):
     return Source.objects.create(name="IPDB", source_type="database", priority=10)

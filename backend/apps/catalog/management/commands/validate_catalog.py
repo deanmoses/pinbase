@@ -38,9 +38,47 @@ from apps.provenance.models import Claim
 
 logger = logging.getLogger(__name__)
 
+
+def _winning_claims(content_type, field_name: str) -> list[Claim]:
+    """Pick the winning claim per (object_id, claim_key) for a field.
+
+    Replicates the resolver's winner-picking logic: highest source/user
+    priority, then most recent created_at as tiebreaker.  Only the winning
+    claim per claim_key per object is returned.
+    """
+    from django.db.models import Case, F, IntegerField, Value, When
+
+    claims = (
+        Claim.objects.filter(
+            content_type=content_type,
+            is_active=True,
+            field_name=field_name,
+        )
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    )
+
+    winners: list[Claim] = []
+    seen: set[tuple[int, str]] = set()
+    for claim in claims:
+        key = (claim.object_id, claim.claim_key)
+        if key not in seen:
+            seen.add(key)
+            winners.append(claim)
+    return winners
+
+
 # Default location for golden records. Overridden in tests via monkeypatch.
 GOLDEN_RECORDS_PATH = (
-    Path(__file__).resolve().parents[4] / "data" / "golden_records.json"
+    Path(__file__).resolve().parents[5] / "data" / "golden_records.json"
 )
 
 
@@ -241,16 +279,12 @@ def check_unresolved_fk_claims(result: ValidationResult) -> None:
     ct = ContentType.objects.get_for_model(MachineModel)
 
     for field_name, spec in FK_FIELDS.items():
-        # Get all active winning claim values for this field.
-        active_values = set(
-            Claim.objects.filter(
-                content_type=ct,
-                is_active=True,
-                field_name=field_name,
-            ).values_list("value", flat=True)
-        )
-        if not active_values:
+        # Get winning claim values for this field (one per object+claim_key).
+        winners = _winning_claims(ct, field_name)
+        if not winners:
             continue
+
+        active_values = {c.value for c in winners}
 
         # Get all valid lookup keys.
         valid_keys = set(
@@ -280,9 +314,7 @@ def check_unresolved_credit_claims(result: ValidationResult) -> None:
     missing_persons: set[str] = set()
     missing_roles: set[str] = set()
 
-    for claim in Claim.objects.filter(
-        content_type=ct, is_active=True, field_name="credit"
-    ):
+    for claim in _winning_claims(ct, "credit"):
         val = claim.value
         if not isinstance(val, dict):
             continue
@@ -324,9 +356,7 @@ def check_unresolved_m2m_claims(result: ValidationResult) -> None:
         valid_slugs = set(model_class.objects.values_list("slug", flat=True))
 
         missing: set[str] = set()
-        for claim in Claim.objects.filter(
-            content_type=ct, is_active=True, field_name=field_name
-        ):
+        for claim in _winning_claims(ct, field_name):
             val = claim.value
             if not isinstance(val, dict):
                 continue
@@ -420,7 +450,7 @@ def check_golden_records(result: ValidationResult) -> None:
     """
     golden_path = GOLDEN_RECORDS_PATH
     if not golden_path.exists():
-        result.note("golden_records.json not found — skipping spot checks")
+        result.error("golden_records.json not found — cannot verify catalog integrity")
         return
 
     data = json.loads(golden_path.read_text())

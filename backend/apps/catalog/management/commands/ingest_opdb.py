@@ -405,6 +405,12 @@ class Command(BaseCommand):
                         pm.opdb_id = opdb_id
                         by_opdb_id[opdb_id] = pm
                         needs_update = True
+                elif pm.opdb_id and pm.opdb_id != opdb_id:
+                    # Model already has a different opdb_id (e.g. matched by
+                    # ipdb_id to a machine that has its own OPDB identity).
+                    # Suppress the opdb_id claim so resolve_claims doesn't
+                    # overwrite the correct value with the alias id.
+                    rec["_skip_opdb_id_claim"] = True
                 if needs_update:
                     variant_models_needing_update.append(pm)
             else:
@@ -711,7 +717,7 @@ class Command(BaseCommand):
 
         if name:
             _add("name", name)
-        if opdb_id:
+        if opdb_id and not rec.get("_skip_opdb_id_claim"):
             _add("opdb_id", opdb_id)
 
         # Manufacturer: resolve OPDB name to slug at ingest time.
