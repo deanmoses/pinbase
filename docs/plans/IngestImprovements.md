@@ -23,7 +23,7 @@ drift and harder to maintain than they need to be. Specific issues:
    and logs a stack trace. There's no distinction between "bad data I should
    skip" and "bug in my code."
 
-5. **No preview mode.** You can't see what an ingest run *would* change
+5. **No preview mode.** You can't see what an ingest run _would_ change
    without actually writing to the database.
 
 ## Approach
@@ -162,6 +162,34 @@ writing anything.
   forcing them into a shared base class would create more abstraction than
   it removes duplication. Shared utilities yes, shared base class no.
 
+## Post-resolution validation
+
+The phases above improve the pipeline up to and including claim assertion.
+`validate_catalog` covers the other half: verifying the _resolved_ catalog
+is correct after `resolve_claims` runs. The two are complementary — Phase 4
+catches problems during ingest, `validate_catalog` catches problems after
+resolution.
+
+**Pipeline position.** The full sequence is `ingest → resolve → validate`.
+`validate_catalog` is the gate that confirms the end result is sound.
+
+**Winner-semantics coupling.** The validator must replicate the resolver's
+winner-picking logic (highest priority per object + claim_key) when checking
+FK, credit, and M2M claims. As Phases 2–3 refactor claim building (e.g.
+`ClaimCollector`), the validator needs to stay aligned. Validator tests
+should cover low-priority bad claims masked by high-priority good ones,
+`exists=False` disputes that intentionally remove relationships, and
+same-claim_key multi-source conflicts.
+
+**Golden records as a refactoring safety net.** Phases 1–3 are substantial
+refactors of the ingest commands. Golden record spot-checks are the cheapest
+way to verify those refactors don't change output. Run `validate_catalog`
+before and after each phase to confirm behavioral equivalence. Over time,
+make golden records more intentional: add edge-case cohorts (aliases that
+should collapse, conversions, split OPDB groups, no-IPDB records,
+franchise-linked titles, known clone/non-variant cases) rather than only
+famous machines.
+
 ## Sequencing
 
 Phases are independent and can be done in any order. Phase 1 (typed records)
@@ -170,3 +198,6 @@ Phase 5 (dry-run) is the most useful operationally. Phases 2-3 are
 refactoring that pays off as the number of sources grows.
 
 Recommended order: 1 → 4 → 5 → 2 → 3.
+
+Run `validate_catalog` (with golden records) before and after each phase to
+catch regressions.

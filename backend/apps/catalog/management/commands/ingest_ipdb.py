@@ -18,6 +18,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import format_names, generate_unique_slug
 from apps.catalog.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
+from apps.catalog.ingestion.ipdb.records import IpdbRecord
 from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.ingestion.ipdb_title_fixes import TITLE_FIXES
 from apps.catalog.ingestion.parsers import (
@@ -41,30 +42,30 @@ from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
 
-# IPDB field → Claim field_name for direct/extra_data claims.
+# IpdbRecord attribute → Claim field_name for direct/extra_data claims.
 CLAIM_FIELDS = {
-    "Title": "name",
-    "IpdbId": "ipdb_id",
-    "Players": "player_count",
-    "ProductionNumber": "production_quantity",
-    "AverageFunRating": "ipdb_rating",
+    "title": "name",
+    "ipdb_id": "ipdb_id",
+    "players": "player_count",
+    "production_number": "production_quantity",
+    "average_fun_rating": "ipdb_rating",
     # Extra data (no dedicated column)
-    "NotableFeatures": "notable_features",
-    "Notes": "notes",
-    "Toys": "toys",
-    "MarketingSlogans": "marketing_slogans",
-    "ModelNumber": "model_number",
+    "notable_features": "notable_features",
+    "notes": "notes",
+    "toys": "toys",
+    "marketing_slogans": "marketing_slogans",
+    "model_number": "model_number",
 }
 
-# IPDB credit field → Credit role.
+# IpdbRecord attribute → Credit role.
 CREDIT_FIELDS = {
-    "DesignBy": "design",
-    "ArtBy": "art",
-    "DotsAnimationBy": "animation",
-    "MechanicsBy": "mechanics",
-    "MusicBy": "music",
-    "SoundBy": "sound",
-    "SoftwareBy": "software",
+    "design_by": "design",
+    "art_by": "art",
+    "dots_animation_by": "animation",
+    "mechanics_by": "mechanics",
+    "music_by": "music",
+    "sound_by": "sound",
+    "software_by": "software",
 }
 
 # Raw IPDB tag → list of canonical theme slugs.
@@ -178,7 +179,33 @@ class Command(BaseCommand):
         with open(ipdb_path) as f:
             data = json.load(f)
 
-        records = data["Data"]
+        # --- Parse raw JSON into typed records ---
+        raw_records = data["Data"]
+        records: list[IpdbRecord] = []
+        parse_errors = 0
+        for raw in raw_records:
+            if "IpdbId" not in raw:
+                parse_errors += 1
+                logger.warning(
+                    "IPDB record missing IpdbId (title=%r)",
+                    raw.get("Title", "<unknown>"),
+                )
+                continue
+            try:
+                records.append(IpdbRecord.from_raw(raw))
+            except (KeyError, ValueError, TypeError) as e:
+                parse_errors += 1
+                logger.warning(
+                    "Unparseable IPDB record (id=%s): %s",
+                    raw.get("IpdbId", "?"),
+                    e,
+                )
+        if parse_errors:
+            raise CommandError(
+                f"{parse_errors} IPDB record(s) failed to parse — aborting to prevent partial import. "
+                f"Check warnings above for details."
+            )
+
         self.stdout.write(f"Processing {len(records)} IPDB records...")
 
         # --- Phase 1: Ensure all MachineModels exist ---
@@ -190,25 +217,24 @@ class Command(BaseCommand):
         )
 
         new_models: list[MachineModel] = []
-        record_models: list[tuple[MachineModel, dict, bool]] = []
+        record_models: list[tuple[MachineModel, IpdbRecord, bool]] = []
         skipped = 0
 
         for rec in records:
-            ipdb_id = rec.get("IpdbId")
-            if not ipdb_id:
+            if not rec.ipdb_id:
                 skipped += 1
                 continue
 
-            title = unescape(TITLE_FIXES.get(ipdb_id, rec.get("Title", "Unknown")))
+            title = unescape(TITLE_FIXES.get(rec.ipdb_id, rec.title))
 
-            pm = existing_by_ipdb.get(ipdb_id)
+            pm = existing_by_ipdb.get(rec.ipdb_id)
             if pm:
                 record_models.append((pm, rec, False))
             else:
                 slug = generate_unique_slug(title, existing_slugs)
-                pm = MachineModel(ipdb_id=ipdb_id, name=title, slug=slug)
+                pm = MachineModel(ipdb_id=rec.ipdb_id, name=title, slug=slug)
                 new_models.append(pm)
-                existing_by_ipdb[ipdb_id] = pm
+                existing_by_ipdb[rec.ipdb_id] = pm
                 record_models.append((pm, rec, True))
 
         created = len(new_models)
@@ -229,33 +255,22 @@ class Command(BaseCommand):
         credit_queue: list[tuple[int, str, str]] = []
         theme_queue: list[tuple[int, list[str]]] = []  # (model_pk, [slugs])
         unknown_mpu_strings: set[str] = set()
-        failed = 0
-        failed_ids: list = []
 
         for pm, rec, _was_created in record_models:
-            try:
-                self._collect_record_data(
-                    pm,
-                    rec,
-                    ct_id,
-                    pending_claims,
-                    credit_queue,
-                    theme_queue,
-                    mpu_to_slug,
-                    unknown_mpu_strings,
-                    entity_name_to_slug,
-                    mfr_name_to_slug,
-                    existing_mfr_slugs,
-                    ce_by_name,
-                )
-            except Exception:
-                ipdb_id = rec.get("IpdbId", "?")
-                logger.exception("Failed to collect data for IPDB record %s", ipdb_id)
-                failed += 1
-                failed_ids.append(ipdb_id)
-
-        if failed_ids:
-            self.stderr.write(f"  Failed IDs: {failed_ids}")
+            self._collect_record_data(
+                pm,
+                rec,
+                ct_id,
+                pending_claims,
+                credit_queue,
+                theme_queue,
+                mpu_to_slug,
+                unknown_mpu_strings,
+                entity_name_to_slug,
+                mfr_name_to_slug,
+                existing_mfr_slugs,
+                ce_by_name,
+            )
 
         if unknown_mpu_strings:
             lines = "\n".join(f"  {s}" for s in sorted(unknown_mpu_strings))
@@ -282,13 +297,10 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("IPDB ingestion complete."))
 
-        if failed:
-            raise SystemExit(1)
-
     def _collect_record_data(
         self,
         pm: MachineModel,
-        rec: dict,
+        rec: IpdbRecord,
         ct_id: int,
         pending_claims: list[Claim],
         credit_queue: list[tuple[int, str, str]],
@@ -301,18 +313,16 @@ class Command(BaseCommand):
         ce_by_name: dict[str, CorporateEntity],
     ) -> None:
         """Collect claims, credits, and theme slugs for a single IPDB record."""
-        ipdb_id = rec.get("IpdbId")
-
         # Collect claims for mapped fields.
-        for ipdb_field, claim_field in CLAIM_FIELDS.items():
-            value = rec.get(ipdb_field)
+        for attr, claim_field in CLAIM_FIELDS.items():
+            value = getattr(rec, attr)
             if value is None or value == "":
                 continue
             # Use corrected title for name claims.
-            if ipdb_field == "Title" and ipdb_id in TITLE_FIXES:
-                value = TITLE_FIXES[ipdb_id]
+            if attr == "title" and rec.ipdb_id in TITLE_FIXES:
+                value = TITLE_FIXES[rec.ipdb_id]
             # Convert production number to string.
-            if ipdb_field == "ProductionNumber":
+            if attr == "production_number":
                 value = str(value)
             # Decode HTML entities in string values from IPDB.
             if isinstance(value, str):
@@ -327,9 +337,8 @@ class Command(BaseCommand):
             )
 
         # Common abbreviations: each abbreviation becomes its own relationship claim.
-        raw_abbrevs = rec.get("CommonAbbreviations")
-        if raw_abbrevs:
-            for abbrev in str(raw_abbrevs).split(","):
+        if rec.common_abbreviations:
+            for abbrev in rec.common_abbreviations.split(","):
                 abbrev = unescape(abbrev.strip())
                 if abbrev:
                     claim_key, value = build_relationship_claim(
@@ -346,8 +355,8 @@ class Command(BaseCommand):
                     )
 
         # Manufacturer: resolve at ingest time to a slug claim.
-        mfr_id = rec.get("ManufacturerId")
-        raw_mfr = rec.get("Manufacturer", "")
+        mfr_id = rec.manufacturer_id
+        raw_mfr = rec.manufacturer
         if mfr_id and mfr_id not in IPDB_SKIP_MANUFACTURER_IDS and raw_mfr:
             parsed = parse_ipdb_manufacturer_string(raw_mfr)
             company = parsed["company_name"]
@@ -398,9 +407,7 @@ class Command(BaseCommand):
 
         # MPU: emit 'system' slug claim if known, else collect for deferred error.
         # Normalize U+FFFD (replacement char from IPDB encoding issues) before lookup.
-        mpu_value = rec.get("MPU", "")
-        if isinstance(mpu_value, str):
-            mpu_value = mpu_value.strip().replace("\ufffd", "")
+        mpu_value = rec.mpu.strip().replace("\ufffd", "") if rec.mpu else ""
         if mpu_value:
             system_slug = mpu_to_slug.get(mpu_value)
             if system_slug:
@@ -416,9 +423,8 @@ class Command(BaseCommand):
                 unknown_mpu_strings.add(mpu_value)
 
         # Date fields (year + month from a single IPDB field).
-        date_str = rec.get("DateOfManufacture")
-        if date_str:
-            year, month = parse_ipdb_date(date_str)
+        if rec.date_of_manufacture:
+            year, month = parse_ipdb_date(rec.date_of_manufacture)
             if year is not None:
                 pending_claims.append(
                     Claim(
@@ -439,9 +445,7 @@ class Command(BaseCommand):
                 )
 
         # Technology generation (slug-based, resolved to FK).
-        type_short = rec.get("TypeShortName")
-        type_full = rec.get("Type")
-        technology_generation = parse_ipdb_machine_type(type_short, type_full)
+        technology_generation = parse_ipdb_machine_type(rec.type_short_name, rec.type)
         if technology_generation:
             pending_claims.append(
                 Claim(
@@ -453,9 +457,8 @@ class Command(BaseCommand):
             )
 
         # Image URLs → extra_data claim.
-        image_files = rec.get("ImageFiles")
-        if image_files:
-            urls = [img["Url"] for img in image_files if img.get("Url")]
+        if rec.image_files:
+            urls = [img["Url"] for img in rec.image_files if img.get("Url")]
             if urls:
                 pending_claims.append(
                     Claim(
@@ -467,15 +470,14 @@ class Command(BaseCommand):
                 )
 
         # Collect theme slugs for bulk creation later.
-        raw_theme = rec.get("Theme")
-        if raw_theme:
-            theme_slugs = _parse_ipdb_themes(unescape(raw_theme))
+        if rec.theme:
+            theme_slugs = _parse_ipdb_themes(unescape(rec.theme))
             if theme_slugs:
                 theme_queue.append((pm.pk, theme_slugs))
 
         # Collect design credits for bulk creation later.
-        for ipdb_field, role in CREDIT_FIELDS.items():
-            raw = rec.get(ipdb_field)
+        for attr, role in CREDIT_FIELDS.items():
+            raw = getattr(rec, attr)
             if not raw:
                 continue
             names = parse_credit_string(raw)

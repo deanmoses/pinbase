@@ -12,51 +12,24 @@ from __future__ import annotations
 import json
 import logging
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import format_names, generate_unique_slug
+from apps.catalog.ingestion.opdb.records import OpdbRecord
+from apps.catalog.ingestion.opdb.relationships import (
+    classify_alias_relationship,
+    pick_default_alias,
+)
 from apps.catalog.ingestion.parsers import (
     map_opdb_display,
     map_opdb_type,
     parse_opdb_date,
-    parse_opdb_group_id,
 )
 from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import MachineModel, Manufacturer, Title
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
-
-# Feature labels that indicate a "default" (canonical) variant, in priority order.
-# Collector's Edition is always a variant, never promoted.
-_DEFAULT_FEATURES = [
-    "Premium edition",
-    "Pro edition",
-    "Limited edition",
-    "Platinum edition",
-]
-_VARIANT_FEATURES = ["Collector's edition"]
-
-
-def _pick_default_alias(aliases: list[dict]) -> dict:
-    """Pick the alias that should be promoted to canonical model.
-
-    Heuristic priority:
-    1. Alias with Premium/Pro/Limited/Platinum edition feature (first match wins)
-    2. First alias that is NOT a Collector's Edition
-    3. First in the list (arbitrary — models.json corrects ambiguous cases)
-    """
-    for label in _DEFAULT_FEATURES:
-        for rec in aliases:
-            features = rec.get("features") or []
-            if label in features:
-                return rec
-    # Avoid promoting Collector's Edition if there's any alternative.
-    for rec in aliases:
-        features = rec.get("features") or []
-        if not any(f in features for f in _VARIANT_FEATURES):
-            return rec
-    return aliases[0]
 
 
 class Command(BaseCommand):
@@ -133,9 +106,11 @@ class Command(BaseCommand):
                         split_group_ids.add(gid)
 
         # --- Titles pre-loading ---
-        groups_by_id: dict[str, dict] = {}
+        title_slug_by_group: dict[str, str] = {}
         if groups_path:
-            groups_by_id = self._load_titles(groups_path, source, split_group_ids)
+            title_slug_by_group = self._load_titles(
+                groups_path, source, split_group_ids
+            )
 
         # --- Supplemental cross-references from models.json ---
         ipdb_id_supplement: dict[str, int] = {}
@@ -153,26 +128,44 @@ class Command(BaseCommand):
                     if opdb_id and entry.get("is_conversion"):
                         pinbase_is_conversion.add(opdb_id)
 
-        # --- Load machine data ---
+        # --- Load and parse machine data into typed records ---
         with open(opdb_path) as f:
-            data = json.load(f)
+            raw_data = json.load(f)
 
-        all_machines = [r for r in data if r.get("is_machine") is True]
-        machines = [r for r in all_machines if r.get("physical_machine") != 0]
+        records: list[OpdbRecord] = []
+        parse_errors = 0
+        for raw in raw_data:
+            if "opdb_id" not in raw:
+                parse_errors += 1
+                logger.warning(
+                    "OPDB record missing opdb_id (name=%r)",
+                    raw.get("name", "<unknown>"),
+                )
+                continue
+            try:
+                records.append(OpdbRecord.from_raw(raw))
+            except (KeyError, ValueError, TypeError) as e:
+                parse_errors += 1
+                logger.warning(
+                    "Unparseable OPDB record (id=%s): %s",
+                    raw.get("opdb_id", "?"),
+                    e,
+                )
+        if parse_errors:
+            raise CommandError(
+                f"{parse_errors} OPDB record(s) failed to parse — aborting to prevent partial import. "
+                f"Check warnings above for details."
+            )
+
+        all_machines = [r for r in records if r.is_machine]
+        machines = [r for r in all_machines if r.physical_machine != 0]
 
         # Build opdb_id→manufacturer-name lookup for clone detection.
-        opdb_mfr_by_id: dict[str, str] = {}
-        for r in data:
-            oid = r.get("opdb_id")
-            mfr = r.get("manufacturer")
-            if oid and mfr:
-                opdb_mfr_by_id[oid] = mfr.get("name", "")
-        non_physical_ids = {
-            r["opdb_id"]
-            for r in all_machines
-            if r.get("physical_machine") == 0 and r.get("opdb_id")
+        opdb_mfr_by_id: dict[str, str] = {
+            r.opdb_id: r.manufacturer_name for r in records if r.manufacturer_name
         }
-        aliases = [r for r in data if r.get("is_alias") is True]
+        non_physical_ids = {r.opdb_id for r in all_machines if r.physical_machine == 0}
+        aliases = [r for r in records if r.is_alias]
         self.stdout.write(
             f"Processing {len(machines)} OPDB machines "
             f"({len(non_physical_ids)} non-physical skipped) "
@@ -193,56 +186,50 @@ class Command(BaseCommand):
         # --- Phase 1a: Match/create machines ---
         new_models: list[MachineModel] = []
         models_needing_opdb_update: list[MachineModel] = []
-        machine_models: list[tuple[MachineModel, dict]] = []
+        machine_models: list[tuple[MachineModel, OpdbRecord]] = []
         matched = 0
         created = 0
         skipped = 0
 
         for rec in machines:
-            opdb_id = rec.get("opdb_id")
-            if not opdb_id:
-                skipped += 1
-                continue
-
-            ipdb_id = rec.get("ipdb_id") or ipdb_id_supplement.get(opdb_id)
-            name = rec.get("name", "Unknown")
+            ipdb_id = rec.ipdb_id or ipdb_id_supplement.get(rec.opdb_id)
 
             pm = None
             if ipdb_id:
                 pm = by_ipdb_id.get(ipdb_id)
             if not pm:
-                pm = by_opdb_id.get(opdb_id)
+                pm = by_opdb_id.get(rec.opdb_id)
 
             if pm:
                 matched += 1
                 # Set opdb_id if not already set (conflict check in memory).
-                if pm.opdb_id is None and opdb_id:
-                    if opdb_id not in by_opdb_id:
-                        pm.opdb_id = opdb_id
-                        by_opdb_id[opdb_id] = pm
+                if pm.opdb_id is None and rec.opdb_id:
+                    if rec.opdb_id not in by_opdb_id:
+                        pm.opdb_id = rec.opdb_id
+                        by_opdb_id[rec.opdb_id] = pm
                         models_needing_opdb_update.append(pm)
                     else:
                         logger.warning(
                             "Cannot set opdb_id=%s on %r (ipdb_id=%s): "
                             "already owned by %r",
-                            opdb_id,
+                            rec.opdb_id,
                             pm.name,
                             ipdb_id,
-                            by_opdb_id[opdb_id].name,
+                            by_opdb_id[rec.opdb_id].name,
                         )
-                elif pm.opdb_id and pm.opdb_id != opdb_id:
+                elif pm.opdb_id and pm.opdb_id != rec.opdb_id:
                     logger.warning(
                         "MachineModel %r already has opdb_id=%s, skipping %s",
                         pm.name,
                         pm.opdb_id,
-                        opdb_id,
+                        rec.opdb_id,
                     )
             else:
                 created += 1
-                slug = generate_unique_slug(name, existing_slugs)
-                pm = MachineModel(name=name, opdb_id=opdb_id, slug=slug)
+                slug = generate_unique_slug(rec.name, existing_slugs)
+                pm = MachineModel(name=rec.name, opdb_id=rec.opdb_id, slug=slug)
                 new_models.append(pm)
-                by_opdb_id[opdb_id] = pm
+                by_opdb_id[rec.opdb_id] = pm
                 if ipdb_id:
                     by_ipdb_id[ipdb_id] = pm
 
@@ -262,16 +249,12 @@ class Command(BaseCommand):
             )
 
         # --- Phase 1b: Separate aliases into normal vs non-physical groups ---
-        normal_aliases: list[dict] = []
-        non_phys_groups: dict[str, list[dict]] = {}
+        normal_aliases: list[OpdbRecord] = []
+        non_phys_groups: dict[str, list[OpdbRecord]] = {}
 
         for rec in aliases:
-            opdb_id = rec.get("opdb_id")
-            if not opdb_id:
-                continue
-            parent_opdb_id = "-".join(opdb_id.split("-")[:2])
-            if parent_opdb_id in non_physical_ids:
-                non_phys_groups.setdefault(parent_opdb_id, []).append(rec)
+            if rec.parent_opdb_id in non_physical_ids:
+                non_phys_groups.setdefault(rec.parent_opdb_id, []).append(rec)
             else:
                 normal_aliases.append(rec)
 
@@ -279,39 +262,41 @@ class Command(BaseCommand):
         promoted_new: list[MachineModel] = []
         promoted_update: list[MachineModel] = []
         promoted_count = 0
+        review_issues = []
 
         for parent_id, group_aliases in non_phys_groups.items():
-            default_rec = _pick_default_alias(group_aliases)
+            default_rec, issues = pick_default_alias(group_aliases)
+            review_issues.extend(issues)
             rest = [r for r in group_aliases if r is not default_rec]
 
-            opdb_id = default_rec.get("opdb_id")
-            if not opdb_id:
-                normal_aliases.extend(group_aliases)
-                continue
-
-            ipdb_id = default_rec.get("ipdb_id") or ipdb_id_supplement.get(opdb_id)
-            name = default_rec.get("name", "Unknown")
+            ipdb_id = default_rec.ipdb_id or ipdb_id_supplement.get(default_rec.opdb_id)
 
             # Match-or-create like Phase 1a, but as a standalone machine.
             pm = None
             if ipdb_id:
                 pm = by_ipdb_id.get(ipdb_id)
             if not pm:
-                pm = by_opdb_id.get(opdb_id)
+                pm = by_opdb_id.get(default_rec.opdb_id)
 
             if pm:
-                if pm.opdb_id is None and opdb_id and opdb_id not in by_opdb_id:
-                    pm.opdb_id = opdb_id
-                    by_opdb_id[opdb_id] = pm
+                if (
+                    pm.opdb_id is None
+                    and default_rec.opdb_id
+                    and default_rec.opdb_id not in by_opdb_id
+                ):
+                    pm.opdb_id = default_rec.opdb_id
+                    by_opdb_id[default_rec.opdb_id] = pm
                     promoted_update.append(pm)
                 # Stale variant_of claims from prior runs are swept by
                 # bulk_assert_claims(sweep_field="variant_of"); no direct
                 # model mutation needed here.
             else:
-                slug = generate_unique_slug(name, existing_slugs)
-                pm = MachineModel(name=name, opdb_id=opdb_id, slug=slug)
+                slug = generate_unique_slug(default_rec.name, existing_slugs)
+                pm = MachineModel(
+                    name=default_rec.name, opdb_id=default_rec.opdb_id, slug=slug
+                )
                 promoted_new.append(pm)
-                by_opdb_id[opdb_id] = pm
+                by_opdb_id[default_rec.opdb_id] = pm
                 if ipdb_id:
                     by_ipdb_id[ipdb_id] = pm
 
@@ -338,30 +323,27 @@ class Command(BaseCommand):
         # --- Phase 1d: Match/create normal aliases (stored as variants) ---
         new_variant_models: list[MachineModel] = []
         variant_models_needing_update: list[MachineModel] = []
-        variant_models: list[tuple[MachineModel, dict]] = []
+        variant_models: list[tuple[MachineModel, OpdbRecord]] = []
+        # Explicit mappings replace dict mutation (_variant_of_slug,
+        # _skip_opdb_id_claim).
+        variant_of_slugs: dict[str, str] = {}  # alias opdb_id → target slug
+        skip_opdb_id_claims: set[str] = set()  # alias opdb_ids to skip
         alias_linked = 0
         alias_created = 0
         alias_skipped = 0
 
         for rec in normal_aliases:
-            opdb_id = rec.get("opdb_id")
-            if not opdb_id:
-                alias_skipped += 1
-                continue
-
-            ipdb_id = rec.get("ipdb_id") or ipdb_id_supplement.get(opdb_id)
-            name = rec.get("name", "Unknown")
+            ipdb_id = rec.ipdb_id or ipdb_id_supplement.get(rec.opdb_id)
 
             # Find the parent machine in memory.
-            parent_opdb_id = "-".join(opdb_id.split("-")[:2])
-            parent = by_opdb_id.get(parent_opdb_id)
+            parent = by_opdb_id.get(rec.parent_opdb_id)
 
             if not parent:
                 logger.warning(
                     "Alias %s (%s): parent %s not found, skipping",
-                    opdb_id,
-                    name,
-                    parent_opdb_id,
+                    rec.opdb_id,
+                    rec.name,
+                    rec.parent_opdb_id,
                 )
                 alias_skipped += 1
                 continue
@@ -370,55 +352,48 @@ class Command(BaseCommand):
             if ipdb_id:
                 pm = by_ipdb_id.get(ipdb_id)
             if not pm:
-                pm = by_opdb_id.get(opdb_id)
+                pm = by_opdb_id.get(rec.opdb_id)
 
-            # Determine variant_of target, applying the same guards as DuckDB:
-            # 1. Skip if alias is a conversion (pinbase is_conversion).
-            # 2. Skip if alias manufacturer differs from parent (clone).
-            # 3. Collapse chains: if parent has variant_of, follow to root.
-            alias_mfr = (rec.get("manufacturer") or {}).get("name", "")
-            parent_mfr = opdb_mfr_by_id.get(parent_opdb_id, "")
-            is_conversion = opdb_id in pinbase_is_conversion
+            # Classify relationship using extracted logic.
+            parent_mfr = opdb_mfr_by_id.get(rec.parent_opdb_id, "")
+            is_conversion = rec.opdb_id in pinbase_is_conversion
+            rel_type = classify_alias_relationship(
+                rec.manufacturer_name, parent_mfr, is_conversion
+            )
 
-            if is_conversion:
-                pass  # Conversions don't get variant_of from OPDB alias
-            elif alias_mfr and parent_mfr and alias_mfr != parent_mfr:
-                pass  # Clone: different manufacturer, not a variant
-            else:
+            if rel_type == "variant":
                 # Chain collapse: if parent has a variant_of in pinbase,
                 # point at the root instead.
                 root_slug = pinbase_variant_of.get(parent.opdb_id)
                 target_slug = root_slug or parent.slug
-                # 4. Skip self-referential: promoted non-physical parent may
-                #    chain-collapse back to the alias itself.
-                if pm and target_slug == pm.slug:
-                    pass
-                else:
-                    rec["_variant_of_slug"] = target_slug
+                # Skip self-referential: promoted non-physical parent may
+                # chain-collapse back to the alias itself.
+                if not (pm and target_slug == pm.slug):
+                    variant_of_slugs[rec.opdb_id] = target_slug
 
             if pm:
                 alias_linked += 1
                 needs_update = False
                 # Set opdb_id if not already set.
-                if pm.opdb_id is None and opdb_id:
-                    if opdb_id not in by_opdb_id:
-                        pm.opdb_id = opdb_id
-                        by_opdb_id[opdb_id] = pm
+                if pm.opdb_id is None and rec.opdb_id:
+                    if rec.opdb_id not in by_opdb_id:
+                        pm.opdb_id = rec.opdb_id
+                        by_opdb_id[rec.opdb_id] = pm
                         needs_update = True
-                elif pm.opdb_id and pm.opdb_id != opdb_id:
+                elif pm.opdb_id and pm.opdb_id != rec.opdb_id:
                     # Model already has a different opdb_id (e.g. matched by
                     # ipdb_id to a machine that has its own OPDB identity).
                     # Suppress the opdb_id claim so resolve_claims doesn't
                     # overwrite the correct value with the alias id.
-                    rec["_skip_opdb_id_claim"] = True
+                    skip_opdb_id_claims.add(rec.opdb_id)
                 if needs_update:
                     variant_models_needing_update.append(pm)
             else:
                 alias_created += 1
-                slug = generate_unique_slug(name, existing_slugs)
-                pm = MachineModel(name=name, opdb_id=opdb_id, slug=slug)
+                slug = generate_unique_slug(rec.name, existing_slugs)
+                pm = MachineModel(name=rec.name, opdb_id=rec.opdb_id, slug=slug)
                 new_variant_models.append(pm)
-                by_opdb_id[opdb_id] = pm
+                by_opdb_id[rec.opdb_id] = pm
                 if ipdb_id:
                     by_ipdb_id[ipdb_id] = pm
 
@@ -438,47 +413,41 @@ class Command(BaseCommand):
                 f"    New: {format_names([pm.name for pm in new_variant_models])}"
             )
 
+        if review_issues:
+            for issue in review_issues:
+                logger.info(
+                    "Review: [%s] %s — %s",
+                    issue.issue_type,
+                    issue.source_opdb_id,
+                    issue.description,
+                )
+
         # --- Phase 2: Collect claims ---
         pending_claims: list[Claim] = []
-        failed = 0
-        failed_ids: list = []
 
         for pm, rec in machine_models:
-            try:
-                self._collect_claims(
-                    pm,
-                    rec,
-                    ct_id,
-                    groups_by_id,
-                    pending_claims,
-                    mfr_name_to_slug,
-                    existing_mfr_slugs,
-                )
-            except Exception:
-                opdb_id = rec.get("opdb_id", "?")
-                logger.exception("Failed to collect claims for OPDB record %s", opdb_id)
-                failed += 1
-                failed_ids.append(opdb_id)
+            self._collect_claims(
+                pm,
+                rec,
+                ct_id,
+                pending_claims,
+                mfr_name_to_slug,
+                existing_mfr_slugs,
+                title_slug=title_slug_by_group.get(rec.group_opdb_id),
+            )
 
         for pm, rec in variant_models:
-            try:
-                self._collect_claims(
-                    pm,
-                    rec,
-                    ct_id,
-                    groups_by_id,
-                    pending_claims,
-                    mfr_name_to_slug,
-                    existing_mfr_slugs,
-                )
-            except Exception:
-                opdb_id = rec.get("opdb_id", "?")
-                logger.exception("Failed to collect claims for OPDB alias %s", opdb_id)
-                failed += 1
-                failed_ids.append(opdb_id)
-
-        if failed_ids:
-            self.stderr.write(f"  Failed IDs: {failed_ids}")
+            self._collect_claims(
+                pm,
+                rec,
+                ct_id,
+                pending_claims,
+                mfr_name_to_slug,
+                existing_mfr_slugs,
+                variant_of_slug=variant_of_slugs.get(rec.opdb_id),
+                skip_opdb_id_claim=rec.opdb_id in skip_opdb_id_claims,
+                title_slug=title_slug_by_group.get(rec.group_opdb_id),
+            )
 
         # --- Bulk-assert all collected claims ---
         # Sweep stale variant_of claims: if a model was previously a variant
@@ -503,9 +472,6 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(self.style.SUCCESS("OPDB ingestion complete."))
-
-        if failed:
-            raise SystemExit(1)
 
     # ------------------------------------------------------------------
     # Changelog
@@ -560,13 +526,13 @@ class Command(BaseCommand):
         path: str,
         source: Source,
         split_group_ids: set[str] | None = None,
-    ) -> dict[str, dict]:
+    ) -> dict[str, str]:
         """Load groups JSON, create Title records, and assert name/short_name claims.
 
         Groups in *split_group_ids* are skipped — they have been split into
         separate titles in titles.json.
 
-        Returns a dict mapping group opdb_id → group record for later lookup.
+        Returns a dict mapping group opdb_id → title slug.
         """
         from django.contrib.contenttypes.models import ContentType
 
@@ -620,6 +586,10 @@ class Command(BaseCommand):
         # Re-fetch all titles so we have PKs for claim assertions.
         all_titles: dict[str, Title] = {t.opdb_id: t for t in Title.objects.all()}
 
+        # Build the group_opdb_id → title_slug mapping (replaces _title_slug
+        # injection into group dicts).
+        title_slug_by_group: dict[str, str] = {}
+
         # Collect name and abbreviation claims for all titles from this source.
         pending_claims: list[Claim] = []
         touched_ids: set[int] = set()
@@ -629,8 +599,7 @@ class Command(BaseCommand):
             if not title:
                 continue
 
-            # Inject title slug for _collect_claims to emit slug-based claims.
-            rec["_title_slug"] = title.slug
+            title_slug_by_group[opdb_id] = title.slug
 
             name = rec.get("name", "")
             short_name = rec.get("shortname") or ""
@@ -685,25 +654,26 @@ class Command(BaseCommand):
             f"  Title claims: {claim_stats['created']} created, "
             f"{claim_stats['unchanged']} unchanged"
         )
-        return groups_by_id
+        return title_slug_by_group
 
     # ------------------------------------------------------------------
-    # Shared claim collection
+    # Claim collection
     # ------------------------------------------------------------------
 
     def _collect_claims(
         self,
         pm: MachineModel,
-        rec: dict,
+        rec: OpdbRecord,
         ct_id: int,
-        groups_by_id: dict[str, dict],
         pending_claims: list[Claim],
         mfr_name_to_slug: dict[str, str],
         existing_mfr_slugs: set[str],
+        *,
+        variant_of_slug: str | None = None,
+        skip_opdb_id_claim: bool = False,
+        title_slug: str | None = None,
     ) -> None:
         """Collect claim objects for a machine or alias record."""
-        opdb_id = rec.get("opdb_id")
-        name = rec.get("name")
 
         def _add(field_name: str, value) -> None:
             pending_claims.append(
@@ -715,74 +685,66 @@ class Command(BaseCommand):
                 )
             )
 
-        if name:
-            _add("name", name)
-        if opdb_id and not rec.get("_skip_opdb_id_claim"):
-            _add("opdb_id", opdb_id)
+        if rec.name:
+            _add("name", rec.name)
+        if rec.opdb_id and not skip_opdb_id_claim:
+            _add("opdb_id", rec.opdb_id)
 
         # Manufacturer: resolve OPDB name to slug at ingest time.
-        mfr = rec.get("manufacturer")
-        if mfr:
-            opdb_mfr_name = mfr.get("name", "")
-            if opdb_mfr_name:
-                slug = mfr_name_to_slug.get(opdb_mfr_name.lower())
-                if not slug:
-                    # Auto-create manufacturer from OPDB name.
-                    slug = generate_unique_slug(opdb_mfr_name, existing_mfr_slugs)
-                    Manufacturer.objects.create(
-                        name=opdb_mfr_name,
-                        slug=slug,
-                        trade_name=opdb_mfr_name,
-                    )
-                    mfr_name_to_slug[opdb_mfr_name.lower()] = slug
-                _add("manufacturer", slug)
+        if rec.manufacturer_name:
+            slug = mfr_name_to_slug.get(rec.manufacturer_name.lower())
+            if not slug:
+                # Auto-create manufacturer from OPDB name.
+                slug = generate_unique_slug(rec.manufacturer_name, existing_mfr_slugs)
+                Manufacturer.objects.create(
+                    name=rec.manufacturer_name,
+                    slug=slug,
+                    trade_name=rec.manufacturer_name,
+                )
+                mfr_name_to_slug[rec.manufacturer_name.lower()] = slug
+            _add("manufacturer", slug)
 
         # Date.
-        date_str = rec.get("manufacture_date")
-        if date_str:
-            year, month = parse_opdb_date(date_str)
+        if rec.manufacture_date:
+            year, month = parse_opdb_date(rec.manufacture_date)
             if year is not None:
                 _add("year", year)
             if month is not None:
                 _add("month", month)
 
         # Player count.
-        player_count = rec.get("player_count")
-        if player_count is not None:
-            _add("player_count", player_count)
+        if rec.player_count is not None:
+            _add("player_count", rec.player_count)
 
         # Technology generation (slug-based, resolved to FK).
-        technology_generation = map_opdb_type(rec.get("type"))
+        technology_generation = map_opdb_type(rec.type)
         if technology_generation:
             _add("technology_generation", technology_generation)
 
         # Display type (slug-based, resolved to FK).
-        display_type = map_opdb_display(rec.get("display"))
+        display_type = map_opdb_display(rec.display)
         if display_type:
             _add("display_type", display_type)
 
         # Extra data fields.
         # OPDB 'features' are variant labels (LE, SE, shaker motor etc.) — stored
         # as 'variant_features' to avoid future confusion with gameplay features.
-        opdb_features = rec.get("features")
-        if opdb_features:
-            _add("variant_features", opdb_features)
+        if rec.features:
+            _add("variant_features", rec.features)
 
-        # variant_of: injected by Phase 1d alias processing as parent slug.
-        variant_of_slug = rec.get("_variant_of_slug")
+        # variant_of: determined by Phase 1d classification, passed explicitly.
         if variant_of_slug:
             _add("variant_of", variant_of_slug)
 
-        for field in ("keywords", "description", "common_name", "images"):
-            value = rec.get(field)
+        for field_name in ("keywords", "description", "common_name", "images"):
+            value = getattr(rec, field_name)
             if value:
-                _add(field, value)
+                _add(field_name, value)
 
         # Shortname becomes a relationship claim for abbreviations.
-        shortname = rec.get("shortname")
-        if shortname:
+        if rec.shortname:
             claim_key, abbr_value = build_relationship_claim(
-                "abbreviation", {"value": shortname}
+                "abbreviation", {"value": rec.shortname}
             )
             pending_claims.append(
                 Claim(
@@ -794,11 +756,6 @@ class Command(BaseCommand):
                 )
             )
 
-        # Title claim (derived from opdb_id prefix, emitted as slug).
-        if opdb_id and groups_by_id:
-            group_opdb_id = parse_opdb_group_id(opdb_id)
-            group = groups_by_id.get(group_opdb_id) if group_opdb_id else None
-            if group:
-                title_slug = group.get("_title_slug")
-                if title_slug:
-                    _add("title", title_slug)
+        # Title claim (passed explicitly from title_slug_by_group lookup).
+        if title_slug:
+            _add("title", title_slug)

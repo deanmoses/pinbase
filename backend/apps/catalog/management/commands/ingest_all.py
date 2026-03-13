@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 
 STEPS = [
@@ -68,8 +69,15 @@ class Command(BaseCommand):
             default="../data/dump1/machine_sign_copy.csv",
             help="Path to machine_sign_copy.csv for ingest_pinbase_signs.",
         )
+        parser.add_argument(
+            "--write",
+            action="store_true",
+            help="Commit changes to the database. Without this flag, the pipeline "
+            "runs in dry-run mode and rolls back all changes.",
+        )
 
     def handle(self, *args, **options):
+        write = options["write"]
         ipdb_path = options["ipdb"]
         opdb_path = options["opdb"]
         opdb_groups = options["opdb_groups"]
@@ -78,24 +86,43 @@ class Command(BaseCommand):
 
         from apps.catalog.cache import invalidate_all
 
+        if not write:
+            self.stdout.write(
+                self.style.WARNING(
+                    "[DRY RUN] No changes will be saved. Pass --write to commit."
+                )
+            )
+
         try:
-            for step in STEPS:
-                self.stdout.write(self.style.MIGRATE_HEADING(f"Running {step}..."))
-                kwargs = {}
-                if step == "ingest_ipdb":
-                    kwargs = {"ipdb": ipdb_path}
-                elif step == "ingest_opdb":
-                    kwargs = {
-                        "opdb": opdb_path,
-                        "groups": opdb_groups,
-                        "changelog": opdb_changelog,
-                        "models": "../data/models.json",
-                        "titles": "../data/titles.json",
-                    }
-                elif step == "ingest_pinbase_signs":
-                    kwargs = {"csv": csv_path}
-                call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
+            with transaction.atomic():
+                for step in STEPS:
+                    prefix = "[DRY RUN] " if not write else ""
+                    self.stdout.write(
+                        self.style.MIGRATE_HEADING(f"{prefix}Running {step}...")
+                    )
+                    kwargs = {}
+                    if step == "ingest_ipdb":
+                        kwargs = {"ipdb": ipdb_path}
+                    elif step == "ingest_opdb":
+                        kwargs = {
+                            "opdb": opdb_path,
+                            "groups": opdb_groups,
+                            "changelog": opdb_changelog,
+                            "models": "../data/models.json",
+                            "titles": "../data/titles.json",
+                        }
+                    elif step == "ingest_pinbase_signs":
+                        kwargs = {"csv": csv_path}
+                    call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
+
+                if not write:
+                    transaction.set_rollback(True)
         finally:
             invalidate_all()
 
-        self.stdout.write(self.style.SUCCESS("Full ingestion pipeline complete."))
+        if not write:
+            self.stdout.write(
+                self.style.SUCCESS("Dry run complete — no data was modified.")
+            )
+        else:
+            self.stdout.write(self.style.SUCCESS("Full ingestion pipeline complete."))
