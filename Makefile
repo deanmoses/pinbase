@@ -24,7 +24,7 @@ api-gen:
 	cd frontend && pnpm api:gen
 
 ingest:
-	cd backend && uv run python manage.py ingest_all
+	cd backend && uv run python manage.py ingest_all --write
 
 superuser:
 	cd backend && DJANGO_SUPERUSER_EMAIL="" uv run python manage.py createsuperuser --noinput

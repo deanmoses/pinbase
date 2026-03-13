@@ -5,6 +5,7 @@ import tempfile
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from apps.catalog.models import MachineModel, Title
 from apps.catalog.resolve import resolve_model
@@ -371,16 +372,16 @@ def _opdb_dump(machines=None, aliases=None):
 
 
 @pytest.mark.django_db
-class TestOpdbSkipsMissingOpdbId:
-    def test_machine_without_opdb_id_skipped(self):
+class TestOpdbAbortsMissingOpdbId:
+    def test_machine_without_opdb_id_aborts(self):
         path = _opdb_dump(machines=[{"name": "No ID Game"}])
-        call_command("ingest_opdb", opdb=path)
-        assert not MachineModel.objects.filter(name="No ID Game").exists()
+        with pytest.raises(CommandError, match="failed to parse"):
+            call_command("ingest_opdb", opdb=path)
 
-    def test_alias_without_opdb_id_skipped(self):
+    def test_alias_without_opdb_id_aborts(self):
         path = _opdb_dump(aliases=[{"name": "No ID Alias"}])
-        call_command("ingest_opdb", opdb=path)
-        assert not MachineModel.objects.filter(name="No ID Alias").exists()
+        with pytest.raises(CommandError, match="failed to parse"):
+            call_command("ingest_opdb", opdb=path)
 
 
 @pytest.mark.django_db
