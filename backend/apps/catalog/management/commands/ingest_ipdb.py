@@ -16,7 +16,11 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.catalog.ingestion.bulk_utils import format_names, generate_unique_slug
+from apps.catalog.ingestion.bulk_utils import (
+    ManufacturerResolver,
+    format_names,
+    generate_unique_slug,
+)
 from apps.catalog.ingestion.constants import IPDB_SKIP_MANUFACTURER_IDS
 from apps.catalog.ingestion.ipdb.records import IpdbRecord
 from apps.catalog.ingestion.person_lookup import build_person_lookup
@@ -33,7 +37,6 @@ from apps.catalog.models import (
     Address,
     CorporateEntity,
     MachineModel,
-    Manufacturer,
     Person,
     Theme,
 )
@@ -159,19 +162,9 @@ class Command(BaseCommand):
             },
         )
 
-        # Build manufacturer resolution lookups.
-        entity_name_to_slug: dict[str, str] = {
-            ce.name.lower(): ce.manufacturer.slug
-            for ce in CorporateEntity.objects.select_related("manufacturer").all()
-        }
-        mfr_name_to_slug: dict[str, str] = {}
-        existing_mfr_slugs: set[str] = set()
-        for m in Manufacturer.objects.all():
-            mfr_name_to_slug[m.name.lower()] = m.slug
-            if m.trade_name:
-                mfr_name_to_slug[m.trade_name.lower()] = m.slug
-            existing_mfr_slugs.add(m.slug)
-        # Cache CE→CorporateEntity for address creation.
+        # Manufacturer resolver (shared lookup + auto-create-on-miss).
+        resolver = ManufacturerResolver()
+        # Cache CE→CorporateEntity for address creation (IPDB-specific).
         ce_by_name: dict[str, CorporateEntity] = {
             ce.name.lower(): ce for ce in CorporateEntity.objects.all()
         }
@@ -266,9 +259,7 @@ class Command(BaseCommand):
                 theme_queue,
                 mpu_to_slug,
                 unknown_mpu_strings,
-                entity_name_to_slug,
-                mfr_name_to_slug,
-                existing_mfr_slugs,
+                resolver,
                 ce_by_name,
             )
 
@@ -307,9 +298,7 @@ class Command(BaseCommand):
         theme_queue: list[tuple[int, list[str]]],
         mpu_to_slug: dict[str, str],
         unknown_mpu_strings: set[str],
-        entity_name_to_slug: dict[str, str],
-        mfr_name_to_slug: dict[str, str],
-        existing_mfr_slugs: set[str],
+        resolver: ManufacturerResolver,
         ce_by_name: dict[str, CorporateEntity],
     ) -> None:
         """Collect claims, credits, and theme slugs for a single IPDB record."""
@@ -365,23 +354,14 @@ class Command(BaseCommand):
 
             # 3-priority resolution cascade (matches DuckDB view).
             slug = (
-                entity_name_to_slug.get(company.lower())
-                or (trade and mfr_name_to_slug.get(trade.lower()))
-                or mfr_name_to_slug.get(company.lower())
+                resolver.resolve_entity(company)
+                or (trade and resolver.resolve(trade))
+                or resolver.resolve(company)
             )
 
             if not slug:
-                # Auto-create manufacturer from parsed name.
                 display_name = trade or company
-                slug = generate_unique_slug(display_name, existing_mfr_slugs)
-                Manufacturer.objects.create(
-                    name=display_name,
-                    slug=slug,
-                    trade_name=trade,
-                )
-                mfr_name_to_slug[display_name.lower()] = slug
-                if trade:
-                    mfr_name_to_slug[trade.lower()] = slug
+                slug = resolver.resolve_or_create(display_name, trade_name=trade or "")
 
             pending_claims.append(
                 Claim(
