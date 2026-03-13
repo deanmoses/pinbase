@@ -34,6 +34,8 @@ STEPS = [
     # Phase 3: Enrichment + resolution.
     "ingest_pinbase_signs",
     "resolve_claims",
+    # Phase 4: Validation.
+    "validate_catalog",
 ]
 
 
