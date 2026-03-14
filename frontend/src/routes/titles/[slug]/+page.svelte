@@ -181,24 +181,32 @@
 							<dt>Abbrs</dt>
 							<dd>{md.abbreviations.join(', ')}</dd>
 						{/if}
-						{#if md.cabinet_name}
+						{#if md.cabinet_slug}
 							<dt>Cabinet</dt>
-							<dd>{md.cabinet_name}</dd>
+							<dd>
+								<a href={resolve(`/cabinets/${md.cabinet_slug}`)}>{md.cabinet_name}</a>
+							</dd>
 						{/if}
-						{#if md.game_format_name}
+						{#if md.game_format_slug}
 							<dt>Format</dt>
-							<dd>{md.game_format_name}</dd>
+							<dd>
+								<a href={resolve(`/game-formats/${md.game_format_slug}`)}>{md.game_format_name}</a>
+							</dd>
 						{/if}
-						{#if md.display_subtype_name}
+						{#if md.display_subtype_slug}
 							<dt>Display</dt>
-							<dd>{md.display_subtype_name}</dd>
+							<dd>
+								<a href={resolve(`/display-subtypes/${md.display_subtype_slug}`)}
+									>{md.display_subtype_name}</a
+								>
+							</dd>
 						{/if}
 						{#if md.gameplay_features.length > 0}
 							<dt>Features</dt>
 							<dd>
 								{#each md.gameplay_features as feature, i (feature.slug)}
 									{#if i > 0},{/if}
-									{feature.name}
+									<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a>
 								{/each}
 							</dd>
 						{/if}

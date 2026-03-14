@@ -154,6 +154,8 @@ def _build_model_list_qs(
     manufacturer: str = "",
     type: str = "",
     display: str = "",
+    feature: str = "",
+    game_format: str = "",
     year_min: int | None = None,
     year_max: int | None = None,
     person: str = "",
@@ -175,6 +177,10 @@ def _build_model_list_qs(
         qs = qs.filter(technology_generation__slug=type)
     if display:
         qs = qs.filter(display_type__slug=display)
+    if feature:
+        qs = qs.filter(gameplay_features__slug=feature)
+    if game_format:
+        qs = qs.filter(game_format__slug=game_format)
     if year_min is not None:
         qs = qs.filter(year__gte=year_min)
     if year_max is not None:
@@ -425,6 +431,8 @@ def list_models(
     manufacturer: str = "",
     type: str = "",
     display: str = "",
+    feature: str = "",
+    game_format: str = "",
     year_min: int | None = None,
     year_max: int | None = None,
     person: str = "",
@@ -434,6 +442,8 @@ def list_models(
         manufacturer=manufacturer,
         type=type,
         display=display,
+        feature=feature,
+        game_format=game_format,
         year_min=year_min,
         year_max=year_max,
         person=person,
