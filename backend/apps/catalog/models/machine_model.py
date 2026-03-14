@@ -17,7 +17,7 @@ class MachineModel(Linkable, TimeStampedModel):
     winning claim per field (highest priority source, most recent if tied).
     """
 
-    link_url_pattern = "/machines/{slug}"
+    link_url_pattern = "/models/{slug}"
 
     # Identity
     name = models.CharField(max_length=300)
