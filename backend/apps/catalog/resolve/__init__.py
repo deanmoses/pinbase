@@ -30,9 +30,9 @@ from ._helpers import (
     get_field_defaults,
 )
 from ._relationships import (
-    _resolve_all_gameplay_features,
     _resolve_all_tags,
     resolve_all_credits,
+    resolve_all_gameplay_features,
     resolve_all_model_abbreviations,
     resolve_all_themes,
     resolve_all_title_abbreviations,
@@ -234,7 +234,7 @@ def resolve_all() -> int:
     resolve_all_themes(all_models)
 
     # 11. Bulk-resolve gameplay feature relationships.
-    _resolve_all_gameplay_features(all_models)
+    resolve_all_gameplay_features(all_models)
 
     # 12. Bulk-resolve tag relationships.
     _resolve_all_tags(all_models)

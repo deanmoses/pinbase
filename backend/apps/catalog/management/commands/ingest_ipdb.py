@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from html import unescape
 from pathlib import Path
 
@@ -36,11 +37,16 @@ from apps.catalog.claims import build_relationship_claim, make_authoritative_sco
 from apps.catalog.models import (
     Address,
     CorporateEntity,
+    GameplayFeature,
     MachineModel,
     Person,
     Theme,
 )
-from apps.catalog.resolve import resolve_all_credits, resolve_all_themes
+from apps.catalog.resolve import (
+    resolve_all_credits,
+    resolve_all_gameplay_features,
+    resolve_all_themes,
+)
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -87,6 +93,79 @@ IPDB_TAG_MAP: dict[str, list[str]] = {
 }
 
 
+# Structured IPDB token (lowercased, count suffix stripped) → gameplay feature slug.
+# Covers the "Feature (N)" entries that appear at the start of notable_features.
+_STRUCTURED_FEATURE_MAP: dict[str, str] = {
+    "flippers": "flippers",
+    "flipper": "flippers",
+    "zipper flippers": "flippers",
+    "impulse flippers": "flippers",
+    "reverse flippers": "flippers",
+    "reversed flippers": "flippers",
+    "pop bumpers": "pop-bumpers",
+    "pop bumper": "pop-bumpers",
+    "jet bumpers": "pop-bumpers",
+    "slingshots": "slingshots",
+    "slingshot": "slingshots",
+    "slingshot kickers": "slingshots",
+    "drop targets": "drop-targets",
+    "drop target": "drop-targets",
+    "solitary drop target": "drop-targets",
+    "solitary drop targets": "drop-targets",
+    "single drop target": "drop-targets",
+    "single drop targets": "drop-targets",
+    "stand-alone drop target": "drop-targets",
+    "standup targets": "standup-targets",
+    "standup target": "standup-targets",
+    "stand-up targets": "standup-targets",
+    "spinning target": "spinners",
+    "spinning targets": "spinners",
+    "spinners": "spinners",
+    "spinner": "spinners",
+    "rollunder spinner": "spinners",
+    "rollunder spinners": "spinners",
+    "ramps": "ramps",
+    "ramp": "ramps",
+    "captive ball": "captive-ball",
+    "captive balls": "captive-ball",
+    "kick-out holes": "kick-out-holes",
+    "kick-out hole": "kick-out-holes",
+    "kickout holes": "kick-out-holes",
+    "relay kick-out holes": "kick-out-holes",
+    "gobble holes": "gobble-holes",
+    "gobble hole": "gobble-holes",
+    "magnets": "magnets",
+    "magnet": "magnets",
+    "electromagnet": "magnets",
+    "electromagnets": "magnets",
+    "stop magnet": "magnets",
+    "stop magnets": "magnets",
+    "multiball": "multiball",
+}
+
+# Regex patterns for features that appear in narrative text rather than
+# the structured "Feature (N)" list.  Each pattern is matched against
+# the full notable_features string.
+_NARRATIVE_FEATURE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b[Mm]ulti-?ball\b"), "multiball"),
+    (re.compile(r"\b[Kk]ickback\b"), "kickback"),
+    (re.compile(r"\b[Mm]agna.?[Ss]ave\b"), "magna-save"),
+    (re.compile(r"\b[Bb]all [Ss]ave\b"), "ball-save"),
+    (re.compile(r"\b[Ss]kill.?[Ss]hot\b"), "skill-shot"),
+    (
+        re.compile(
+            r"\b[Mm]ulti.?level playfield\b"
+            r"|\b[Uu]pper playfield\b"
+            r"|\b[Ee]levated.{0,20}playfield\b"
+            r"|\b[Mm]ini.?playfield\b"
+        ),
+        "multi-level-playfield",
+    ),
+    (re.compile(r"\b[Aa]dd.?a.?[Bb]all\b"), "add-a-ball"),
+    (re.compile(r"\b[Hh]ead.?to.?[Hh]ead\b"), "head-to-head"),
+]
+
+
 _SYSTEMS_JSON = Path(__file__).parents[5] / "data" / "systems.json"
 
 
@@ -131,6 +210,52 @@ def _parse_ipdb_themes(raw_theme: str) -> list[str]:
             if slug and slug not in seen:
                 slugs.append(slug)
                 seen.add(slug)
+    return slugs
+
+
+_DROP_TARGET_BANK_RE = re.compile(r"^\d+-bank drop targets?$")
+_COUNT_SUFFIX_RE = re.compile(r"\s*\(\d+\)\s*$")
+
+
+def _parse_ipdb_gameplay_features(raw: str) -> list[str]:
+    """Extract gameplay feature slugs from an IPDB notable_features string.
+
+    Two extraction passes:
+      1. Structured tokens — comma-separated "Feature (N)" entries are
+         stripped of their count suffix and looked up in _STRUCTURED_FEATURE_MAP.
+      2. Narrative patterns — regex patterns in _NARRATIVE_FEATURE_PATTERNS are
+         matched against the full text for features that appear in prose
+         (e.g. "multiball", "kickback", "skill shot").
+
+    Returns deduplicated slugs in discovery order.
+    """
+    seen: set[str] = set()
+    slugs: list[str] = []
+
+    def _add(slug: str) -> None:
+        if slug not in seen:
+            seen.add(slug)
+            slugs.append(slug)
+
+    # Pass 1: structured tokens.
+    # Split on commas first, then on periods within each segment,
+    # since IPDB uses both as separators between features.
+    for segment in raw.split(","):
+        for part in segment.split("."):
+            token = _COUNT_SUFFIX_RE.sub("", part).strip().lower()
+            if not token:
+                continue
+            mapped = _STRUCTURED_FEATURE_MAP.get(token)
+            if mapped:
+                _add(mapped)
+            elif _DROP_TARGET_BANK_RE.match(token):
+                _add("drop-targets")
+
+    # Pass 2: narrative patterns.
+    for pattern, slug in _NARRATIVE_FEATURE_PATTERNS:
+        if pattern.search(raw):
+            _add(slug)
+
     return slugs
 
 
@@ -243,10 +368,11 @@ class Command(BaseCommand):
                 f"    New: {format_names([pm.name for pm in new_models])}"
             )
 
-        # --- Phase 2: Collect claims, credits, and theme slugs ---
+        # --- Phase 2: Collect claims, credits, theme slugs, and feature slugs ---
         pending_claims: list[Claim] = []
         credit_queue: list[tuple[int, str, str]] = []
         theme_queue: list[tuple[int, list[str]]] = []  # (model_pk, [slugs])
+        gameplay_feature_queue: list[tuple[int, list[str]]] = []
         unknown_mpu_strings: set[str] = set()
 
         for pm, rec, _was_created in record_models:
@@ -257,6 +383,7 @@ class Command(BaseCommand):
                 pending_claims,
                 credit_queue,
                 theme_queue,
+                gameplay_feature_queue,
                 mpu_to_slug,
                 unknown_mpu_strings,
                 resolver,
@@ -286,6 +413,11 @@ class Command(BaseCommand):
         # --- Assert theme claims ---
         self._bulk_create_themes(theme_queue, source, all_model_ids)
 
+        # --- Assert gameplay feature claims ---
+        self._bulk_create_gameplay_features(
+            gameplay_feature_queue, source, all_model_ids
+        )
+
         self.stdout.write(self.style.SUCCESS("IPDB ingestion complete."))
 
     def _collect_record_data(
@@ -296,12 +428,13 @@ class Command(BaseCommand):
         pending_claims: list[Claim],
         credit_queue: list[tuple[int, str, str]],
         theme_queue: list[tuple[int, list[str]]],
+        gameplay_feature_queue: list[tuple[int, list[str]]],
         mpu_to_slug: dict[str, str],
         unknown_mpu_strings: set[str],
         resolver: ManufacturerResolver,
         ce_by_name: dict[str, CorporateEntity],
     ) -> None:
-        """Collect claims, credits, and theme slugs for a single IPDB record."""
+        """Collect claims, credits, theme slugs, and feature slugs for a single IPDB record."""
         # Collect claims for mapped fields.
         for attr, claim_field in CLAIM_FIELDS.items():
             value = getattr(rec, attr)
@@ -454,6 +587,14 @@ class Command(BaseCommand):
             theme_slugs = _parse_ipdb_themes(unescape(rec.theme))
             if theme_slugs:
                 theme_queue.append((pm.pk, theme_slugs))
+
+        # Collect gameplay feature slugs for bulk creation later.
+        if rec.notable_features:
+            feature_slugs = _parse_ipdb_gameplay_features(
+                unescape(rec.notable_features)
+            )
+            if feature_slugs:
+                gameplay_feature_queue.append((pm.pk, feature_slugs))
 
         # Collect design credits for bulk creation later.
         for attr, role in CREDIT_FIELDS.items():
@@ -637,3 +778,73 @@ class Command(BaseCommand):
 
         # Resolve theme claims into materialized M2M rows.
         resolve_all_themes([], model_ids=all_model_ids)
+
+    def _bulk_create_gameplay_features(
+        self,
+        gameplay_feature_queue: list[tuple[int, list[str]]],
+        source,
+        all_model_ids: set[int],
+    ) -> None:
+        """Assert gameplay feature relationship claims and resolve into M2M rows.
+
+        All GameplayFeature records already exist from the taxonomy seed, so
+        no get-or-create step is needed — only claim assertion and resolution.
+        """
+        if not gameplay_feature_queue:
+            return
+
+        from django.contrib.contenttypes.models import ContentType
+
+        # Verify all referenced slugs exist.
+        all_slugs: set[str] = set()
+        for _, slugs in gameplay_feature_queue:
+            all_slugs.update(slugs)
+
+        existing_slugs = set(
+            GameplayFeature.objects.filter(slug__in=all_slugs).values_list(
+                "slug", flat=True
+            )
+        )
+        missing = all_slugs - existing_slugs
+        if missing:
+            logger.warning(
+                "Gameplay feature slugs not found in DB (skipping): %s",
+                sorted(missing),
+            )
+
+        # Build gameplay feature relationship claims.
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        feature_claims: list[Claim] = []
+        for pm_pk, slugs in gameplay_feature_queue:
+            for slug in slugs:
+                if slug not in existing_slugs:
+                    continue
+                claim_key, value = build_relationship_claim(
+                    "gameplay_feature", {"gameplay_feature_slug": slug}
+                )
+                feature_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=pm_pk,
+                        field_name="gameplay_feature",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+        auth_scope = make_authoritative_scope(MachineModel, all_model_ids)
+        feature_stats = Claim.objects.bulk_assert_claims(
+            source,
+            feature_claims,
+            sweep_field="gameplay_feature",
+            authoritative_scope=auth_scope,
+        )
+        self.stdout.write(
+            f"  Gameplay feature claims: {feature_stats['unchanged']} unchanged, "
+            f"{feature_stats['created']} created, "
+            f"{feature_stats['superseded']} superseded, "
+            f"{feature_stats['swept']} swept"
+        )
+
+        # Resolve gameplay feature claims into materialized M2M rows.
+        resolve_all_gameplay_features([], model_ids=all_model_ids)
