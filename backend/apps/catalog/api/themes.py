@@ -1,4 +1,4 @@
-"""Themes router — detail endpoint."""
+"""Themes router — list and detail endpoints."""
 
 from __future__ import annotations
 
@@ -18,6 +18,11 @@ from .schemas import TitleMachineSchema
 # ---------------------------------------------------------------------------
 
 
+class ThemeListSchema(Schema):
+    name: str
+    slug: str
+
+
 class ThemeDetailSchema(Schema):
     name: str
     slug: str
@@ -31,6 +36,14 @@ class ThemeDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 themes_router = Router(tags=["themes"])
+
+
+@themes_router.get("/", response=list[ThemeListSchema])
+@decorate_view(cache_control(public=True, max_age=300))
+def list_themes(request):
+    from ..models import Theme
+
+    return list(Theme.objects.order_by("name").values("name", "slug"))
 
 
 @themes_router.get("/{slug}", response=ThemeDetailSchema)
