@@ -22,7 +22,7 @@ INSERT INTO _violations
 SELECT 'orphan_pinbase_model', pm.opdb_id
 FROM pinbase_models AS pm
 LEFT JOIN opdb_machines AS om ON pm.opdb_id = om.opdb_id
-WHERE om.opdb_id IS NULL;
+WHERE pm.opdb_id IS NOT NULL AND om.opdb_id IS NULL;
 
 -- Pinbase variant_of references nonexistent slug
 INSERT INTO _violations

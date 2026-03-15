@@ -554,16 +554,10 @@
     "opdb_id": "G5bv3-MePXV"
   },
   {
-    "slug": "dialed-in",
-    "name": "Dialed In!",
-    "title": "dialed-in",
-    "opdb_id": "G4X2l-MDqjR"
-  },
-  {
     "slug": "dialed-in-collectors-edition",
     "name": "Dialed In! (Collector's Edition)",
     "title": "dialed-in",
-    "variant_of": "dialed-in-standard-edition",
+    "variant_of": "dialed-in",
     "opdb_id": "G4X2l-MYepl-ARXxn",
     "ipdb_id": 6352
   },
@@ -571,13 +565,13 @@
     "slug": "dialed-in-limited-edition",
     "name": "Dialed In! (Limited Edition)",
     "title": "dialed-in",
-    "variant_of": "dialed-in-standard-edition",
+    "variant_of": "dialed-in",
     "opdb_id": "G4X2l-MYepl-A1WXy",
     "ipdb_id": 6351
   },
   {
-    "slug": "dialed-in-standard-edition",
-    "name": "Dialed In! (Standard Edition)",
+    "slug": "dialed-in",
+    "name": "Dialed In!",
     "title": "dialed-in",
     "opdb_id": "G4X2l-MYepl",
     "ipdb_id": 6350
@@ -594,6 +588,7 @@
     "slug": "disney-tron-legacy-limited-edition",
     "name": "Disney TRON: Legacy (Limited Edition)",
     "title": "tron",
+    "variant_of": "tron-legacy",
     "opdb_id": "GrkL5-MJoNN",
     "ipdb_id": 5707
   },
@@ -1063,7 +1058,7 @@
     "slug": "harley-davidson-bally",
     "name": "Harley-Davidson",
     "title": "harley-davidson-bally",
-    "opdb_id": "Gr2L0-MLOrj"
+    "opdb_id": "Gr2L0-MDz1W"
   },
   {
     "slug": "harry-potter-arcade-edition",
@@ -1736,10 +1731,10 @@
   },
   {
     "slug": "pinball-champ",
-    "name": "Pinball Champ '82",
+    "name": "Pinball Champ",
     "title": "pinball-champ",
-    "opdb_id": "GrPdq-MQYkJ",
-    "ipdb_id": 1794
+    "opdb_id": "GrPdq-M9RRe",
+    "ipdb_id": 1793
   },
   {
     "slug": "pinball-champ-82",
@@ -2681,8 +2676,8 @@
     "slug": "tron-legacy",
     "name": "Disney TRON: Legacy",
     "title": "tron",
-    "opdb_id": "GrkL5-MJoNN",
-    "ipdb_id": 5707
+    "opdb_id": "GrkL5-MLvrX",
+    "ipdb_id": 5682
   },
   {
     "slug": "ultraman-kaiju-rumble-collectors-edition",
