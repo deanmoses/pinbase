@@ -33,13 +33,13 @@
     "slug": "spinners",
     "name": "Spinners",
     "display_order": 6,
-    "description": "Rotating metal gates mounted in a lane that spin freely when the ball passes through, scoring points on each revolution. A hard, fast shot sends the spinner whirling through dozens of rotations, racking up points with a satisfying metallic whir. Spinners reward shot power rather than precision and are typically placed at the entrance to orbits or upper playfield lanes where a strong shot is required to reach them. They were a staple of both EM and early solid-state designs, and they remain a popular feature in modern games."
+    "description": "Rotating metal gates mounted in a lane that spin freely when the ball passes through, scoring points on each revolution. A hard, fast shot sends the spinner whirling through dozens of rotations, racking up points with a satisfying metallic whir. Spinners reward shot power rather than precision and are typically placed at the entrance to orbits or upper playfield lanes where a strong shot is required to reach them. They were a staple of both [[technologygeneration:electromechanical]] and early [[technologygeneration:solid-state]] designs, and they remain a popular feature in modern games."
   },
   {
     "slug": "ramps",
     "name": "Ramps",
     "display_order": 7,
-    "description": "Elevated tracks that carry the ball up and over portions of the playfield, returning it via wireforms or molded plastic guides. Ramps transformed playfield design beginning in the early 1980s, adding a vertical dimension to a game that had been essentially flat. A successful ramp shot — the ball climbing the incline with just enough speed to crest the top and glide down the return — is one of pinball's most satisfying moments. Ramps enabled loop shots, combo sequences, and the complex multi-shot rule sets that defined the dot-matrix era."
+    "description": "Elevated tracks that carry the ball up and over portions of the playfield, returning it via wireforms or molded plastic guides. Ramps transformed playfield design beginning in the early 1980s, adding a vertical dimension to a game that had been essentially flat. A successful ramp shot — the ball climbing the incline with just enough speed to crest the top and glide down the return — is one of pinball's most satisfying moments. Ramps enabled loop shots, combo sequences, and the complex multi-shot rule sets that defined the [[displaytype:dot-matrix]] era."
   },
   {
     "slug": "multiball",
@@ -51,7 +51,7 @@
     "slug": "captive-ball",
     "name": "Captive Ball",
     "display_order": 9,
-    "description": "A ball permanently trapped behind a target or within a channel on the playfield, struck indirectly by the player's ball to register hits or advance scoring. The captive ball never drains — it lives in its enclosure for the life of the machine, absorbing impacts and transferring momentum to switches behind it. The mechanism creates a distinctive heavy, satisfying hit feel unlike any other target on the playfield. Captive balls appear in hundreds of machines across the solid-state and DMD eras, often positioned as a high-value repeated shot."
+    "description": "A ball permanently trapped behind a target or within a channel on the playfield, struck indirectly by the player's ball to register hits or advance scoring. The captive ball never drains — it lives in its enclosure for the life of the machine, absorbing impacts and transferring momentum to switches behind it. The mechanism creates a distinctive heavy, satisfying hit feel unlike any other target on the playfield. Captive balls appear in hundreds of machines across the [[technologygeneration:solid-state]] and [[displaytype:dot-matrix]] eras, often positioned as a high-value repeated shot."
   },
   {
     "slug": "kick-out-holes",
