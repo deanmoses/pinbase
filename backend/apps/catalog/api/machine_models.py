@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.db.models import F, Prefetch
+from django.db.models import F, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -182,7 +182,10 @@ def _build_model_list_qs(
     if type:
         qs = qs.filter(technology_generation__slug=type)
     if subgeneration:
-        qs = qs.filter(technology_subgeneration__slug=subgeneration)
+        qs = qs.filter(
+            Q(technology_subgeneration__slug=subgeneration)
+            | Q(system__technology_subgeneration__slug=subgeneration)
+        )
     if display:
         qs = qs.filter(display_type__slug=display)
     if display_subtype:
@@ -324,10 +327,22 @@ def _serialize_model_detail(pm) -> dict:
             pm.technology_generation.slug if pm.technology_generation else None
         ),
         "technology_subgeneration_name": (
-            pm.technology_subgeneration.name if pm.technology_subgeneration else None
+            pm.technology_subgeneration.name
+            if pm.technology_subgeneration
+            else (
+                pm.system.technology_subgeneration.name
+                if pm.system and pm.system.technology_subgeneration
+                else None
+            )
         ),
         "technology_subgeneration_slug": (
-            pm.technology_subgeneration.slug if pm.technology_subgeneration else None
+            pm.technology_subgeneration.slug
+            if pm.technology_subgeneration
+            else (
+                pm.system.technology_subgeneration.slug
+                if pm.system and pm.system.technology_subgeneration
+                else None
+            )
         ),
         "display_type_name": pm.display_type.name if pm.display_type else None,
         "display_type_slug": pm.display_type.slug if pm.display_type else None,
@@ -406,6 +421,7 @@ def _model_detail_qs():
         "title",
         "title__franchise",
         "system",
+        "system__technology_subgeneration",
         "technology_generation",
         "technology_subgeneration",
         "display_type",

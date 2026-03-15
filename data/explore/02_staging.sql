@@ -11,7 +11,8 @@ SELECT
   r.*,
   tg.slug AS technology_generation_slug,
   dt.slug AS display_type_slug,
-  CAST(NULL AS VARCHAR) AS system_slug
+  CAST(NULL AS VARCHAR) AS system_slug,
+  CAST(NULL AS VARCHAR) AS technology_subgeneration_slug
 FROM opdb_machines_raw AS r
 LEFT JOIN ref_opdb_technology_generation AS tg ON r."type" = tg.opdb_type
 LEFT JOIN ref_opdb_display_type AS dt ON r.display = dt.opdb_display;
@@ -62,7 +63,8 @@ SELECT
   r.*,
   COALESCE(tg1.slug, tg2.slug) AS technology_generation_slug,
   CAST(NULL AS VARCHAR) AS display_type_slug,
-  ps.slug AS system_slug
+  ps.slug AS system_slug,
+  ps.technology_subgeneration_slug
 FROM ipdb_machines_raw AS r
 LEFT JOIN ref_ipdb_technology_generation AS tg1
   ON r.TypeShortName = tg1.type_short_name AND tg1.type_short_name IS NOT NULL
@@ -276,6 +278,7 @@ WITH
       om.technology_generation_slug AS opdb_tech_gen_slug,
       om.display_type_slug AS opdb_display_type_slug,
       om.system_slug AS opdb_system_slug,
+      om.technology_subgeneration_slug AS opdb_tech_subgen_slug,
       om.is_machine,
       om.is_alias,
       -- Parent machine for aliases (derived from opdb_id structure).
@@ -331,6 +334,7 @@ WITH
       im.technology_generation_slug AS opdb_tech_gen_slug,
       im.display_type_slug AS opdb_display_type_slug,
       im.system_slug AS opdb_system_slug,
+      im.technology_subgeneration_slug AS opdb_tech_subgen_slug,
       CAST('t' AS BOOLEAN) AS is_machine,
       CAST('f' AS BOOLEAN) AS is_alias,
       CAST(NULL AS VARCHAR) AS alias_parent_opdb_id,
@@ -365,6 +369,8 @@ SELECT
   m.opdb_tech_gen_slug AS technology_generation_slug,
   COALESCE(pm.display_type, m.opdb_display_type_slug) AS display_type_slug,
   m.opdb_system_slug AS system_slug,
+  -- Technology subgeneration: from system mapping (via IPDB MPU match)
+  COALESCE(m.opdb_tech_subgen_slug, im.technology_subgeneration_slug) AS technology_subgeneration_slug,
   -- Pinbase editorial claims
   COALESCE(pm.is_conversion, false) AS is_conversion,
   pm.converted_from,

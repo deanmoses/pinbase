@@ -30,6 +30,14 @@ class System(Linkable, TimeStampedModel):
         null=True,
         blank=True,
     )
+    technology_subgeneration = models.ForeignKey(
+        "TechnologySubgeneration",
+        on_delete=models.SET_NULL,
+        related_name="systems",
+        null=True,
+        blank=True,
+        help_text="Technology subgeneration this system belongs to.",
+    )
     claims = GenericRelation("provenance.Claim")
 
     class Meta:
