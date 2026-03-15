@@ -15,6 +15,11 @@
         "description": "Slug of the title this model belongs to (references titles.json)"
       },
       "description": { "type": "string" },
+      "cabinet": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "description": "Slug of the cabinet type (references cabinets.json)"
+      },
       "display_type": {
         "type": "string",
         "description": "References a display_type value in display_types.json"

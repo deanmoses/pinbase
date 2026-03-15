@@ -26,6 +26,7 @@ DEFAULT_PATH = Path(__file__).parents[5] / "data" / "models.json"
 CLAIM_FIELDS = {
     "name": "name",
     "title": "title",
+    "cabinet": "cabinet",
     "display_type": "display_type",
     "description": "description",
     "is_conversion": "is_conversion",

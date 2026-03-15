@@ -195,6 +195,14 @@
     "ipdb_id": 6568
   },
   {
+    "slug": "black-velvet",
+    "name": "Black Velvet",
+    "title": "black-velvet",
+    "cabinet": "cocktail",
+    "opdb_id": "GRw0Z-Ml9Eb",
+    "ipdb_id": 315
+  },
+  {
     "slug": "blackwater-100",
     "name": "Blackwater 100",
     "title": "blackwater-100",
@@ -287,6 +295,22 @@
     "opdb_id": "G4835-M2YPK-AR5ln"
   },
   {
+    "slug": "camel-lights",
+    "name": "Camel Lights",
+    "title": "camel",
+    "cabinet": "cocktail",
+    "opdb_id": "G43KY-MQKKV",
+    "ipdb_id": 3675
+  },
+  {
+    "slug": "caribbean-cruise",
+    "name": "Caribbean Cruise",
+    "title": "caribbean-cruise",
+    "cabinet": "cocktail",
+    "opdb_id": "GR7bJ-Mb5RN",
+    "ipdb_id": 3003
+  },
+  {
     "slug": "centaur",
     "name": "Centaur",
     "title": "centaur",
@@ -353,6 +377,31 @@
     "ipdb_id": 498
   },
   {
+    "slug": "chuck-a-luck",
+    "name": "Chuck-A-Luck",
+    "title": "chuck-a-luck",
+    "cabinet": "cocktail",
+    "opdb_id": "G56jk-MnKlw",
+    "ipdb_id": 3020
+  },
+  {
+    "slug": "circa-1933",
+    "name": "Circa 1933",
+    "title": "the-entertainer",
+    "cabinet": "cocktail",
+    "variant_of": "roy-clark-the-entertainer",
+    "opdb_id": "G4XD3-MJdVN",
+    "ipdb_id": 514
+  },
+  {
+    "slug": "circus-circus",
+    "name": "Circus Circus",
+    "title": "circus-circus",
+    "cabinet": "cocktail",
+    "opdb_id": "G57dv-MQ20p",
+    "ipdb_id": 523
+  },
+  {
     "slug": "cirqus-voltaire",
     "name": "Cirqus Voltaire",
     "title": "cirqus-voltaire",
@@ -406,6 +455,14 @@
     "title": "cosmic-flash",
     "opdb_id": "G5pxD-Mp48v",
     "ipdb_id": 3639
+  },
+  {
+    "slug": "cosmic-wars",
+    "name": "Cosmic Wars",
+    "title": "cosmic-wars",
+    "cabinet": "cocktail",
+    "opdb_id": "GrqJZ-MQKqK",
+    "ipdb_id": 4330
   },
   {
     "slug": "cosmodrome",
@@ -524,6 +581,14 @@
     "title": "dialed-in",
     "opdb_id": "G4X2l-MYepl",
     "ipdb_id": 6350
+  },
+  {
+    "slug": "disco-79",
+    "name": "Disco '79",
+    "title": "disco-79",
+    "cabinet": "cocktail",
+    "opdb_id": "Gr83Y-MDlW2",
+    "ipdb_id": 3823
   },
   {
     "slug": "disney-tron-legacy-limited-edition",
@@ -645,6 +710,14 @@
     "ipdb_id": 6598
   },
   {
+    "slug": "eros-one",
+    "name": "Eros One",
+    "title": "flame-of-athens",
+    "cabinet": "cocktail",
+    "opdb_id": "G5LOx-MD1p8",
+    "ipdb_id": 3738
+  },
+  {
     "slug": "escape-from-the-lost-world",
     "name": "Escape from the Lost World",
     "title": "escape-from-the-lost-world",
@@ -686,6 +759,22 @@
     "ipdb_id": 804
   },
   {
+    "slug": "fabulous-50s",
+    "name": "Fabulous 50's",
+    "title": "fabulous-50s",
+    "cabinet": "cocktail",
+    "opdb_id": "GR6pk-MDX16",
+    "ipdb_id": 805
+  },
+  {
+    "slug": "family-fun",
+    "name": "Family Fun!",
+    "title": "family-fun",
+    "cabinet": "cocktail",
+    "opdb_id": "GRoW6-MQk81",
+    "ipdb_id": 817
+  },
+  {
     "slug": "family-guy",
     "name": "Family Guy",
     "title": "family-guy",
@@ -707,6 +796,14 @@
     "title": "farfalla",
     "opdb_id": "GRVw2-M4oWO",
     "ipdb_id": 824
+  },
+  {
+    "slug": "flame-of-athens",
+    "name": "Flame of Athens",
+    "title": "flame-of-athens",
+    "cabinet": "cocktail",
+    "opdb_id": "G5LOx-MDlR2",
+    "ipdb_id": 3100
   },
   {
     "slug": "flesh-and-blood",
@@ -745,6 +842,14 @@
     "name": "Foo Fighters (Premium)",
     "title": "foo-fighters",
     "opdb_id": "GpeoL-MkPz1-A9Qlw"
+  },
+  {
+    "slug": "foxy-lady",
+    "name": "Foxy Lady",
+    "title": "foxy-lady",
+    "cabinet": "cocktail",
+    "opdb_id": "G48Ex-MDWNj",
+    "ipdb_id": 946
   },
   {
     "slug": "funhouse",
@@ -988,6 +1093,14 @@
     "ipdb_id": 1133
   },
   {
+    "slug": "hearts-spades",
+    "name": "Hearts Spades",
+    "title": "hearts-spades",
+    "cabinet": "cocktail",
+    "opdb_id": "G5pkl-MJPrP",
+    "ipdb_id": 1146
+  },
+  {
     "slug": "high-speed",
     "name": "High Speed",
     "title": "high-speed",
@@ -1144,6 +1257,14 @@
     "opdb_id": "GQK1P-Ml95Z-AOY43"
   },
   {
+    "slug": "jokers-wild",
+    "name": "Joker's Wild",
+    "title": "jokers-wild",
+    "cabinet": "cocktail",
+    "opdb_id": "G4eJY-MBRE6",
+    "ipdb_id": 1307
+  },
+  {
     "slug": "joust",
     "name": "Joust",
     "title": "joust",
@@ -1239,6 +1360,14 @@
     "title": "lady-robin-hood",
     "opdb_id": "GRVL2-MLl9Y",
     "ipdb_id": 1406
+  },
+  {
+    "slug": "lady-sharpshooter",
+    "name": "Lady Sharpshooter",
+    "title": "lady-sharpshooter",
+    "cabinet": "cocktail",
+    "opdb_id": "G48NN-MLqOw",
+    "ipdb_id": 1407
   },
   {
     "slug": "laser-war",
@@ -1359,6 +1488,14 @@
     "ipdb_id": 4112
   },
   {
+    "slug": "lucky-draw",
+    "name": "Lucky Draw",
+    "title": "lucky-draw",
+    "cabinet": "cocktail",
+    "opdb_id": "G4x0p-MDyyq",
+    "ipdb_id": 1486
+  },
+  {
     "slug": "lucky-seven",
     "name": "Lucky Seven",
     "title": "lucky-seven",
@@ -1465,6 +1602,14 @@
     "ipdb_id": 1622
   },
   {
+    "slug": "monza",
+    "name": "Monza",
+    "title": "monza",
+    "cabinet": "cocktail",
+    "opdb_id": "G5Qx7-MLnbP",
+    "ipdb_id": 1625
+  },
+  {
     "slug": "motor-show",
     "name": "Motor Show",
     "title": "motor-show",
@@ -1493,6 +1638,14 @@
     "is_conversion": true,
     "opdb_id": "GRB8Z-MQKXV",
     "ipdb_id": 3482
+  },
+  {
+    "slug": "night-moves",
+    "name": "Night Moves",
+    "title": "night-moves",
+    "cabinet": "cocktail",
+    "opdb_id": "G4NY0-MDE29",
+    "ipdb_id": 3507
   },
   {
     "slug": "night-rider",
@@ -1715,6 +1868,14 @@
     "opdb_id": "GLWWV-Mb5Xx"
   },
   {
+    "slug": "real",
+    "name": "Real",
+    "title": "real",
+    "cabinet": "cocktail",
+    "opdb_id": "GRBV9-MLy6e",
+    "ipdb_id": 1925
+  },
+  {
     "slug": "revenge-from-mars",
     "name": "Revenge from Mars",
     "title": "revenge-from-mars",
@@ -1726,6 +1887,14 @@
     "title": "rick-and-morty",
     "opdb_id": "GQKb2-MYek0",
     "ipdb_id": 6640
+  },
+  {
+    "slug": "rio-game-plan",
+    "name": "Rio",
+    "title": "rio",
+    "cabinet": "cocktail",
+    "opdb_id": "GrJy1-MDEbO",
+    "ipdb_id": 3523
   },
   {
     "slug": "riverboat-gambler",
@@ -1772,6 +1941,22 @@
     "converted_from": "rock-star",
     "opdb_id": "GRbD8-M9Rqz",
     "ipdb_id": 4084
+  },
+  {
+    "slug": "rotation-viii",
+    "name": "Rotation VIII",
+    "title": "rotation-viii",
+    "cabinet": "cocktail",
+    "opdb_id": "G4lnB-MeP1y",
+    "ipdb_id": 2019
+  },
+  {
+    "slug": "roy-clark-the-entertainer",
+    "name": "Roy Clark 'The' Entertainer",
+    "title": "the-entertainer",
+    "cabinet": "cocktail",
+    "opdb_id": "G4XD3-M5Rlk",
+    "ipdb_id": 785
   },
   {
     "slug": "rush-limited-edition",
@@ -1975,6 +2160,14 @@
     "ipdb_id": 3973
   },
   {
+    "slug": "spectra-iv",
+    "name": "Spectra IV",
+    "title": "spectra-iv",
+    "cabinet": "cocktail",
+    "opdb_id": "GRnqe-MDn45",
+    "ipdb_id": 2273
+  },
+  {
     "slug": "spider",
     "name": "Spider",
     "title": "central-park",
@@ -1991,11 +2184,27 @@
     "ipdb_id": 2328
   },
   {
+    "slug": "star-battle",
+    "name": "Star Battle",
+    "title": "star-battle",
+    "cabinet": "cocktail",
+    "opdb_id": "G50xd-MDbV0",
+    "ipdb_id": 2344
+  },
+  {
     "slug": "star-ship",
     "name": "Star Ship",
     "title": "star-ship",
     "opdb_id": "GRLXd-M4oxP",
     "ipdb_id": 3498
+  },
+  {
+    "slug": "star-shooter",
+    "name": "Star Shooter",
+    "title": "star-shooter",
+    "cabinet": "cocktail",
+    "opdb_id": "G4d9E-MLRqz",
+    "ipdb_id": 3500
   },
   {
     "slug": "star-trek",
@@ -2018,6 +2227,15 @@
     "title": "star-trek-stern",
     "opdb_id": "Gryw4-MRj4O",
     "ipdb_id": 6045
+  },
+  {
+    "slug": "star-trip",
+    "name": "Star Trip",
+    "title": "family-fun",
+    "cabinet": "cocktail",
+    "variant_of": "family-fun",
+    "opdb_id": "GRoW6-ME0Ro",
+    "ipdb_id": 3605
   },
   {
     "slug": "star-wars-fall-of-the-empire-limited-edition",
@@ -2140,6 +2358,14 @@
     "converted_from": "lawman",
     "opdb_id": "GrEXx-MJ5Yv",
     "ipdb_id": 4109
+  },
+  {
+    "slug": "take-five",
+    "name": "Take Five",
+    "title": "the-entertainer",
+    "cabinet": "cocktail",
+    "opdb_id": "G4XD3-MQk3l",
+    "ipdb_id": 2492
   },
   {
     "slug": "teenage-mutant-ninja-turtles-limited-edition",
@@ -2472,6 +2698,14 @@
     "opdb_id": "GBLLd-MdEON"
   },
   {
+    "slug": "vegas",
+    "name": "Vegas",
+    "title": "vegas",
+    "cabinet": "cocktail",
+    "opdb_id": "GrEXp-MJjn3",
+    "ipdb_id": 2725
+  },
+  {
     "slug": "venom-limited-edition",
     "name": "Venom (Limited Edition)",
     "title": "venom",
@@ -2485,6 +2719,14 @@
     "title": "venom",
     "opdb_id": "G3EBl-MRj6e-AOVkD",
     "ipdb_id": 7065
+  },
+  {
+    "slug": "war-viza",
+    "name": "War",
+    "title": "war",
+    "cabinet": "cocktail",
+    "opdb_id": "GRvo2-MQdPp",
+    "ipdb_id": 2753
   },
   {
     "slug": "weird-als-museum-of-natural-hilarity",

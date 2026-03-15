@@ -156,7 +156,7 @@
 				/>
 			{:else}
 				<!-- Multi-model: agreed specs across all models -->
-				{#if specs.technology_generation_slug || specs.display_type_slug || specs.player_count || specs.system_slug || specs.cabinet_name || specs.game_format_name || specs.display_subtype_name || specs.production_quantity || (specs.themes && specs.themes.length > 0) || title.abbreviations.length > 0}
+				{#if specs.technology_generation_slug || specs.display_type_slug || specs.player_count || specs.system_slug || specs.cabinet_slug || specs.game_format_slug || specs.display_subtype_slug || specs.production_quantity || (specs.themes && specs.themes.length > 0) || title.abbreviations.length > 0}
 					<SidebarSection heading="Specifications">
 						<dl>
 							{#if specs.technology_generation_slug}
@@ -213,17 +213,27 @@
 								<dt>Abbrs</dt>
 								<dd>{title.abbreviations.join(', ')}</dd>
 							{/if}
-							{#if specs.cabinet_name}
+							{#if specs.cabinet_slug}
 								<dt>Cabinet</dt>
-								<dd>{specs.cabinet_name}</dd>
+								<dd>
+									<a href={resolve(`/cabinets/${specs.cabinet_slug}`)}>{specs.cabinet_name}</a>
+								</dd>
 							{/if}
-							{#if specs.game_format_name}
+							{#if specs.game_format_slug}
 								<dt>Format</dt>
-								<dd>{specs.game_format_name}</dd>
+								<dd>
+									<a href={resolve(`/game-formats/${specs.game_format_slug}`)}
+										>{specs.game_format_name}</a
+									>
+								</dd>
 							{/if}
-							{#if specs.display_subtype_name}
+							{#if specs.display_subtype_slug}
 								<dt>Display</dt>
-								<dd>{specs.display_subtype_name}</dd>
+								<dd>
+									<a href={resolve(`/display-subtypes/${specs.display_subtype_slug}`)}
+										>{specs.display_subtype_name}</a
+									>
+								</dd>
 							{/if}
 						</dl>
 					</SidebarSection>

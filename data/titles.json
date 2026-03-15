@@ -303,6 +303,11 @@
     ]
   },
   {
+    "slug": "caribbean-cruise",
+    "name": "Caribbean Cruise",
+    "opdb_group_id": "GR7bJ"
+  },
+  {
     "slug": "celts",
     "name": "Celts",
     "opdb_group_id": "G9zzB"
@@ -330,6 +335,16 @@
     "slug": "checkpoint",
     "name": "Checkpoint",
     "opdb_group_id": "G4Jdp"
+  },
+  {
+    "slug": "chuck-a-luck",
+    "name": "Chuck-A-Luck",
+    "opdb_group_id": "G56jk"
+  },
+  {
+    "slug": "circus-circus",
+    "name": "Circus Circus",
+    "opdb_group_id": "G57dv"
   },
   {
     "slug": "cirqus-voltaire",
@@ -369,6 +384,11 @@
     "slug": "cosmic-flash",
     "name": "Cosmic Flash",
     "opdb_group_id": "G5pxD"
+  },
+  {
+    "slug": "cosmic-wars",
+    "name": "Cosmic Wars",
+    "opdb_group_id": "GrqJZ"
   },
   {
     "slug": "cosmodrome",
@@ -455,6 +475,11 @@
     "abbreviations": [
       "DH"
     ]
+  },
+  {
+    "slug": "disco-79",
+    "name": "Disco '79",
+    "opdb_group_id": "Gr83Y"
   },
   {
     "slug": "doctor-who",
@@ -609,6 +634,16 @@
     "opdb_group_id": "GRY2O"
   },
   {
+    "slug": "fabulous-50s",
+    "name": "Fabulous 50's",
+    "opdb_group_id": "GR6pk"
+  },
+  {
+    "slug": "family-fun",
+    "name": "Family Fun!",
+    "opdb_group_id": "GRoW6"
+  },
+  {
     "slug": "family-guy",
     "name": "Family Guy",
     "franchise_slug": "family-guy",
@@ -623,6 +658,11 @@
     "slug": "firepower",
     "name": "Firepower",
     "opdb_group_id": "G5VDd"
+  },
+  {
+    "slug": "flame-of-athens",
+    "name": "Flame of Athens",
+    "opdb_group_id": "G5LOx"
   },
   {
     "slug": "flash-gordon",
@@ -647,6 +687,11 @@
     "slug": "foo-fighters",
     "name": "Foo Fighters",
     "opdb_group_id": "GpeoL"
+  },
+  {
+    "slug": "foxy-lady",
+    "name": "Foxy Lady",
+    "opdb_group_id": "G48Ex"
   },
   {
     "slug": "frankenstein",
@@ -815,6 +860,11 @@
     "slug": "haunted-house",
     "name": "Haunted House",
     "opdb_group_id": "G5BP6"
+  },
+  {
+    "slug": "hearts-spades",
+    "name": "Hearts Spades",
+    "opdb_group_id": "G5pkl"
   },
   {
     "slug": "heavy-metal",
@@ -990,6 +1040,11 @@
     ]
   },
   {
+    "slug": "jokers-wild",
+    "name": "Joker's Wild",
+    "opdb_group_id": "G4eJY"
+  },
+  {
     "slug": "joust",
     "name": "Joust",
     "opdb_group_id": "G4den"
@@ -1153,6 +1208,11 @@
     ]
   },
   {
+    "slug": "lucky-draw",
+    "name": "Lucky Draw",
+    "opdb_group_id": "G4x0p"
+  },
+  {
     "slug": "lucky-seven",
     "name": "Lucky Seven",
     "opdb_group_id": "G5D3O"
@@ -1237,6 +1297,11 @@
     "opdb_group_id": "G578Y"
   },
   {
+    "slug": "monza",
+    "name": "Monza",
+    "opdb_group_id": "G5Qx7"
+  },
+  {
     "slug": "motor-show",
     "name": "Motor Show",
     "opdb_group_id": "GRb2y"
@@ -1284,6 +1349,11 @@
     "slug": "new-wave",
     "name": "New Wave",
     "opdb_group_id": "GRB8Z"
+  },
+  {
+    "slug": "night-moves",
+    "name": "Night Moves",
+    "opdb_group_id": "G4NY0"
   },
   {
     "slug": "night-rider",
@@ -1474,6 +1544,11 @@
     "opdb_group_id": "GLWWV"
   },
   {
+    "slug": "real",
+    "name": "Real",
+    "opdb_group_id": "GRBV9"
+  },
+  {
     "slug": "revenge-from-mars",
     "name": "Revenge from Mars",
     "opdb_group_id": "G50Wr"
@@ -1486,6 +1561,11 @@
     "abbreviations": [
       "RM"
     ]
+  },
+  {
+    "slug": "rio",
+    "name": "Rio",
+    "opdb_group_id": "GrJy1"
   },
   {
     "slug": "ripleys-believe-it-or-not",
@@ -1568,6 +1648,11 @@
     "abbreviations": [
       "RS"
     ]
+  },
+  {
+    "slug": "rotation-viii",
+    "name": "Rotation VIII",
+    "opdb_group_id": "G4lnB"
   },
   {
     "slug": "rush",
@@ -1695,6 +1780,11 @@
     "opdb_group_id": "G4jyz"
   },
   {
+    "slug": "spectra-iv",
+    "name": "Spectra IV",
+    "opdb_group_id": "GRnqe"
+  },
+  {
     "slug": "spider-man",
     "name": "Spider-Man",
     "opdb_group_id": "G5D94",
@@ -1727,9 +1817,19 @@
     "opdb_group_id": "GRwl7"
   },
   {
+    "slug": "star-battle",
+    "name": "Star Battle",
+    "opdb_group_id": "G50xd"
+  },
+  {
     "slug": "star-ship",
     "name": "Star Ship",
     "opdb_group_id": "GRLXd"
+  },
+  {
+    "slug": "star-shooter",
+    "name": "Star Shooter",
+    "opdb_group_id": "G4d9E"
   },
   {
     "slug": "star-trek",
@@ -1973,6 +2073,11 @@
     "name": "The Empire Strikes Back",
     "opdb_group_id": "GRVqP",
     "franchise_slug": "star-wars"
+  },
+  {
+    "slug": "the-entertainer",
+    "name": "The Entertainer",
+    "opdb_group_id": "G4XD3"
   },
   {
     "slug": "the-flintstones",
@@ -2232,10 +2337,20 @@
     "opdb_group_id": "GBLLd"
   },
   {
+    "slug": "vegas",
+    "name": "Vegas",
+    "opdb_group_id": "GrEXp"
+  },
+  {
     "slug": "venom",
     "name": "Venom",
     "opdb_group_id": "G3EBl",
     "franchise_slug": "spider-man"
+  },
+  {
+    "slug": "war",
+    "name": "War",
+    "opdb_group_id": "GRvo2"
   },
   {
     "slug": "waterworld",

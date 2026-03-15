@@ -714,6 +714,10 @@ class Command(BaseCommand):
         if display_type:
             _add("display_type", display_type)
 
+        # Cabinet (from OPDB features).
+        if rec.features and "Cocktail table" in rec.features:
+            _add("cabinet", "cocktail")
+
         # Extra data fields.
         # OPDB 'features' are variant labels (LE, SE, shaker motor etc.) — stored
         # as 'variant_features' to avoid future confusion with gameplay features.

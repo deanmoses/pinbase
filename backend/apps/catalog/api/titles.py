@@ -69,8 +69,11 @@ class AgreedSpecsSchema(Schema):
     system_name: Optional[str] = None
     system_slug: Optional[str] = None
     cabinet_name: Optional[str] = None
+    cabinet_slug: Optional[str] = None
     game_format_name: Optional[str] = None
+    game_format_slug: Optional[str] = None
     display_subtype_name: Optional[str] = None
+    display_subtype_slug: Optional[str] = None
     themes: list[ThemeSchema] = []
     production_quantity: Optional[str] = None
 
@@ -267,32 +270,17 @@ def _compute_agreed_specs(models) -> dict:
     if sys:
         specs["system_name"], specs["system_slug"] = sys
 
-    cab = _agreed_value(
-        models,
-        lambda m: getattr(m.cabinet, "name", None) if hasattr(m, "cabinet") else None,
-    )
+    cab = _agreed_value(models, lambda m: _fk_pair(m, "cabinet"))
     if cab:
-        specs["cabinet_name"] = cab
+        specs["cabinet_name"], specs["cabinet_slug"] = cab
 
-    gf = _agreed_value(
-        models,
-        lambda m: (
-            getattr(m.game_format, "name", None) if hasattr(m, "game_format") else None
-        ),
-    )
+    gf = _agreed_value(models, lambda m: _fk_pair(m, "game_format"))
     if gf:
-        specs["game_format_name"] = gf
+        specs["game_format_name"], specs["game_format_slug"] = gf
 
-    dst = _agreed_value(
-        models,
-        lambda m: (
-            getattr(m.display_subtype, "name", None)
-            if hasattr(m, "display_subtype")
-            else None
-        ),
-    )
+    dst = _agreed_value(models, lambda m: _fk_pair(m, "display_subtype"))
     if dst:
-        specs["display_subtype_name"] = dst
+        specs["display_subtype_name"], specs["display_subtype_slug"] = dst
 
     pq = _agreed_value(models, lambda m: m.production_quantity or None)
     if pq:
