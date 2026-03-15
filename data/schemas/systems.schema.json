@@ -18,6 +18,11 @@
         "type": "array",
         "items": { "type": "string", "minLength": 1 },
         "description": "Alternative names used for IPDB ingestion mapping"
+      },
+      "technology_subgeneration_slug": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "description": "References a slug in technology_subgenerations.json"
       }
     },
     "required": ["slug", "name"],

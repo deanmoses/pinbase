@@ -47,19 +47,6 @@ SELECT slug, "name", display_order, description
 FROM pinbase_gameplay_features
 ORDER BY display_order;
 
-CREATE OR REPLACE VIEW catalog_technology_subgenerations AS
-SELECT
-  tsg.slug,
-  tsg."name",
-  tsg.display_order,
-  tsg.description,
-  tsg.technology_generation_slug,
-  tg.title AS technology_generation_name
-FROM pinbase_technology_subgenerations AS tsg
-LEFT JOIN pinbase_technology_generations AS tg
-  ON tsg.technology_generation_slug = tg.slug
-ORDER BY tsg.display_order;
-
 ------------------------------------------------------------
 -- Views joining pinbase + external sources
 ------------------------------------------------------------
@@ -276,6 +263,23 @@ FROM pinbase_technology_generations AS tg
 LEFT JOIN catalog_models AS cm ON tg.slug = cm.technology_generation_slug
 GROUP BY tg.slug, tg.title, tg.display_order, tg.description
 ORDER BY tg.display_order;
+
+CREATE OR REPLACE VIEW catalog_technology_subgenerations AS
+SELECT
+  tsg.slug,
+  tsg."name",
+  tsg.display_order,
+  tsg.description,
+  tsg.technology_generation_slug,
+  tg.title AS technology_generation_name,
+  count(DISTINCT cm.model_key) AS model_count
+FROM pinbase_technology_subgenerations AS tsg
+LEFT JOIN pinbase_technology_generations AS tg
+  ON tsg.technology_generation_slug = tg.slug
+LEFT JOIN catalog_models AS cm ON tsg.slug = cm.technology_subgeneration_slug
+GROUP BY tsg.slug, tsg."name", tsg.display_order, tsg.description,
+         tsg.technology_generation_slug, tg.title
+ORDER BY tsg.display_order;
 
 CREATE OR REPLACE VIEW catalog_display_types AS
 SELECT

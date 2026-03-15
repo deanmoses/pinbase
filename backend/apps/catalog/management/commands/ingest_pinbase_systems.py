@@ -17,7 +17,7 @@ from pathlib import Path
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
-from apps.catalog.models import Manufacturer, System
+from apps.catalog.models import Manufacturer, System, TechnologySubgeneration
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -45,10 +45,16 @@ class Command(BaseCommand):
             m.slug: m for m in Manufacturer.objects.all()
         }
 
+        # Pre-fetch technology subgeneration lookup by slug.
+        subgen_by_slug: dict[str, TechnologySubgeneration] = {
+            t.slug: t for t in TechnologySubgeneration.objects.all()
+        }
+
         # Pre-fetch existing slugs for counts.
         existing_slugs = set(System.objects.values_list("slug", flat=True))
 
         missing_mfr: list[str] = []
+        missing_subgen: list[str] = []
 
         # Build instances from JSON.
         objs = []
@@ -57,6 +63,7 @@ class Command(BaseCommand):
             name = entry["name"]
             description = entry.get("description", "")
             mfr_slug = entry.get("manufacturer")
+            subgen_slug = entry.get("technology_subgeneration_slug")
 
             mfr = None
             if mfr_slug:
@@ -67,8 +74,25 @@ class Command(BaseCommand):
                         "Manufacturer slug %r not found for system %r", mfr_slug, slug
                     )
 
+            subgen = None
+            if subgen_slug:
+                subgen = subgen_by_slug.get(subgen_slug)
+                if subgen is None:
+                    missing_subgen.append(subgen_slug)
+                    logger.warning(
+                        "TechnologySubgeneration slug %r not found for system %r",
+                        subgen_slug,
+                        slug,
+                    )
+
             objs.append(
-                System(slug=slug, name=name, description=description, manufacturer=mfr)
+                System(
+                    slug=slug,
+                    name=name,
+                    description=description,
+                    manufacturer=mfr,
+                    technology_subgeneration=subgen,
+                )
             )
 
         # Bulk upsert: single INSERT ... ON CONFLICT DO UPDATE.
@@ -76,7 +100,12 @@ class Command(BaseCommand):
             objs,
             update_conflicts=True,
             unique_fields=["slug"],
-            update_fields=["name", "description", "manufacturer"],
+            update_fields=[
+                "name",
+                "description",
+                "manufacturer",
+                "technology_subgeneration",
+            ],
         )
 
         created = sum(1 for o in objs if o.slug not in existing_slugs)

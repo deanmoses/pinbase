@@ -3,6 +3,7 @@
 	import MachineCard from '$lib/components/cards/MachineCard.svelte';
 	import ModelDetailBody from '$lib/components/ModelDetailBody.svelte';
 	import ModelHierarchy from '$lib/components/ModelHierarchy.svelte';
+	import ModelSpecsSidebar from '$lib/components/ModelSpecsSidebar.svelte';
 	import CreditsList from '$lib/components/CreditsList.svelte';
 	import ExternalLinksSidebarSection from '$lib/components/ExternalLinksSidebarSection.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
@@ -127,103 +128,7 @@
 			{#if md}
 				<!-- Single-model: full specs from model detail -->
 				<SidebarSection heading="Specifications">
-					<dl>
-						{#if md.technology_generation_slug}
-							<dt>Generation</dt>
-							<dd>
-								<a href={resolve(`/technology-generations/${md.technology_generation_slug}`)}
-									>{md.technology_generation_name}</a
-								>
-							</dd>
-						{/if}
-						{#if md.display_type_slug}
-							<dt>Display Type</dt>
-							<dd>
-								<a href={resolve(`/display-types/${md.display_type_slug}`)}
-									>{md.display_type_name}</a
-								>
-							</dd>
-						{/if}
-						{#if md.player_count}
-							<dt>Players</dt>
-							<dd>{md.player_count}</dd>
-						{/if}
-						{#if md.flipper_count}
-							<dt>Flippers</dt>
-							<dd>{md.flipper_count}</dd>
-						{/if}
-						{#if md.production_quantity}
-							<dt>Units Made</dt>
-							<dd>{md.production_quantity}</dd>
-						{/if}
-						{#if md.system_slug}
-							<dt>System</dt>
-							<dd>
-								<a href={resolve(`/systems/${md.system_slug}`)}>{md.system_name}</a>
-							</dd>
-						{/if}
-						{#if md.themes.length > 0}
-							<dt>Themes</dt>
-							<dd>
-								{#each md.themes as theme, i (theme.slug)}
-									{#if i > 0},{/if}
-									<a href={resolve(`/themes/${theme.slug}`)}>{theme.name}</a>
-								{/each}
-							</dd>
-						{/if}
-						{#if md.franchise}
-							<dt>Franchise</dt>
-							<dd>
-								<a href={resolve(`/franchises/${md.franchise.slug}`)}>{md.franchise.name}</a>
-							</dd>
-						{/if}
-						{#if md.abbreviations.length > 0}
-							<dt>Abbrs</dt>
-							<dd>{md.abbreviations.join(', ')}</dd>
-						{/if}
-						{#if md.cabinet_slug}
-							<dt>Cabinet</dt>
-							<dd>
-								<a href={resolve(`/cabinets/${md.cabinet_slug}`)}>{md.cabinet_name}</a>
-							</dd>
-						{/if}
-						{#if md.game_format_slug}
-							<dt>Format</dt>
-							<dd>
-								<a href={resolve(`/game-formats/${md.game_format_slug}`)}>{md.game_format_name}</a>
-							</dd>
-						{/if}
-						{#if md.display_subtype_slug}
-							<dt>Display</dt>
-							<dd>
-								<a href={resolve(`/display-subtypes/${md.display_subtype_slug}`)}
-									>{md.display_subtype_name}</a
-								>
-							</dd>
-						{/if}
-						{#if md.gameplay_features.length > 0}
-							<dt>Features</dt>
-							<dd>
-								{#each md.gameplay_features as feature, i (feature.slug)}
-									{#if i > 0},{/if}
-									<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a>
-								{/each}
-							</dd>
-						{/if}
-						{#if md.variant_features.length > 0}
-							<dt>Variant</dt>
-							<dd>{md.variant_features.join(', ')}</dd>
-						{/if}
-						{#if md.series.length > 0}
-							<dt>Series</dt>
-							<dd>
-								{#each md.series as s, i (s.slug)}
-									{#if i > 0},{/if}
-									<a href={resolve(`/series/${s.slug}`)}>{s.name}</a>
-								{/each}
-							</dd>
-						{/if}
-					</dl>
+					<ModelSpecsSidebar model={md} />
 				</SidebarSection>
 
 				<RatingsSidebarSection ipdbRating={md.ipdb_rating} pinsideRating={md.pinside_rating} />
