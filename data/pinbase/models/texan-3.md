@@ -1,7 +1,7 @@
 ---
 slug: texan-3
 name: Texan
-title_slug: texan-3
+title_slug: texan-2
 ipdb_id: 5694
 manufacturer_slug: alben
 year: 1960

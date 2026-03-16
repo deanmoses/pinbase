@@ -1,7 +1,7 @@
 ---
 slug: trio-5
 name: Trio
-title_slug: trio-5
+title_slug: trio-3
 ipdb_id: 6374
 manufacturer_slug: bally
 year: 1965

@@ -1,7 +1,7 @@
 ---
 slug: majors-2
 name: Majors
-title_slug: majors-2
+title_slug: majors
 ipdb_id: 3485
 manufacturer_slug: chicago-coin
 year: 1939

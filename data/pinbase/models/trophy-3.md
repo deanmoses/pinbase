@@ -1,7 +1,7 @@
 ---
 slug: trophy-3
 name: Trophy
-title_slug: trophy-3
+title_slug: trophy
 ipdb_id: 3241
 manufacturer_slug: chicago-coin
 year: 1938

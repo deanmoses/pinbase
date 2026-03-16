@@ -1,7 +1,7 @@
 ---
 slug: ocean-park-2
 name: Ocean Park
-title_slug: ocean-park-2
+title_slug: ocean-park
 ipdb_id: 3442
 manufacturer_slug: chicago-coin
 year: 1939

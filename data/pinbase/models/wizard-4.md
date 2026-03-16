@@ -1,7 +1,7 @@
 ---
 slug: wizard-4
 name: Wizard
-title_slug: wizard-3
+title_slug: wizard-2
 ipdb_id: 7010
 manufacturer_slug: headsup-pinball
 year: 2022

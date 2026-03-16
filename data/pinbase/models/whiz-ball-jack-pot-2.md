@@ -1,7 +1,7 @@
 ---
 slug: whiz-ball-jack-pot-2
 name: Whiz Ball Jack Pot
-title_slug: whiz-ball-jack-pot-2
+title_slug: whiz-ball-jack-pot
 ipdb_id: 5619
 manufacturer_slug: whiz-ball-manufacturing-company
 year: 1932

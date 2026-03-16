@@ -1,7 +1,7 @@
 ---
 slug: lucky-star-3
 name: Lucky Star
-title_slug: lucky-star-3
+title_slug: lucky-star
 ipdb_id: 6606
 manufacturer_slug: lucky-star-manufacturing-company
 year: 1932

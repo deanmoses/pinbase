@@ -1,7 +1,7 @@
 ---
 slug: speedway-3
 name: Speedway
-title_slug: speedway-3
+title_slug: speedway
 ipdb_id: 4932
 manufacturer_slug: gottlieb
 year: 1933

@@ -1,7 +1,7 @@
 ---
 slug: baseball-7
 name: Baseball
-title_slug: baseball-6
+title_slug: baseball-12
 ipdb_id: 2901
 manufacturer_slug: victory-games
 year: 1945

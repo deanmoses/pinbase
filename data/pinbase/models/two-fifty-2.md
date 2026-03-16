@@ -1,7 +1,7 @@
 ---
 slug: two-fifty-2
 name: Two Fifty
-title_slug: two-fifty-2
+title_slug: two-fifty
 ipdb_id: 4227
 manufacturer_slug: pamco
 year: 1935

@@ -1,7 +1,7 @@
 ---
 slug: de-luxe-preakness-2
 name: De Luxe Preakness
-title_slug: de-luxe-preakness-2
+title_slug: de-luxe-preakness
 ipdb_id: 6945
 manufacturer_slug: bally
 year: 1937

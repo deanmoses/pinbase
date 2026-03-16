@@ -1,7 +1,7 @@
 ---
 slug: topper-2
 name: Topper
-title_slug: topper-2
+title_slug: topper
 ipdb_id: 3462
 manufacturer_slug: chicago-coin
 year: 1939

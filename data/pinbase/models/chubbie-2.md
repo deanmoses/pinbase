@@ -1,7 +1,7 @@
 ---
 slug: chubbie-2
 name: Chubbie
-title_slug: chubbie-2
+title_slug: chubbie
 ipdb_id: 5354
 manufacturer_slug: stoner-manufacturing-company
 year: 1938

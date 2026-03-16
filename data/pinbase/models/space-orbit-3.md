@@ -1,7 +1,7 @@
 ---
 slug: space-orbit-3
 name: Space Orbit!
-title_slug: space-orbit-3
+title_slug: space-orbit-2
 ipdb_id: 5458
 manufacturer_slug: rmg
 year: 1972

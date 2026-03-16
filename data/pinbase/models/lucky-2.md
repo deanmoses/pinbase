@@ -1,7 +1,7 @@
 ---
 slug: lucky-2
 name: Lucky
-title_slug: lucky-2
+title_slug: lucky
 ipdb_id: 3221
 manufacturer_slug: chicago-coin
 year: 1939

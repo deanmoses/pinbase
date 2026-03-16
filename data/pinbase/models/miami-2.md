@@ -1,7 +1,7 @@
 ---
 slug: miami-2
 name: Miami
-title_slug: miami-2
+title_slug: miami
 ipdb_id: 3422
 manufacturer_slug: chicago-coin
 year: 1938

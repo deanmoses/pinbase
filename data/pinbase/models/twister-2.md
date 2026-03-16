@@ -1,7 +1,7 @@
 ---
 slug: twister-2
 name: Twister
-title_slug: twister-3
+title_slug: twister-2
 ipdb_id: 3351
 manufacturer_slug: exhibit
 year: 1936

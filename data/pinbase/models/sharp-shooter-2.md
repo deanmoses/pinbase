@@ -1,7 +1,7 @@
 ---
 slug: sharp-shooter-2
 name: Sharp Shooter
-title_slug: sharp-shooter-2
+title_slug: sharp-shooter
 ipdb_id: 4964
 manufacturer_slug: exhibit
 year: 1935

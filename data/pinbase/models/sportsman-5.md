@@ -1,7 +1,7 @@
 ---
 slug: sportsman-5
 name: Sportsman
-title_slug: sportsman-5
+title_slug: sportsman-4
 ipdb_id: 6920
 manufacturer_slug: o-d-jennings-and-company
 year: 1935

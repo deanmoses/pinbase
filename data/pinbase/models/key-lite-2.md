@@ -1,7 +1,7 @@
 ---
 slug: key-lite-2
 name: Key Lite
-title_slug: key-lite-2
+title_slug: key-lite
 ipdb_id: 6680
 manufacturer_slug: bally
 year: 1938

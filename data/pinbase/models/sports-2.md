@@ -1,7 +1,7 @@
 ---
 slug: sports-2
 name: Sports
-title_slug: sports-2
+title_slug: sports
 ipdb_id: 3466
 manufacturer_slug: chicago-coin
 year: 1939

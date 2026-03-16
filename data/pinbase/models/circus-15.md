@@ -1,7 +1,7 @@
 ---
 slug: circus-15
 name: Circus
-title_slug: circus-13
+title_slug: circus-2
 ipdb_id: 6750
 manufacturer_slug: brunswick
 year: 1980

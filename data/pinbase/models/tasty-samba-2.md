@@ -1,7 +1,7 @@
 ---
 slug: tasty-samba-2
 name: Tasty Samba
-title_slug: tasty-samba-2
+title_slug: tasty-samba
 ipdb_id: 5719
 manufacturer_slug: inder
 year: 1977
