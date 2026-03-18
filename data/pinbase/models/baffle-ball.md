@@ -1,7 +1,7 @@
 ---
 slug: baffle-ball
 name: Baffle Ball
-title_slug: baffle-ball-2
+title_slug: baffle-ball
 ipdb_id: 129
 manufacturer_slug: gottlieb
 year: 1931

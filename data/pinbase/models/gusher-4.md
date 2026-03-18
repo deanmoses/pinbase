@@ -3,7 +3,7 @@ slug: gusher-4
 name: Gusher
 title_slug: gusher-4
 ipdb_id: 4731
-manufacturer_slug: shyvers-coin-automatic-machine-company
+manufacturer_slug: shyvers
 year: 1934
 month: 7
 player_count: 1

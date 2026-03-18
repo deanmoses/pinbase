@@ -1,4 +1,0 @@
----
-slug: pinnovating
-name: Pinnovating
----

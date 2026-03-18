@@ -3,7 +3,7 @@ slug: full-throttle-limited-edition
 name: Full Throttle (Limited Edition)
 title_slug: full-throttle-limited-edition
 ipdb_id: 6368
-manufacturer_slug: heighway-pinball-ltd
+manufacturer_slug: heighway-pinball
 year: 2016
 player_count: 4
 technology_generation_slug: solid-state

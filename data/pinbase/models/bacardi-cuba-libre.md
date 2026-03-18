@@ -3,7 +3,7 @@ slug: bacardi-cuba-libre
 name: Bacardi Cuba Libre
 title_slug: bacardi-cuba-libre
 ipdb_id: 6219
-manufacturer_slug: heighway-pinball-ltd
+manufacturer_slug: heighway-pinball
 year: 2014
 month: 5
 player_count: 2

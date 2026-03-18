@@ -2,6 +2,8 @@
 slug: western-manufacturing-company
 name: Western Manufacturing Company
 manufacturer_slug: stern-electronics
-year_start: 1932
-year_end: 1932
+ipdb_manufacturer_id: 343
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

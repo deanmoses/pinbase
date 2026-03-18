@@ -2,5 +2,8 @@
 slug: stern-pinball-incorporated
 name: Stern Pinball, Incorporated
 manufacturer_slug: stern-pinball
-year_start: 1999
+ipdb_manufacturer_id: 303
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

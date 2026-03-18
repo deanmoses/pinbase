@@ -3,7 +3,7 @@ slug: sprint-girl
 name: Sprint Girl
 title_slug: sprint-girl
 ipdb_id: 4378
-manufacturer_slug: ami-spa
+manufacturer_slug: ami
 year: 1976
 player_count: 1
 ---

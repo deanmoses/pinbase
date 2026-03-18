@@ -1,4 +1,0 @@
----
-slug: international
-name: International
----

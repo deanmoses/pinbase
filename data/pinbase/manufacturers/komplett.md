@@ -1,4 +1,0 @@
----
-slug: komplett
-name: Komplett
----

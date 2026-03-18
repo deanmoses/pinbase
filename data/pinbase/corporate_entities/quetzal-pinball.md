@@ -2,5 +2,7 @@
 slug: quetzal-pinball
 name: Quetzal Pinball
 manufacturer_slug: quetzal
-year_start: 2015
+ipdb_manufacturer_id: 718
+headquarters_city: Murcia
+headquarters_country: Spain
 ---

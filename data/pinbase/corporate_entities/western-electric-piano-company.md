@@ -2,6 +2,8 @@
 slug: western-electric-piano-company
 name: Western Electric Piano Company
 manufacturer_slug: stern-electronics
-year_start: 1932
-year_end: 1932
+ipdb_manufacturer_id: 341
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

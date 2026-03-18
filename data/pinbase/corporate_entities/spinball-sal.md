@@ -2,6 +2,7 @@
 slug: spinball-sal
 name: Spinball S.A.L.
 manufacturer_slug: spinball
-year_start: 1995
-year_end: 1996
+ipdb_manufacturer_id: 375
+headquarters_city: Fuenlabrada
+headquarters_country: Spain
 ---

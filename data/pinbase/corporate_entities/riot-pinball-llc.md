@@ -2,6 +2,8 @@
 slug: riot-pinball-llc
 name: Riot Pinball, LLC
 manufacturer_slug: riot-pinball
-year_start: 2015
-year_end: 2015
+ipdb_manufacturer_id: 720
+headquarters_city: St. Paul
+headquarters_state: Minnesota
+headquarters_country: USA
 ---

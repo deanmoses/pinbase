@@ -1,4 +1,0 @@
----
-slug: mocean
-name: Mocean
----

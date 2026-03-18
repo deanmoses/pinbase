@@ -3,7 +3,7 @@ slug: flash-three
 name: Flash Three
 title_slug: flash-three
 ipdb_id: 6825
-manufacturer_slug: shyvers-coin-automatic-machine-company
+manufacturer_slug: shyvers
 player_count: 1
 technology_generation_slug: electromechanical
 ---

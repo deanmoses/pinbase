@@ -2,6 +2,8 @@
 slug: sega-pinball-incorporated
 name: Sega Pinball, Incorporated
 manufacturer_slug: sega
-year_start: 1994
-year_end: 1999
+ipdb_manufacturer_id: 280
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

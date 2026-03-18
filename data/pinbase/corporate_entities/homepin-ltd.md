@@ -2,6 +2,7 @@
 slug: homepin-ltd
 name: Homepin Ltd
 manufacturer_slug: homepin
-year_start: 2018
-year_end: 2018
+ipdb_manufacturer_id: 745
+headquarters_city: Shenzhen
+headquarters_country: China
 ---

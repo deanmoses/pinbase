@@ -2,6 +2,8 @@
 slug: united-manufacturing-company
 name: United Manufacturing Company
 manufacturer_slug: united
-year_start: 1942
-year_end: 1962
+ipdb_manufacturer_id: 323
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

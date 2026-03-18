@@ -2,6 +2,8 @@
 slug: wico-corporation
 name: Wico Corporation
 manufacturer_slug: wico
-year_start: 1948
-year_end: 1984
+ipdb_manufacturer_id: 347
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

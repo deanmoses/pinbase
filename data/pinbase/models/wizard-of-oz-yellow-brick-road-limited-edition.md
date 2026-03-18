@@ -3,7 +3,7 @@ slug: wizard-of-oz-yellow-brick-road-limited-edition
 name: Wizard of Oz Yellow Brick Road Limited Edition
 title_slug: wizard-of-oz-yellow-brick-road-limited-edition
 ipdb_id: 6854
-manufacturer_slug: jersey-jack-pinball-inc
+manufacturer_slug: jersey-jack
 year: 2019
 player_count: 4
 technology_generation_slug: solid-state

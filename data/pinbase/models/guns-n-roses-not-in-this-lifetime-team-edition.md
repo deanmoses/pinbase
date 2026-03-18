@@ -3,7 +3,7 @@ slug: guns-n-roses-not-in-this-lifetime-team-edition
 name: Guns N' Roses Not In This Lifetime (Team Edition)
 title_slug: guns-n-roses-not-in-this-lifetime-team-edition
 ipdb_id: 6784
-manufacturer_slug: jersey-jack-pinball-inc
+manufacturer_slug: jersey-jack
 year: 2021
 player_count: 4
 production_quantity: '10'

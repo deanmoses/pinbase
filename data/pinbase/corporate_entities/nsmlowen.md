@@ -2,6 +2,7 @@
 slug: nsmlowen
 name: NSM/Löwen
 manufacturer_slug: nsm
-year_start: 1985
-year_end: 1985
+ipdb_manufacturer_id: 225
+headquarters_city: Bingen
+headquarters_country: Germany
 ---

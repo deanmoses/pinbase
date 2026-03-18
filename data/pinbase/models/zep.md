@@ -3,7 +3,7 @@ slug: zep
 name: Zep
 title_slug: zep
 ipdb_id: 4286
-manufacturer_slug: shyvers-manufacturing-company
+manufacturer_slug: shyvers
 year: 1936
 month: 6
 player_count: 1

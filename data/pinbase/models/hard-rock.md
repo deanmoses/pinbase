@@ -3,7 +3,7 @@ slug: hard-rock
 name: Hard Rock
 title_slug: hard-rock
 ipdb_id: 6071
-manufacturer_slug: universal-kabushikigaisha
+manufacturer_slug: universal
 year: 1977
 month: 10
 player_count: 2

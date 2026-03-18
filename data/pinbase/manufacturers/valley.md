@@ -1,4 +1,0 @@
----
-slug: valley
-name: Valley
----

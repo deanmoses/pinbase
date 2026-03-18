@@ -2,6 +2,7 @@
 slug: costruzioni-elettroniche-automatiche
 name: Costruzioni Elettroniche Automatiche
 manufacturer_slug: cea
-year_start: 1977
-year_end: 1979
+ipdb_manufacturer_id: 71
+headquarters_city: Bologna
+headquarters_country: Italy
 ---

@@ -1,4 +1,0 @@
----
-slug: geiger
-name: Geiger
----

@@ -3,7 +3,7 @@ slug: alien-limited-edition-2
 name: ALIEN Limited Edition
 title_slug: alien-limited-edition
 ipdb_id: 6420
-manufacturer_slug: heighway-pinball-ltd
+manufacturer_slug: heighway-pinball
 year: 2017
 player_count: 4
 technology_generation_slug: solid-state

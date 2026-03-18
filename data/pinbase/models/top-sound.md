@@ -3,7 +3,7 @@ slug: top-sound
 name: Top Sound
 title_slug: top-sound
 ipdb_id: 4431
-manufacturer_slug: manilamatic
+manufacturer_slug: hanilamatic
 year: 1988
 player_count: 4
 technology_generation_slug: solid-state

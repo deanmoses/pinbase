@@ -2,6 +2,7 @@
 slug: joctronic-juegos-electronicos-sa
 name: Joctronic Juegos Electronicos S.A.
 manufacturer_slug: joctronic
-year_start: 1986
-year_end: 1987
+ipdb_manufacturer_id: 166
+headquarters_city: Tarragona
+headquarters_country: Spain
 ---

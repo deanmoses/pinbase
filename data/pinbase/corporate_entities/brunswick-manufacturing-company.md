@@ -2,6 +2,8 @@
 slug: brunswick-manufacturing-company
 name: Brunswick Manufacturing Company
 manufacturer_slug: brunswick
-year_start: 1932
-year_end: 1980
+ipdb_manufacturer_id: 64
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

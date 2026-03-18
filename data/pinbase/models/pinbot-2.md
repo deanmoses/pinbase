@@ -3,7 +3,7 @@ slug: pinbot-2
 name: PIN*BOT
 title_slug: pinbot-2
 ipdb_id: 4130
-manufacturer_slug: unidesacirsastargame
+manufacturer_slug: unidesa
 year: 1987
 month: 5
 player_count: 4

@@ -2,6 +2,7 @@
 slug: zaccaria
 name: Zaccaria
 manufacturer_slug: zaccaria
-year_start: 1974
-year_end: 1987
+ipdb_manufacturer_id: 356
+headquarters_city: Bologna
+headquarters_country: Italy
 ---

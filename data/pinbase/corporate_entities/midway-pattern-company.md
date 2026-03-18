@@ -2,5 +2,8 @@
 slug: midway-pattern-company
 name: Midway Pattern Company
 manufacturer_slug: midway
-year_start: 1932
+ipdb_manufacturer_id: 215
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

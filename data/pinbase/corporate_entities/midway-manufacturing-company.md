@@ -2,6 +2,8 @@
 slug: midway-manufacturing-company
 name: Midway Manufacturing Company
 manufacturer_slug: midway
-year_start: 1959
-year_end: 1978
+ipdb_manufacturer_id: 213
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

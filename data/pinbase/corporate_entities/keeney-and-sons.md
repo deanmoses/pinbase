@@ -2,6 +2,8 @@
 slug: keeney-and-sons
 name: Keeney and Sons
 manufacturer_slug: keeney
-year_start: 1931
-year_end: 1932
+ipdb_manufacturer_id: 175
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

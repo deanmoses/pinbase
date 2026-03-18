@@ -2,6 +2,7 @@
 slug: tecnoplay
 name: Tecnoplay
 manufacturer_slug: tecnoplay
-year_start: 1987
-year_end: 1989
+ipdb_manufacturer_id: 313
+headquarters_city: San Marino
+headquarters_country: Italy
 ---

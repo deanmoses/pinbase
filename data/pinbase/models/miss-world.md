@@ -4,7 +4,7 @@ name: Miss World
 title_slug: kiss
 opdb_id: G4jXr-MLexO
 ipdb_id: 3970
-manufacturer_slug: komplett
+manufacturer_slug: komplett-flipper
 year: 1985
 month: 1
 player_count: 4

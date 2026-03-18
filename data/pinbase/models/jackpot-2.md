@@ -4,7 +4,7 @@ name: Jackpot
 title_slug: jackpot
 opdb_id: G6ldP-MvB8p
 ipdb_id: 4991
-manufacturer_slug: bigliardini-elettronici-milano
+manufacturer_slug: bem
 year: 1976
 month: 1
 player_count: 1

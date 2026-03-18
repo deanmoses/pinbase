@@ -2,6 +2,8 @@
 slug: marvel-manufacturing-company
 name: Marvel Manufacturing Company
 manufacturer_slug: marvel
-year_start: 1944
-year_end: 1948
+ipdb_manufacturer_id: 206
+headquarters_city: Chicago
+headquarters_state: Illinois
+headquarters_country: USA
 ---

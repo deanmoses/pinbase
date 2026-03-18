@@ -3,7 +3,7 @@ slug: cannon-fire
 name: Cannon Fire
 title_slug: cannon-fire
 ipdb_id: 429
-manufacturer_slug: shyvers-coin-automatic-machine-company
+manufacturer_slug: shyvers
 year: 1934
 month: 7
 player_count: 1
