@@ -3,6 +3,7 @@ name: Blackout
 opdb_group_id: GRwYo
 abbreviations:
 - BO
+fandom_page_id: 1888
 ---
 
 As Chicago has been the gravitation center of pinball design and manufacturing for decades, so too have Chicago-based artists been integral to pinball art. For Blackout, Williams reached out to the painter Ed Paschke (1939–2004), who was an important member of the Chicago Imagists, a group redefining contemporary art in their own surreal style. Many Imagists were themselves influenced by pinball—as demonstrated by a 2017 exhibition at the Elmhurst Art Museum—and Paschke himself owned a Gorgar machine (Williams, 1979).

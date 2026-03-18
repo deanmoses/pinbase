@@ -24,6 +24,10 @@
     "split_from_opdb_group": {
       "type": ["string", "null"],
       "description": "OPDB group ID this title was intentionally split from"
+    },
+    "fandom_page_id": {
+      "type": ["integer", "null"],
+      "description": "Pinball Fandom wiki page ID for this title"
     }
   },
   "required": ["name"],
