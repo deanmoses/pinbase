@@ -172,5 +172,11 @@ class TestNormalizeManufacturerName:
     def test_gmbh_suffix(self):
         assert normalize_manufacturer_name("Löwen GmbH") == "löwen"
 
+    def test_incorporated_suffix(self):
+        assert normalize_manufacturer_name("Stern Pinball, Incorporated") == "stern"
+
+    def test_limited_suffix(self):
+        assert normalize_manufacturer_name("Data East Limited") == "data east"
+
     def test_preserves_core_name(self):
         assert normalize_manufacturer_name("Jersey Jack Pinball") == "jersey jack"

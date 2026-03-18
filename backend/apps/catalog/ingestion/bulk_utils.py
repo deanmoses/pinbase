@@ -42,7 +42,7 @@ def generate_unique_slug(base_name: str, existing_slugs: set[str]) -> str:
 _BUSINESS_SUFFIXES = re.compile(
     r",?\s+(?:Manufacturing|Electronics|Industries|Enterprises"
     r"|Games|Pinball|Technologies|Company|Corporation"
-    r"|Inc\.?|Ltd\.?|Co\.?|LLC|GmbH|S\.?A\.?|s\.?p\.?a\.?)"
+    r"|Incorporated|Limited|Inc\.?|Ltd\.?|Co\.?|LLC|GmbH|S\.?A\.?|s\.?p\.?a\.?)"
     r"$",
     re.IGNORECASE,
 )
