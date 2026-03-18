@@ -72,6 +72,72 @@ FROM titles AS t
 INNER JOIN opdb_groups AS g ON t.opdb_group_id = g.opdb_id;
 
 ------------------------------------------------------------
+-- Cross-source: IPDB credits missing from Pinbase
+-- Maps IPDB credit fields to pinbase person slugs via name/alias lookup,
+-- then finds credits that exist in IPDB but not in Pinbase.
+------------------------------------------------------------
+
+CREATE OR REPLACE VIEW compare_credits_ipdb AS
+WITH
+-- Build a name→slug lookup from people + aliases
+person_lookup AS (
+  SELECT slug, LOWER(name) AS lookup_name FROM people
+  UNION ALL
+  SELECT slug, LOWER(UNNEST(aliases)) FROM people WHERE aliases IS NOT NULL
+),
+-- Flatten IPDB credit fields into (IpdbId, role, person_name) rows
+ipdb_credits_raw AS (
+  SELECT IpdbId, 'Design' AS role, TRIM(UNNEST(string_split(DesignBy, ','))) AS person_name FROM ipdb_machines WHERE DesignBy <> ''
+  UNION ALL
+  SELECT IpdbId, 'Art', TRIM(UNNEST(string_split(ArtBy, ','))) FROM ipdb_machines WHERE ArtBy <> ''
+  UNION ALL
+  SELECT IpdbId, 'Dots/Animation', TRIM(UNNEST(string_split(DotsAnimationBy, ','))) FROM ipdb_machines WHERE DotsAnimationBy <> ''
+  UNION ALL
+  SELECT IpdbId, 'Mechanics', TRIM(UNNEST(string_split(MechanicsBy, ','))) FROM ipdb_machines WHERE MechanicsBy <> ''
+  UNION ALL
+  SELECT IpdbId, 'Music', TRIM(UNNEST(string_split(MusicBy, ','))) FROM ipdb_machines WHERE MusicBy <> ''
+  UNION ALL
+  SELECT IpdbId, 'Sound', TRIM(UNNEST(string_split(SoundBy, ','))) FROM ipdb_machines WHERE SoundBy <> ''
+  UNION ALL
+  SELECT IpdbId, 'Software', TRIM(UNNEST(string_split(SoftwareBy, ','))) FROM ipdb_machines WHERE SoftwareBy <> ''
+),
+-- Filter out placeholder/sentinel names
+ipdb_credits_filtered AS (
+  SELECT * FROM ipdb_credits_raw
+  WHERE LOWER(person_name) NOT IN (
+    '(undisclosed)', 'undisclosed', 'unknown', 'missing', 'null', 'undefined',
+    'n/a', 'none', 'tbd', 'tba', '?', ''
+  )
+    AND person_name NOT ILIKE '%(undisclosed)%'
+    AND person_name NOT ILIKE '%unknown%'
+),
+-- Resolve person names to slugs
+ipdb_credits AS (
+  SELECT
+    ic.IpdbId,
+    ic.role,
+    ic.person_name AS ipdb_person_name,
+    pl.slug AS person_slug
+  FROM ipdb_credits_filtered ic
+  LEFT JOIN person_lookup pl ON LOWER(ic.person_name) = pl.lookup_name
+)
+SELECT
+  m.slug AS model_slug,
+  ic.role,
+  ic.person_slug,
+  ic.ipdb_person_name,
+  ic.IpdbId
+FROM ipdb_credits ic
+JOIN models m ON m.ipdb_id = ic.IpdbId
+WHERE ic.person_slug IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM pinbase_credits pc
+    WHERE pc.model_slug = m.slug
+      AND pc.person_slug = ic.person_slug
+      AND pc.role = ic.role
+  );
+
+------------------------------------------------------------
 -- Slug quality: name faithfulness
 -- Compares each model's slug to a mechanical slugification of its name.
 -- Large edit distance or missing words signal a slug that doesn't

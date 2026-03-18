@@ -312,6 +312,42 @@ WHERE m.corporate_entity_slug IS NOT NULL
       AND ex.manufacturer_slug = mfr.slug
   );
 
+-- Duplicate person slugs
+INSERT INTO _violations
+SELECT 'duplicate_person_slug', slug
+FROM people GROUP BY slug HAVING count(*) > 1;
+
+-- Duplicate person names (different slugs, same name — the Linda bug)
+INSERT INTO _violations
+SELECT 'duplicate_person_name', p1.slug || ' & ' || p2.slug || ' = ' || p1.name
+FROM people AS p1
+JOIN people AS p2 ON LOWER(p1.name) = LOWER(p2.name) AND p1.slug < p2.slug;
+
+-- Person alias collides with another person's canonical name
+INSERT INTO _violations
+SELECT 'person_alias_collides_with_name',
+  p1.slug || ' alias "' || alias || '" matches name of ' || p2.slug
+FROM people AS p1, UNNEST(p1.aliases) AS t(alias)
+JOIN people AS p2 ON LOWER(alias) = LOWER(p2.name) AND p1.slug != p2.slug;
+
+-- Person alias collides with another person's alias
+INSERT INTO _violations
+SELECT 'person_alias_collision',
+  x.slug1 || ' & ' || x.slug2 || ' share alias "' || x.a1 || '"'
+FROM (
+  SELECT p1.slug AS slug1, p2.slug AS slug2, a1
+  FROM (SELECT slug, UNNEST(aliases) AS a1 FROM people WHERE aliases IS NOT NULL) AS p1
+  JOIN (SELECT slug, UNNEST(aliases) AS a2 FROM people WHERE aliases IS NOT NULL) AS p2
+    ON LOWER(p1.a1) = LOWER(p2.a2) AND p1.slug < p2.slug
+) AS x;
+
+-- Duplicate credit on a model (same person+role twice)
+INSERT INTO _violations
+SELECT 'duplicate_credit', model_slug || ' ' || person_slug || ' ' || role
+FROM pinbase_credits
+GROUP BY model_slug, person_slug, role HAVING count(*) > 1;
+
+
 -- Source dump integrity: every OPDB record must have an opdb_id
 INSERT INTO _violations
 SELECT 'opdb_record_missing_id', name
@@ -351,8 +387,113 @@ INSERT INTO _warnings
 SELECT 'conversion_without_source', count(*)
 FROM models WHERE is_conversion AND converted_from IS NULL;
 
+-- Pinbase credit count must match IPDB credit count for each model
+-- (IPDB credits resolved through person name/alias lookup, excluding sentinels)
+INSERT INTO _violations
+SELECT 'credit_count_mismatch_ipdb',
+  m.slug || ' pinbase=' || COALESCE(pb.cnt, 0) || ' ipdb=' || ipdb.cnt
+FROM models AS m
+JOIN (
+  SELECT ic.IpdbId, count(*) AS cnt
+  FROM (
+    SELECT IpdbId, TRIM(UNNEST(string_split(DesignBy, ','))) AS person_name FROM ipdb_machines WHERE DesignBy <> ''
+    UNION ALL
+    SELECT IpdbId, TRIM(UNNEST(string_split(ArtBy, ','))) FROM ipdb_machines WHERE ArtBy <> ''
+    UNION ALL
+    SELECT IpdbId, TRIM(UNNEST(string_split(DotsAnimationBy, ','))) FROM ipdb_machines WHERE DotsAnimationBy <> ''
+    UNION ALL
+    SELECT IpdbId, TRIM(UNNEST(string_split(MechanicsBy, ','))) FROM ipdb_machines WHERE MechanicsBy <> ''
+    UNION ALL
+    SELECT IpdbId, TRIM(UNNEST(string_split(MusicBy, ','))) FROM ipdb_machines WHERE MusicBy <> ''
+    UNION ALL
+    SELECT IpdbId, TRIM(UNNEST(string_split(SoundBy, ','))) FROM ipdb_machines WHERE SoundBy <> ''
+    UNION ALL
+    SELECT IpdbId, TRIM(UNNEST(string_split(SoftwareBy, ','))) FROM ipdb_machines WHERE SoftwareBy <> ''
+  ) AS ic
+  WHERE LOWER(ic.person_name) NOT IN (
+    '(undisclosed)', 'undisclosed', 'unknown', 'missing', 'null', 'undefined',
+    'n/a', 'none', 'tbd', 'tba', '?', ''
+  )
+    AND ic.person_name NOT ILIKE '%(undisclosed)%'
+    AND ic.person_name NOT ILIKE '%unknown%'
+  GROUP BY ic.IpdbId
+) AS ipdb ON m.ipdb_id = ipdb.IpdbId
+LEFT JOIN (
+  SELECT model_slug, count(*) AS cnt
+  FROM pinbase_credits
+  GROUP BY model_slug
+) AS pb ON pb.model_slug = m.slug
+WHERE COALESCE(pb.cnt, 0) <> ipdb.cnt;
+
+-- People with no credits (orphaned person records)
+INSERT INTO _violations
+SELECT 'person_without_credits', p.slug
+FROM people AS p
+WHERE NOT EXISTS (SELECT 1 FROM pinbase_credits AS c WHERE c.person_slug = p.slug);
+
+-- Person alias duplicated on same person
+INSERT INTO _violations
+SELECT 'duplicate_person_alias', slug || ' alias "' || a || '"'
+FROM (
+  SELECT slug, UNNEST(aliases) AS a
+  FROM people WHERE aliases IS NOT NULL
+)
+GROUP BY slug, a HAVING count(*) > 1;
+
+-- Slugs ending in a number (likely a dedup failure, e.g. linda-deal-2)
+INSERT INTO _violations
+SELECT 'person_slug_numbered_suffix', slug
+FROM people WHERE slug ~ '-\d+$';
+
+INSERT INTO _violations
+SELECT 'manufacturer_slug_numbered_suffix', slug
+FROM manufacturers WHERE slug ~ '-\d+$';
+
+INSERT INTO _violations
+SELECT 'ce_slug_numbered_suffix', slug
+FROM corporate_entities WHERE slug ~ '-\d+$';
+
+-- Person alias matches own canonical name (redundant)
+INSERT INTO _violations
+SELECT 'person_alias_matches_own_name', p.slug || ' alias "' || alias || '"'
+FROM people AS p, UNNEST(p.aliases) AS t(alias)
+WHERE LOWER(alias) = LOWER(p.name);
+
+-- IPDB person name does not resolve to any Pinbase person
+-- (excludes sentinel values like Undisclosed, Unknown, etc.)
+INSERT INTO _violations
+SELECT 'ipdb_person_unresolved', ic.person_name || ' (' || count(*) || ' credits)'
+FROM (
+  SELECT TRIM(UNNEST(string_split(DesignBy, ','))) AS person_name FROM ipdb_machines WHERE DesignBy <> ''
+  UNION ALL
+  SELECT TRIM(UNNEST(string_split(ArtBy, ','))) FROM ipdb_machines WHERE ArtBy <> ''
+  UNION ALL
+  SELECT TRIM(UNNEST(string_split(DotsAnimationBy, ','))) FROM ipdb_machines WHERE DotsAnimationBy <> ''
+  UNION ALL
+  SELECT TRIM(UNNEST(string_split(MechanicsBy, ','))) FROM ipdb_machines WHERE MechanicsBy <> ''
+  UNION ALL
+  SELECT TRIM(UNNEST(string_split(MusicBy, ','))) FROM ipdb_machines WHERE MusicBy <> ''
+  UNION ALL
+  SELECT TRIM(UNNEST(string_split(SoundBy, ','))) FROM ipdb_machines WHERE SoundBy <> ''
+  UNION ALL
+  SELECT TRIM(UNNEST(string_split(SoftwareBy, ','))) FROM ipdb_machines WHERE SoftwareBy <> ''
+) AS ic
+LEFT JOIN (
+  SELECT LOWER(name) AS lookup_name FROM people
+  UNION ALL
+  SELECT LOWER(UNNEST(aliases)) FROM people WHERE aliases IS NOT NULL
+) AS pl ON LOWER(ic.person_name) = pl.lookup_name
+WHERE pl.lookup_name IS NULL
+  AND LOWER(ic.person_name) NOT IN (
+    '(undisclosed)', 'undisclosed', 'unknown', 'missing', 'null', 'undefined',
+    'n/a', 'none', 'tbd', 'tba', '?', ''
+  )
+  AND ic.person_name NOT ILIKE '%(undisclosed)%'
+  AND ic.person_name NOT ILIKE '%unknown%'
+GROUP BY ic.person_name;
+
 ------------------------------------------------------------
--- Report
+-- Soft warnings (data quality)
 ------------------------------------------------------------
 
 SELECT 'WARNING: ' || check_name || ' (' || cnt || ' rows)'
