@@ -134,17 +134,6 @@ def _check_cross_references(records: list[PinbaseRecord]) -> list[str]:
             if ts not in tag_slugs:
                 errors.append(f"{r.file_path}: tag_slug '{ts}' not found in tags/")
 
-    # Check title model_slugs → model.
-    model_slugs = slugs_by_type.get("model", set())
-    for r in records:
-        if r.entity_type != "title":
-            continue
-        for ms in r.frontmatter.get("model_slugs", []):
-            if ms not in model_slugs:
-                errors.append(
-                    f"{r.file_path}: model_slug '{ms}' not found in models/"
-                )
-
     # Check credit_refs person_slug → person.
     person_slugs = slugs_by_type.get("person", set())
     for r in records:

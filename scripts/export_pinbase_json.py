@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Export data/pinbase/**/*.md to JSON files for DuckDB consumption.
+"""Export data/pinbase/**/*.md to JSON files.
 
 Reads all Markdown records via the shared loader and writes normalized
-JSON arrays to data/explore/pinbase_export/. DuckDB views in 01_raw.sql
-read these files alongside the existing data/*.json and dump1/ files.
+JSON arrays to data/explore/pinbase_export/. These files serve two
+consumers:
+
+- Django ingest_pinbase command (canonical ingest path, with field
+  mapping applied at ingest time)
+- DuckDB views in 01_raw.sql (exploration/comparison)
 
 Usage:
     python scripts/export_pinbase_json.py

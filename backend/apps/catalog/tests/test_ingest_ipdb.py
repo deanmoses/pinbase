@@ -41,7 +41,6 @@ class TestIngestIpdb:
         claim_fields = set(active_claims.values_list("field_name", flat=True))
         assert "name" in claim_fields
         assert "year" in claim_fields
-        assert "manufacturer" in claim_fields
         assert "technology_generation" in claim_fields
         assert "ipdb_rating" in claim_fields
 

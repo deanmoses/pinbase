@@ -265,7 +265,8 @@ That means:
 
 - Pinbase files are not replacing the claims system.
 - Pinbase files are the highest-authority authored input to the claims system.
-- OPDB and IPDB still ingest separately as their own `Source` records, but only for non-relational fact claims.
+- OPDB still ingests as its own `Source`, narrowed to non-relational scalar claims only.
+- IPDB still ingests as its own `Source` for scalar claims plus relationship claims (themes, gameplay features, credits) that provide bulk coverage at lower priority.
 
 ## Non-Negotiable Provenance Rule
 
@@ -282,37 +283,74 @@ But those ingests should be narrowed aggressively.
 
 Pinbase should absorb OPDB/IPDB facts into its own authored files for canonical runtime use. At the same time, Pinbase should keep OPDB/IPDB claims as a comparison layer for straightforward facts.
 
-### External claims should remain for non-relational fields only
+### External claims: what stays, what goes
 
-Phase-one allowlist:
+Now that Pinbase Markdown records carry `opdb_id` and `ipdb_id`, matching external records to Pinbase entities is reliable. This changes the cost/benefit calculus for some relationship claims that the original plan proposed stripping.
+
+#### OPDB claim allowlist
+
+OPDB continues to assert claims for non-relational scalar fields only:
 
 - `name`
 - `manufacturer`
 - `year`
 - `month`
 - `player_count`
-- `display_type`
-- `display_subtype`
 - `technology_generation`
-- `technology_subgeneration`
-- `system`
+- `display_type`
 - `cabinet`
-- `game_format`
 - `production_quantity`
 - `flipper_count`
+- `opdb_id`
+- `abbreviation` (on titles, from shortname — additive, non-conflicting)
+
+OPDB stops asserting:
+
+- `title` (model→title linkage) — Pinbase owns title grouping via Markdown files with `opdb_group_id`
+- `variant_of` — Pinbase owns variant relationships via Markdown model files
+- Title creation from groups — Pinbase owns all Title records
+- All non-physical group promotion, alias classification, and chain-collapse heuristics
+
+This is the biggest simplification: the alias-driven relationship inference in `ingest_opdb.py` can be removed entirely.
+
+#### IPDB claim allowlist
+
+IPDB continues to assert claims for non-relational scalar fields, **plus** several relationship types that provide high-value coverage Pinbase cannot easily replicate:
+
+Non-relational (unchanged):
+
+- `name`
+- `manufacturer`
+- `year`
+- `month`
+- `player_count`
+- `production_quantity`
 - `ipdb_rating`
 - `ipdb_id`
-- `opdb_id`
+- `technology_generation`
+- `system`
 - `abbreviation`
 
-These are the fields Pinbase still ingests from OPDB/IPDB as comparison claims in phase one.
+Relationship claims **kept from IPDB**:
 
-Explicitly not included in this allowlist:
+- `theme` — IPDB is the only bulk source of theme data. Pinbase can override individual machines at priority 300.
+- `gameplay_feature` — same rationale as themes; decent parsing, useful coverage.
+- `credit` (+ Person creation) — IPDB provides thousands of credit rows across 585+ people. Pinbase Markdown has credits for ~389 models from Phase 2; IPDB fills the remaining coverage. Pinbase `credit_refs` assert at priority 300 and win when present.
 
-- any relationship-shaping field
-- themes, gameplay features, tags, and credits
-- source-specific prose and note fields
-- source-specific keyword or feature buckets that are better treated as raw evidence than normalized runtime claims
+IPDB also continues to create CorporateEntity and Address records (founding years, locations) — useful data that's hard to replicate manually.
+
+#### Pinbase ingest must wire up relationship claims
+
+For the priority-300 override to work, Pinbase model ingest needs to assert claims for fields it currently only stores in frontmatter:
+
+- `credit_refs` → credit relationship claims
+- `tag_slugs` → tag relationship claims
+- Model-level themes (if/when added to the Markdown schema)
+
+#### Explicitly not ingested from any external source
+
+- source-specific prose and note fields (stored as extra data, not claims)
+- source-specific keyword or feature buckets that don't map cleanly to Pinbase taxonomy
 
 ### Images remain a separate attributed ingest path
 
@@ -325,9 +363,9 @@ That means:
 - image ingest should not participate in relationship resolution
 - image ingest can be simplified independently of fact/relationship ingest
 
-### External claims should stop shaping the runtime graph
+### OPDB must stop shaping the runtime graph
 
-Do not let OPDB/IPDB ingest define or infer:
+Do not let OPDB ingest define or infer:
 
 - title grouping
 - alias-driven `variant_of`
@@ -336,20 +374,26 @@ Do not let OPDB/IPDB ingest define or infer:
 - remake relationships
 - canonical title membership
 - franchise/series relationships
-- any other graph-shaping relationship that Pinbase intends to own editorially
 
-In practice, this means the biggest simplification target is OPDB groups/aliases and the relationship inference built around them.
+In practice, this means the biggest simplification target is OPDB groups/aliases and the relationship inference built around them. The non-physical group promotion, alias classification, and chain-collapse logic can all be removed.
 
-If Pinbase wants to "own all the facts" operationally, the right meaning is:
+Raw OPDB relationship data (groups, aliases) should live only in compare-oriented DuckDB tables and related exploration artifacts. It should not be ingested into runtime catalog claims.
 
-- Pinbase keeps its own raw snapshots
-- Pinbase stores canonical authored records for runtime use
-- Pinbase can rebuild the runtime DB locally
-- Pinbase still preserves OPDB/IPDB claims for research and comparison
+### IPDB relationship claims are welcome at lower priority
 
-It should not mean letting OPDB's editorial structure keep overriding or complicating Pinbase's own graph.
+IPDB relationship claims (themes, gameplay features, credits) are valuable bulk data that Pinbase cannot easily replicate. They are ingested at IPDB's source priority and Pinbase editorial claims override them at priority 300 when present.
 
-Raw external relationship data such as OPDB groups and aliases should live only in compare-oriented DuckDB tables and related exploration artifacts. It should not be ingested into runtime catalog claims, even in suppressed form.
+The key distinction: IPDB relationship claims are additive enrichment data with clean parsing and straightforward semantics. OPDB relationship claims are editorial structure (groups, aliases, variant classification) that conflicts with Pinbase's own graph design.
+
+### Pinbase owns the graph shape
+
+Regardless of which external claims survive, Pinbase is the authority for:
+
+- title grouping (which models belong to which title)
+- variant/remake/conversion relationships
+- franchise and series membership
+- tags
+- any editorial corrections to IPDB themes, features, or credits
 
 ## DuckDB's Role
 
@@ -434,7 +478,7 @@ Person files should contain:
 - name
 - aliases
 - birth/death data when available
-- hometown or geography when available
+- hometown/address or geography when available
 - biography body
 
 ### Manufacturers
@@ -625,25 +669,34 @@ Steps:
 
 This phase is iterative — export, explore, fix, re-export — until the Markdown layer is trustworthy.
 
-### Phase 6: Narrow OPDB/IPDB ingest
+### Phase 6: Narrow OPDB ingest, keep IPDB relationships
 
 Only safe after Phase 5, when the Markdown layer has been verified via DuckDB comparison.
 
 Changes to `ingest_opdb.py`:
 
 - stop asserting claims for: `variant_of`, `converted_from`, `is_conversion`, `title`, `clone_of`, and any other relationship-shaping fields
+- stop creating Title records from groups (Pinbase owns all titles)
 - stop running non-physical group heuristics and alias-driven relationship classification
-- keep asserting claims for the non-relational allowlist fields only
+- remove the three-way variant/clone/conversion classification, chain-collapse logic, and `models.json` override plumbing
+- keep asserting claims for the OPDB scalar allowlist fields only
 - keep image ingest unchanged
 - keep OPDB group/alias data flowing into DuckDB exploration views for comparison
 
 Changes to `ingest_ipdb.py`:
 
-- stop asserting claims for: credits, themes, gameplay features, tags
-- keep asserting claims for the non-relational allowlist fields only
+- **keep** theme, gameplay feature, and credit relationship claims (these provide bulk coverage Pinbase can selectively override at priority 300)
+- keep asserting claims for the IPDB scalar allowlist fields
+- keep CorporateEntity and Address creation
 - keep image ingest unchanged
 
-This is the biggest simplification target. The non-physical group heuristics, three-way variant/clone/conversion classification, chain-collapse logic, and models.json override plumbing in `ingest_opdb.py` can all be removed.
+Changes to Pinbase model ingest (`ingest_pinbase_models.py`):
+
+- wire up `credit_refs` from Markdown frontmatter as priority-300 credit relationship claims
+- wire up `tag_slugs` from Markdown frontmatter as priority-300 tag relationship claims
+- this ensures Pinbase editorial data wins over IPDB when both sources have data for the same model
+
+The biggest simplification target remains OPDB: the non-physical group promotion, alias-driven relationship inference, and `models.json` override machinery can all be removed.
 
 ### Phase 7: Validation and checks
 
@@ -651,7 +704,8 @@ Extend the current validation approach with provenance-focused checks:
 
 - if a Pinbase record references an OPDB or IPDB ID, that ID should be discoverable in the raw dumps or runtime source tables
 - if Pinbase overrides a field already imported from OPDB/IPDB, the override is visible as a higher-priority editorial claim
-- if OPDB/IPDB still assert any relationship-shaping claim field, fail validation
+- if OPDB still asserts any relationship-shaping claim field (title, variant_of, etc.), fail validation
+- IPDB relationship claims (themes, gameplay features, credits) are expected and should not trigger validation failures
 - if runtime relationships differ from OPDB/IPDB relationship data, expose that as an intentional divergence report rather than a catalog error
 
 Basic structural checks (slug uniqueness, cross-references, chained variants, filename/slug match, OPDB ID uniqueness) are already implemented in `scripts/validate_pinbase_records.py`.
@@ -769,17 +823,17 @@ At a high level, the new orchestration should be:
 
 Actual file counts after Phase 3 generation:
 
-| Entity | Files |
-| --- | --- |
-| Models | 6,829 |
-| Titles | 6,224 |
-| Manufacturers | 774 |
-| Themes | 597 |
-| People | 585 |
-| Franchises | 128 |
-| Corporate Entities | 90 |
-| Systems | 73 |
-| Taxonomy (all types) | 78 |
+| Entity               | Files |
+| -------------------- | ----- |
+| Models               | 6,829 |
+| Titles               | 6,224 |
+| Manufacturers        | 774   |
+| Themes               | 597   |
+| People               | 585   |
+| Franchises           | 128   |
+| Corporate Entities   | 90    |
+| Systems              | 73    |
+| Taxonomy (all types) | 78    |
 
 Total: 15,366 files across 18 directories. Each individual file fits comfortably in an AI context window. Git handles this file count trivially.
 

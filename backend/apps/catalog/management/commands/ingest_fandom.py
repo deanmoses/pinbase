@@ -7,7 +7,7 @@ Fetches (or loads from local dumps) three categories of data:
 - **Persons** (Category:People) — creates missing ``Person`` records and asserts
   a ``bio`` claim from the page's prose stub.
 - **Manufacturers** (Category:Manufacturers) — asserts structured claims
-  (founded_year, dissolved_year, headquarters, website, description) for
+  (year_start, year_end, headquarters, website, description) for
   matched ``Manufacturer`` records.
 
 Usage::
@@ -518,9 +518,8 @@ def _collect_manufacturer_claims(
     # (it resets all resolvable fields before applying winning claims).
     add("name", fm.title)
     add("fandom.description", fm.description)
-    add("founded_year", fm.founded_year)
-    add("dissolved_year", fm.dissolved_year)
-    add("headquarters", fm.headquarters)
     add("website", fm.website)
+    # year_start, year_end, headquarters are now on CorporateEntity.
+    # TODO: Fandom ingest should create CE claims instead of Manufacturer claims.
 
     return claims

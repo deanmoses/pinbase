@@ -17,7 +17,6 @@ from ..models import (
     DisplayType,
     GameFormat,
     MachineModel,
-    Manufacturer,
     System,
     TechnologyGeneration,
     TechnologySubgeneration,
@@ -61,7 +60,6 @@ class FKFieldSpec:
 
 FK_FIELDS: dict[str, FKFieldSpec] = {
     "title": FKFieldSpec("title", Title, "slug"),
-    "manufacturer": FKFieldSpec("manufacturer", Manufacturer, "slug"),
     "system": FKFieldSpec("system", System, "slug"),
     "technology_generation": FKFieldSpec(
         "technology_generation", TechnologyGeneration, "slug"

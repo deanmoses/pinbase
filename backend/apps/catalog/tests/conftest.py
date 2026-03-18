@@ -2,6 +2,7 @@ import pytest
 from django.test import Client
 
 from apps.catalog.models import (
+    CorporateEntity,
     CreditRole,
     MachineModel,
     Manufacturer,
@@ -36,12 +37,12 @@ def source(db):
 
 @pytest.fixture
 def manufacturer(db):
-    return Manufacturer.objects.create(name="Williams", trade_name="Williams")
+    return Manufacturer.objects.create(name="Williams")
 
 
 @pytest.fixture
 def stern(db):
-    return Manufacturer.objects.create(name="Stern", trade_name="Stern")
+    return Manufacturer.objects.create(name="Stern")
 
 
 @pytest.fixture
@@ -72,10 +73,28 @@ def solid_state(db):
 
 
 @pytest.fixture
-def machine_model(db, manufacturer, solid_state):
+def williams_entity(db, manufacturer):
+    return CorporateEntity.objects.create(
+        name="Williams Electronics",
+        slug="williams-electronics",
+        manufacturer=manufacturer,
+    )
+
+
+@pytest.fixture
+def stern_entity(db, stern):
+    return CorporateEntity.objects.create(
+        name="Stern Pinball, Inc.",
+        slug="stern-pinball-inc",
+        manufacturer=stern,
+    )
+
+
+@pytest.fixture
+def machine_model(db, williams_entity, solid_state):
     pm = MachineModel.objects.create(
         name="Medieval Madness",
-        manufacturer=manufacturer,
+        corporate_entity=williams_entity,
         year=1997,
         technology_generation=solid_state,
     )
@@ -85,10 +104,10 @@ def machine_model(db, manufacturer, solid_state):
 
 
 @pytest.fixture
-def another_model(db, stern, solid_state):
+def another_model(db, stern_entity, solid_state):
     return MachineModel.objects.create(
         name="The Mandalorian",
-        manufacturer=stern,
+        corporate_entity=stern_entity,
         year=2021,
         technology_generation=solid_state,
     )

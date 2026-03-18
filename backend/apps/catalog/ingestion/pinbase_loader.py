@@ -435,6 +435,7 @@ def load_corporate_entities_as_dicts(*, pinbase_dir: Path | None = None) -> list
     for r in iter_corporate_entities(pinbase_dir=pinbase_dir, validate=False):
         fm = r.frontmatter
         d: dict = {
+            "slug": fm.get("slug"),
             "manufacturer_slug": fm.get("manufacturer_slug"),
             "name": fm.get("name"),
             "year_start": fm.get("year_start"),

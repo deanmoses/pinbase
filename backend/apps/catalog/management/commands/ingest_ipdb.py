@@ -289,10 +289,15 @@ class Command(BaseCommand):
 
         # Manufacturer resolver (shared lookup + auto-create-on-miss).
         resolver = ManufacturerResolver()
-        # Cache CE→CorporateEntity for address creation (IPDB-specific).
-        ce_by_name: dict[str, CorporateEntity] = {
-            ce.name.lower(): ce for ce in CorporateEntity.objects.all()
+        # Cache CEs for lookup: first by IPDB manufacturer ID, then by name.
+        all_ces = list(CorporateEntity.objects.select_related("manufacturer").all())
+        ce_by_ipdb_id: dict[int, CorporateEntity] = {
+            ce.ipdb_manufacturer_id: ce
+            for ce in all_ces
+            if ce.ipdb_manufacturer_id is not None
         }
+        ce_by_name: dict[str, CorporateEntity] = {ce.name.lower(): ce for ce in all_ces}
+        ce_slugs: set[str] = {ce.slug for ce in all_ces}
 
         with open(ipdb_path) as f:
             data = json.load(f)
@@ -387,7 +392,9 @@ class Command(BaseCommand):
                 mpu_to_slug,
                 unknown_mpu_strings,
                 resolver,
+                ce_by_ipdb_id,
                 ce_by_name,
+                ce_slugs,
             )
 
         if unknown_mpu_strings:
@@ -432,7 +439,9 @@ class Command(BaseCommand):
         mpu_to_slug: dict[str, str],
         unknown_mpu_strings: set[str],
         resolver: ManufacturerResolver,
+        ce_by_ipdb_id: dict[int, CorporateEntity],
         ce_by_name: dict[str, CorporateEntity],
+        ce_slugs: set[str],
     ) -> None:
         """Collect claims, credits, theme slugs, and feature slugs for a single IPDB record."""
         # Collect claims for mapped fields.
@@ -476,7 +485,8 @@ class Command(BaseCommand):
                         )
                     )
 
-        # Manufacturer: resolve at ingest time to a slug claim.
+        # IPDB "manufacturer" is really a corporate entity with an optional
+        # trade name (brand).  Process CE first, then derive the manufacturer.
         mfr_id = rec.manufacturer_id
         raw_mfr = rec.manufacturer
         if mfr_id and mfr_id not in IPDB_SKIP_MANUFACTURER_IDS and raw_mfr:
@@ -485,38 +495,74 @@ class Command(BaseCommand):
             trade = parsed["trade_name"]
             location = parsed["location"]
 
-            # 3-priority resolution cascade (matches DuckDB view).
-            slug = (
-                resolver.resolve_entity(company)
-                or (trade and resolver.resolve(trade))
-                or resolver.resolve(company)
-            )
+            # --- Step 1: Find or create CorporateEntity ---
+            # Priority: match by IPDB manufacturer ID first, then by name.
+            ce = ce_by_ipdb_id.get(mfr_id) or ce_by_name.get(company.lower())
+            if ce:
+                if ce.ipdb_manufacturer_id is None:
+                    # CE matched by name but lacks IPDB ID — backfill it.
+                    ce.ipdb_manufacturer_id = mfr_id
+                    ce.save(update_fields=["ipdb_manufacturer_id"])
+                    ce_by_ipdb_id[mfr_id] = ce
+            else:
+                # Parse years_active "YYYY-YYYY" into founded/dissolved.
+                year_start = None
+                year_end = None
+                ya = parsed["years_active"]
+                if ya:
+                    parts = ya.split("-")
+                    try:
+                        year_start = int(parts[0])
+                        if len(parts) > 1 and parts[1] != "present":
+                            year_end = int(parts[1])
+                    except ValueError:
+                        raise CommandError(
+                            f"Cannot parse years_active {ya!r} for IPDB manufacturer {company!r}"
+                        )
 
-            if not slug:
+                # Resolve manufacturer (brand) — trade name first, then company name.
                 display_name = trade or company
-                slug = resolver.resolve_or_create(display_name, trade_name=trade or "")
+                slug = (
+                    (trade and resolver.resolve(trade))
+                    or resolver.resolve_entity(company)
+                    or resolver.resolve(company)
+                )
+                if not slug:
+                    slug = resolver.resolve_or_create(display_name)
+                mfr = resolver.get_by_slug(slug)
 
+                ce_slug = generate_unique_slug(company, ce_slugs)
+                ce = CorporateEntity.objects.create(
+                    manufacturer=mfr,
+                    slug=ce_slug,
+                    name=company,
+                    ipdb_manufacturer_id=mfr_id,
+                    year_start=year_start,
+                    year_end=year_end,
+                )
+                ce_by_ipdb_id[mfr_id] = ce
+                ce_by_name[company.lower()] = ce
+
+            # --- Step 2: Derive manufacturer claim from the CE's manufacturer ---
             pending_claims.append(
                 Claim(
                     content_type_id=ct_id,
                     object_id=pm.pk,
                     field_name="manufacturer",
-                    value=slug,
+                    value=ce.manufacturer.slug,
                 )
             )
 
-            # Create address on matched CE when location is available.
+            # --- Step 3: Create address on CE when location is available ---
             if location:
-                ce = ce_by_name.get(company.lower())
-                if ce:
-                    addr = parse_ipdb_location(location)
-                    if addr["city"] or addr["state"] or addr["country"]:
-                        Address.objects.get_or_create(
-                            corporate_entity=ce,
-                            city=addr["city"],
-                            state=addr["state"],
-                            country=addr["country"],
-                        )
+                addr = parse_ipdb_location(location)
+                if addr["city"] or addr["state"] or addr["country"]:
+                    Address.objects.get_or_create(
+                        corporate_entity=ce,
+                        city=addr["city"],
+                        state=addr["state"],
+                        country=addr["country"],
+                    )
 
         # MPU: emit 'system' slug claim if known, else collect for deferred error.
         # Normalize U+FFFD (replacement char from IPDB encoding issues) before lookup.
