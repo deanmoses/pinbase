@@ -147,6 +147,10 @@ class Migration(migrations.Migration):
                         fields=["field_name", "is_active"],
                         name="provenance__field_n_5deecd_idx",
                     ),
+                    models.Index(
+                        fields=["source", "is_active"],
+                        name="provenance__source__ad9766_idx",
+                    ),
                 ],
                 "constraints": [
                     models.CheckConstraint(

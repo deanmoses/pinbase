@@ -13,6 +13,7 @@ from apps.provenance.models import Claim
 
 from ..models import (
     Cabinet,
+    CorporateEntity,
     DisplaySubtype,
     DisplayType,
     GameFormat,
@@ -71,6 +72,7 @@ FK_FIELDS: dict[str, FKFieldSpec] = {
     "display_subtype": FKFieldSpec("display_subtype", DisplaySubtype, "slug"),
     "cabinet": FKFieldSpec("cabinet", Cabinet, "slug"),
     "game_format": FKFieldSpec("game_format", GameFormat, "slug"),
+    "corporate_entity": FKFieldSpec("corporate_entity", CorporateEntity, "slug"),
     "variant_of": FKFieldSpec("variant_of", MachineModel, "slug"),
     "converted_from": FKFieldSpec("converted_from", MachineModel, "slug"),
 }

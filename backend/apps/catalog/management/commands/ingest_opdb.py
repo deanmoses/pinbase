@@ -252,6 +252,23 @@ class Command(BaseCommand):
                 f"(variant_of/title/manufacturer)"
             )
 
+        # Log OPDB manufacturers not represented in pinbase.
+        from apps.catalog.models import Manufacturer
+
+        pinbase_opdb_mfr_ids = set(
+            Manufacturer.objects.filter(opdb_manufacturer_id__isnull=False).values_list(
+                "opdb_manufacturer_id", flat=True
+            )
+        )
+        opdb_mfr_ids = {
+            rec.manufacturer_id for rec in machines if rec.manufacturer_id is not None
+        }
+        missing_mfr_count = len(opdb_mfr_ids - pinbase_opdb_mfr_ids)
+        if missing_mfr_count:
+            self.stdout.write(
+                f"  {missing_mfr_count} OPDB manufacturer(s) not in pinbase"
+            )
+
         self.stdout.write(self.style.SUCCESS("OPDB ingestion complete."))
 
     # ------------------------------------------------------------------

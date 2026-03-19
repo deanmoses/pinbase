@@ -910,6 +910,7 @@ class Command(BaseCommand):
     MODEL_CLAIM_FIELDS = {
         "name": "name",
         "title": "title_slug",
+        "corporate_entity": "corporate_entity_slug",
         "year": "year",
         "month": "month",
         "player_count": "player_count",
@@ -923,6 +924,8 @@ class Command(BaseCommand):
         "system": "system_slug",
         "game_format": "game_format_slug",
         "description": "description",
+        "ipdb_id": "ipdb_id",
+        "opdb_id": "opdb_id",
         "is_conversion": "is_conversion",
         "converted_from": "converted_from",
         "variant_of": "variant_of",

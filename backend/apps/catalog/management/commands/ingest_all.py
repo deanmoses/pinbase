@@ -32,7 +32,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--ipdb",
-            default="../data/dump1/ipdbdatabase.json",
+            default="../data/dump1/ipdb_xantari.json",
             help="Path to IPDB JSON dump.",
         )
         parser.add_argument(
