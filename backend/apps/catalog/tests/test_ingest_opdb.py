@@ -16,7 +16,11 @@ FIXTURES = "apps/catalog/tests/fixtures"
 @pytest.fixture
 def _setup_ipdb_first(db):
     """Seed IPDB data so OPDB can match by ipdb_id."""
-    call_command("ingest_ipdb", ipdb=f"{FIXTURES}/ipdb_sample.json")
+    call_command(
+        "ingest_ipdb",
+        ipdb=f"{FIXTURES}/ipdb_sample.json",
+        export_dir=FIXTURES,
+    )
 
 
 @pytest.fixture
