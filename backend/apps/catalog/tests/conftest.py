@@ -45,23 +45,25 @@ def stern(db):
     return Manufacturer.objects.create(name="Stern")
 
 
+_CREDIT_ROLES = [
+    {"slug": "animation", "name": "Dots/Animation", "display_order": 40},
+    {"slug": "art", "name": "Art", "display_order": 30},
+    {"slug": "concept", "name": "Concept", "display_order": 20},
+    {"slug": "design", "name": "Design", "display_order": 10},
+    {"slug": "mechanics", "name": "Mechanics", "display_order": 50},
+    {"slug": "music", "name": "Music", "display_order": 60},
+    {"slug": "other", "name": "Other", "display_order": 100},
+    {"slug": "software", "name": "Software", "display_order": 90},
+    {"slug": "sound", "name": "Sound", "display_order": 70},
+    {"slug": "voice", "name": "Voice", "display_order": 80},
+]
+
+
 @pytest.fixture
 def credit_roles(db):
     """Seed all credit roles for tests that need them."""
-    import json
-    from pathlib import Path
-
-    data = json.loads(
-        (
-            Path(__file__).parents[4]
-            / "data"
-            / "ingest_sources"
-            / "pinbase_export"
-            / "credit_role.json"
-        ).read_text()
-    )
     return CreditRole.objects.bulk_create(
-        [CreditRole(**entry) for entry in data],
+        [CreditRole(**entry) for entry in _CREDIT_ROLES],
         update_conflicts=True,
         unique_fields=["slug"],
         update_fields=["name", "display_order"],
