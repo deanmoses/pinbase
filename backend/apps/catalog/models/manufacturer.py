@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
+from django.db.models.functions import Lower
 
 from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
 
-__all__ = ["Manufacturer", "CorporateEntity", "Address"]
+__all__ = ["Manufacturer", "ManufacturerAlias", "CorporateEntity", "Address"]
 
 
 class Manufacturer(Linkable, TimeStampedModel):
@@ -54,6 +55,29 @@ class Manufacturer(Linkable, TimeStampedModel):
         if not self.slug:
             self.slug = unique_slug(self, self.name, "manufacturer")
         super().save(*args, **kwargs)
+
+
+class ManufacturerAlias(TimeStampedModel):
+    """An alternate name for a Manufacturer, used to match variant spellings
+    from external sources.
+    """
+
+    manufacturer = models.ForeignKey(
+        Manufacturer, on_delete=models.CASCADE, related_name="aliases"
+    )
+    value = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ["value"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("value"),
+                name="catalog_unique_manufacturer_alias_lower",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class CorporateEntity(TimeStampedModel):

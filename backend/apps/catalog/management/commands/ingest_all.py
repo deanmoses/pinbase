@@ -92,7 +92,6 @@ class Command(BaseCommand):
                         kwargs["export_dir"] = export_dir
                     elif step == "ingest_ipdb":
                         kwargs["ipdb"] = ipdb_path
-                        kwargs["export_dir"] = export_dir
                     elif step == "ingest_opdb":
                         kwargs.update(
                             {

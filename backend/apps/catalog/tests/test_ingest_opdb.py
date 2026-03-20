@@ -7,19 +7,25 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.catalog.models import MachineModel
+from apps.catalog.models import MachineModel, System, SystemMpuString
 from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
 
 
 @pytest.fixture
-def _setup_ipdb_first(db):
+def _mpu_strings(db):
+    """Create SystemMpuString records matching the fixture's system.json."""
+    system = System.objects.create(slug="wpc-95", name="WPC-95")
+    SystemMpuString.objects.create(system=system, value="Williams WPC-95")
+
+
+@pytest.fixture
+def _setup_ipdb_first(db, _mpu_strings):
     """Seed IPDB data so OPDB can match by ipdb_id."""
     call_command(
         "ingest_ipdb",
         ipdb=f"{FIXTURES}/ipdb_sample.json",
-        export_dir=FIXTURES,
     )
 
 

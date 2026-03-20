@@ -7,7 +7,7 @@ from django.db import models
 
 from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
 
-__all__ = ["System"]
+__all__ = ["System", "SystemMpuString"]
 
 
 class System(Linkable, TimeStampedModel):
@@ -49,3 +49,27 @@ class System(Linkable, TimeStampedModel):
         if not self.slug:
             self.slug = unique_slug(self, self.name, "system")
         super().save(*args, **kwargs)
+
+
+class SystemMpuString(TimeStampedModel):
+    """An MPU board identifier string used to match machines to a System.
+
+    e.g., "Stern SPIKE System", "Williams WPC-95".
+    """
+
+    system = models.ForeignKey(
+        System, on_delete=models.CASCADE, related_name="mpu_strings"
+    )
+    value = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ["value"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["value"],
+                name="catalog_unique_system_mpu_string",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.value
