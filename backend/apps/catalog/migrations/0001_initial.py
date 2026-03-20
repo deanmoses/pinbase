@@ -877,7 +877,7 @@ class Migration(migrations.Migration):
                     "opdb_id",
                     models.CharField(
                         blank=True,
-                        help_text='OPDB group ID (e.g., "G5pe4") or synthetic ID (e.g., "ipdb:1234").',
+                        help_text='OPDB group ID (e.g., "G5pe4"). Null for titles without an OPDB group.',
                         max_length=50,
                         null=True,
                         unique=True,

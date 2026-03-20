@@ -28,7 +28,7 @@ class Title(Linkable, TimeStampedModel):
         null=True,
         blank=True,
         verbose_name="OPDB group ID",
-        help_text='OPDB group ID (e.g., "G5pe4") or synthetic ID (e.g., "ipdb:1234").',
+        help_text='OPDB group ID (e.g., "G5pe4"). Null for titles without an OPDB group.',
     )
     name = models.CharField(max_length=300)
     slug = models.SlugField(max_length=300, unique=True, blank=True)

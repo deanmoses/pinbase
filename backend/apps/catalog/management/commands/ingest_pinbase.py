@@ -744,7 +744,7 @@ class Command(BaseCommand):
                 continue
 
             slug = slug or generate_unique_slug(entry.get("name", ""), existing_slugs)
-            opdb_id = opdb_group_id or f"pinbase:{slug}"
+            opdb_id = opdb_group_id or None
             new_titles.append(
                 Title(opdb_id=opdb_id, name=entry.get("name", ""), slug=slug)
             )

@@ -67,19 +67,9 @@ def _build_claim_review_context(claim) -> tuple[list[dict], str | None]:
     links: list[dict] = []
     value = str(claim.value) if claim.value else ""
 
-    # IPDB link from synthetic group ID.
-    if value.startswith("ipdb:"):
-        ipdb_id = value.split(":")[1]
-        links.append(
-            {
-                "label": f"IPDB #{ipdb_id}",
-                "url": f"https://www.ipdb.org/machine.cgi?id={ipdb_id}",
-            }
-        )
-
-    # Find the synthetic title to get its slug and name for related-title lookup.
+    # The claim value is a title slug — look it up.
     try:
-        title = Title.objects.get(opdb_id=value)
+        title = Title.objects.get(slug=value)
     except Title.DoesNotExist:
         return links, None
 
@@ -88,7 +78,7 @@ def _build_claim_review_context(claim) -> tuple[list[dict], str | None]:
     related = (
         Title.objects.filter(Q(name__iexact=title.name) | Q(name__iexact=base_name))
         .exclude(pk=title.pk)
-        .exclude(opdb_id__startswith="ipdb:")
+        .exclude(opdb_id__isnull=True)
     )
     for rt in related:
         links.append({"label": rt.name, "url": f"/titles/{rt.slug}"})

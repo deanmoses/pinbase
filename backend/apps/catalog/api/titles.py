@@ -201,17 +201,6 @@ def _build_review_links(title) -> list[dict]:
     from ..models import Title
 
     links: list[dict] = []
-    opdb_id = title.opdb_id
-
-    # IPDB link (synthetic IDs are "ipdb:{id}").
-    if opdb_id.startswith("ipdb:"):
-        ipdb_id = opdb_id.split(":")[1]
-        links.append(
-            {
-                "label": f"IPDB #{ipdb_id}",
-                "url": f"https://www.ipdb.org/machine.cgi?id={ipdb_id}",
-            }
-        )
 
     # Related titles by name match (only OPDB-backed ones).
     import re
@@ -220,7 +209,7 @@ def _build_review_links(title) -> list[dict]:
     related = (
         Title.objects.filter(Q(name__iexact=title.name) | Q(name__iexact=base_name))
         .exclude(pk=title.pk)
-        .exclude(opdb_id__startswith="ipdb:")
+        .exclude(opdb_id__isnull=True)
     )
     for rt in related:
         links.append({"label": rt.name, "url": f"/titles/{rt.slug}"})
