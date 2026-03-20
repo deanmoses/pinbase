@@ -106,7 +106,7 @@ def _collect_titles(models, *, include_manufacturer: bool = False) -> list[dict]
             thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
             if thumbnail_url:
                 titles[key]["thumbnail_url"] = thumbnail_url
-    return list(titles.values())
+    return sorted(titles.values(), key=lambda t: (t["year"] is None, -(t["year"] or 0)))
 
 
 def _serialize_manufacturer_detail(mfr) -> dict:

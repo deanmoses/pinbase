@@ -91,6 +91,33 @@ class TestManufacturersAPI:
         data = resp.json()
         assert data[0]["thumbnail_url"] == "https://img.opdb.org/year-md.jpg"
 
+    def test_get_manufacturer_detail_titles_sorted_year_desc(
+        self, client, manufacturer, williams_entity, db
+    ):
+        """Titles should be sorted newest-first, even across multiple entities."""
+        entity2 = CorporateEntity.objects.create(
+            manufacturer=manufacturer,
+            name="Williams Early",
+            slug="williams-early",
+            year_start=1943,
+            year_end=1985,
+        )
+        t_old = Title.objects.create(name="Old Game", opdb_id="T-old")
+        t_mid = Title.objects.create(name="Mid Game", opdb_id="T-mid")
+        t_new = Title.objects.create(name="New Game", opdb_id="T-new")
+        MachineModel.objects.create(
+            name="Old", corporate_entity=entity2, title=t_old, year=1960
+        )
+        MachineModel.objects.create(
+            name="Mid", corporate_entity=williams_entity, title=t_mid, year=1995
+        )
+        MachineModel.objects.create(
+            name="New", corporate_entity=williams_entity, title=t_new, year=2020
+        )
+        resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
+        years = [t["year"] for t in resp.json()["titles"]]
+        assert years == [2020, 1995, 1960]
+
     def test_get_manufacturer_detail_nulls_last(
         self, client, manufacturer, williams_entity, db
     ):
