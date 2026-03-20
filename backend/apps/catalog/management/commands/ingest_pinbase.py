@@ -35,10 +35,12 @@ from apps.catalog.models import (
     GameplayFeature,
     MachineModel,
     Manufacturer,
+    ManufacturerAlias,
     Person,
     PersonAlias,
     Series,
     System,
+    SystemMpuString,
     Tag,
     TechnologyGeneration,
     TechnologySubgeneration,
@@ -291,12 +293,19 @@ class Command(BaseCommand):
         ct_id = ContentType.objects.get_for_model(Manufacturer).pk
         existing_slugs = set(Manufacturer.objects.values_list("slug", flat=True))
 
-        objs = [Manufacturer(slug=e["slug"], name=e["name"]) for e in entries]
+        objs = [
+            Manufacturer(
+                slug=e["slug"],
+                name=e["name"],
+                opdb_manufacturer_id=e.get("opdb_manufacturer_id"),
+            )
+            for e in entries
+        ]
         objs = Manufacturer.objects.bulk_create(
             objs,
             update_conflicts=True,
             unique_fields=["slug"],
-            update_fields=["name"],
+            update_fields=["name", "opdb_manufacturer_id"],
         )
 
         created = sum(1 for o in objs if o.slug not in existing_slugs)
@@ -334,6 +343,43 @@ class Command(BaseCommand):
             touched_ids = {o.pk for o in objs}
             _resolve_bulk(
                 Manufacturer, MANUFACTURER_DIRECT_FIELDS, object_ids=touched_ids
+            )
+
+        # Sync aliases.
+        mfr_by_slug = {o.slug: o for o in objs}
+        existing_aliases: dict[int, set[str]] = {}
+        for alias in ManufacturerAlias.objects.all():
+            existing_aliases.setdefault(alias.manufacturer_id, set()).add(alias.value)
+
+        to_create: list[ManufacturerAlias] = []
+        to_delete_values: dict[int, set[str]] = {}
+        for entry in entries:
+            alias_values = entry.get("aliases", [])
+            mfr = mfr_by_slug.get(entry["slug"])
+            if not mfr:
+                continue
+
+            existing = existing_aliases.get(mfr.pk, set())
+            desired = set(alias_values)
+
+            for v in desired - existing:
+                to_create.append(ManufacturerAlias(manufacturer=mfr, value=v))
+            removed = existing - desired
+            if removed:
+                to_delete_values[mfr.pk] = removed
+
+        aliases_created = len(to_create)
+        if to_create:
+            ManufacturerAlias.objects.bulk_create(to_create)
+        aliases_deleted = 0
+        for mfr_pk, values in to_delete_values.items():
+            aliases_deleted += ManufacturerAlias.objects.filter(
+                manufacturer_id=mfr_pk, value__in=values
+            ).delete()[0]
+
+        if aliases_created or aliases_deleted:
+            self.stdout.write(
+                f"  Aliases: {aliases_created} created, {aliases_deleted} deleted"
             )
 
     # ------------------------------------------------------------------
@@ -520,6 +566,43 @@ class Command(BaseCommand):
             stats = Claim.objects.bulk_assert_claims(source, pending_claims)
             self.stdout.write(
                 f"  Claims: {stats['created']} created, {stats['unchanged']} unchanged"
+            )
+
+        # Sync MPU strings.
+        sys_by_slug = {o.slug: o for o in objs}
+        existing_mpus: dict[int, set[str]] = {}
+        for ms in SystemMpuString.objects.all():
+            existing_mpus.setdefault(ms.system_id, set()).add(ms.value)
+
+        mpu_to_create: list[SystemMpuString] = []
+        mpu_to_delete: dict[int, set[str]] = {}
+        for entry in entries:
+            mpu_values = entry.get("mpu_strings", [])
+            system = sys_by_slug.get(entry["slug"])
+            if not system:
+                continue
+
+            existing = existing_mpus.get(system.pk, set())
+            desired = set(mpu_values)
+
+            for v in desired - existing:
+                mpu_to_create.append(SystemMpuString(system=system, value=v))
+            removed = existing - desired
+            if removed:
+                mpu_to_delete[system.pk] = removed
+
+        mpu_created = len(mpu_to_create)
+        if mpu_to_create:
+            SystemMpuString.objects.bulk_create(mpu_to_create)
+        mpu_deleted = 0
+        for sys_pk, values in mpu_to_delete.items():
+            mpu_deleted += SystemMpuString.objects.filter(
+                system_id=sys_pk, value__in=values
+            ).delete()[0]
+
+        if mpu_created or mpu_deleted:
+            self.stdout.write(
+                f"  MPU strings: {mpu_created} created, {mpu_deleted} deleted"
             )
 
     # ------------------------------------------------------------------
@@ -737,7 +820,12 @@ class Command(BaseCommand):
             slug = slug or generate_unique_slug(entry.get("name", ""), existing_slugs)
             opdb_id = opdb_group_id or None
             new_titles.append(
-                Title(opdb_id=opdb_id, name=entry.get("name", ""), slug=slug)
+                Title(
+                    opdb_id=opdb_id,
+                    name=entry.get("name", ""),
+                    slug=slug,
+                    fandom_page_id=entry.get("fandom_page_id"),
+                )
             )
             existing_slugs.add(slug)
 
@@ -752,6 +840,7 @@ class Command(BaseCommand):
         membership_set = slug_set = skipped = 0
         pending_claims: list[Claim] = []
         pending_slugs: dict[int, str] = {}
+        pending_fandom_updates: list[Title] = []
         series_memberships: dict[Series, list[Title]] = defaultdict(list)
         touched_ids: set[int] = set()
 
@@ -771,6 +860,12 @@ class Command(BaseCommand):
             # Slug override (direct write, not claim-controlled).
             if slug and title.slug != slug:
                 pending_slugs[title.pk] = slug
+
+            # Fandom page ID (direct write, batched below).
+            fandom_page_id = entry.get("fandom_page_id")
+            if fandom_page_id and title.fandom_page_id != fandom_page_id:
+                title.fandom_page_id = fandom_page_id
+                pending_fandom_updates.append(title)
 
             # Name claim.
             name = entry.get("name")
@@ -876,6 +971,10 @@ class Command(BaseCommand):
                 for pk, slug in safe_slugs.items():
                     Title.objects.filter(pk=pk).update(slug=slug)
                 slug_set = len(safe_slugs)
+
+        # Batch fandom_page_id updates.
+        if pending_fandom_updates:
+            Title.objects.bulk_update(pending_fandom_updates, ["fandom_page_id"])
 
         # Batch M2M adds per series.
         for series, titles in series_memberships.items():

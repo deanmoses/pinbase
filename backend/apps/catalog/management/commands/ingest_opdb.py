@@ -188,23 +188,23 @@ class Command(BaseCommand):
         alias_skipped = 0
 
         for rec in aliases:
-            # Require parent to exist — skip orphan aliases.
-            parent = by_opdb_id.get(rec.parent_opdb_id)
-            if not parent:
-                logger.warning(
-                    "Alias %s (%s): parent %s not found, skipping",
-                    rec.opdb_id,
-                    rec.name,
-                    rec.parent_opdb_id,
-                )
-                alias_skipped += 1
-                continue
-
             pm = by_opdb_id.get(rec.opdb_id)
 
             if pm:
                 alias_linked += 1
             else:
+                # Parent must exist to create a new alias model.
+                parent = by_opdb_id.get(rec.parent_opdb_id)
+                if not parent:
+                    logger.warning(
+                        "Alias %s (%s): parent %s not found, skipping",
+                        rec.opdb_id,
+                        rec.name,
+                        rec.parent_opdb_id,
+                    )
+                    alias_skipped += 1
+                    continue
+
                 alias_created += 1
                 slug = generate_unique_slug(rec.name, existing_slugs)
                 pm = MachineModel(name=rec.name, opdb_id=rec.opdb_id, slug=slug)

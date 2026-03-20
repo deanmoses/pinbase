@@ -6,19 +6,25 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.catalog.models import Credit, MachineModel, Person
+from apps.catalog.models import Credit, MachineModel, Person, System, SystemMpuString
 from apps.provenance.models import Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
 
 
 @pytest.fixture
-def _run_ipdb(db, credit_roles):
+def _mpu_strings(db):
+    """Create SystemMpuString records matching the fixture's system.json."""
+    system = System.objects.create(slug="wpc-95", name="WPC-95")
+    SystemMpuString.objects.create(system=system, value="Williams WPC-95")
+
+
+@pytest.fixture
+def _run_ipdb(db, credit_roles, _mpu_strings):
     """Run ingest_ipdb with the sample fixture."""
     call_command(
         "ingest_ipdb",
         ipdb=f"{FIXTURES}/ipdb_sample.json",
-        export_dir=FIXTURES,
     )
 
 
@@ -97,7 +103,6 @@ class TestIngestIpdb:
         call_command(
             "ingest_ipdb",
             ipdb=f"{FIXTURES}/ipdb_sample.json",
-            export_dir=FIXTURES,
         )
         assert MachineModel.objects.count() == 4
         assert Person.objects.count() == 6
@@ -141,12 +146,9 @@ class TestIngestIpdbUnknownMpu:
                 }
             )
         )
-        # Empty system.json so no MPU strings are known.
-        empty_export = tmp_path / "system.json"
-        empty_export.write_text("[]")
+        # No SystemMpuString records exist, so the MPU is unknown.
         with pytest.raises(CommandError, match="Unknown MPU strings"):
             call_command(
                 "ingest_ipdb",
                 ipdb=str(fixture),
-                export_dir=str(tmp_path),
             )

@@ -81,7 +81,7 @@ class ManufacturerResolver:
     """
 
     def __init__(self) -> None:
-        from apps.catalog.models import CorporateEntity, Manufacturer
+        from apps.catalog.models import CorporateEntity, Manufacturer, ManufacturerAlias
 
         self._name_to_slug: dict[str, str] = {}
         self._slug_to_mfr: dict[str, Manufacturer] = {}
@@ -96,6 +96,12 @@ class ManufacturerResolver:
                 self._opdb_id_to_mfr[m.opdb_manufacturer_id] = m
             if m.wikidata_id:
                 self._wikidata_id_to_mfr[m.wikidata_id] = m
+
+        # Include manufacturer aliases in name lookup.
+        for alias in ManufacturerAlias.objects.select_related("manufacturer").all():
+            key = alias.value.lower()
+            if key not in self._name_to_slug:
+                self._name_to_slug[key] = alias.manufacturer.slug
 
         self._entity_to_slug: dict[str, str] = {
             ce.name.lower(): ce.manufacturer.slug

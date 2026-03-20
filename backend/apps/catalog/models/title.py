@@ -40,6 +40,12 @@ class Title(Linkable, TimeStampedModel):
         null=True,
         blank=True,
     )
+    fandom_page_id = models.IntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Fandom wiki page ID for deep-linking.",
+    )
     needs_review = models.BooleanField(
         default=False,
         help_text="Title was auto-generated and may need human review.",

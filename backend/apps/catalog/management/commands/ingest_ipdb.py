@@ -10,12 +10,10 @@ written in bulk after all records are processed.
 from __future__ import annotations
 
 import json
-from apps.catalog.ingestion.constants import DEFAULT_EXPORT_DIR, DEFAULT_IPDB_PATH
+from apps.catalog.ingestion.constants import DEFAULT_IPDB_PATH
 import logging
 import re
 from html import unescape
-from pathlib import Path
-
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.catalog.ingestion.bulk_utils import (
@@ -167,15 +165,13 @@ _NARRATIVE_FEATURE_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 
-def _load_mpu_to_system_slug(export_dir: str) -> dict[str, str]:
-    """Build {mpu_string: system_slug} from the pinbase export's system.json."""
-    systems_path = Path(export_dir) / "system.json"
-    with open(systems_path) as f:
-        systems = json.load(f)
+def _load_mpu_to_system_slug() -> dict[str, str]:
+    """Build {mpu_string: system_slug} from SystemMpuString records."""
+    from apps.catalog.models import SystemMpuString
+
     return {
-        mpu: system["slug"]
-        for system in systems
-        for mpu in system.get("mpu_strings", [])
+        ms.value: ms.system.slug
+        for ms in SystemMpuString.objects.select_related("system").all()
     }
 
 
@@ -267,16 +263,10 @@ class Command(BaseCommand):
             default=DEFAULT_IPDB_PATH,
             help="Path to IPDB JSON dump.",
         )
-        parser.add_argument(
-            "--export-dir",
-            default=DEFAULT_EXPORT_DIR,
-            help="Path to exported Pinbase JSON directory.",
-        )
 
     def handle(self, *args, **options):
         ipdb_path = options["ipdb"]
-        export_dir = options["export_dir"]
-        mpu_to_slug = _load_mpu_to_system_slug(export_dir)
+        mpu_to_slug = _load_mpu_to_system_slug()
 
         from django.contrib.contenttypes.models import ContentType
 
