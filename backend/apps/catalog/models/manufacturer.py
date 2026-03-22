@@ -6,7 +6,13 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from apps.core.models import (
+    AliasBase,
+    Linkable,
+    MarkdownField,
+    TimeStampedModel,
+    unique_slug,
+)
 
 __all__ = ["Manufacturer", "ManufacturerAlias", "CorporateEntity", "Address"]
 
@@ -57,7 +63,7 @@ class Manufacturer(Linkable, TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class ManufacturerAlias(TimeStampedModel):
+class ManufacturerAlias(AliasBase):
     """An alternate name for a Manufacturer, used to match variant spellings
     from external sources.
     """
@@ -65,19 +71,14 @@ class ManufacturerAlias(TimeStampedModel):
     manufacturer = models.ForeignKey(
         Manufacturer, on_delete=models.CASCADE, related_name="aliases"
     )
-    value = models.CharField(max_length=200)
 
-    class Meta:
-        ordering = ["value"]
+    class Meta(AliasBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_manufacturer_alias_lower",
             ),
         ]
-
-    def __str__(self) -> str:
-        return self.value
 
 
 class CorporateEntity(TimeStampedModel):

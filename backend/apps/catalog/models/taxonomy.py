@@ -5,7 +5,15 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from django.db.models.functions import Lower
+
+from apps.core.models import (
+    AliasBase,
+    Linkable,
+    MarkdownField,
+    TimeStampedModel,
+    unique_slug,
+)
 
 __all__ = [
     "TechnologyGeneration",
@@ -14,7 +22,8 @@ __all__ = [
     "DisplaySubtype",
     "Cabinet",
     "GameFormat",
-    "GameplayFeature",
+    "RewardType",
+    "RewardTypeAlias",
     "Tag",
     "CreditRole",
 ]
@@ -186,12 +195,14 @@ class GameFormat(Linkable, TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class GameplayFeature(Linkable, TimeStampedModel):
-    """A gameplay mechanism: Flippers, Pop Bumpers, Ramps, Multiball, etc.
-    Linked to MachineModel via M2M.
+class RewardType(Linkable, TimeStampedModel):
+    """A pinball reward mechanism: replay, add-a-ball, free-play, etc.
+
+    Reward types are the payoff mechanic for achieving a goal, distinct from
+    gameplay features (the mechanisms used to earn that payoff).
     """
 
-    link_url_pattern = "/gameplay-features/{slug}"
+    link_url_pattern = "/reward-types/{slug}"
 
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
@@ -201,15 +212,31 @@ class GameplayFeature(Linkable, TimeStampedModel):
     claims = GenericRelation("provenance.Claim")
 
     class Meta:
-        ordering = ["display_order"]
+        ordering = ["display_order", "name"]
 
     def __str__(self) -> str:
         return self.name
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = unique_slug(self, self.name, "feature")
+            self.slug = unique_slug(self, self.name, "rewardtype")
         super().save(*args, **kwargs)
+
+
+class RewardTypeAlias(AliasBase):
+    """An alternate name for a RewardType, used for matching/search."""
+
+    reward_type = models.ForeignKey(
+        RewardType, on_delete=models.CASCADE, related_name="aliases"
+    )
+
+    class Meta(AliasBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                Lower("value"),
+                name="catalog_unique_reward_type_alias_lower",
+            ),
+        ]
 
 
 class Tag(Linkable, TimeStampedModel):

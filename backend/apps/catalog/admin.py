@@ -18,10 +18,13 @@ from .models import (
     Franchise,
     GameFormat,
     GameplayFeature,
+    GameplayFeatureAlias,
     MachineModel,
     Manufacturer,
     ModelAbbreviation,
     Person,
+    RewardType,
+    RewardTypeAlias,
     Series,
     System,
     Tag,
@@ -36,6 +39,7 @@ from .resolve import (
     DIRECT_FIELDS,
     FK_FIELDS,
     FRANCHISE_DIRECT_FIELDS,
+    GAMEPLAY_FEATURE_DIRECT_FIELDS,
     MANUFACTURER_DIRECT_FIELDS,
     PERSON_DIRECT_FIELDS,
     SERIES_DIRECT_FIELDS,
@@ -44,6 +48,7 @@ from .resolve import (
     THEME_DIRECT_FIELDS,
     TITLE_DIRECT_FIELDS,
     resolve_franchise,
+    resolve_gameplay_feature,
     resolve_manufacturer,
     resolve_model,
     resolve_person,
@@ -191,6 +196,42 @@ class CorporateEntityInline(admin.TabularInline):
     fields = ("name", "year_start", "year_end")
 
 
+class ThemeAliasInline(admin.TabularInline):
+    """Read-only inline — aliases are materialized from claims, not directly editable."""
+
+    model = ThemeAlias
+    extra = 0
+    readonly_fields = ("value",)
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class GameplayFeatureAliasInline(admin.TabularInline):
+    """Read-only inline — aliases are materialized from claims, not directly editable."""
+
+    model = GameplayFeatureAlias
+    extra = 0
+    readonly_fields = ("value",)
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class RewardTypeAliasInline(admin.TabularInline):
+    """Read-only inline — aliases are materialized from claims, not directly editable."""
+
+    model = RewardTypeAlias
+    extra = 0
+    readonly_fields = ("value",)
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(CorporateEntity)
 class CorporateEntityAdmin(admin.ModelAdmin):
     list_display = ("name", "manufacturer", "year_start", "year_end")
@@ -263,11 +304,25 @@ class GameFormatAdmin(TaxonomyAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(GameplayFeature)
-class GameplayFeatureAdmin(TaxonomyAdminMixin, admin.ModelAdmin):
+class GameplayFeatureAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
+    CLAIM_FIELDS = frozenset(GAMEPLAY_FEATURE_DIRECT_FIELDS)
+
+    def _resolve(self, obj):
+        resolve_gameplay_feature(obj)
+
+    list_display = ("name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("parents",)
+    inlines = (GameplayFeatureAliasInline, ClaimInline)
+
+
+@admin.register(RewardType)
+class RewardTypeAdmin(TaxonomyAdminMixin, admin.ModelAdmin):
     list_display = ("display_order", "name", "slug")
     search_fields = ("name",)
     prepopulated_fields = {"slug": ("name",)}
-    inlines = (ClaimInline,)
+    inlines = (RewardTypeAliasInline, ClaimInline)
 
 
 @admin.register(Tag)
@@ -383,11 +438,6 @@ class SeriesAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
         return obj.titles.count()
 
 
-class ThemeAliasInline(admin.TabularInline):
-    model = ThemeAlias
-    extra = 0
-
-
 @admin.register(Theme)
 class ThemeAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     CLAIM_FIELDS = frozenset(THEME_DIRECT_FIELDS)
@@ -398,7 +448,7 @@ class ThemeAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
     list_display = ("name", "machine_count")
     search_fields = ("name",)
     prepopulated_fields = {"slug": ("name",)}
-    filter_horizontal = ("parents",)
+    readonly_fields = ("parents",)
     inlines = (ThemeAliasInline, ClaimInline)
 
     @admin.display(description="Machines")

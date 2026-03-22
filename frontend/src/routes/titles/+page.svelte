@@ -13,11 +13,13 @@
 	import TitleFilterSidebar from '$lib/components/TitleFilterSidebar.svelte';
 	import { pageTitle } from '$lib/constants';
 	import {
+		expandTitlesWithAncestorFeatures,
 		expandTitlesWithAncestorThemes,
 		filterTitles,
 		filtersFromParams,
 		filtersToParams,
-		type FacetedTitle
+		type FacetedTitle,
+		type GameplayFeatureHierarchyEntry
 	} from '$lib/facet-engine';
 
 	const SKELETON_INDICES = Array.from({ length: 12 }, (_, i) => i);
@@ -26,17 +28,21 @@
 	// Data loading
 	// -----------------------------------------------------------------------
 	const titles = createAsyncLoader(async () => {
-		const [titlesRes, themesRes] = await Promise.all([
+		const [titlesRes, themesRes, featuresRes] = await Promise.all([
 			client.GET('/api/titles/all/'),
-			client.GET('/api/themes/')
+			client.GET('/api/themes/'),
+			client.GET('/api/gameplay-features/')
 		]);
-		const raw = (titlesRes.data ?? []) as FacetedTitle[];
+		let data = (titlesRes.data ?? []) as FacetedTitle[];
 		const themeHierarchy = (themesRes.data ?? []) as {
 			slug: string;
 			name: string;
 			parent_slugs: string[];
 		}[];
-		return expandTitlesWithAncestorThemes(raw, themeHierarchy);
+		const featureHierarchy = (featuresRes.data ?? []) as GameplayFeatureHierarchyEntry[];
+		data = expandTitlesWithAncestorThemes(data, themeHierarchy);
+		data = expandTitlesWithAncestorFeatures(data, featureHierarchy);
+		return data;
 	}, [] as FacetedTitle[]);
 
 	// -----------------------------------------------------------------------

@@ -47,6 +47,12 @@
 		buildFacetRefOptions(allTitles, (t) => t.persons, facetCounts.person)
 	);
 	let themeOptions = $derived(buildFacetRefOptions(allTitles, (t) => t.themes, facetCounts.theme));
+	let featureOptions = $derived(
+		buildFacetRefOptions(allTitles, (t) => t.gameplay_features, facetCounts.feature)
+	);
+	let rewardTypeOptions = $derived(
+		buildFacetRefOptions(allTitles, (t) => t.reward_types, facetCounts.rewardType)
+	);
 	let systemOptions = $derived(
 		buildFacetRefOptions(allTitles, (t) => t.systems, facetCounts.system)
 	);
@@ -78,6 +84,8 @@
 			filters.manufacturer != null ||
 			filters.person != null ||
 			filters.themes.length > 0 ||
+			filters.features.length > 0 ||
+			filters.rewardTypes.length > 0 ||
 			filters.displayType != null ||
 			filters.playerCount != null ||
 			filters.system != null ||
@@ -151,6 +159,26 @@
 			bind:selected={filters.themes}
 			multi
 			placeholder="Search themes..."
+		/>
+	</div>
+
+	<div class="filter-section">
+		<SearchableSelect
+			label="Feature"
+			options={featureOptions}
+			bind:selected={filters.features}
+			multi
+			placeholder="Search features..."
+		/>
+	</div>
+
+	<div class="filter-section">
+		<SearchableSelect
+			label="Reward Type"
+			options={rewardTypeOptions}
+			bind:selected={filters.rewardTypes}
+			multi
+			placeholder="Search reward types..."
 		/>
 	</div>
 

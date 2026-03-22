@@ -69,6 +69,11 @@ class GameplayFeatureSchema(Schema):
     slug: str
 
 
+class RewardTypeSchema(Schema):
+    name: str
+    slug: str
+
+
 class FranchiseRefSchema(Schema):
     name: str
     slug: str

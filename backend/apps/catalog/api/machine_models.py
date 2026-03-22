@@ -29,6 +29,7 @@ from .schemas import (
     ClaimSchema,
     FranchiseRefSchema,
     GameplayFeatureSchema,
+    RewardTypeSchema,
     SeriesRefSchema,
     ThemeSchema,
     TitleMachineSchema,
@@ -133,6 +134,7 @@ class MachineModelDetailSchema(Schema):
     display_subtype_name: Optional[str] = None
     display_subtype_slug: Optional[str] = None
     gameplay_features: list[GameplayFeatureSchema] = []
+    reward_types: list[RewardTypeSchema] = []
     franchise: Optional[FranchiseRefSchema] = None
     series: list[SeriesRefSchema] = []
     variant_of_name: Optional[str] = None
@@ -164,6 +166,7 @@ def _build_model_list_qs(
     display: str = "",
     display_subtype: str = "",
     feature: str = "",
+    reward_type: str = "",
     game_format: str = "",
     cabinet: str = "",
     tag: str = "",
@@ -200,6 +203,8 @@ def _build_model_list_qs(
         qs = qs.filter(display_subtype__slug=display_subtype)
     if feature:
         qs = qs.filter(gameplay_features__slug=feature)
+    if reward_type:
+        qs = qs.filter(reward_types__slug=reward_type)
     if game_format:
         qs = qs.filter(game_format__slug=game_format)
     if cabinet:
@@ -426,6 +431,9 @@ def _serialize_model_detail(pm) -> dict:
         "gameplay_features": [
             {"name": gf.name, "slug": gf.slug} for gf in pm.gameplay_features.all()
         ],
+        "reward_types": [
+            {"name": rt.name, "slug": rt.slug} for rt in pm.reward_types.all()
+        ],
         "franchise": (
             {"name": pm.title.franchise.name, "slug": pm.title.franchise.slug}
             if pm.title and pm.title.franchise
@@ -469,6 +477,7 @@ def _model_detail_qs():
         "remakes",
         "themes",
         "gameplay_features",
+        "reward_types",
         "abbreviations",
         "title__series",
         Prefetch(
@@ -505,6 +514,7 @@ def list_models(
     display: str = "",
     display_subtype: str = "",
     feature: str = "",
+    reward_type: str = "",
     game_format: str = "",
     cabinet: str = "",
     tag: str = "",
@@ -520,6 +530,7 @@ def list_models(
         display=display,
         display_subtype=display_subtype,
         feature=feature,
+        reward_type=reward_type,
         game_format=game_format,
         cabinet=cabinet,
         tag=tag,

@@ -20,7 +20,7 @@ def _mpu_strings(db):
 
 
 @pytest.fixture
-def _run_ipdb(db, credit_roles, _mpu_strings):
+def _run_ipdb(db, credit_roles, _mpu_strings, ipdb_narrative_features):
     """Run ingest_ipdb with the sample fixture."""
     call_command(
         "ingest_ipdb",
@@ -127,7 +127,9 @@ class TestIngestIpdb:
 
 
 @pytest.mark.django_db
+@pytest.mark.django_db
 class TestIngestIpdbUnknownMpu:
+    @pytest.mark.usefixtures("ipdb_narrative_features", "credit_roles")
     def test_unknown_mpu_raises_command_error(self, tmp_path):
         fixture = tmp_path / "bad_ipdb.json"
         fixture.write_text(

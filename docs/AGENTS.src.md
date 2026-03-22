@@ -43,11 +43,22 @@ NEVER use `:global` in Svelte component styles without explicit approval from th
 
 **EVERY field on catalog models must go through the claims/provenance system.** Scalars, foreign keys, and relationships — all of them. No exceptions without express approval from the user.
 
-The provenance system tracks **attribution**, not just disputes. Every piece of catalog data may come from a different source or user. "It only comes from one source today" is not a valid reason to bypass claims.
+The provenance system serves **three purposes simultaneously**:
 
-The only exempt fields are internal infrastructure: `id`/`uuid`, `created_at`/`updated_at`, and `slug`.
+1. **Conflict resolution** — When multiple sources assert different values, the highest-priority source wins.
+2. **Audit trail** — Every piece of catalog data has a record of who said it and where it came from, even when only one source exists.
+3. **Future extensibility** — Adding a new source to a claims-based field requires zero migrations. Adding one to a structural field requires re-architecture.
 
-If you think a field needs an exception, **stop and ask the user first.** See [docs/Provenance.md](Provenance.md) for architecture details.
+"It only comes from one source today" is **not** a valid reason to bypass claims — that source may not be the only one tomorrow.
+
+**"Structural" is not a valid exemption category.** The only exempt fields are true internal infrastructure: `id`/`uuid`, `created_at`/`updated_at`, and `slug`. Everything else — scalars, FKs, M2M relationships, aliases, hierarchy parents — requires claims.
+
+**Anti-patterns to avoid:**
+
+- Don't label a field as "structural, not claim-controlled" because only one source contributes it today.
+- Don't skip claims for lookup/matching data like aliases — we still need to know who created them.
+
+If you think a field genuinely needs an exception, **stop and ask the user first.** See [docs/Provenance.md](Provenance.md) for architecture details.
 
 ## Project Overview
 

@@ -44,6 +44,8 @@ class TitleListSchema(Schema):
     player_counts: list[int] = []
     systems: list[FacetRef] = []
     themes: list[FacetRef] = []
+    gameplay_features: list[FacetRef] = []
+    reward_types: list[FacetRef] = []
     persons: list[FacetRef] = []
     franchise: Optional[FacetRef] = None
     series: list[FacetRef] = []
@@ -75,6 +77,8 @@ class AgreedSpecsSchema(Schema):
     display_subtype_name: Optional[str] = None
     display_subtype_slug: Optional[str] = None
     themes: list[ThemeSchema] = []
+    gameplay_features: list[FacetRef] = []
+    reward_types: list[FacetRef] = []
     production_quantity: Optional[str] = None
 
 
@@ -125,6 +129,8 @@ def _serialize_title_list(title) -> dict:
     player_counts_set: set[int] = set()
     system_pairs = []
     theme_pairs = []
+    gameplay_feature_pairs = []
+    reward_type_pairs = []
     person_pairs = []
     years = []
     ratings = []
@@ -142,6 +148,10 @@ def _serialize_title_list(title) -> dict:
             system_pairs.append((m.system.slug, m.system.name))
         for theme in m.themes.all():
             theme_pairs.append((theme.slug, theme.name))
+        for gf in m.gameplay_features.all():
+            gameplay_feature_pairs.append((gf.slug, gf.name))
+        for rt in m.reward_types.all():
+            reward_type_pairs.append((rt.slug, rt.name))
         for credit in m.credits.all():
             person_pairs.append((credit.person.slug, credit.person.name))
         if m.year is not None:
@@ -187,6 +197,8 @@ def _serialize_title_list(title) -> dict:
         "player_counts": sorted(player_counts_set),
         "systems": _dedup_facet_refs(system_pairs),
         "themes": _dedup_facet_refs(theme_pairs),
+        "gameplay_features": _dedup_facet_refs(gameplay_feature_pairs),
+        "reward_types": _dedup_facet_refs(reward_type_pairs),
         "persons": _dedup_facet_refs(person_pairs),
         "franchise": franchise,
         "series": series_list,
@@ -292,6 +304,31 @@ def _compute_agreed_specs(models) -> dict:
     ):
         specs["themes"] = [{"name": n, "slug": s} for s, n in sorted(theme_sets[0])]
 
+    # Gameplay features: intersection across all models.
+    gf_sets = [
+        frozenset((gf.slug, gf.name) for gf in m.gameplay_features.all())
+        for m in models
+    ]
+    if gf_sets and all(gf_sets):
+        common = gf_sets[0]
+        for s in gf_sets[1:]:
+            common &= s
+        if common:
+            specs["gameplay_features"] = [
+                {"slug": s, "name": n} for s, n in sorted(common)
+            ]
+
+    # Reward types: intersection across all models.
+    rt_sets = [
+        frozenset((rt.slug, rt.name) for rt in m.reward_types.all()) for m in models
+    ]
+    if rt_sets and all(rt_sets):
+        common = rt_sets[0]
+        for s in rt_sets[1:]:
+            common &= s
+        if common:
+            specs["reward_types"] = [{"slug": s, "name": n} for s, n in sorted(common)]
+
     return specs
 
 
@@ -387,7 +424,14 @@ def _title_models_prefetch():
             "cabinet",
             "game_format",
         )
-        .prefetch_related("themes", "credits__person", "credits__role", "variants")
+        .prefetch_related(
+            "themes",
+            "gameplay_features",
+            "reward_types",
+            "credits__person",
+            "credits__role",
+            "variants",
+        )
         .order_by("year", "name"),
     )
 

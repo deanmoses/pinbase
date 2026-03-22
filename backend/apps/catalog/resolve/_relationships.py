@@ -17,11 +17,18 @@ from ..models import (
     Credit,
     CreditRole,
     GameplayFeature,
+    GameplayFeatureAlias,
     MachineModel,
+    Manufacturer,
+    ManufacturerAlias,
     ModelAbbreviation,
     Person,
+    PersonAlias,
+    RewardType,
+    RewardTypeAlias,
     Tag,
     Theme,
+    ThemeAlias,
     Title,
     TitleAbbreviation,
 )
@@ -52,6 +59,12 @@ M2M_FIELDS: dict[str, M2MFieldSpec] = {
         "gameplay_feature_slug",
         "gameplay_features",
         GameplayFeature,
+    ),
+    "reward_type": M2MFieldSpec(
+        "reward_type",
+        "reward_type_slug",
+        "reward_types",
+        RewardType,
     ),
     "tag": M2MFieldSpec("tag", "tag_slug", "tags", Tag),
 }
@@ -225,6 +238,18 @@ def resolve_all_gameplay_features(
     model_ids: set[int] | None = None,
 ) -> None:
     _resolve_all_m2m(M2M_FIELDS["gameplay_feature"], all_models, model_ids=model_ids)
+
+
+def resolve_reward_types(machine_model: MachineModel) -> None:
+    _resolve_m2m_single(machine_model, M2M_FIELDS["reward_type"])
+
+
+def resolve_all_reward_types(
+    all_models: list[MachineModel],
+    *,
+    model_ids: set[int] | None = None,
+) -> None:
+    _resolve_all_m2m(M2M_FIELDS["reward_type"], all_models, model_ids=model_ids)
 
 
 def resolve_all_tags(
@@ -637,3 +662,226 @@ def resolve_all_model_abbreviations(
         ModelAbbreviation.objects.filter(pk__in=to_delete_pks).delete()
     if to_create:
         ModelAbbreviation.objects.bulk_create(to_create, batch_size=2000)
+
+
+# ------------------------------------------------------------------
+# Alias resolvers (all five alias types)
+# ------------------------------------------------------------------
+
+
+def _resolve_aliases(
+    parent_model,
+    claim_field_name: str,
+    alias_model,
+    parent_fk_attr: str,
+) -> None:
+    """Bulk-resolve alias claims into alias model rows.
+
+    Reads claim_field_name claims on parent_model instances, diffs against
+    current alias rows, creates missing rows, deletes stale rows.
+    Alias values in claims are already lowercased (normalized at ingest time).
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(parent_model)
+
+    claims_qs = (
+        Claim.objects.filter(
+            is_active=True, content_type=ct, field_name=claim_field_name
+        )
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    )
+
+    # Pick winners per (object_id, claim_key).
+    winners_by_parent: dict[int, list[Claim]] = {}
+    seen: set[tuple[int, str]] = set()
+    for claim in claims_qs:
+        key = (claim.object_id, claim.claim_key)
+        if key not in seen:
+            seen.add(key)
+            winners_by_parent.setdefault(claim.object_id, []).append(claim)
+
+    # Build desired alias values per parent (lowercased).
+    desired_by_parent: dict[int, set[str]] = {}
+    for parent_id, claims_list in winners_by_parent.items():
+        desired: set[str] = set()
+        for claim in claims_list:
+            val = claim.value
+            if not val.get("exists", True):
+                continue
+            alias_val = val.get("alias_value", "")
+            if alias_val:
+                desired.add(alias_val)
+        desired_by_parent[parent_id] = desired
+
+    # Pre-fetch existing alias rows, keyed by lowercase value.
+    fk_col = parent_fk_attr + "_id"
+    all_parent_ids = set(parent_model.objects.values_list("pk", flat=True))
+    existing_by_parent: dict[int, dict[str, int]] = {}
+    for row in alias_model.objects.values_list("pk", fk_col, "value"):
+        pk_val, parent_id, value = row
+        existing_by_parent.setdefault(parent_id, {})[value.lower()] = pk_val
+
+    to_create = []
+    to_delete_pks: list[int] = []
+
+    for parent_id in all_parent_ids:
+        desired = desired_by_parent.get(parent_id, set())
+        existing = existing_by_parent.get(parent_id, {})
+
+        for alias_val in desired:
+            if alias_val not in existing:
+                to_create.append(alias_model(**{fk_col: parent_id, "value": alias_val}))
+
+        for alias_val, alias_pk in existing.items():
+            if alias_val not in desired:
+                to_delete_pks.append(alias_pk)
+
+    if to_delete_pks:
+        alias_model.objects.filter(pk__in=to_delete_pks).delete()
+    if to_create:
+        alias_model.objects.bulk_create(
+            to_create, batch_size=2000, ignore_conflicts=True
+        )
+
+
+def resolve_theme_aliases() -> None:
+    _resolve_aliases(Theme, "theme_alias", ThemeAlias, "theme")
+
+
+def resolve_manufacturer_aliases() -> None:
+    _resolve_aliases(
+        Manufacturer, "manufacturer_alias", ManufacturerAlias, "manufacturer"
+    )
+
+
+def resolve_person_aliases() -> None:
+    _resolve_aliases(Person, "person_alias", PersonAlias, "person")
+
+
+def resolve_gameplay_feature_aliases() -> None:
+    _resolve_aliases(
+        GameplayFeature, "gameplay_feature_alias", GameplayFeatureAlias, "feature"
+    )
+
+
+def resolve_reward_type_aliases() -> None:
+    _resolve_aliases(RewardType, "reward_type_alias", RewardTypeAlias, "reward_type")
+
+
+# ------------------------------------------------------------------
+# Parent hierarchy resolvers (Theme and GameplayFeature DAGs)
+# ------------------------------------------------------------------
+
+
+def _resolve_parents(parent_model) -> None:
+    """Resolve parent hierarchy claims into self-referential M2M rows.
+
+    Reads {model_name}_parent claims on parent_model instances.
+    Each claim value contains {"parent_slug": slug}.
+    Materializes the self-referential parents M2M.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    model_name = parent_model._meta.model_name
+    claim_field_name = f"{model_name}_parent"
+    ct = ContentType.objects.get_for_model(parent_model)
+
+    claims_qs = (
+        Claim.objects.filter(
+            is_active=True, content_type=ct, field_name=claim_field_name
+        )
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    )
+
+    # Pick winners per (object_id, claim_key).
+    winners_by_child: dict[int, list[Claim]] = {}
+    seen: set[tuple[int, str]] = set()
+    for claim in claims_qs:
+        key = (claim.object_id, claim.claim_key)
+        if key not in seen:
+            seen.add(key)
+            winners_by_child.setdefault(claim.object_id, []).append(claim)
+
+    slug_to_pk: dict[str, int] = dict(parent_model.objects.values_list("slug", "pk"))
+
+    desired_by_child: dict[int, set[int]] = {}
+    for child_id, claims_list in winners_by_child.items():
+        desired: set[int] = set()
+        for claim in claims_list:
+            val = claim.value
+            if not val.get("exists", True):
+                continue
+            parent_slug = val.get("parent_slug", "")
+            parent_pk = slug_to_pk.get(parent_slug)
+            if parent_pk is None:
+                logger.warning(
+                    "Unresolved %s parent slug %r for pk=%s",
+                    claim_field_name,
+                    parent_slug,
+                    child_id,
+                )
+                continue
+            desired.add(parent_pk)
+        desired_by_child[child_id] = desired
+
+    # Self-referential M2M through-table columns are from_{model}_id / to_{model}_id.
+    through = parent_model.parents.through
+    from_col = f"from_{model_name}_id"
+    to_col = f"to_{model_name}_id"
+
+    all_child_ids = set(parent_model.objects.values_list("pk", flat=True))
+    existing_by_child: dict[int, set[int]] = {}
+    for row in through.objects.filter(**{f"{from_col}__in": all_child_ids}).values_list(
+        from_col, to_col
+    ):
+        existing_by_child.setdefault(row[0], set()).add(row[1])
+
+    to_create = []
+    to_delete_pks: list[int] = []
+
+    for child_id in all_child_ids:
+        desired = desired_by_child.get(child_id, set())
+        existing = existing_by_child.get(child_id, set())
+
+        for parent_pk in desired - existing:
+            to_create.append(through(**{from_col: child_id, to_col: parent_pk}))
+
+    for row in through.objects.filter(**{f"{from_col}__in": all_child_ids}).values_list(
+        "pk", from_col, to_col
+    ):
+        pk, child_id, parent_pk = row
+        desired = desired_by_child.get(child_id, set())
+        if parent_pk not in desired:
+            to_delete_pks.append(pk)
+
+    if to_delete_pks:
+        through.objects.filter(pk__in=to_delete_pks).delete()
+    if to_create:
+        through.objects.bulk_create(to_create, batch_size=2000, ignore_conflicts=True)
+
+
+def resolve_theme_parents() -> None:
+    _resolve_parents(Theme)
+
+
+def resolve_gameplay_feature_parents() -> None:
+    _resolve_parents(GameplayFeature)

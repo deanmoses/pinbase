@@ -13,6 +13,7 @@ from apps.catalog.api import (
     manufacturers_router,
     models_router,
     people_router,
+    reward_types_router,
     series_router,
     systems_router,
     tags_router,
@@ -81,6 +82,7 @@ api.add_router("/credit-roles/", credit_roles_router)
 api.add_router("/display-subtypes/", display_subtypes_router)
 api.add_router("/game-formats/", game_formats_router)
 api.add_router("/gameplay-features/", gameplay_features_router)
+api.add_router("/reward-types/", reward_types_router)
 api.add_router("/tags/", tags_router)
 api.add_router("/technology-subgenerations/", technology_subgenerations_router)
 api.add_router("/sources/", sources_router)

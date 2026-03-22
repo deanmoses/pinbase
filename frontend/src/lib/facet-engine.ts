@@ -28,6 +28,8 @@ export interface FacetedTitle {
 	player_counts: number[];
 	systems: FacetRef[];
 	themes: FacetRef[];
+	gameplay_features: FacetRef[];
+	reward_types: FacetRef[];
 	persons: FacetRef[];
 	franchise?: FacetRef | null;
 	series: FacetRef[];
@@ -44,6 +46,8 @@ export interface FilterState {
 	manufacturer: string | null;
 	person: string | null;
 	themes: string[];
+	features: string[];
+	rewardTypes: string[];
 	displayType: string | null;
 	playerCount: number | null;
 	system: string | null;
@@ -57,6 +61,8 @@ export interface FacetCounts {
 	manufacturer: Map<string, number>;
 	person: Map<string, number>;
 	theme: Map<string, number>;
+	feature: Map<string, number>;
+	rewardType: Map<string, number>;
 	displayType: Map<string, number>;
 	playerCount: Map<number, number>;
 	system: Map<string, number>;
@@ -73,6 +79,8 @@ export function emptyFilterState(): FilterState {
 		manufacturer: null,
 		person: null,
 		themes: [],
+		features: [],
+		rewardTypes: [],
 		displayType: null,
 		playerCount: null,
 		system: null,
@@ -110,6 +118,16 @@ const PARAM_MAP: {
 		param: 'theme',
 		get: (f) => (f.themes.length > 0 ? f.themes.join(',') : null),
 		set: (f, v) => (f.themes = v.split(',').filter(Boolean))
+	},
+	{
+		param: 'feat',
+		get: (f) => (f.features.length > 0 ? f.features.join(',') : null),
+		set: (f, v) => (f.features = v.split(',').filter(Boolean))
+	},
+	{
+		param: 'rtype',
+		get: (f) => (f.rewardTypes.length > 0 ? f.rewardTypes.join(',') : null),
+		set: (f, v) => (f.rewardTypes = v.split(',').filter(Boolean))
 	},
 	{ param: 'display', get: (f) => f.displayType, set: (f, v) => (f.displayType = v) },
 	{
@@ -193,6 +211,18 @@ function matchesThemes(t: FacetedTitle, slugs: string[]): boolean {
 	return slugs.every((s) => titleThemes.has(s));
 }
 
+function matchesFeatures(t: FacetedTitle, slugs: string[]): boolean {
+	if (slugs.length === 0) return true;
+	const titleFeatures = new Set(t.gameplay_features.map((f) => f.slug));
+	return slugs.every((s) => titleFeatures.has(s));
+}
+
+function matchesRewardTypes(t: FacetedTitle, slugs: string[]): boolean {
+	if (slugs.length === 0) return true;
+	const titleRewardTypes = new Set(t.reward_types.map((r) => r.slug));
+	return slugs.every((s) => titleRewardTypes.has(s));
+}
+
 function matchesDisplayType(t: FacetedTitle, slug: string | null): boolean {
 	if (!slug) return true;
 	return t.display_types.some((d) => d.slug === slug);
@@ -235,6 +265,8 @@ interface DimensionPredicates {
 	manufacturer: Predicate;
 	person: Predicate;
 	themes: Predicate;
+	features: Predicate;
+	rewardTypes: Predicate;
 	displayType: Predicate;
 	playerCount: Predicate;
 	system: Predicate;
@@ -252,6 +284,8 @@ function buildPredicates(state: FilterState): DimensionPredicates {
 		manufacturer: (t) => matchesManufacturer(t, state.manufacturer),
 		person: (t) => matchesPerson(t, state.person),
 		themes: (t) => matchesThemes(t, state.themes),
+		features: (t) => matchesFeatures(t, state.features),
+		rewardTypes: (t) => matchesRewardTypes(t, state.rewardTypes),
 		displayType: (t) => matchesDisplayType(t, state.displayType),
 		playerCount: (t) => matchesPlayerCount(t, state.playerCount),
 		system: (t) => matchesSystem(t, state.system),
@@ -362,6 +396,8 @@ export function computeFacetCounts(titles: FacetedTitle[], state: FilterState): 
 		),
 		person: countFacetRefs('person', (t) => t.persons),
 		theme: countFacetRefs('themes', (t) => t.themes),
+		feature: countFacetRefs('features', (t) => t.gameplay_features),
+		rewardType: countFacetRefs('rewardTypes', (t) => t.reward_types),
 		displayType: countFacetRefs('displayType', (t) => t.display_types),
 		playerCount: countNumbers('playerCount', (t) => t.player_counts),
 		system: countFacetRefs('system', (t) => t.systems),
@@ -442,6 +478,8 @@ export function getActiveFilterLabels(
 	const manufacturerNames = new Map<string, string>();
 	const personNames = new Map<string, string>();
 	const themeNames = new Map<string, string>();
+	const featureNames = new Map<string, string>();
+	const rewardTypeNames = new Map<string, string>();
 	const systemNames = new Map<string, string>();
 	const franchiseNames = new Map<string, string>();
 	const seriesNames = new Map<string, string>();
@@ -453,6 +491,8 @@ export function getActiveFilterLabels(
 			manufacturerNames.set(t.manufacturer_slug, t.manufacturer_name);
 		for (const ref of t.persons) personNames.set(ref.slug, ref.name);
 		for (const ref of t.themes) themeNames.set(ref.slug, ref.name);
+		for (const ref of t.gameplay_features) featureNames.set(ref.slug, ref.name);
+		for (const ref of t.reward_types) rewardTypeNames.set(ref.slug, ref.name);
 		for (const ref of t.systems) systemNames.set(ref.slug, ref.name);
 		if (t.franchise) franchiseNames.set(t.franchise.slug, t.franchise.name);
 		for (const ref of t.series) seriesNames.set(ref.slug, ref.name);
@@ -491,6 +531,22 @@ export function getActiveFilterLabels(
 			key: `themes:${slug}`,
 			label: themeNames.get(slug) ?? slug,
 			field: 'themes',
+			value: slug
+		});
+	}
+	for (const slug of filters.features) {
+		labels.push({
+			key: `features:${slug}`,
+			label: featureNames.get(slug) ?? slug,
+			field: 'features',
+			value: slug
+		});
+	}
+	for (const slug of filters.rewardTypes) {
+		labels.push({
+			key: `rewardTypes:${slug}`,
+			label: rewardTypeNames.get(slug) ?? slug,
+			field: 'rewardTypes',
 			value: slug
 		});
 	}
@@ -624,6 +680,55 @@ export function expandTitlesWithAncestorThemes(
 		return {
 			...title,
 			themes: Array.from(expanded.entries()).map(([slug, name]) => ({ slug, name }))
+		};
+	});
+}
+
+export interface GameplayFeatureHierarchyEntry {
+	slug: string;
+	name: string;
+	parent_slugs: string[];
+}
+
+/**
+ * Expand each title's `.gameplay_features` to include all ancestor features.
+ * Returns new title objects (does not mutate the originals).
+ */
+export function expandTitlesWithAncestorFeatures(
+	titles: FacetedTitle[],
+	featureHierarchy: GameplayFeatureHierarchyEntry[]
+): FacetedTitle[] {
+	if (featureHierarchy.length === 0) return titles;
+
+	const ancestorMap = buildAncestorMap(featureHierarchy);
+	const nameMap = new Map<string, string>();
+	for (const f of featureHierarchy) {
+		nameMap.set(f.slug, f.name);
+	}
+
+	return titles.map((title) => {
+		if (title.gameplay_features.length === 0) return title;
+
+		const expanded = new Map<string, string>();
+		for (const feature of title.gameplay_features) {
+			const allAncestors = ancestorMap.get(feature.slug);
+			if (allAncestors) {
+				for (const slug of allAncestors) {
+					if (!expanded.has(slug)) {
+						expanded.set(slug, nameMap.get(slug) ?? slug);
+					}
+				}
+			} else {
+				expanded.set(feature.slug, feature.name);
+			}
+		}
+
+		return {
+			...title,
+			gameplay_features: Array.from(expanded.entries()).map(([slug, name]) => ({
+				slug,
+				name
+			}))
 		};
 	});
 }

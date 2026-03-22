@@ -202,6 +202,24 @@
 									{/each}
 								</dd>
 							{/if}
+							{#if specs.gameplay_features && specs.gameplay_features.length > 0}
+								<dt>Features</dt>
+								<dd>
+									{#each specs.gameplay_features as feature, i (feature.slug)}
+										{#if i > 0},{/if}
+										<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a>
+									{/each}
+								</dd>
+							{/if}
+							{#if specs.reward_types && specs.reward_types.length > 0}
+								<dt>Reward Types</dt>
+								<dd>
+									{#each specs.reward_types as rt, i (rt.slug)}
+										{#if i > 0},{/if}
+										<a href={resolve(`/reward-types/${rt.slug}`)}>{rt.name}</a>
+									{/each}
+								</dd>
+							{/if}
 							{#if title.franchise}
 								<dt>Franchise</dt>
 								<dd>

@@ -96,6 +96,15 @@
 			{/each}
 		</dd>
 	{/if}
+	{#if model.reward_types && model.reward_types.length > 0}
+		<dt>Reward Types</dt>
+		<dd>
+			{#each model.reward_types as rt, i (rt.slug)}
+				{#if i > 0},{/if}
+				<a href={resolve(`/reward-types/${rt.slug}`)}>{rt.name}</a>
+			{/each}
+		</dd>
+	{/if}
 	{#if model.variant_features.length > 0}
 		<dt>Variant</dt>
 		<dd>{model.variant_features.join(', ')}</dd>

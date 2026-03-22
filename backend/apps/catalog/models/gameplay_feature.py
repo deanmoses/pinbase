@@ -1,10 +1,9 @@
-"""Theme and ThemeAlias models."""
+"""GameplayFeature and GameplayFeatureAlias models."""
 
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-
 from django.db.models.functions import Lower
 
 from apps.core.models import (
@@ -15,18 +14,17 @@ from apps.core.models import (
     unique_slug,
 )
 
-__all__ = ["Theme", "ThemeAlias"]
+__all__ = ["GameplayFeature", "GameplayFeatureAlias"]
 
 
-class Theme(Linkable, TimeStampedModel):
-    """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
+class GameplayFeature(Linkable, TimeStampedModel):
+    """A gameplay mechanism: Flippers, Pop Bumpers, Ramps, Multiball, etc.
 
-    Supports a DAG hierarchy via the ``parents`` M2M (structural, not
-    claim-controlled).  The MachineModel-Theme relationship is materialized
-    from relationship claims.
+    Supports a DAG hierarchy via the ``parents`` M2M (claim-controlled).
+    The MachineModel-GameplayFeature relationship is materialized from claims.
     """
 
-    link_url_pattern = "/themes/{slug}"
+    link_url_pattern = "/gameplay-features/{slug}"
 
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
@@ -36,7 +34,7 @@ class Theme(Linkable, TimeStampedModel):
         symmetrical=False,
         related_name="children",
         blank=True,
-        help_text="Parent themes in the hierarchy (materialized from relationship claims).",
+        help_text="Parent features in the hierarchy (materialized from relationship claims).",
     )
 
     claims = GenericRelation("provenance.Claim")
@@ -49,19 +47,21 @@ class Theme(Linkable, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = unique_slug(self, self.name, "theme")
+            self.slug = unique_slug(self, self.name, "feature")
         super().save(*args, **kwargs)
 
 
-class ThemeAlias(AliasBase):
-    """An alternate name for a Theme, used for matching/search."""
+class GameplayFeatureAlias(AliasBase):
+    """An alternate name for a GameplayFeature, used for matching/search."""
 
-    theme = models.ForeignKey(Theme, on_delete=models.CASCADE, related_name="aliases")
+    feature = models.ForeignKey(
+        GameplayFeature, on_delete=models.CASCADE, related_name="aliases"
+    )
 
     class Meta(AliasBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 Lower("value"),
-                name="catalog_unique_theme_alias_lower",
+                name="catalog_unique_gameplay_feature_alias_lower",
             ),
         ]
