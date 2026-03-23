@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.db.models import Count, F, Prefetch, Q
+from django.core.cache import cache
 from django.utils.text import slugify
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.errors import HttpError
 
+from ..cache import LOCATIONS_TREE_KEY
 from .helpers import _extract_image_urls
 
 # ---------------------------------------------------------------------------
@@ -88,9 +89,17 @@ class CityDetailSchema(Schema):
 def _get_location_tree():
     """Build a hierarchical location tree from Address records.
 
-    Returns a dict keyed by country_slug -> {name, states: {state_slug -> {name, cities: ...}}}.
-    Also returns a flat mapping of (country_slug, state_slug, city_slug) -> set of manufacturer PKs.
+    Returns a dict keyed by country_slug with structure::
+
+        {name, manufacturers: set[pk], states: {state_slug -> {name, manufacturers, cities}},
+         cities: {city_slug -> {name, manufacturers}}}
+
+    Results are cached; invalidated by ``invalidate_all()``.
     """
+    result = cache.get(LOCATIONS_TREE_KEY)
+    if result is not None:
+        return result
+
     from ..models import Address
 
     addresses = (
@@ -156,6 +165,7 @@ def _get_location_tree():
                 }
             direct_cities[city_slug]["manufacturers"].add(mfr_pk)
 
+    cache.set(LOCATIONS_TREE_KEY, countries, timeout=None)
     return countries
 
 
@@ -176,6 +186,8 @@ def _serialize_cities(cities_dict):
 
 def _get_manufacturers_for_pks(pks):
     """Return serialized manufacturer list for a set of PKs."""
+    from django.db.models import Count, F, Prefetch, Q
+
     from ..models import CorporateEntity, MachineModel, Manufacturer
 
     qs = (
@@ -323,6 +335,10 @@ def get_state(request, country_slug: str, state_slug: str):
     }
 
 
+# NOTE: This literal "cities" route must be registered before the
+# /{country_slug}/{state_slug}/{city_slug} parameterised route so that
+# Django's URL resolver matches the literal first.  A state slugged
+# "cities" would be shadowed — but no such state exists in practice.
 @locations_router.get(
     "/{country_slug}/cities/{city_slug}",
     response=CityDetailSchema,
