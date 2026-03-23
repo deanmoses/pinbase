@@ -51,6 +51,9 @@ class AddressSchema(Schema):
     city: str
     state: str
     country: str
+    city_slug: str = ""
+    state_slug: str = ""
+    country_slug: str = ""
 
 
 class CorporateEntitySchema(Schema):
@@ -64,6 +67,12 @@ class CorporateEntitySchema(Schema):
 class SystemSchema(Schema):
     name: str
     slug: str
+
+
+class ManufacturerPersonSchema(Schema):
+    name: str
+    slug: str
+    roles: list[str] = []
 
 
 class ManufacturerDetailSchema(Schema):
@@ -80,6 +89,7 @@ class ManufacturerDetailSchema(Schema):
     entities: list[CorporateEntitySchema]
     titles: list[RelatedTitleSchema]
     systems: list[SystemSchema]
+    persons: list[ManufacturerPersonSchema] = []
     activity: list[ClaimSchema]
 
 
@@ -121,15 +131,47 @@ def _serialize_manufacturer_detail(mfr) -> dict:
     """Serialize a Manufacturer into the detail response dict.
 
     Expects *mfr* to have been fetched with prefetch_related for entities,
-    non_variant_models, and claims (to_attr="active_claims").
+    non_variant_models, credits, and claims (to_attr="active_claims").
     """
     from apps.core.markdown import render_markdown_fields
+
+    # Collect persons with roles and compute year range across entities.
+    person_roles: dict[str, dict] = {}  # slug -> {name, roles set}
+    year_starts: list[int] = []
+    year_ends: list[int] = []
+
+    for e in mfr.entities.all():
+        if e.year_start is not None:
+            year_starts.append(e.year_start)
+        if e.year_end is not None:
+            year_ends.append(e.year_end)
+        for m in e.models.all():
+            for credit in m.credits.all():
+                p = credit.person
+                if p.slug not in person_roles:
+                    person_roles[p.slug] = {
+                        "name": p.name,
+                        "slug": p.slug,
+                        "roles": set(),
+                    }
+                if credit.role:
+                    person_roles[p.slug]["roles"].add(credit.role.name)
+
+    persons = sorted(
+        (
+            {"name": v["name"], "slug": v["slug"], "roles": sorted(v["roles"])}
+            for v in person_roles.values()
+        ),
+        key=lambda p: p["name"],
+    )
 
     return {
         "name": mfr.name,
         "slug": mfr.slug,
         "description": mfr.description,
         **render_markdown_fields(mfr),
+        "year_start": min(year_starts) if year_starts else None,
+        "year_end": max(year_ends) if year_ends else None,
         "logo_url": mfr.logo_url,
         "website": mfr.website,
         "entities": [
@@ -139,7 +181,14 @@ def _serialize_manufacturer_detail(mfr) -> dict:
                 "year_start": e.year_start,
                 "year_end": e.year_end,
                 "addresses": [
-                    {"city": a.city, "state": a.state, "country": a.country}
+                    {
+                        "city": a.city,
+                        "state": a.state,
+                        "country": a.country,
+                        "city_slug": slugify(a.city) if a.city else "",
+                        "state_slug": slugify(a.state) if a.state else "",
+                        "country_slug": slugify(a.country) if a.country else "",
+                    }
                     for a in e.addresses.all()
                 ],
             }
@@ -149,6 +198,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
             m for e in mfr.entities.all() for m in e.models.all()
         ),
         "systems": [{"name": s.name, "slug": s.slug} for s in mfr.systems.all()],
+        "persons": persons,
         "activity": _build_activity(getattr(mfr, "active_claims", [])),
     }
 
@@ -165,6 +215,7 @@ def _manufacturer_qs():
                     "models",
                     queryset=MachineModel.objects.filter(variant_of__isnull=True)
                     .select_related("technology_generation", "title")
+                    .prefetch_related("credits__person", "credits__role")
                     .order_by(F("year").desc(nulls_last=True), "name"),
                 ),
             ).order_by("year_start"),
@@ -245,6 +296,7 @@ def list_all_manufacturers(request):
                 "entities",
                 queryset=CorporateEntity.objects.prefetch_related(
                     "addresses",
+                    "aliases",
                     Prefetch(
                         "models",
                         queryset=MachineModel.objects.filter(variant_of__isnull=True)
@@ -269,6 +321,8 @@ def list_all_manufacturers(request):
 
         for entity in mfr.entities.all():
             search_parts.append(entity.name)
+            for alias in entity.aliases.all():
+                search_parts.append(alias.value)
             for addr in entity.addresses.all():
                 if addr.city:
                     search_parts.append(addr.city)

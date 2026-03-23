@@ -21,7 +21,7 @@ def _mpu_strings(db):
 
 
 @pytest.fixture
-def _setup_ipdb_first(db, _mpu_strings):
+def _setup_ipdb_first(db, _mpu_strings, ipdb_narrative_features, credit_roles):
     """Seed IPDB data so OPDB can match by ipdb_id."""
     call_command(
         "ingest_ipdb",
@@ -163,13 +163,13 @@ class TestIngestOpdbAliases:
         claims = variant.claims.filter(source=source, is_active=True)
         field_names = set(claims.values_list("field_name", flat=True))
         assert "name" in field_names
-        assert "opdb.variant_features" in field_names
+        assert "opdb.features" in field_names
 
     def test_alias_features_claim(self):
         variant = MachineModel.objects.get(opdb_id="G1111-MTest1-AAlias")
         source = Source.objects.get(slug="opdb")
         claim = variant.claims.get(
-            source=source, field_name="opdb.variant_features", is_active=True
+            source=source, field_name="opdb.features", is_active=True
         )
         assert "Gold trim" in claim.value
 

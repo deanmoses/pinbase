@@ -4,6 +4,7 @@ The catalog represents the resolved/materialized view of each entity.
 Field values are derived by resolving claims from the provenance layer.
 """
 
+from .gameplay_feature import *  # noqa: F403
 from .machine_model import *  # noqa: F403
 from .manufacturer import *  # noqa: F403
 from .person import *  # noqa: F403

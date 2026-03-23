@@ -4,6 +4,7 @@ from django.test import Client
 from apps.catalog.models import (
     CorporateEntity,
     CreditRole,
+    GameplayFeature,
     MachineModel,
     Manufacturer,
     Person,
@@ -109,6 +110,31 @@ def machine_model(db, williams_entity, solid_state):
     t = Theme.objects.create(name="Medieval", slug="medieval")
     pm.themes.add(t)
     return pm
+
+
+_IPDB_NARRATIVE_FEATURE_SLUGS = [
+    "multiball",
+    "kickback",
+    "magna-save",
+    "ball-save",
+    "skill-shot",
+    "multi-level-playfield",
+    "head-to-head",
+]
+
+
+@pytest.fixture
+def ipdb_narrative_features(db):
+    """Create GameplayFeature records for IPDB narrative pattern slugs.
+
+    Required by ingest_ipdb, which validates these slugs exist at startup.
+    """
+    return GameplayFeature.objects.bulk_create(
+        [GameplayFeature(slug=s, name=s) for s in _IPDB_NARRATIVE_FEATURE_SLUGS],
+        update_conflicts=True,
+        unique_fields=["slug"],
+        update_fields=["name"],
+    )
 
 
 @pytest.fixture

@@ -5,7 +5,15 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from django.db.models.functions import Lower
+
+from apps.core.models import (
+    AliasBase,
+    Linkable,
+    MarkdownField,
+    TimeStampedModel,
+    unique_slug,
+)
 
 __all__ = ["Theme", "ThemeAlias"]
 
@@ -28,7 +36,7 @@ class Theme(Linkable, TimeStampedModel):
         symmetrical=False,
         related_name="children",
         blank=True,
-        help_text="Parent themes in the hierarchy (structural, not claim-controlled).",
+        help_text="Parent themes in the hierarchy (materialized from relationship claims).",
     )
 
     claims = GenericRelation("provenance.Claim")
@@ -45,15 +53,15 @@ class Theme(Linkable, TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class ThemeAlias(TimeStampedModel):
+class ThemeAlias(AliasBase):
     """An alternate name for a Theme, used for matching/search."""
 
     theme = models.ForeignKey(Theme, on_delete=models.CASCADE, related_name="aliases")
-    value = models.CharField(max_length=200)
 
-    class Meta:
-        ordering = ["value"]
-        unique_together = [("theme", "value")]
-
-    def __str__(self) -> str:
-        return self.value
+    class Meta(AliasBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                Lower("value"),
+                name="catalog_unique_theme_alias_lower",
+            ),
+        ]

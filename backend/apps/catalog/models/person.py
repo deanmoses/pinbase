@@ -6,7 +6,13 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from apps.core.models import (
+    AliasBase,
+    Linkable,
+    MarkdownField,
+    TimeStampedModel,
+    unique_slug,
+)
 
 __all__ = ["Person", "PersonAlias", "Credit"]
 
@@ -61,25 +67,20 @@ class Person(Linkable, TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class PersonAlias(TimeStampedModel):
-    """An alternate name for a Person, used to match variant spellings from
+class PersonAlias(AliasBase):
+    """An alternate name for a Person, used to match alternative spellings from
     external sources (e.g. "Keith Johnson" → "Keith P. Johnson").
     """
 
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name="aliases")
-    value = models.CharField(max_length=200)
 
-    class Meta:
-        ordering = ["value"]
+    class Meta(AliasBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_person_alias_lower",
             ),
         ]
-
-    def __str__(self) -> str:
-        return f"{self.value} → {self.person.name}"
 
 
 class Credit(TimeStampedModel):

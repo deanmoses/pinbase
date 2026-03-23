@@ -15,7 +15,7 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.catalog.claims import build_relationship_claim
+from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.bulk_utils import (
     format_names,
     generate_unique_slug,
@@ -26,10 +26,121 @@ from apps.catalog.ingestion.parsers import (
     map_opdb_type,
     parse_opdb_date,
 )
-from apps.catalog.models import MachineModel
+from apps.catalog.ingestion.vocabulary import (
+    build_cabinet_map,
+    build_feature_slug_map,
+    build_reward_type_map,
+    build_tag_map,
+)
+from apps.catalog.models import GameplayFeature, MachineModel, RewardType, Tag
+from apps.catalog.resolve import (
+    resolve_all_gameplay_features,
+    resolve_all_reward_types,
+    resolve_all_tags,
+)
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
+
+# OPDB features terms that match no vocabulary and should be silently skipped.
+_KNOWN_OPDB_VARIANT_LABELS: frozenset[str] = frozenset(
+    {
+        "Limited Edition",
+        "LE",
+        "Special Edition",
+        "SE",
+        "Premium",
+        "Pro",
+        "Home Edition",
+        "Home ROM",
+        "Shaker Motor",
+        "PinSound",
+        "Topper",
+        "Conversion kit",
+        "Converted game",
+        "LED",
+        "LED Upgrade",
+        "Colorization",
+        "Color DMD",
+    }
+)
+
+
+def _classify_opdb_features(
+    features: list[str],
+    feature_map: dict[str, str],
+    reward_map: dict[str, str],
+    tag_map: dict[str, str],
+    cabinet_map: dict[str, str],
+) -> tuple[list[str], list[str], list[str], str | None, bool, list[str]]:
+    """Classify OPDB features array terms against vocabulary maps.
+
+    Priority: reward types first, then gameplay features, then tags, then cabinets.
+    Also detects is_conversion from "Conversion kit" / "Converted game".
+
+    Returns (gameplay_slugs, reward_slugs, tag_slugs, cabinet_slug, is_conversion, unmatched).
+    """
+    gameplay_slugs: list[str] = []
+    reward_slugs: list[str] = []
+    tag_slugs: list[str] = []
+    cabinet_slug: str | None = None
+    is_conversion = False
+    unmatched: list[str] = []
+
+    seen_gameplay: set[str] = set()
+    seen_reward: set[str] = set()
+    seen_tag: set[str] = set()
+
+    for term in features:
+        # is_conversion detection (before skip check).
+        if term in ("Conversion kit", "Converted game"):
+            is_conversion = True
+
+        lower = term.lower()
+
+        # Reward type takes priority.
+        if lower in reward_map:
+            slug = reward_map[lower]
+            if slug not in seen_reward:
+                seen_reward.add(slug)
+                reward_slugs.append(slug)
+            continue
+
+        # Then gameplay features.
+        if lower in feature_map:
+            slug = feature_map[lower]
+            if slug not in seen_gameplay:
+                seen_gameplay.add(slug)
+                gameplay_slugs.append(slug)
+            continue
+
+        # Then tags.
+        if lower in tag_map:
+            slug = tag_map[lower]
+            if slug not in seen_tag:
+                seen_tag.add(slug)
+                tag_slugs.append(slug)
+            continue
+
+        # Then cabinets.
+        if lower in cabinet_map:
+            cabinet_slug = cabinet_map[lower]
+            continue
+
+        # Skip known variant labels silently.
+        if term in _KNOWN_OPDB_VARIANT_LABELS:
+            continue
+
+        unmatched.append(term)
+
+    return (
+        gameplay_slugs,
+        reward_slugs,
+        tag_slugs,
+        cabinet_slug,
+        is_conversion,
+        unmatched,
+    )
 
 
 class Command(BaseCommand):
@@ -50,6 +161,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         opdb_path = options["opdb"]
         changelog_path = options["changelog"]
+
+        # Build DB-driven vocabulary maps.
+        feature_map = build_feature_slug_map()
+        reward_map = build_reward_type_map()
+        tag_map = build_tag_map()
+        cabinet_map = build_cabinet_map()
 
         from django.contrib.contenttypes.models import ContentType
 
@@ -229,11 +346,52 @@ class Command(BaseCommand):
                 f"    New: {format_names([pm.name for pm in new_alias_models])}"
             )
 
-        # --- Collect and assert scalar claims ---
+        # --- Collect and assert scalar claims + classify features ---
         pending_claims: list[Claim] = []
+        gameplay_feature_queue: list[tuple[int, list[str]]] = []
+        reward_type_queue: list[tuple[int, list[str]]] = []
+        tag_queue: list[tuple[int, list[str]]] = []
+        unmatched_opdb_terms: list[str] = []
 
         for pm, rec in machine_models:
             self._collect_claims(pm, rec, ct_id, pending_claims)
+
+            if rec.features:
+                (
+                    feature_slugs,
+                    reward_slugs,
+                    tag_slugs,
+                    cabinet_slug,
+                    is_conversion,
+                    unmatched,
+                ) = _classify_opdb_features(
+                    rec.features, feature_map, reward_map, tag_map, cabinet_map
+                )
+                unmatched_opdb_terms.extend(unmatched)
+                if feature_slugs:
+                    gameplay_feature_queue.append((pm.pk, feature_slugs))
+                if reward_slugs:
+                    reward_type_queue.append((pm.pk, reward_slugs))
+                if tag_slugs:
+                    tag_queue.append((pm.pk, tag_slugs))
+                if cabinet_slug:
+                    pending_claims.append(
+                        Claim(
+                            content_type_id=ct_id,
+                            object_id=pm.pk,
+                            field_name="cabinet",
+                            value=cabinet_slug,
+                        )
+                    )
+                if is_conversion:
+                    pending_claims.append(
+                        Claim(
+                            content_type_id=ct_id,
+                            object_id=pm.pk,
+                            field_name="is_conversion",
+                            value=True,
+                        )
+                    )
 
         claim_stats = Claim.objects.bulk_assert_claims(source, pending_claims)
         self.stdout.write(
@@ -257,6 +415,32 @@ class Command(BaseCommand):
                 f"(variant_of/title/manufacturer)"
             )
 
+        # --- Assert gameplay feature claims ---
+        all_model_ids = {pm.pk for pm, _ in machine_models}
+        self._bulk_create_gameplay_features(
+            gameplay_feature_queue, source, all_model_ids
+        )
+
+        # --- Assert reward type claims ---
+        self._bulk_create_reward_types(reward_type_queue, source, all_model_ids)
+
+        # --- Assert tag claims ---
+        self._bulk_create_tags(tag_queue, source, all_model_ids)
+
+        # --- Warn about unmatched features terms ---
+        if unmatched_opdb_terms:
+            sample = unmatched_opdb_terms[:25]
+            suffix = (
+                f", ... ({len(unmatched_opdb_terms)} total not in pinbase)"
+                if len(unmatched_opdb_terms) > 25
+                else ""
+            )
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  Unmatched OPDB feature terms: {', '.join(sample)}{suffix}"
+                )
+            )
+
         # Log OPDB manufacturers not represented in pinbase.
         from apps.catalog.models import Manufacturer
 
@@ -265,13 +449,21 @@ class Command(BaseCommand):
                 "opdb_manufacturer_id", flat=True
             )
         )
-        opdb_mfr_ids = {
-            rec.manufacturer_id for rec in machines if rec.manufacturer_id is not None
-        }
-        missing_mfr_count = len(opdb_mfr_ids - pinbase_opdb_mfr_ids)
-        if missing_mfr_count:
+        opdb_mfr_by_id: dict[int, str] = {}
+        for rec in machines:
+            if (
+                rec.manufacturer_id is not None
+                and rec.manufacturer_id not in opdb_mfr_by_id
+            ):
+                opdb_mfr_by_id[rec.manufacturer_id] = rec.manufacturer_name
+        missing_ids = set(opdb_mfr_by_id) - pinbase_opdb_mfr_ids
+        if missing_ids:
+            names = [
+                f"{opdb_mfr_by_id[mid]} (opdb_id={mid})" for mid in sorted(missing_ids)
+            ]
             self.stdout.write(
-                f"  {missing_mfr_count} OPDB manufacturer(s) not in pinbase"
+                f"  {len(missing_ids)} OPDB manufacturer(s) not in pinbase: "
+                + ", ".join(names)
             )
 
         self.stdout.write(self.style.SUCCESS("OPDB ingestion complete."))
@@ -370,15 +562,11 @@ class Command(BaseCommand):
         if display_type:
             _add("display_type", display_type)
 
-        # Cabinet (from OPDB features).
-        if rec.features and "Cocktail table" in rec.features:
-            _add("cabinet", "cocktail")
-
-        # Extra data fields.
-        # OPDB 'features' are variant labels (LE, SE, shaker motor etc.) — stored
-        # as 'variant_features' to avoid future confusion with gameplay features.
+        # Cabinet and gameplay_feature/reward_type/tag claims are derived from
+        # rec.features in the classification pass (handle → _classify_opdb_features).
+        # Store the raw features list for reference.
         if rec.features:
-            _add("opdb.variant_features", rec.features)
+            _add("opdb.features", rec.features)
 
         for attr, claim_field in (
             ("keywords", "opdb.keywords"),
@@ -404,3 +592,187 @@ class Command(BaseCommand):
                     value=abbr_value,
                 )
             )
+
+    # ------------------------------------------------------------------
+    # Relationship bulk creators (gameplay features, reward types, tags)
+    # ------------------------------------------------------------------
+
+    def _bulk_create_gameplay_features(
+        self,
+        gameplay_feature_queue: list[tuple[int, list[str]]],
+        source,
+        all_model_ids: set[int],
+    ) -> None:
+        """Assert gameplay feature claims and resolve into M2M rows."""
+        if not gameplay_feature_queue:
+            return
+
+        from django.contrib.contenttypes.models import ContentType
+
+        all_slugs: set[str] = set()
+        for _, slugs in gameplay_feature_queue:
+            all_slugs.update(slugs)
+
+        existing_slugs = set(
+            GameplayFeature.objects.filter(slug__in=all_slugs).values_list(
+                "slug", flat=True
+            )
+        )
+        missing = all_slugs - existing_slugs
+        if missing:
+            logger.warning(
+                "Gameplay feature slugs not found in DB (skipping): %s",
+                sorted(missing),
+            )
+
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        feature_claims: list[Claim] = []
+        for pm_pk, slugs in gameplay_feature_queue:
+            for slug in slugs:
+                if slug not in existing_slugs:
+                    continue
+                claim_key, value = build_relationship_claim(
+                    "gameplay_feature", {"gameplay_feature_slug": slug}
+                )
+                feature_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=pm_pk,
+                        field_name="gameplay_feature",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+        auth_scope = make_authoritative_scope(MachineModel, all_model_ids)
+        feature_stats = Claim.objects.bulk_assert_claims(
+            source,
+            feature_claims,
+            sweep_field="gameplay_feature",
+            authoritative_scope=auth_scope,
+        )
+        self.stdout.write(
+            f"  Gameplay feature claims: {feature_stats['unchanged']} unchanged, "
+            f"{feature_stats['created']} created, "
+            f"{feature_stats['superseded']} superseded, "
+            f"{feature_stats['swept']} swept"
+        )
+        resolve_all_gameplay_features([], model_ids=all_model_ids)
+
+    def _bulk_create_reward_types(
+        self,
+        reward_type_queue: list[tuple[int, list[str]]],
+        source,
+        all_model_ids: set[int],
+    ) -> None:
+        """Assert reward type claims and resolve into M2M rows."""
+        if not reward_type_queue:
+            return
+
+        from django.contrib.contenttypes.models import ContentType
+
+        all_slugs: set[str] = set()
+        for _, slugs in reward_type_queue:
+            all_slugs.update(slugs)
+
+        existing_slugs = set(
+            RewardType.objects.filter(slug__in=all_slugs).values_list("slug", flat=True)
+        )
+        missing = all_slugs - existing_slugs
+        if missing:
+            logger.warning(
+                "Reward type slugs not found in DB (skipping): %s",
+                sorted(missing),
+            )
+
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        reward_type_claims: list[Claim] = []
+        for pm_pk, slugs in reward_type_queue:
+            for slug in slugs:
+                if slug not in existing_slugs:
+                    continue
+                claim_key, value = build_relationship_claim(
+                    "reward_type", {"reward_type_slug": slug}
+                )
+                reward_type_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=pm_pk,
+                        field_name="reward_type",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+        auth_scope = make_authoritative_scope(MachineModel, all_model_ids)
+        reward_type_stats = Claim.objects.bulk_assert_claims(
+            source,
+            reward_type_claims,
+            sweep_field="reward_type",
+            authoritative_scope=auth_scope,
+        )
+        self.stdout.write(
+            f"  Reward type claims: {reward_type_stats['unchanged']} unchanged, "
+            f"{reward_type_stats['created']} created, "
+            f"{reward_type_stats['superseded']} superseded, "
+            f"{reward_type_stats['swept']} swept"
+        )
+        resolve_all_reward_types([], model_ids=all_model_ids)
+
+    def _bulk_create_tags(
+        self,
+        tag_queue: list[tuple[int, list[str]]],
+        source,
+        all_model_ids: set[int],
+    ) -> None:
+        """Assert tag claims and resolve into M2M rows."""
+        if not tag_queue:
+            return
+
+        from django.contrib.contenttypes.models import ContentType
+
+        all_slugs: set[str] = set()
+        for _, slugs in tag_queue:
+            all_slugs.update(slugs)
+
+        existing_slugs = set(
+            Tag.objects.filter(slug__in=all_slugs).values_list("slug", flat=True)
+        )
+        missing = all_slugs - existing_slugs
+        if missing:
+            logger.warning(
+                "Tag slugs not found in DB (skipping): %s",
+                sorted(missing),
+            )
+
+        ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        tag_claims: list[Claim] = []
+        for pm_pk, slugs in tag_queue:
+            for slug in slugs:
+                if slug not in existing_slugs:
+                    continue
+                claim_key, value = build_relationship_claim("tag", {"tag_slug": slug})
+                tag_claims.append(
+                    Claim(
+                        content_type_id=ct_machine,
+                        object_id=pm_pk,
+                        field_name="tag",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+        auth_scope = make_authoritative_scope(MachineModel, all_model_ids)
+        tag_stats = Claim.objects.bulk_assert_claims(
+            source,
+            tag_claims,
+            sweep_field="tag",
+            authoritative_scope=auth_scope,
+        )
+        self.stdout.write(
+            f"  Tag claims: {tag_stats['unchanged']} unchanged, "
+            f"{tag_stats['created']} created, "
+            f"{tag_stats['superseded']} superseded, "
+            f"{tag_stats['swept']} swept"
+        )
+        resolve_all_tags([], model_ids=all_model_ids)

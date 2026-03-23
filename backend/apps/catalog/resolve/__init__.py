@@ -29,17 +29,28 @@ from ._helpers import (
     build_fk_lookups,
     get_field_defaults,
 )
-from ._relationships import (
-    resolve_all_tags,
+from ._relationships import (  # noqa: F401
+    resolve_all_aliases,
     resolve_all_credits,
     resolve_all_gameplay_features,
     resolve_all_model_abbreviations,
+    resolve_all_reward_types,
+    resolve_all_tags,
     resolve_all_themes,
     resolve_all_title_abbreviations,
+    resolve_corporate_entity_aliases,
     resolve_credits,
+    resolve_gameplay_feature_aliases,
+    resolve_gameplay_feature_parents,
     resolve_gameplay_features,
+    resolve_manufacturer_aliases,
     resolve_model_abbreviations,
+    resolve_person_aliases,
+    resolve_reward_type_aliases,
+    resolve_reward_types,
     resolve_tags,
+    resolve_theme_aliases,
+    resolve_theme_parents,
     resolve_themes,
 )
 
@@ -47,6 +58,7 @@ from ._relationships import (
 from ._entities import (  # noqa: F401
     CORPORATE_ENTITY_DIRECT_FIELDS as CORPORATE_ENTITY_DIRECT_FIELDS,
     FRANCHISE_DIRECT_FIELDS as FRANCHISE_DIRECT_FIELDS,
+    GAMEPLAY_FEATURE_DIRECT_FIELDS as GAMEPLAY_FEATURE_DIRECT_FIELDS,
     MANUFACTURER_DIRECT_FIELDS as MANUFACTURER_DIRECT_FIELDS,
     PERSON_DIRECT_FIELDS as PERSON_DIRECT_FIELDS,
     SERIES_DIRECT_FIELDS as SERIES_DIRECT_FIELDS,
@@ -58,8 +70,10 @@ from ._entities import (  # noqa: F401
     _resolve_all_taxonomy,
     _resolve_bulk as _resolve_bulk,
     _resolve_single as _resolve_single,
+    resolve_all_gameplay_feature_entities as resolve_all_gameplay_feature_entities,
     resolve_corporate_entity as resolve_corporate_entity,
     resolve_franchise as resolve_franchise,
+    resolve_gameplay_feature as resolve_gameplay_feature,
     resolve_manufacturer as resolve_manufacturer,
     resolve_person as resolve_person,
     resolve_series as resolve_series,
@@ -161,6 +175,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     resolve_credits(machine_model)
     resolve_themes(machine_model)
     resolve_gameplay_features(machine_model)
+    resolve_reward_types(machine_model)
     resolve_tags(machine_model)
     resolve_model_abbreviations(machine_model)
 
@@ -181,7 +196,14 @@ def resolve_all(stdout=None) -> int:
 
     # 0a. Resolve taxonomy models first (they are FK targets).
     _resolve_all_taxonomy()
+    resolve_all_gameplay_feature_entities()
     _status("Taxonomy resolved")
+
+    # 0a2. Resolve entity hierarchy and aliases.
+    resolve_theme_parents()
+    resolve_gameplay_feature_parents()
+    resolve_all_aliases()
+    _status("Hierarchy and aliases resolved")
 
     # 0b. Resolve titles (they are FK targets for MachineModel).
     franchise_lookup = {f.slug: f for f in Franchise.objects.all()}
@@ -246,11 +268,14 @@ def resolve_all(stdout=None) -> int:
     # 11. Bulk-resolve gameplay feature relationships.
     resolve_all_gameplay_features(all_models)
 
-    # 12. Bulk-resolve tag relationships.
-    resolve_all_tags(all_models)
-    _status("Themes, features, tags resolved")
+    # 12. Bulk-resolve reward type relationships.
+    resolve_all_reward_types(all_models)
 
-    # 13. Bulk-resolve model abbreviations.
+    # 13. Bulk-resolve tag relationships.
+    resolve_all_tags(all_models)
+    _status("Themes, features, reward types, tags resolved")
+
+    # 14. Bulk-resolve model abbreviations.
     resolve_all_model_abbreviations(all_models)
     _status("Abbreviations resolved")
 

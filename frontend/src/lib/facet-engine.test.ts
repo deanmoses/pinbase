@@ -31,6 +31,8 @@ function makeTitle(overrides: Partial<FacetedTitle> = {}): FacetedTitle {
 		themes: [],
 		persons: [],
 		series: [],
+		gameplay_features: [],
+		reward_types: [],
 		...overrides
 	};
 }

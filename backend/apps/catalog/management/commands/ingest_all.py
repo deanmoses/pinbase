@@ -9,6 +9,8 @@ Runs: ingest_pinbase → ingest_ipdb → ingest_opdb →
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -19,6 +21,9 @@ from apps.catalog.ingestion.constants import (
     DEFAULT_IPDB_PATH,
     DEFAULT_OPDB_CHANGELOG_PATH,
     DEFAULT_OPDB_PATH,
+)
+from apps.catalog.management.commands.ingest_pinbase import (
+    validate_cross_entity_wikilinks,
 )
 
 STEPS = [
@@ -100,6 +105,12 @@ class Command(BaseCommand):
                             }
                         )
                     call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
+
+                # Post-pipeline: validate cross-entity wikilinks now that all
+                # manufacturers, titles, and systems have been ingested.
+                validate_cross_entity_wikilinks(
+                    Path(export_dir), self.stdout, self.stderr
+                )
 
                 if not write:
                     transaction.set_rollback(True)

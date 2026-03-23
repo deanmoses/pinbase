@@ -18,6 +18,28 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class AliasBase(TimeStampedModel):
+    """Abstract base for alias lookup models.
+
+    Alias values are stored and compared in lowercase (matching the
+    UniqueConstraint(Lower("value")) that every subclass must define).
+    Claims live on the *parent* object, not on the alias row itself.
+
+    Subclasses must add:
+    - A ForeignKey to the parent model (named after the parent, related_name="aliases")
+    - A UniqueConstraint on Lower("value") with a table-specific name
+    """
+
+    value = models.CharField(max_length=200)
+
+    class Meta(TimeStampedModel.Meta):
+        abstract = True
+        ordering = ["value"]
+
+    def __str__(self) -> str:
+        return self.value
+
+
 def unique_slug(obj, source: str, fallback: str = "item") -> str:
     """Generate a unique slug with counter disambiguation.
 

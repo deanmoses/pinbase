@@ -6,9 +6,21 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from apps.core.models import (
+    AliasBase,
+    Linkable,
+    MarkdownField,
+    TimeStampedModel,
+    unique_slug,
+)
 
-__all__ = ["Manufacturer", "ManufacturerAlias", "CorporateEntity", "Address"]
+__all__ = [
+    "Manufacturer",
+    "ManufacturerAlias",
+    "CorporateEntity",
+    "CorporateEntityAlias",
+    "Address",
+]
 
 
 class Manufacturer(Linkable, TimeStampedModel):
@@ -57,27 +69,22 @@ class Manufacturer(Linkable, TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class ManufacturerAlias(TimeStampedModel):
-    """An alternate name for a Manufacturer, used to match variant spellings
+class ManufacturerAlias(AliasBase):
+    """An alternate name for a Manufacturer, used to match alternative spellings
     from external sources.
     """
 
     manufacturer = models.ForeignKey(
         Manufacturer, on_delete=models.CASCADE, related_name="aliases"
     )
-    value = models.CharField(max_length=200)
 
-    class Meta:
-        ordering = ["value"]
+    class Meta(AliasBase.Meta):
         constraints = [
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_manufacturer_alias_lower",
             ),
         ]
-
-    def __str__(self) -> str:
-        return self.value
 
 
 class CorporateEntity(TimeStampedModel):
@@ -124,6 +131,24 @@ class CorporateEntity(TimeStampedModel):
             end = self.year_end or "present"
             return f"{self.name} ({self.year_start}-{end})"
         return self.name
+
+
+class CorporateEntityAlias(AliasBase):
+    """An alternate name for a CorporateEntity, used to match alternative spellings
+    from external sources.
+    """
+
+    corporate_entity = models.ForeignKey(
+        CorporateEntity, on_delete=models.CASCADE, related_name="aliases"
+    )
+
+    class Meta(AliasBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                Lower("value"),
+                name="catalog_unique_corporate_entity_alias_lower",
+            ),
+        ]
 
 
 class Address(models.Model):

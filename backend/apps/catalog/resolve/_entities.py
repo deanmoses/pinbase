@@ -26,6 +26,7 @@ from ..models import (
     GameplayFeature,
     Manufacturer,
     Person,
+    RewardType,
     Series,
     System,
     Tag,
@@ -87,6 +88,17 @@ THEME_DIRECT_FIELDS: dict[str, str] = {
     "description": "description",
 }
 
+GAMEPLAY_FEATURE_DIRECT_FIELDS: dict[str, str] = {
+    "name": "name",
+    "description": "description",
+}
+
+REWARD_TYPE_DIRECT_FIELDS: dict[str, str] = {
+    "name": "name",
+    "display_order": "display_order",
+    "description": "description",
+}
+
 CORPORATE_ENTITY_DIRECT_FIELDS: dict[str, str] = {
     "name": "name",
     "description": "description",
@@ -125,7 +137,7 @@ TAXONOMY_MODELS: list[tuple[type, dict[str, str]]] = [
     (DisplaySubtype, TAXONOMY_DIRECT_FIELDS),
     (Cabinet, TAXONOMY_DIRECT_FIELDS),
     (GameFormat, TAXONOMY_DIRECT_FIELDS),
-    (GameplayFeature, TAXONOMY_DIRECT_FIELDS),
+    (RewardType, REWARD_TYPE_DIRECT_FIELDS),
     (Tag, TAXONOMY_DIRECT_FIELDS),
     (CreditRole, TAXONOMY_DIRECT_FIELDS),
     (Franchise, FRANCHISE_DIRECT_FIELDS),
@@ -345,6 +357,19 @@ def resolve_person(person: Person) -> Person:
     person.save()
     _sync_markdown_references(person)
     return person
+
+
+def resolve_gameplay_feature(feature: GameplayFeature) -> GameplayFeature:
+    """Resolve active claims into the given GameplayFeature's fields."""
+    _resolve_single(feature, GAMEPLAY_FEATURE_DIRECT_FIELDS)
+    feature.save()
+    _sync_markdown_references(feature)
+    return feature
+
+
+def resolve_all_gameplay_feature_entities() -> int:
+    """Bulk-resolve claims for all GameplayFeature instances."""
+    return _resolve_bulk(GameplayFeature, GAMEPLAY_FEATURE_DIRECT_FIELDS)
 
 
 def resolve_theme(theme: Theme) -> Theme:

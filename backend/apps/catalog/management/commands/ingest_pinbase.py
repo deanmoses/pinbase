@@ -16,6 +16,7 @@ import json
 import logging
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
@@ -35,9 +36,8 @@ from apps.catalog.models import (
     GameplayFeature,
     MachineModel,
     Manufacturer,
-    ManufacturerAlias,
     Person,
-    PersonAlias,
+    RewardType,
     Series,
     System,
     SystemMpuString,
@@ -45,7 +45,6 @@ from apps.catalog.models import (
     TechnologyGeneration,
     TechnologySubgeneration,
     Theme,
-    ThemeAlias,
     Title,
 )
 from apps.catalog.resolve import (
@@ -53,10 +52,20 @@ from apps.catalog.resolve import (
     TITLE_DIRECT_FIELDS,
     _resolve_bulk,
     resolve_all_credits,
+    resolve_all_gameplay_features,
+    resolve_all_reward_types,
     resolve_all_tags,
     resolve_all_themes,
     resolve_all_title_abbreviations,
     resolve_corporate_entity,
+    resolve_corporate_entity_aliases,
+    resolve_gameplay_feature_aliases,
+    resolve_gameplay_feature_parents,
+    resolve_manufacturer_aliases,
+    resolve_person_aliases,
+    resolve_reward_type_aliases,
+    resolve_theme_aliases,
+    resolve_theme_parents,
 )
 from apps.provenance.models import Claim, Source
 
@@ -84,7 +93,8 @@ TAXONOMY_REGISTRY = [
     ("display_type.json", DisplayType, True, None),
     ("cabinet.json", Cabinet, True, None),
     ("game_format.json", GameFormat, True, None),
-    ("gameplay_feature.json", GameplayFeature, True, None),
+    ("gameplay_feature.json", GameplayFeature, False, None),
+    ("reward_type.json", RewardType, True, None),
     ("tag.json", Tag, True, None),
     ("credit_role.json", CreditRole, True, None),
     ("franchise.json", Franchise, False, None),
@@ -103,6 +113,58 @@ TAXONOMY_REGISTRY = [
         ("display_type", DisplayType, "display_type_slug"),
     ),
 ]
+
+
+def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
+    """Validate cross-entity [[type:slug]] wikilinks in all taxonomy descriptions.
+
+    Called by ingest_all after the full pipeline so all entities (manufacturers,
+    titles, systems) are in the DB.  Broken references are printed as warnings;
+    nothing is raised so a stale pindata link never aborts a completed ingest.
+    """
+    import json
+    import re
+
+    from django.apps import apps
+
+    linkable_models: dict[str, Any] = {}
+    for model in apps.get_models():
+        if hasattr(model, "link_url_pattern") and hasattr(model, "slug"):
+            link_type = getattr(
+                model,
+                "link_type_name",
+                model._meta.model_name.replace("_", "-"),
+            )
+            linkable_models[link_type] = model
+
+    pattern = re.compile(r"\[\[([a-z0-9-]+):([a-zA-Z0-9_-]+)\]\]")
+    broken: list[str] = []
+
+    for json_file, _, _, _ in TAXONOMY_REGISTRY:
+        path = export_dir / json_file
+        if not path.exists():
+            continue
+        data = json.loads(path.read_text())
+        for entry in data:
+            description = entry.get("description", "")
+            if not description:
+                continue
+            for link_type, slug in pattern.findall(description):
+                target_model = linkable_models.get(link_type)
+                if target_model is None:
+                    broken.append(
+                        f"  {json_file} {entry['slug']}: unknown link type {link_type!r}"
+                    )
+                elif not target_model.objects.filter(slug=slug).exists():
+                    broken.append(
+                        f"  {json_file} {entry['slug']}: [[{link_type}:{slug}]] not found"
+                    )
+
+    if broken:
+        stderr.write(
+            f"Wikilink warnings ({len(broken)} broken references):\n"
+            + "\n".join(broken)
+        )
 
 
 class Command(BaseCommand):
@@ -148,6 +210,7 @@ class Command(BaseCommand):
 
         self._ingest_taxonomy()
         self._sync_theme_parents_and_aliases()
+        self._sync_gameplay_feature_parents_and_aliases()
         self._ingest_manufacturers()
         self._ingest_corporate_entities()
         self._ingest_systems()
@@ -161,6 +224,42 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _assert_alias_claims(
+        self,
+        source,
+        ct_id: int,
+        aliases_by_pk: dict[int, list[str]],
+        field_name: str,
+    ) -> dict:
+        """Assert alias claims for a batch of entities.
+
+        aliases_by_pk: {entity_pk: [alias_str, ...]}
+        All alias values are lowercased before assertion (make_claim_key is
+        case-sensitive; the DB UniqueConstraint uses Lower("value"), so
+        normalising at claim time keeps the two consistent).
+        Returns bulk_assert_claims stats.
+        """
+        pending: list[Claim] = []
+        for pk, alias_values in aliases_by_pk.items():
+            for alias_str in alias_values:
+                lower = alias_str.lower()
+                claim_key, value = build_relationship_claim(
+                    field_name, {"alias_value": lower, "alias_display": alias_str}
+                )
+                pending.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=pk,
+                        field_name=field_name,
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+        scope = {(ct_id, pk) for pk in aliases_by_pk}
+        return Claim.objects.bulk_assert_claims(
+            source, pending, sweep_field=field_name, authoritative_scope=scope
+        )
 
     def _load(self, filename: str) -> list[dict]:
         path = self.export_dir / filename
@@ -284,7 +383,8 @@ class Command(BaseCommand):
             )
 
     # ------------------------------------------------------------------
-    # Phase 1b: Theme parents & aliases (structural, not claim-controlled)
+    # ------------------------------------------------------------------
+    # Phase 1b: Theme parents & aliases (claim-controlled)
     # ------------------------------------------------------------------
 
     def _sync_theme_parents_and_aliases(self):
@@ -292,20 +392,19 @@ class Command(BaseCommand):
         if not entries:
             return
 
+        source = self.pinbase_source
         themes_by_name = {t.name: t for t in Theme.objects.all()}
+        ct_id = ContentType.objects.get_for_model(Theme).pk
 
-        # --- Parents (M2M set per theme) ---
-        parents_set = 0
+        # --- Parents (claim-controlled) ---
+        parent_claims: list[Claim] = []
+        all_theme_pks: set[int] = {t.pk for t in themes_by_name.values()}
+
         for entry in entries:
             theme = themes_by_name.get(entry["name"])
             if theme is None:
                 continue
-            parent_names = entry.get("parents", [])
-            if not parent_names:
-                theme.parents.clear()
-                continue
-            parent_pks = []
-            for pname in parent_names:
+            for pname in entry.get("parents", []):
                 parent = themes_by_name.get(pname)
                 if parent is None:
                     logger.warning(
@@ -314,44 +413,136 @@ class Command(BaseCommand):
                         entry["name"],
                     )
                     continue
-                parent_pks.append(parent.pk)
-            theme.parents.set(parent_pks)
-            parents_set += len(parent_pks)
+                claim_key, value = build_relationship_claim(
+                    "theme_parent", {"parent_slug": parent.slug}
+                )
+                parent_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=theme.pk,
+                        field_name="theme_parent",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
 
-        self.stdout.write(f"  Theme parents: {parents_set} relationships set")
+        scope = make_authoritative_scope(Theme, all_theme_pks)
+        parent_stats = Claim.objects.bulk_assert_claims(
+            source, parent_claims, sweep_field="theme_parent", authoritative_scope=scope
+        )
+        resolve_theme_parents()
+        self.stdout.write(
+            f"  Theme parents: {parent_stats['created']} created, "
+            f"{parent_stats['unchanged']} unchanged, {parent_stats['swept']} swept"
+        )
 
-        # --- Aliases (diff-based sync) ---
-        all_theme_pks = {t.pk for t in themes_by_name.values()}
-        existing_aliases: dict[int, dict[str, int]] = {}
-        for pk, theme_id, value in ThemeAlias.objects.filter(
-            theme_id__in=all_theme_pks
-        ).values_list("pk", "theme_id", "value"):
-            existing_aliases.setdefault(theme_id, {})[value.lower()] = pk
-
-        to_create: list[ThemeAlias] = []
-        stale_pks: list[int] = []
-
+        # --- Aliases (claim-controlled) ---
+        aliases_by_pk: dict[int, list[str]] = {}
         for entry in entries:
             theme = themes_by_name.get(entry["name"])
             if theme is None:
                 continue
-            desired = {a.lower(): a for a in entry.get("aliases", [])}
-            existing = existing_aliases.get(theme.pk, {})
-            for lower_val, original_val in desired.items():
-                if lower_val not in existing:
-                    to_create.append(ThemeAlias(theme=theme, value=original_val))
-            for lower_val, alias_pk in existing.items():
-                if lower_val not in desired:
-                    stale_pks.append(alias_pk)
+            aliases_by_pk[theme.pk] = entry.get("aliases", [])
 
-        if stale_pks:
-            ThemeAlias.objects.filter(pk__in=stale_pks).delete()
-        if to_create:
-            ThemeAlias.objects.bulk_create(to_create)
-
-        self.stdout.write(
-            f"  Theme aliases: {len(to_create)} created, {len(stale_pks)} deleted"
+        alias_stats = self._assert_alias_claims(
+            source, ct_id, aliases_by_pk, "theme_alias"
         )
+        resolve_theme_aliases()
+        self.stdout.write(
+            f"  Theme aliases: {alias_stats['created']} created, "
+            f"{alias_stats['unchanged']} unchanged, {alias_stats['swept']} swept"
+        )
+
+    # ------------------------------------------------------------------
+    # Phase 1d: GameplayFeature parents & aliases (claim-controlled)
+    # ------------------------------------------------------------------
+
+    def _sync_gameplay_feature_parents_and_aliases(self):
+        entries = self._load("gameplay_feature.json")
+        if not entries:
+            return
+
+        source = self.pinbase_source
+        features_by_slug = {f.slug: f for f in GameplayFeature.objects.all()}
+        ct_id = ContentType.objects.get_for_model(GameplayFeature).pk
+        all_feature_pks: set[int] = {f.pk for f in features_by_slug.values()}
+
+        # --- Parents (claim-controlled, identified by slug) ---
+        parent_claims: list[Claim] = []
+        for entry in entries:
+            feature = features_by_slug.get(entry["slug"])
+            if feature is None:
+                continue
+            for parent_slug in entry.get("is_type_of", []):
+                if parent_slug not in features_by_slug:
+                    raise CommandError(
+                        f"GameplayFeature parent slug {parent_slug!r} not found "
+                        f"(referenced by {entry['slug']!r})"
+                    )
+                claim_key, value = build_relationship_claim(
+                    "gameplay_feature_parent", {"parent_slug": parent_slug}
+                )
+                parent_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=feature.pk,
+                        field_name="gameplay_feature_parent",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+        scope = make_authoritative_scope(GameplayFeature, all_feature_pks)
+        parent_stats = Claim.objects.bulk_assert_claims(
+            source,
+            parent_claims,
+            sweep_field="gameplay_feature_parent",
+            authoritative_scope=scope,
+        )
+        resolve_gameplay_feature_parents()
+        self.stdout.write(
+            f"  Feature parents: {parent_stats['created']} created, "
+            f"{parent_stats['unchanged']} unchanged, {parent_stats['swept']} swept"
+        )
+
+        # --- Aliases (claim-controlled) ---
+        aliases_by_pk: dict[int, list[str]] = {}
+        for entry in entries:
+            feature = features_by_slug.get(entry["slug"])
+            if feature is None:
+                continue
+            aliases_by_pk[feature.pk] = entry.get("aliases", [])
+
+        alias_stats = self._assert_alias_claims(
+            source, ct_id, aliases_by_pk, "gameplay_feature_alias"
+        )
+        resolve_gameplay_feature_aliases()
+        self.stdout.write(
+            f"  Feature aliases: {alias_stats['created']} created, "
+            f"{alias_stats['unchanged']} unchanged, {alias_stats['swept']} swept"
+        )
+
+        # --- RewardType aliases ---
+        rt_entries = self._load("reward_type.json")
+        if rt_entries:
+            rt_by_slug = {r.slug: r for r in RewardType.objects.all()}
+            rt_ct_id = ContentType.objects.get_for_model(RewardType).pk
+            rt_aliases_by_pk: dict[int, list[str]] = {}
+            for entry in rt_entries:
+                rt = rt_by_slug.get(entry["slug"])
+                if rt is None:
+                    continue
+                rt_aliases_by_pk[rt.pk] = entry.get("aliases", [])
+
+            rt_alias_stats = self._assert_alias_claims(
+                source, rt_ct_id, rt_aliases_by_pk, "reward_type_alias"
+            )
+            resolve_reward_type_aliases()
+            self.stdout.write(
+                f"  RewardType aliases: {rt_alias_stats['created']} created, "
+                f"{rt_alias_stats['unchanged']} unchanged, "
+                f"{rt_alias_stats['swept']} swept"
+            )
 
     # ------------------------------------------------------------------
     # Phase 2: Manufacturers
@@ -418,42 +609,24 @@ class Command(BaseCommand):
                 Manufacturer, MANUFACTURER_DIRECT_FIELDS, object_ids=touched_ids
             )
 
-        # Sync aliases.
+        # Sync aliases (claim-controlled).
         mfr_by_slug = {o.slug: o for o in objs}
-        existing_aliases: dict[int, set[str]] = {}
-        for alias in ManufacturerAlias.objects.all():
-            existing_aliases.setdefault(alias.manufacturer_id, set()).add(alias.value)
-
-        to_create: list[ManufacturerAlias] = []
-        to_delete_values: dict[int, set[str]] = {}
+        mfr_ct_id = ContentType.objects.get_for_model(Manufacturer).pk
+        aliases_by_pk: dict[int, list[str]] = {}
         for entry in entries:
-            alias_values = entry.get("aliases", [])
             mfr = mfr_by_slug.get(entry["slug"])
             if not mfr:
                 continue
+            aliases_by_pk[mfr.pk] = entry.get("aliases", [])
 
-            existing = existing_aliases.get(mfr.pk, set())
-            desired = set(alias_values)
-
-            for v in desired - existing:
-                to_create.append(ManufacturerAlias(manufacturer=mfr, value=v))
-            removed = existing - desired
-            if removed:
-                to_delete_values[mfr.pk] = removed
-
-        aliases_created = len(to_create)
-        if to_create:
-            ManufacturerAlias.objects.bulk_create(to_create)
-        aliases_deleted = 0
-        for mfr_pk, values in to_delete_values.items():
-            aliases_deleted += ManufacturerAlias.objects.filter(
-                manufacturer_id=mfr_pk, value__in=values
-            ).delete()[0]
-
-        if aliases_created or aliases_deleted:
-            self.stdout.write(
-                f"  Aliases: {aliases_created} created, {aliases_deleted} deleted"
-            )
+        alias_stats = self._assert_alias_claims(
+            source, mfr_ct_id, aliases_by_pk, "manufacturer_alias"
+        )
+        resolve_manufacturer_aliases()
+        self.stdout.write(
+            f"  Aliases: {alias_stats['created']} created, "
+            f"{alias_stats['unchanged']} unchanged, {alias_stats['swept']} swept"
+        )
 
     # ------------------------------------------------------------------
     # Phase 3: Corporate entities
@@ -571,6 +744,23 @@ class Command(BaseCommand):
             )
             for ce in objs:
                 resolve_corporate_entity(ce)
+
+        # Assert alias claims.
+        aliases_by_pk: dict[int, list[str]] = {}
+        for obj, entry in zip(objs, valid_entries):
+            entry_aliases = entry.get("aliases", [])
+            if entry_aliases:
+                aliases_by_pk[obj.pk] = entry_aliases
+
+        if aliases_by_pk:
+            alias_stats = self._assert_alias_claims(
+                source, ct_id, aliases_by_pk, "corporate_entity_alias"
+            )
+            self.stdout.write(
+                f"  CE aliases: {alias_stats['created']} created, "
+                f"{alias_stats['unchanged']} unchanged"
+            )
+        resolve_corporate_entity_aliases()
 
     # ------------------------------------------------------------------
     # Phase 4: Systems
@@ -727,49 +917,22 @@ class Command(BaseCommand):
                 f"  Claims: {stats['created']} created, {stats['unchanged']} unchanged"
             )
 
-        # Sync PersonAlias rows.
-        desired: dict[int, dict[str, str]] = {}
+        # Sync PersonAlias rows (claim-controlled).
+        person_ct_id = ContentType.objects.get_for_model(Person).pk
+        person_aliases_by_pk: dict[int, list[str]] = {}
         for entry in entries:
             person = persons_by_slug.get(entry["slug"])
             if not person:
                 continue
-            aliases = entry.get("aliases", [])
-            if aliases:
-                desired[person.pk] = {a.lower(): a for a in aliases}
+            person_aliases_by_pk[person.pk] = entry.get("aliases", [])
 
-        all_person_pks = {p.pk for p in objs}
-        existing_aliases = list(
-            PersonAlias.objects.filter(person_id__in=all_person_pks).values_list(
-                "pk", "person_id", "value"
-            )
+        alias_stats = self._assert_alias_claims(
+            source, person_ct_id, person_aliases_by_pk, "person_alias"
         )
-
-        existing_by_person: dict[int, dict[str, int]] = {}
-        for pk, person_id, value in existing_aliases:
-            existing_by_person.setdefault(person_id, {})[value.lower()] = pk
-
-        to_create: list[PersonAlias] = []
-        stale_pks: list[int] = []
-
-        for person_pk in all_person_pks:
-            desired_map = desired.get(person_pk, {})
-            existing_map = existing_by_person.get(person_pk, {})
-            for lower_val, original_val in desired_map.items():
-                if lower_val not in existing_map:
-                    to_create.append(
-                        PersonAlias(person_id=person_pk, value=original_val)
-                    )
-            for lower_val, alias_pk in existing_map.items():
-                if lower_val not in desired_map:
-                    stale_pks.append(alias_pk)
-
-        if stale_pks:
-            PersonAlias.objects.filter(pk__in=stale_pks).delete()
-        if to_create:
-            PersonAlias.objects.bulk_create(to_create)
-
+        resolve_person_aliases()
         self.stdout.write(
-            f"  Aliases: {len(to_create)} created, {len(stale_pks)} deleted"
+            f"  Aliases: {alias_stats['created']} created, "
+            f"{alias_stats['unchanged']} unchanged, {alias_stats['swept']} swept"
         )
 
     # ------------------------------------------------------------------
@@ -1199,11 +1362,40 @@ class Command(BaseCommand):
                 all_by_slug.get(mm.slug, mm) if mm else None for mm in entry_models
             ]
 
+        # Pre-validate gameplay_feature_slugs and reward_type_slugs.
+        valid_feature_slugs = frozenset(
+            GameplayFeature.objects.values_list("slug", flat=True)
+        )
+        valid_reward_type_slugs = frozenset(
+            RewardType.objects.values_list("slug", flat=True)
+        )
+        bad_feature_slugs: list[str] = []
+        bad_reward_type_slugs: list[str] = []
+        for entry in entries:
+            for slug in entry.get("gameplay_feature_slugs") or []:
+                if slug not in valid_feature_slugs:
+                    bad_feature_slugs.append(f"{entry.get('slug', '?')}: {slug!r}")
+            for slug in entry.get("reward_type_slugs") or []:
+                if slug not in valid_reward_type_slugs:
+                    bad_reward_type_slugs.append(f"{entry.get('slug', '?')}: {slug!r}")
+        if bad_feature_slugs:
+            raise CommandError(
+                "model.json references nonexistent gameplay feature slugs:\n"
+                + "\n".join(f"  {s}" for s in bad_feature_slugs)
+            )
+        if bad_reward_type_slugs:
+            raise CommandError(
+                "model.json references nonexistent reward type slugs:\n"
+                + "\n".join(f"  {s}" for s in bad_reward_type_slugs)
+            )
+
         # Pass 2: assert scalar + relationship claims.
         pending_claims: list[Claim] = []
         credit_claims: list[Claim] = []
         tag_claims: list[Claim] = []
         theme_claims: list[Claim] = []
+        gameplay_feature_claims: list[Claim] = []
+        reward_type_claims: list[Claim] = []
         matched_pks: set[int] = set()
         matched = 0
         skipped = 0
@@ -1280,6 +1472,36 @@ class Command(BaseCommand):
                     )
                 )
 
+            # GameplayFeature relationship claims.
+            for feature_slug in entry.get("gameplay_feature_slugs") or []:
+                claim_key, value = build_relationship_claim(
+                    "gameplay_feature", {"gameplay_feature_slug": feature_slug}
+                )
+                gameplay_feature_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=mm.pk,
+                        field_name="gameplay_feature",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+            # RewardType relationship claims.
+            for rt_slug in entry.get("reward_type_slugs") or []:
+                claim_key, value = build_relationship_claim(
+                    "reward_type", {"reward_type_slug": rt_slug}
+                )
+                reward_type_claims.append(
+                    Claim(
+                        content_type_id=ct_id,
+                        object_id=mm.pk,
+                        field_name="reward_type",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
         self.stdout.write(
             f"  Models: {models_created} created, {matched} matched, {skipped} skipped"
         )
@@ -1326,3 +1548,31 @@ class Command(BaseCommand):
                 f"{theme_stats['swept']} swept"
             )
             resolve_all_themes([], model_ids=matched_pks)
+
+        if gameplay_feature_claims or matched_pks:
+            gf_stats = Claim.objects.bulk_assert_claims(
+                source,
+                gameplay_feature_claims,
+                sweep_field="gameplay_feature",
+                authoritative_scope=scope,
+            )
+            self.stdout.write(
+                f"  Features: {gf_stats['created']} created, "
+                f"{gf_stats['unchanged']} unchanged, "
+                f"{gf_stats['swept']} swept"
+            )
+            resolve_all_gameplay_features([], model_ids=matched_pks)
+
+        if reward_type_claims or matched_pks:
+            rt_stats = Claim.objects.bulk_assert_claims(
+                source,
+                reward_type_claims,
+                sweep_field="reward_type",
+                authoritative_scope=scope,
+            )
+            self.stdout.write(
+                f"  Reward types: {rt_stats['created']} created, "
+                f"{rt_stats['unchanged']} unchanged, "
+                f"{rt_stats['swept']} swept"
+            )
+            resolve_all_reward_types([], model_ids=matched_pks)

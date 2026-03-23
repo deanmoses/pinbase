@@ -33,6 +33,9 @@
 				<li>
 					<a href={resolve(`/gameplay-features/${feature.slug}`)} class="feature-row">
 						<span class="feature-name">{feature.name}</span>
+						{#if feature.model_count > 0}
+							<span class="model-count">{feature.model_count}</span>
+						{/if}
 					</a>
 				</li>
 			{/each}
@@ -83,6 +86,12 @@
 		font-size: var(--font-size-2);
 		color: var(--color-text-primary);
 		font-weight: 500;
+		flex: 1;
+	}
+
+	.model-count {
+		font-size: var(--font-size-0);
+		color: var(--color-text-muted);
 	}
 
 	.status {

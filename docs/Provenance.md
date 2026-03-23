@@ -8,7 +8,15 @@ The catalog uses a **claims-based provenance system** with two layers:
 
 2. **Resolution layer** — Materialized model fields derived from claims via priority-based conflict resolution. The highest-priority source wins. Resolution is deterministic and repeatable.
 
-Provenance tracks **attribution**, not just disputes. Every piece of catalog data may eventually come from a different source or user, and the system must always be able to answer "who said this, and where did it come from?"
+Provenance tracks **attribution**, not just disputes. The claims system serves three purposes simultaneously:
+
+1. **Conflict resolution** — When multiple sources assert different values for the same field, the highest-priority source wins. This is deterministic and repeatable.
+2. **Audit trail** — Every piece of catalog data has a record of who said it and where it came from, regardless of whether there is any dispute.
+3. **Future extensibility** — A field that only has one source today may gain additional sources tomorrow. Claims-based fields accept new sources with zero migrations or re-architecture. Structural fields require re-architecture when a second source arrives.
+
+Every piece of catalog data may eventually come from a different source or user, and the system must always be able to answer "who said this, and where did it come from?"
+
+Note on the `slug` exemption: slugs are stable identifiers generated from canonical names, not asserted facts — they are structural by nature, not by convenience.
 
 ## Claims
 

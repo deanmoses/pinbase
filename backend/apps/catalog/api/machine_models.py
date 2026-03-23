@@ -22,6 +22,7 @@ from .helpers import (
     _claims_prefetch,
     _extract_image_urls,
     _extract_variant_features,
+    _get_feature_descendant_slugs,
     _serialize_title_machine,
 )
 from .schemas import (
@@ -29,6 +30,7 @@ from .schemas import (
     ClaimSchema,
     FranchiseRefSchema,
     GameplayFeatureSchema,
+    RewardTypeSchema,
     SeriesRefSchema,
     ThemeSchema,
     TitleMachineSchema,
@@ -133,6 +135,7 @@ class MachineModelDetailSchema(Schema):
     display_subtype_name: Optional[str] = None
     display_subtype_slug: Optional[str] = None
     gameplay_features: list[GameplayFeatureSchema] = []
+    reward_types: list[RewardTypeSchema] = []
     franchise: Optional[FranchiseRefSchema] = None
     series: list[SeriesRefSchema] = []
     variant_of_name: Optional[str] = None
@@ -164,6 +167,7 @@ def _build_model_list_qs(
     display: str = "",
     display_subtype: str = "",
     feature: str = "",
+    reward_type: str = "",
     game_format: str = "",
     cabinet: str = "",
     tag: str = "",
@@ -199,7 +203,11 @@ def _build_model_list_qs(
     if display_subtype:
         qs = qs.filter(display_subtype__slug=display_subtype)
     if feature:
-        qs = qs.filter(gameplay_features__slug=feature)
+        qs = qs.filter(
+            gameplay_features__slug__in=_get_feature_descendant_slugs(feature)
+        )
+    if reward_type:
+        qs = qs.filter(reward_types__slug=reward_type)
     if game_format:
         qs = qs.filter(game_format__slug=game_format)
     if cabinet:
@@ -424,7 +432,15 @@ def _serialize_model_detail(pm) -> dict:
             pm.display_subtype.slug if pm.display_subtype else None
         ),
         "gameplay_features": [
-            {"name": gf.name, "slug": gf.slug} for gf in pm.gameplay_features.all()
+            {
+                "name": t.gameplayfeature.name,
+                "slug": t.gameplayfeature.slug,
+                "count": t.count,
+            }
+            for t in pm.machinemodelgameplayfeature_set.all()
+        ],
+        "reward_types": [
+            {"name": rt.name, "slug": rt.slug} for rt in pm.reward_types.all()
         ],
         "franchise": (
             {"name": pm.title.franchise.name, "slug": pm.title.franchise.slug}
@@ -445,7 +461,7 @@ def _serialize_model_detail(pm) -> dict:
 
 def _model_detail_qs():
     """Return the queryset used for model detail / patch endpoints."""
-    from ..models import Credit, MachineModel
+    from ..models import Credit, MachineModel, MachineModelGameplayFeature
 
     return MachineModel.objects.select_related(
         "corporate_entity__manufacturer",
@@ -468,7 +484,13 @@ def _model_detail_qs():
         "conversions",
         "remakes",
         "themes",
-        "gameplay_features",
+        Prefetch(
+            "machinemodelgameplayfeature_set",
+            queryset=MachineModelGameplayFeature.objects.select_related(
+                "gameplayfeature"
+            ).order_by("gameplayfeature__name"),
+        ),
+        "reward_types",
         "abbreviations",
         "title__series",
         Prefetch(
@@ -505,6 +527,7 @@ def list_models(
     display: str = "",
     display_subtype: str = "",
     feature: str = "",
+    reward_type: str = "",
     game_format: str = "",
     cabinet: str = "",
     tag: str = "",
@@ -520,6 +543,7 @@ def list_models(
         display=display,
         display_subtype=display_subtype,
         feature=feature,
+        reward_type=reward_type,
         game_format=game_format,
         cabinet=cabinet,
         tag=tag,

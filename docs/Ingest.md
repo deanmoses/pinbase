@@ -32,6 +32,61 @@ make pull-ingest   # download R2 → local data/ingest_sources/
 | `ingest_pinbase_signs`              | Imports museum sign copy from CSV               |
 | `resolve_claims`                    | Re-resolves all catalog entities from claims    |
 
+## Vocabulary entities
+
+Two vocabulary entities drive feature and reward classification across all ingest sources:
+
+| Entity            | Source file             | Count | Notes                                              |
+| ----------------- | ----------------------- | ----- | -------------------------------------------------- |
+| `GameplayFeature` | `gameplay_feature.json` | ~159  | DAG hierarchy via `is_type_of`; aliases for lookup |
+| `RewardType`      | `reward_type.json`      | 6     | Flat; aliases for lookup                           |
+
+Both are ingested by `ingest_pinbase` and populated before any external source ingest runs. All external sources (IPDB, OPDB) only _assign_ existing features/types to models — they never create new `GameplayFeature` or `RewardType` records.
+
+### Shared vocabulary maps
+
+`backend/apps/catalog/ingestion/vocabulary.py` provides DB-driven lookup maps used by both IPDB and OPDB ingest:
+
+- `build_feature_slug_map()` — `{lowercase_term: slug}` from `GameplayFeature` names + aliases
+- `build_reward_type_map()` — `{lowercase_term: slug}` from `RewardType` names + aliases
+- `build_tag_map()` — `{lowercase_term: slug}` from `Tag` names + aliases
+- `build_cabinet_map()` — `{lowercase_term: slug}` from `Cabinet` names + aliases
+
+### IPDB feature extraction
+
+IPDB's `NotableFeatures` field uses two separate extraction passes:
+
+1. **Gameplay features** — Structured 4-step pipeline:
+   - Clean: strip prefix, replace mojibake, insert comma before period+uppercase
+   - Split: on comma or period+whitespace
+   - Validate (ingest-blocking `CommandError`): quoted segments, segments containing "feature", segments > 60 chars
+   - Parse: regex `^(.+?)\s*\(\d+.*\)$` extracts feature name from count-bearing segments; narrative patterns (`kickback`, `magna-save`, etc.) match remaining text
+2. **Reward types** — Word-boundary keyword matching against raw text: `re.search(r'\b{term}\b', raw, re.IGNORECASE)` for each term in the reward type vocabulary.
+
+Unmatched terms (those matching no vocabulary entry) are collected and printed as a warning: first 25 comma-separated, followed by the total count.
+
+### OPDB feature classification
+
+OPDB's `features` array uses a unified single-pass classification with priority ordering:
+
+1. Reward type vocabulary (highest priority)
+2. Gameplay feature vocabulary
+3. Tag vocabulary
+4. Cabinet vocabulary
+5. `is_conversion` detection: "Conversion kit" or "Converted game" → sets `is_conversion = True` claim
+
+Terms in `_KNOWN_OPDB_VARIANT_LABELS` (LE, SE, Premium, Pro, etc.) are silently skipped. Any other unmatched term appears in the unmatched-term warning.
+
+### Validation (ingest-blocking)
+
+These conditions raise `CommandError` and abort ingest:
+
+- A `model.json` entry references a nonexistent gameplay feature slug
+- A `model.json` entry references a nonexistent reward type slug
+- A `gameplay_feature.json` entry's `is_type_of` field references a nonexistent parent slug
+- A `reward_type.json` or `gameplay_feature.json` description contains a wikilink (`[[type:slug]]`) referencing a nonexistent entity
+- An IPDB `NotableFeatures` segment is quoted, contains "feature", or is > 60 characters
+
 ## External data sources
 
 | Source           | File                        | Used by                |

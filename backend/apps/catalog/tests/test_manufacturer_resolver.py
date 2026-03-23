@@ -6,6 +6,7 @@ import pytest
 
 from apps.catalog.ingestion.bulk_utils import (
     ManufacturerResolver,
+    normalize_corporate_entity_name,
     normalize_manufacturer_name,
 )
 from apps.catalog.models import CorporateEntity, Manufacturer
@@ -28,18 +29,68 @@ class TestManufacturerResolver:
         resolver = ManufacturerResolver()
         assert resolver.resolve("Nonexistent") is None
 
-    def test_resolve_entity(self):
+    def test_resolve_by_corporate_entity(self):
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         CorporateEntity.objects.create(
             name="Williams Electronic Games",
             manufacturer=mfr,
         )
         resolver = ManufacturerResolver()
-        assert resolver.resolve_entity("Williams Electronic Games") == "williams"
+        assert (
+            resolver.resolve_by_corporate_entity("Williams Electronic Games")
+            == "williams"
+        )
 
-    def test_resolve_entity_unknown_returns_none(self):
+    def test_resolve_by_corporate_entity_unknown_returns_none(self):
         resolver = ManufacturerResolver()
-        assert resolver.resolve_entity("Nonexistent Corp") is None
+        assert resolver.resolve_by_corporate_entity("Nonexistent Corp") is None
+
+    def test_resolve_by_corporate_entity_normalized(self):
+        mfr = Manufacturer.objects.create(
+            name="Stern Electronics", slug="stern-electronics"
+        )
+        CorporateEntity.objects.create(
+            name="Stern Electronics, Incorporated",
+            manufacturer=mfr,
+        )
+        resolver = ManufacturerResolver()
+        assert (
+            resolver.resolve_by_corporate_entity_normalized("Stern Electronics, Inc.")
+            == "stern-electronics"
+        )
+
+    def test_resolve_by_corporate_entity_normalized_both_sterns(self):
+        """Stern Pinball and Stern Electronics are different CEs — not ambiguous."""
+        mfr1 = Manufacturer.objects.create(name="Stern", slug="stern-pinball")
+        mfr2 = Manufacturer.objects.create(
+            name="Stern Electronics", slug="stern-electronics"
+        )
+        CorporateEntity.objects.create(
+            name="Stern Pinball, Incorporated",
+            slug="stern-pinball-inc",
+            manufacturer=mfr1,
+        )
+        CorporateEntity.objects.create(
+            name="Stern Electronics, Incorporated",
+            slug="stern-electronics-inc",
+            manufacturer=mfr2,
+        )
+        resolver = ManufacturerResolver()
+        # Only legal suffixes stripped, so these resolve unambiguously.
+        assert (
+            resolver.resolve_by_corporate_entity_normalized("Stern Pinball")
+            == "stern-pinball"
+        )
+        assert (
+            resolver.resolve_by_corporate_entity_normalized("Stern Electronics, Inc.")
+            == "stern-electronics"
+        )
+
+    def test_resolve_by_corporate_entity_normalized_unknown_returns_none(self):
+        resolver = ManufacturerResolver()
+        assert (
+            resolver.resolve_by_corporate_entity_normalized("Nonexistent Corp") is None
+        )
 
     def test_resolve_or_create_existing(self):
         Manufacturer.objects.create(name="Stern", slug="stern")
@@ -158,3 +209,48 @@ class TestNormalizeManufacturerName:
 
     def test_preserves_core_name(self):
         assert normalize_manufacturer_name("Jersey Jack Pinball") == "jersey jack"
+
+
+class TestNormalizeCorporateEntityName:
+    """Only legal-entity suffixes are stripped, not business-type words."""
+
+    def test_strips_inc(self):
+        assert (
+            normalize_corporate_entity_name("Stern Electronics, Inc.")
+            == "stern electronics"
+        )
+
+    def test_strips_incorporated(self):
+        assert (
+            normalize_corporate_entity_name("Stern Electronics, Incorporated")
+            == "stern electronics"
+        )
+
+    def test_strips_ltd(self):
+        assert (
+            normalize_corporate_entity_name("Sega Enterprises, Ltd.")
+            == "sega enterprises"
+        )
+
+    def test_strips_gmbh(self):
+        assert normalize_corporate_entity_name("Löwen GmbH") == "löwen"
+
+    def test_preserves_electronics(self):
+        assert (
+            normalize_corporate_entity_name("Stern Electronics") == "stern electronics"
+        )
+
+    def test_preserves_pinball(self):
+        assert normalize_corporate_entity_name("Stern Pinball") == "stern pinball"
+
+    def test_preserves_manufacturing(self):
+        assert (
+            normalize_corporate_entity_name("Williams Manufacturing")
+            == "williams manufacturing"
+        )
+
+    def test_no_suffix(self):
+        assert normalize_corporate_entity_name("Gottlieb") == "gottlieb"
+
+    def test_compound_legal_suffix(self):
+        assert normalize_corporate_entity_name("Acme Co., Ltd.") == "acme"

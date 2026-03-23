@@ -92,7 +92,17 @@
 		<dd>
 			{#each model.gameplay_features as feature, i (feature.slug)}
 				{#if i > 0},{/if}
-				<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a>
+				<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a
+				>{#if feature.count}&nbsp;({feature.count}){/if}
+			{/each}
+		</dd>
+	{/if}
+	{#if model.reward_types && model.reward_types.length > 0}
+		<dt>Reward Types</dt>
+		<dd>
+			{#each model.reward_types as rt, i (rt.slug)}
+				{#if i > 0},{/if}
+				<a href={resolve(`/reward-types/${rt.slug}`)}>{rt.name}</a>
 			{/each}
 		</dd>
 	{/if}
