@@ -47,6 +47,24 @@ _BUSINESS_SUFFIXES = re.compile(
     re.IGNORECASE,
 )
 
+# Legal-entity suffixes only — preserves business-type words like
+# "Electronics", "Pinball", "Manufacturing" that distinguish corporate entities.
+_LEGAL_SUFFIXES = re.compile(
+    r",?\s+(?:Incorporated|Limited|Inc\.?|Ltd\.?|Co\.?|LLC|GmbH|S\.?A\.?|s\.?p\.?a\.?)"
+    r"$",
+    re.IGNORECASE,
+)
+
+
+def _strip_iteratively(pattern: re.Pattern, name: str) -> str:
+    """Apply a suffix-stripping regex repeatedly until stable."""
+    stripped = pattern.sub("", name).strip()
+    prev = None
+    while stripped != prev:
+        prev = stripped
+        stripped = pattern.sub("", stripped).strip()
+    return stripped.lower()
+
 
 def normalize_manufacturer_name(name: str) -> str:
     """Strip common business suffixes for fuzzy matching.
@@ -58,13 +76,21 @@ def normalize_manufacturer_name(name: str) -> str:
     >>> normalize_manufacturer_name("Sega Enterprises, Ltd.")
     'sega'
     """
-    stripped = _BUSINESS_SUFFIXES.sub("", name).strip()
-    # Apply repeatedly for compound suffixes like "Sega Enterprises, Ltd."
-    prev = None
-    while stripped != prev:
-        prev = stripped
-        stripped = _BUSINESS_SUFFIXES.sub("", stripped).strip()
-    return stripped.lower()
+    return _strip_iteratively(_BUSINESS_SUFFIXES, name)
+
+
+def normalize_corporate_entity_name(name: str) -> str:
+    """Strip legal-entity suffixes only for corporate entity matching.
+
+    Preserves business-type words (Electronics, Pinball, Manufacturing)
+    that distinguish different corporate entities of the same brand.
+
+    >>> normalize_corporate_entity_name("Stern Electronics, Inc.")
+    'stern electronics'
+    >>> normalize_corporate_entity_name("Stern Pinball, Incorporated")
+    'stern pinball'
+    """
+    return _strip_iteratively(_LEGAL_SUFFIXES, name)
 
 
 class ManufacturerResolver:
@@ -127,6 +153,19 @@ class ManufacturerResolver:
             else:
                 self._normalized_to_slug[key] = m.slug
 
+        # Normalized CE name fallback — uses legal-suffix-only stripping
+        # to preserve distinguishing words like "Electronics" vs "Pinball".
+        self._entity_normalized_to_slug: dict[str, str | None] = {}
+        for ce in CorporateEntity.objects.select_related("manufacturer").all():
+            key = normalize_corporate_entity_name(ce.name)
+            slug = ce.manufacturer.slug
+            if key in self._entity_normalized_to_slug:
+                existing = self._entity_normalized_to_slug[key]
+                if existing != slug:
+                    self._entity_normalized_to_slug[key] = None  # ambiguous
+            else:
+                self._entity_normalized_to_slug[key] = slug
+
     def resolve(self, name: str) -> str | None:
         """Look up a manufacturer by name. Returns slug or None."""
         return self._name_to_slug.get(name.lower())
@@ -161,9 +200,19 @@ class ManufacturerResolver:
         slug = self.resolve_normalized(name)
         return self._slug_to_mfr.get(slug) if slug else None
 
-    def resolve_entity(self, name: str) -> str | None:
+    def resolve_by_corporate_entity(self, name: str) -> str | None:
         """Look up a manufacturer via CorporateEntity name. Returns slug or None."""
         return self._entity_to_slug.get(name.lower())
+
+    def resolve_by_corporate_entity_normalized(self, name: str) -> str | None:
+        """Fuzzy CE lookup: strip legal-entity suffixes and match if unambiguous.
+
+        Only strips legal suffixes (Inc., Ltd., GmbH, etc.), preserving
+        business-type words that distinguish corporate entities.
+        Returns slug or None.  Returns None for ambiguous normalized forms.
+        """
+        key = normalize_corporate_entity_name(name)
+        return self._entity_normalized_to_slug.get(key)
 
     def resolve_or_create(self, name: str) -> str:
         """Look up or auto-create a manufacturer, returning its slug.

@@ -122,6 +122,12 @@ class Command(BaseCommand):
                 mfr = resolver.resolve_object(wm.name)
                 match_type = "exact"
             if mfr is None:
+                slug = resolver.resolve_by_corporate_entity(wm.name)
+                if slug is None:
+                    slug = resolver.resolve_by_corporate_entity_normalized(wm.name)
+                mfr = resolver.get_by_slug(slug) if slug else None
+                match_type = "entity"
+            if mfr is None:
                 mfr = resolver.resolve_normalized_object(wm.name)
                 match_type = "normalized"
             if mfr is None:
@@ -132,6 +138,7 @@ class Command(BaseCommand):
             tag = {
                 "wikidata_id": "MATCH:QID",
                 "exact": "MATCH",
+                "entity": "MATCH:CE",
                 "normalized": "MATCH~",
             }[match_type]
             self.stdout.write(f"  [{tag:10s}] {wm.name} ({wm.qid}) → {mfr.name}")

@@ -387,7 +387,12 @@ class Command(BaseCommand):
         for fm in fandom_mfrs:
             mfr = resolver.resolve_object(fm.title)
             if mfr is None:
-                mfr = resolver.resolve_normalized_object(fm.title)
+                slug = resolver.resolve_by_corporate_entity(fm.title)
+                if slug is None:
+                    slug = resolver.resolve_by_corporate_entity_normalized(fm.title)
+                if slug is None:
+                    slug = resolver.resolve_normalized(fm.title)
+                mfr = resolver.get_by_slug(slug) if slug else None
             if mfr is None:
                 unmatched_mfrs.append(fm.title)
                 continue

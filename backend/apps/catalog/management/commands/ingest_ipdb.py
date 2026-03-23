@@ -577,7 +577,7 @@ class Command(BaseCommand):
                 display_name = trade or company
                 slug = (
                     (trade and resolver.resolve(trade))
-                    or resolver.resolve_entity(company)
+                    or resolver.resolve_by_corporate_entity(company)
                     or resolver.resolve(company)
                 )
                 if not slug:

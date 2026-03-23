@@ -449,13 +449,21 @@ class Command(BaseCommand):
                 "opdb_manufacturer_id", flat=True
             )
         )
-        opdb_mfr_ids = {
-            rec.manufacturer_id for rec in machines if rec.manufacturer_id is not None
-        }
-        missing_mfr_count = len(opdb_mfr_ids - pinbase_opdb_mfr_ids)
-        if missing_mfr_count:
+        opdb_mfr_by_id: dict[int, str] = {}
+        for rec in machines:
+            if (
+                rec.manufacturer_id is not None
+                and rec.manufacturer_id not in opdb_mfr_by_id
+            ):
+                opdb_mfr_by_id[rec.manufacturer_id] = rec.manufacturer_name
+        missing_ids = set(opdb_mfr_by_id) - pinbase_opdb_mfr_ids
+        if missing_ids:
+            names = [
+                f"{opdb_mfr_by_id[mid]} (opdb_id={mid})" for mid in sorted(missing_ids)
+            ]
             self.stdout.write(
-                f"  {missing_mfr_count} OPDB manufacturer(s) not in pinbase"
+                f"  {len(missing_ids)} OPDB manufacturer(s) not in pinbase: "
+                + ", ".join(names)
             )
 
         self.stdout.write(self.style.SUCCESS("OPDB ingestion complete."))
