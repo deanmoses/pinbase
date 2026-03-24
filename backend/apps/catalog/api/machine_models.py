@@ -31,6 +31,7 @@ from .schemas import (
     ClaimSchema,
     FranchiseRefSchema,
     GameplayFeatureSchema,
+    Ref,
     RewardTypeSchema,
     RichTextSchema,
     SeriesRefSchema,
@@ -58,13 +59,10 @@ class MachineModelGridSchema(Schema):
 class MachineModelListSchema(Schema):
     name: str
     slug: str
-    manufacturer_name: Optional[str] = None
-    manufacturer_slug: Optional[str] = None
+    manufacturer: Optional[Ref] = None
     year: Optional[int] = None
-    technology_generation_name: Optional[str] = None
-    technology_generation_slug: Optional[str] = None
-    display_type_name: Optional[str] = None
-    display_type_slug: Optional[str] = None
+    technology_generation: Optional[Ref] = None
+    display_type: Optional[Ref] = None
     ipdb_id: Optional[int] = None
     ipdb_rating: Optional[float] = None
     pinside_rating: Optional[float] = None
@@ -73,8 +71,7 @@ class MachineModelListSchema(Schema):
 
 
 class CreditSchema(Schema):
-    person_name: str
-    person_slug: str
+    person: Ref
     role: str
     role_display: str
     role_sort_order: int
@@ -93,24 +90,27 @@ class ConversionSchema(Schema):
     year: Optional[int] = None
 
 
+class ModelRefSchema(Schema):
+    """A reference to a machine model with name, slug, and optional year."""
+
+    name: str
+    slug: str
+    year: Optional[int] = None
+
+
 class MachineModelDetailSchema(Schema):
     name: str
     slug: str
-    manufacturer_name: Optional[str] = None
-    manufacturer_slug: Optional[str] = None
+    manufacturer: Optional[Ref] = None
     year: Optional[int] = None
     month: Optional[int] = None
-    technology_generation_name: Optional[str] = None
-    technology_generation_slug: Optional[str] = None
-    technology_subgeneration_name: Optional[str] = None
-    technology_subgeneration_slug: Optional[str] = None
-    display_type_name: Optional[str] = None
-    display_type_slug: Optional[str] = None
+    technology_generation: Optional[Ref] = None
+    technology_subgeneration: Optional[Ref] = None
+    display_type: Optional[Ref] = None
     player_count: Optional[int] = None
     themes: list[ThemeSchema] = []
     production_quantity: str
-    system_name: Optional[str] = None
-    system_slug: Optional[str] = None
+    system: Optional[Ref] = None
     flipper_count: Optional[int] = None
     ipdb_id: Optional[int] = None
     opdb_id: Optional[str] = None
@@ -128,31 +128,21 @@ class MachineModelDetailSchema(Schema):
     image_attribution: Optional[AttributionSchema] = None
     variant_features: list[str] = []
     variants: list[VariantSchema] = []
-    title_name: Optional[str] = None
-    title_slug: Optional[str] = None
-    cabinet_name: Optional[str] = None
-    cabinet_slug: Optional[str] = None
-    game_format_name: Optional[str] = None
-    game_format_slug: Optional[str] = None
-    display_subtype_name: Optional[str] = None
-    display_subtype_slug: Optional[str] = None
+    title: Optional[Ref] = None
+    cabinet: Optional[Ref] = None
+    game_format: Optional[Ref] = None
+    display_subtype: Optional[Ref] = None
     gameplay_features: list[GameplayFeatureSchema] = []
     reward_types: list[RewardTypeSchema] = []
     franchise: Optional[FranchiseRefSchema] = None
     series: list[SeriesRefSchema] = []
-    variant_of_name: Optional[str] = None
-    variant_of_slug: Optional[str] = None
-    variant_of_year: Optional[int] = None
+    variant_of: Optional[ModelRefSchema] = None
     variant_siblings: list[VariantSchema] = []
     is_conversion: bool = False
-    converted_from_name: Optional[str] = None
-    converted_from_slug: Optional[str] = None
-    converted_from_year: Optional[int] = None
+    converted_from: Optional[ModelRefSchema] = None
     conversions: list[ConversionSchema] = []
     is_remake: bool = False
-    remake_of_name: Optional[str] = None
-    remake_of_slug: Optional[str] = None
-    remake_of_year: Optional[int] = None
+    remake_of: Optional[ModelRefSchema] = None
     remakes: list[ConversionSchema] = []
     title_models: list[TitleMachineSchema] = []
 
@@ -241,28 +231,29 @@ def _build_model_list_qs(
 
 def _serialize_model_list(pm) -> dict:
     thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
+    mfr = (
+        pm.corporate_entity.manufacturer
+        if pm.corporate_entity and pm.corporate_entity.manufacturer
+        else None
+    )
     return {
         "name": pm.name,
         "slug": pm.slug,
-        "manufacturer_name": (
-            pm.corporate_entity.manufacturer.name
-            if pm.corporate_entity and pm.corporate_entity.manufacturer
-            else None
-        ),
-        "manufacturer_slug": (
-            pm.corporate_entity.manufacturer.slug
-            if pm.corporate_entity and pm.corporate_entity.manufacturer
-            else None
-        ),
+        "manufacturer": {"name": mfr.name, "slug": mfr.slug} if mfr else None,
         "year": pm.year,
-        "technology_generation_name": (
-            pm.technology_generation.name if pm.technology_generation else None
+        "technology_generation": (
+            {
+                "name": pm.technology_generation.name,
+                "slug": pm.technology_generation.slug,
+            }
+            if pm.technology_generation
+            else None
         ),
-        "technology_generation_slug": (
-            pm.technology_generation.slug if pm.technology_generation else None
+        "display_type": (
+            {"name": pm.display_type.name, "slug": pm.display_type.slug}
+            if pm.display_type
+            else None
         ),
-        "display_type_name": pm.display_type.name if pm.display_type else None,
-        "display_type_slug": pm.display_type.slug if pm.display_type else None,
         "ipdb_id": pm.ipdb_id,
         # Note: technology_subgeneration not included in list view
         "ipdb_rating": float(pm.ipdb_rating) if pm.ipdb_rating is not None else None,
@@ -284,8 +275,7 @@ def _serialize_model_detail(pm) -> dict:
 
     credits = [
         {
-            "person_name": c.person.name,
-            "person_slug": c.person.slug,
+            "person": {"name": c.person.name, "slug": c.person.slug},
             "role": c.role.slug,
             "role_display": c.role.name,
             "role_sort_order": c.role.display_order,
@@ -340,53 +330,48 @@ def _serialize_model_detail(pm) -> dict:
             if sib.pk != pm.pk
         ]
 
+    mfr = (
+        pm.corporate_entity.manufacturer
+        if pm.corporate_entity and pm.corporate_entity.manufacturer
+        else None
+    )
+
+    # Resolve technology subgeneration: direct on model, or inherited from system.
+    subgen = pm.technology_subgeneration or (
+        pm.system.technology_subgeneration
+        if pm.system and pm.system.technology_subgeneration
+        else None
+    )
+
     return {
         "name": pm.name,
         "slug": pm.slug,
         "description": description,
-        "manufacturer_name": (
-            pm.corporate_entity.manufacturer.name
-            if pm.corporate_entity and pm.corporate_entity.manufacturer
-            else None
-        ),
-        "manufacturer_slug": (
-            pm.corporate_entity.manufacturer.slug
-            if pm.corporate_entity and pm.corporate_entity.manufacturer
-            else None
-        ),
+        "manufacturer": {"name": mfr.name, "slug": mfr.slug} if mfr else None,
         "year": pm.year,
         "month": pm.month,
-        "technology_generation_name": (
-            pm.technology_generation.name if pm.technology_generation else None
+        "technology_generation": (
+            {
+                "name": pm.technology_generation.name,
+                "slug": pm.technology_generation.slug,
+            }
+            if pm.technology_generation
+            else None
         ),
-        "technology_generation_slug": (
-            pm.technology_generation.slug if pm.technology_generation else None
+        "technology_subgeneration": (
+            {"name": subgen.name, "slug": subgen.slug} if subgen else None
         ),
-        "technology_subgeneration_name": (
-            pm.technology_subgeneration.name
-            if pm.technology_subgeneration
-            else (
-                pm.system.technology_subgeneration.name
-                if pm.system and pm.system.technology_subgeneration
-                else None
-            )
+        "display_type": (
+            {"name": pm.display_type.name, "slug": pm.display_type.slug}
+            if pm.display_type
+            else None
         ),
-        "technology_subgeneration_slug": (
-            pm.technology_subgeneration.slug
-            if pm.technology_subgeneration
-            else (
-                pm.system.technology_subgeneration.slug
-                if pm.system and pm.system.technology_subgeneration
-                else None
-            )
-        ),
-        "display_type_name": pm.display_type.name if pm.display_type else None,
-        "display_type_slug": pm.display_type.slug if pm.display_type else None,
         "player_count": pm.player_count,
         "themes": [{"name": t.name, "slug": t.slug} for t in pm.themes.all()],
         "production_quantity": pm.production_quantity,
-        "system_name": pm.system.name if pm.system else None,
-        "system_slug": pm.system.slug if pm.system else None,
+        "system": (
+            {"name": pm.system.name, "slug": pm.system.slug} if pm.system else None
+        ),
         "flipper_count": pm.flipper_count,
         "ipdb_id": pm.ipdb_id,
         "opdb_id": pm.opdb_id,
@@ -405,36 +390,56 @@ def _serialize_model_detail(pm) -> dict:
         "image_attribution": image_attribution,
         "variant_features": variant_features,
         "variants": variants,
-        "variant_of_name": pm.variant_of.name if pm.variant_of else None,
-        "variant_of_slug": pm.variant_of.slug if pm.variant_of else None,
-        "variant_of_year": pm.variant_of.year if pm.variant_of else None,
+        "variant_of": (
+            {
+                "name": pm.variant_of.name,
+                "slug": pm.variant_of.slug,
+                "year": pm.variant_of.year,
+            }
+            if pm.variant_of
+            else None
+        ),
         "variant_siblings": variant_siblings,
         "is_conversion": pm.is_conversion,
-        "converted_from_name": pm.converted_from.name if pm.converted_from else None,
-        "converted_from_slug": pm.converted_from.slug if pm.converted_from else None,
-        "converted_from_year": pm.converted_from.year if pm.converted_from else None,
+        "converted_from": (
+            {
+                "name": pm.converted_from.name,
+                "slug": pm.converted_from.slug,
+                "year": pm.converted_from.year,
+            }
+            if pm.converted_from
+            else None
+        ),
         "conversions": [
             {"name": c.name, "slug": c.slug, "year": c.year}
             for c in pm.conversions.all()
         ],
         "is_remake": pm.is_remake,
-        "remake_of_name": pm.remake_of.name if pm.remake_of else None,
-        "remake_of_slug": pm.remake_of.slug if pm.remake_of else None,
-        "remake_of_year": pm.remake_of.year if pm.remake_of else None,
+        "remake_of": (
+            {
+                "name": pm.remake_of.name,
+                "slug": pm.remake_of.slug,
+                "year": pm.remake_of.year,
+            }
+            if pm.remake_of
+            else None
+        ),
         "remakes": [
             {"name": r.name, "slug": r.slug, "year": r.year} for r in pm.remakes.all()
         ],
-        "title_name": pm.title.name if pm.title else None,
-        "title_slug": pm.title.slug if pm.title else None,
-        "cabinet_name": pm.cabinet.name if pm.cabinet else None,
-        "cabinet_slug": pm.cabinet.slug if pm.cabinet else None,
-        "game_format_name": pm.game_format.name if pm.game_format else None,
-        "game_format_slug": pm.game_format.slug if pm.game_format else None,
-        "display_subtype_name": (
-            pm.display_subtype.name if pm.display_subtype else None
+        "title": ({"name": pm.title.name, "slug": pm.title.slug} if pm.title else None),
+        "cabinet": (
+            {"name": pm.cabinet.name, "slug": pm.cabinet.slug} if pm.cabinet else None
         ),
-        "display_subtype_slug": (
-            pm.display_subtype.slug if pm.display_subtype else None
+        "game_format": (
+            {"name": pm.game_format.name, "slug": pm.game_format.slug}
+            if pm.game_format
+            else None
+        ),
+        "display_subtype": (
+            {"name": pm.display_subtype.name, "slug": pm.display_subtype.slug}
+            if pm.display_subtype
+            else None
         ),
         "gameplay_features": [
             {

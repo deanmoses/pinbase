@@ -24,7 +24,7 @@ class TitleRefSchema(Schema):
     slug: str
     abbreviations: list[str] = []
     machine_count: int = 0
-    manufacturer_name: Optional[str] = None
+    manufacturer_name: Optional[str] = None  # display-only, no paired slug
     year: Optional[int] = None
     thumbnail_url: Optional[str] = None
 
@@ -160,8 +160,7 @@ def get_series(request, slug: str):
         "titles": [_serialize_title_list(t) for t in series.titles.all()],
         "credits": [
             {
-                "person_name": c.person.name,
-                "person_slug": c.person.slug,
+                "person": {"name": c.person.name, "slug": c.person.slug},
                 "role": c.role.slug,
                 "role_display": c.role.name,
                 "role_sort_order": c.role.display_order,

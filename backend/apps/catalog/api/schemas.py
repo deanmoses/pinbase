@@ -7,6 +7,13 @@ from typing import Any, Optional
 from ninja import Schema
 
 
+class Ref(Schema):
+    """A reference to a named entity with a slug."""
+
+    name: str
+    slug: str
+
+
 class ClaimSchema(Schema):
     source_name: Optional[str] = None
     source_slug: Optional[str] = None
@@ -63,8 +70,7 @@ class TitleMachineSchema(Schema):
     name: str
     slug: str
     year: Optional[int] = None
-    manufacturer_name: Optional[str] = None
-    manufacturer_slug: Optional[str] = None
+    manufacturer: Optional[Ref] = None
     technology_generation_name: Optional[str] = None
     thumbnail_url: Optional[str] = None
     variants: list[TitleMachineVariantSchema] = []

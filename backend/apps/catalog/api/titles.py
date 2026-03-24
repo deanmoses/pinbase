@@ -43,8 +43,7 @@ class TitleListSchema(Schema):
     slug: str
     abbreviations: list[str] = []
     machine_count: int = 0
-    manufacturer_name: Optional[str] = None
-    manufacturer_slug: Optional[str] = None
+    manufacturer: Optional[FacetRef] = None
     year: Optional[int] = None
     thumbnail_url: Optional[str] = None
     # Facet data — aggregated from non-variant models
@@ -71,20 +70,14 @@ class ReviewLinkSchema(Schema):
 class AgreedSpecsSchema(Schema):
     """Spec fields where all child models of a title agree on the value."""
 
-    technology_generation_name: Optional[str] = None
-    technology_generation_slug: Optional[str] = None
-    display_type_name: Optional[str] = None
-    display_type_slug: Optional[str] = None
+    technology_generation: Optional[FacetRef] = None
+    display_type: Optional[FacetRef] = None
     player_count: Optional[int] = None
     flipper_count: Optional[int] = None
-    system_name: Optional[str] = None
-    system_slug: Optional[str] = None
-    cabinet_name: Optional[str] = None
-    cabinet_slug: Optional[str] = None
-    game_format_name: Optional[str] = None
-    game_format_slug: Optional[str] = None
-    display_subtype_name: Optional[str] = None
-    display_subtype_slug: Optional[str] = None
+    system: Optional[FacetRef] = None
+    cabinet: Optional[FacetRef] = None
+    game_format: Optional[FacetRef] = None
+    display_subtype: Optional[FacetRef] = None
     themes: list[ThemeSchema] = []
     gameplay_features: list[GameplayFeatureSchema] = []
     reward_types: list[FacetRef] = []
@@ -126,8 +119,7 @@ def _dedup_facet_refs(items) -> list[dict]:
 
 def _serialize_title_list(title) -> dict:
     thumbnail_url = None
-    manufacturer_name = None
-    manufacturer_slug = None
+    manufacturer = None
     year = None
     machines = list(title.machine_models.all())
 
@@ -170,16 +162,12 @@ def _serialize_title_list(title) -> dict:
     if machines:
         thumbnail_url, _ = _extract_image_urls(machines[0].extra_data or {})
         first = machines[0]
-        manufacturer_name = (
-            first.corporate_entity.manufacturer.name
+        mfr = (
+            first.corporate_entity.manufacturer
             if first.corporate_entity and first.corporate_entity.manufacturer
             else None
         )
-        manufacturer_slug = (
-            first.corporate_entity.manufacturer.slug
-            if first.corporate_entity and first.corporate_entity.manufacturer
-            else None
-        )
+        manufacturer = {"slug": mfr.slug, "name": mfr.name} if mfr else None
         year = first.year
 
     # Franchise (direct on Title) and Series (M2M on Title)
@@ -196,8 +184,7 @@ def _serialize_title_list(title) -> dict:
         "slug": title.slug,
         "abbreviations": [a.value for a in title.abbreviations.all()],
         "machine_count": title.machine_count,
-        "manufacturer_name": manufacturer_name,
-        "manufacturer_slug": manufacturer_slug,
+        "manufacturer": manufacturer,
         "year": year,
         "thumbnail_url": thumbnail_url,
         "tech_generations": _dedup_facet_refs(tech_gen_pairs),
@@ -269,11 +256,11 @@ def _compute_agreed_specs(models) -> dict:
 
     tg = _agreed_value(models, lambda m: _fk_pair(m, "technology_generation"))
     if tg:
-        specs["technology_generation_name"], specs["technology_generation_slug"] = tg
+        specs["technology_generation"] = {"name": tg[0], "slug": tg[1]}
 
     dt = _agreed_value(models, lambda m: _fk_pair(m, "display_type"))
     if dt:
-        specs["display_type_name"], specs["display_type_slug"] = dt
+        specs["display_type"] = {"name": dt[0], "slug": dt[1]}
 
     pc = _agreed_value(models, lambda m: m.player_count)
     if pc is not None:
@@ -285,19 +272,19 @@ def _compute_agreed_specs(models) -> dict:
 
     sys = _agreed_value(models, lambda m: _fk_pair(m, "system"))
     if sys:
-        specs["system_name"], specs["system_slug"] = sys
+        specs["system"] = {"name": sys[0], "slug": sys[1]}
 
     cab = _agreed_value(models, lambda m: _fk_pair(m, "cabinet"))
     if cab:
-        specs["cabinet_name"], specs["cabinet_slug"] = cab
+        specs["cabinet"] = {"name": cab[0], "slug": cab[1]}
 
     gf = _agreed_value(models, lambda m: _fk_pair(m, "game_format"))
     if gf:
-        specs["game_format_name"], specs["game_format_slug"] = gf
+        specs["game_format"] = {"name": gf[0], "slug": gf[1]}
 
     dst = _agreed_value(models, lambda m: _fk_pair(m, "display_subtype"))
     if dst:
-        specs["display_subtype_name"], specs["display_subtype_slug"] = dst
+        specs["display_subtype"] = {"name": dst[0], "slug": dst[1]}
 
     pq = _agreed_value(models, lambda m: m.production_quantity or None)
     if pq:
@@ -374,8 +361,7 @@ def _serialize_title_detail(title) -> dict:
             credit_data.setdefault(
                 key,
                 {
-                    "person_name": c.person.name,
-                    "person_slug": c.person.slug,
+                    "person": {"name": c.person.name, "slug": c.person.slug},
                     "role": c.role.slug,
                     "role_display": c.role.name,
                     "role_sort_order": c.role.display_order,

@@ -31,7 +31,7 @@
 				slug={title.slug}
 				name={title.name}
 				thumbnailUrl={title.thumbnail_url}
-				manufacturerName={title.manufacturer_name}
+				manufacturerName={title.manufacturer?.name}
 				year={title.year}
 			/>
 		{/snippet}

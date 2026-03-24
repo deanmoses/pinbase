@@ -45,7 +45,7 @@ class TestSystemsAPI:
         data = resp.json()
         assert data["name"] == "Williams WPC-95"
         assert data["slug"] == "wpc-95"
-        assert data["manufacturer_name"] == "Williams"
+        assert data["manufacturer"]["name"] == "Williams"
         assert len(data["titles"]) == 2
 
     def test_get_system_detail_titles_sorted_year_desc(

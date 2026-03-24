@@ -154,7 +154,7 @@ class TestTitlesAllFacets:
 
         # Basic fields
         assert item["name"] == "Medieval Madness"
-        assert item["manufacturer_slug"] == "williams"
+        assert item["manufacturer"]["slug"] == "williams"
 
         # Tech generations
         assert len(item["tech_generations"]) == 1

@@ -19,8 +19,7 @@ export interface FacetedTitle {
 	slug: string;
 	abbreviations: string[];
 	machine_count: number;
-	manufacturer_name?: string | null;
-	manufacturer_slug?: string | null;
+	manufacturer?: { slug: string; name: string } | null;
 	year?: number | null;
 	thumbnail_url?: string | null;
 	tech_generations: FacetRef[];
@@ -176,7 +175,7 @@ function matchesQuery(t: FacetedTitle, q: string): boolean {
 	return (
 		normalizeText(t.name).includes(q) ||
 		t.abbreviations.some((a) => normalizeText(a).includes(q)) ||
-		(t.manufacturer_name != null && normalizeText(t.manufacturer_name).includes(q))
+		(t.manufacturer?.name != null && normalizeText(t.manufacturer.name).includes(q))
 	);
 }
 
@@ -197,7 +196,7 @@ function matchesYear(t: FacetedTitle, ymin: number | null, ymax: number | null):
 
 function matchesManufacturer(t: FacetedTitle, slug: string | null): boolean {
 	if (!slug) return true;
-	return t.manufacturer_slug === slug;
+	return t.manufacturer?.slug === slug;
 }
 
 function matchesPerson(t: FacetedTitle, slug: string | null): boolean {
@@ -389,11 +388,7 @@ export function computeFacetCounts(titles: FacetedTitle[], state: FilterState): 
 
 	return {
 		techGeneration: countFacetRefs('techGeneration', (t) => t.tech_generations),
-		manufacturer: countSingleRef('manufacturer', (t) =>
-			t.manufacturer_slug && t.manufacturer_name
-				? { slug: t.manufacturer_slug, name: t.manufacturer_name }
-				: null
-		),
+		manufacturer: countSingleRef('manufacturer', (t) => t.manufacturer ?? null),
 		person: countFacetRefs('person', (t) => t.persons),
 		theme: countFacetRefs('themes', (t) => t.themes),
 		feature: countFacetRefs('features', (t) => t.gameplay_features),
@@ -487,8 +482,7 @@ export function getActiveFilterLabels(
 	for (const t of allTitles) {
 		for (const ref of t.tech_generations) techGenNames.set(ref.slug, ref.name);
 		for (const ref of t.display_types) displayTypeNames.set(ref.slug, ref.name);
-		if (t.manufacturer_slug && t.manufacturer_name)
-			manufacturerNames.set(t.manufacturer_slug, t.manufacturer_name);
+		if (t.manufacturer) manufacturerNames.set(t.manufacturer.slug, t.manufacturer.name);
 		for (const ref of t.persons) personNames.set(ref.slug, ref.name);
 		for (const ref of t.themes) themeNames.set(ref.slug, ref.name);
 		for (const ref of t.gameplay_features) featureNames.set(ref.slug, ref.name);

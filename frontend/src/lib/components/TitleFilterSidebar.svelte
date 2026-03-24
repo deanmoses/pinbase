@@ -34,14 +34,7 @@
 		buildFacetRefOptions(allTitles, (t) => t.display_types, facetCounts.displayType)
 	);
 	let manufacturerOptions = $derived(
-		buildSingleRefOptions(
-			allTitles,
-			(t) =>
-				t.manufacturer_slug && t.manufacturer_name
-					? { slug: t.manufacturer_slug, name: t.manufacturer_name }
-					: null,
-			facetCounts.manufacturer
-		)
+		buildSingleRefOptions(allTitles, (t) => t.manufacturer ?? null, facetCounts.manufacturer)
 	);
 	let personOptions = $derived(
 		buildFacetRefOptions(allTitles, (t) => t.persons, facetCounts.person)

@@ -8,26 +8,26 @@
 </script>
 
 <dl>
-	{#if model.technology_generation_slug}
+	{#if model.technology_generation}
 		<dt>Generation</dt>
 		<dd>
-			<a href={resolve(`/technology-generations/${model.technology_generation_slug}`)}
-				>{model.technology_generation_name}</a
+			<a href={resolve(`/technology-generations/${model.technology_generation.slug}`)}
+				>{model.technology_generation.name}</a
 			>
 		</dd>
 	{/if}
-	{#if model.technology_subgeneration_slug}
+	{#if model.technology_subgeneration}
 		<dt>Subgeneration</dt>
 		<dd>
-			<a href={resolve(`/technology-subgenerations/${model.technology_subgeneration_slug}`)}
-				>{model.technology_subgeneration_name}</a
+			<a href={resolve(`/technology-subgenerations/${model.technology_subgeneration.slug}`)}
+				>{model.technology_subgeneration.name}</a
 			>
 		</dd>
 	{/if}
-	{#if model.display_type_slug}
+	{#if model.display_type}
 		<dt>Display Type</dt>
 		<dd>
-			<a href={resolve(`/display-types/${model.display_type_slug}`)}>{model.display_type_name}</a>
+			<a href={resolve(`/display-types/${model.display_type.slug}`)}>{model.display_type.name}</a>
 		</dd>
 	{/if}
 	{#if model.player_count}
@@ -42,10 +42,10 @@
 		<dt>Units Made</dt>
 		<dd>{model.production_quantity}</dd>
 	{/if}
-	{#if model.system_slug}
+	{#if model.system}
 		<dt>System</dt>
 		<dd>
-			<a href={resolve(`/systems/${model.system_slug}`)}>{model.system_name}</a>
+			<a href={resolve(`/systems/${model.system.slug}`)}>{model.system.name}</a>
 		</dd>
 	{/if}
 	{#if model.themes.length > 0}
@@ -67,23 +67,23 @@
 		<dt>Abbrs</dt>
 		<dd>{model.abbreviations.join(', ')}</dd>
 	{/if}
-	{#if model.cabinet_slug}
+	{#if model.cabinet}
 		<dt>Cabinet</dt>
 		<dd>
-			<a href={resolve(`/cabinets/${model.cabinet_slug}`)}>{model.cabinet_name}</a>
+			<a href={resolve(`/cabinets/${model.cabinet.slug}`)}>{model.cabinet.name}</a>
 		</dd>
 	{/if}
-	{#if model.game_format_slug}
+	{#if model.game_format}
 		<dt>Format</dt>
 		<dd>
-			<a href={resolve(`/game-formats/${model.game_format_slug}`)}>{model.game_format_name}</a>
+			<a href={resolve(`/game-formats/${model.game_format.slug}`)}>{model.game_format.name}</a>
 		</dd>
 	{/if}
-	{#if model.display_subtype_slug}
+	{#if model.display_subtype}
 		<dt>Display</dt>
 		<dd>
-			<a href={resolve(`/display-subtypes/${model.display_subtype_slug}`)}
-				>{model.display_subtype_name}</a
+			<a href={resolve(`/display-subtypes/${model.display_subtype.slug}`)}
+				>{model.display_subtype.name}</a
 			>
 		</dd>
 	{/if}

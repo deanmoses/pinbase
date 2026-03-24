@@ -24,7 +24,7 @@ class TitleRefSchema(Schema):
     slug: str
     abbreviations: list[str] = []
     machine_count: int = 0
-    manufacturer_name: Optional[str] = None
+    manufacturer_name: Optional[str] = None  # display-only, no paired slug
     year: Optional[int] = None
     thumbnail_url: Optional[str] = None
 

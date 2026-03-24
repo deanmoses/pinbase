@@ -53,10 +53,10 @@
 		{/snippet}
 
 		{#snippet sidebar()}
-			{#if system.manufacturer_name}
+			{#if system.manufacturer}
 				<SidebarSection heading="Manufacturer">
-					<a href={resolve(`/manufacturers/${system.manufacturer_slug}`)}
-						>{system.manufacturer_name}</a
+					<a href={resolve(`/manufacturers/${system.manufacturer.slug}`)}
+						>{system.manufacturer.name}</a
 					>
 				</SidebarSection>
 			{/if}

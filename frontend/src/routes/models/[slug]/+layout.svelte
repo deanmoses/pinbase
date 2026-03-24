@@ -31,17 +31,15 @@
 	let isActivity = $derived(page.url.pathname.endsWith('/activity'));
 
 	let parentLink = $derived(
-		model.title_slug && model.title_name
-			? { text: model.title_name, href: resolve(`/titles/${model.title_slug}`) }
-			: null
+		model.title ? { text: model.title.name, href: resolve(`/titles/${model.title.slug}`) } : null
 	);
 
 	let metaItems = $derived.by(() => {
 		const items: Array<{ text: string; href?: string }> = [];
-		if (model.manufacturer_name) {
+		if (model.manufacturer) {
 			items.push({
-				text: model.manufacturer_name,
-				href: resolve(`/manufacturers/${model.manufacturer_slug}`)
+				text: model.manufacturer.name,
+				href: resolve(`/manufacturers/${model.manufacturer.slug}`)
 			});
 		}
 		if (model.year) {
@@ -94,11 +92,11 @@
 
 			<RatingsSidebarSection ipdbRating={model.ipdb_rating} pinsideRating={model.pinside_rating} />
 
-			{#if model.title_slug}
+			{#if model.title}
 				<SidebarSection heading="Parent Title">
 					<SidebarList>
 						<SidebarListItem>
-							<a href={resolve(`/titles/${model.title_slug}`)}>{model.title_name}</a>
+							<a href={resolve(`/titles/${model.title.slug}`)}>{model.title.name}</a>
 						</SidebarListItem>
 					</SidebarList>
 				</SidebarSection>
@@ -122,13 +120,13 @@
 				</SidebarSection>
 			{/if}
 
-			{#if model.variant_of_slug}
+			{#if model.variant_of}
 				<SidebarSection heading="Parent Model">
 					<SidebarList>
 						<SidebarListItem>
-							<a href={resolve(`/models/${model.variant_of_slug}`)}>{model.variant_of_name}</a>
-							{#if model.variant_of_year}
-								<span class="muted">{model.variant_of_year}</span>
+							<a href={resolve(`/models/${model.variant_of.slug}`)}>{model.variant_of.name}</a>
+							{#if model.variant_of.year}
+								<span class="muted">{model.variant_of.year}</span>
 							{/if}
 						</SidebarListItem>
 					</SidebarList>
@@ -150,15 +148,15 @@
 				</SidebarSection>
 			{/if}
 
-			{#if model.converted_from_slug}
+			{#if model.converted_from}
 				<SidebarSection heading="Converted From" note="This game was rebuilt from the hardware of:">
 					<SidebarList>
 						<SidebarListItem>
-							<a href={resolve(`/models/${model.converted_from_slug}`)}
-								>{model.converted_from_name}</a
+							<a href={resolve(`/models/${model.converted_from.slug}`)}
+								>{model.converted_from.name}</a
 							>
-							{#if model.converted_from_year}
-								<span class="muted">{model.converted_from_year}</span>
+							{#if model.converted_from.year}
+								<span class="muted">{model.converted_from.year}</span>
 							{/if}
 						</SidebarListItem>
 					</SidebarList>
@@ -183,13 +181,13 @@
 				</SidebarSection>
 			{/if}
 
-			{#if model.remake_of_slug}
+			{#if model.remake_of}
 				<SidebarSection heading="Remake Of" note="This game is a remake of:">
 					<SidebarList>
 						<SidebarListItem>
-							<a href={resolve(`/models/${model.remake_of_slug}`)}>{model.remake_of_name}</a>
-							{#if model.remake_of_year}
-								<span class="muted">{model.remake_of_year}</span>
+							<a href={resolve(`/models/${model.remake_of.slug}`)}>{model.remake_of.name}</a>
+							{#if model.remake_of.year}
+								<span class="muted">{model.remake_of.year}</span>
 							{/if}
 						</SidebarListItem>
 					</SidebarList>
@@ -214,7 +212,7 @@
 			<ModelHierarchy
 				models={model.title_models}
 				heading="Other Models In Title"
-				excludeSlug={model.variant_of_slug ?? model.slug}
+				excludeSlug={model.variant_of?.slug ?? model.slug}
 			/>
 
 			<ExternalLinksSidebarSection

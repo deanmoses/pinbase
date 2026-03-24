@@ -11,7 +11,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 
 from .helpers import _build_rich_text, _claims_prefetch, _extract_image_urls
-from .schemas import RelatedTitleSchema, RichTextSchema
+from .schemas import Ref, RelatedTitleSchema, RichTextSchema
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -21,8 +21,7 @@ from .schemas import RelatedTitleSchema, RichTextSchema
 class SystemListSchema(Schema):
     name: str
     slug: str
-    manufacturer_name: Optional[str] = None
-    manufacturer_slug: Optional[str] = None
+    manufacturer: Optional[Ref] = None
     machine_count: int = 0
 
 
@@ -35,8 +34,7 @@ class SystemDetailSchema(Schema):
     name: str
     slug: str
     description: RichTextSchema = RichTextSchema()
-    manufacturer_name: Optional[str] = None
-    manufacturer_slug: Optional[str] = None
+    manufacturer: Optional[Ref] = None
     titles: list[RelatedTitleSchema]
     sibling_systems: list[SiblingSystemSchema] = []
 
@@ -67,8 +65,11 @@ def list_all_systems(request):
         {
             "name": s.name,
             "slug": s.slug,
-            "manufacturer_name": s.manufacturer.name if s.manufacturer else None,
-            "manufacturer_slug": s.manufacturer.slug if s.manufacturer else None,
+            "manufacturer": (
+                {"name": s.manufacturer.name, "slug": s.manufacturer.slug}
+                if s.manufacturer
+                else None
+            ),
             "machine_count": s.machine_count,
         }
         for s in qs
@@ -130,8 +131,11 @@ def get_system(request, slug: str):
         "description": _build_rich_text(
             system, "description", getattr(system, "active_claims", [])
         ),
-        "manufacturer_name": system.manufacturer.name if system.manufacturer else None,
-        "manufacturer_slug": system.manufacturer.slug if system.manufacturer else None,
+        "manufacturer": (
+            {"name": system.manufacturer.name, "slug": system.manufacturer.slug}
+            if system.manufacturer
+            else None
+        ),
         "titles": list(titles.values()),
         "sibling_systems": sibling_systems,
     }

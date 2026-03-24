@@ -114,7 +114,7 @@ class TestModelsAPI:
         data = resp.json()
         assert data["name"] == "Medieval Madness"
         assert len(data["credits"]) == 1
-        assert data["credits"][0]["person_name"] == "Pat Lawlor"
+        assert data["credits"][0]["person"]["name"] == "Pat Lawlor"
         year_claims = [c for c in data["activity"] if c["field_name"] == "year"]
         assert len(year_claims) == 1
         assert year_claims[0]["source_name"] == "IPDB"
@@ -163,14 +163,13 @@ class TestModelsAPI:
         machine_model.save()
         resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
-        assert data["title_name"] == "Medieval Madness"
-        assert data["title_slug"] == title.slug
+        assert data["title"]["name"] == "Medieval Madness"
+        assert data["title"]["slug"] == title.slug
 
     def test_get_model_detail_no_title(self, client, machine_model):
         resp = client.get(f"/api/models/{machine_model.slug}")
         data = resp.json()
-        assert data["title_name"] is None
-        assert data["title_slug"] is None
+        assert data["title"] is None
 
     def test_detail_includes_conversion_fields(self, client, db):
         """Detail response includes conversion fields."""
@@ -186,9 +185,9 @@ class TestModelsAPI:
         resp = client.get(f"/api/models/{conv.slug}")
         data = resp.json()
         assert data["is_conversion"] is True
-        assert data["converted_from_name"] == "Star Trek"
-        assert data["converted_from_slug"] == "star-trek"
-        assert data["converted_from_year"] == 1991
+        assert data["converted_from"]["name"] == "Star Trek"
+        assert data["converted_from"]["slug"] == "star-trek"
+        assert data["converted_from"]["year"] == 1991
 
     def test_detail_includes_conversions_list(self, client, db):
         """Source machine's detail includes conversions list."""

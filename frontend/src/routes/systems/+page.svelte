@@ -33,8 +33,8 @@
 					<a href={resolve(`/systems/${system.slug}`)} class="system-row">
 						<span class="system-name">{system.name}</span>
 						<span class="system-meta">
-							{#if system.manufacturer_name}
-								<span class="manufacturer">{system.manufacturer_name}</span>
+							{#if system.manufacturer}
+								<span class="manufacturer">{system.manufacturer.name}</span>
 							{/if}
 							<span class="count"
 								>{system.machine_count} machine{system.machine_count === 1 ? '' : 's'}</span
