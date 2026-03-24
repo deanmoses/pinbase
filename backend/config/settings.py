@@ -188,7 +188,7 @@ if "pytest" in sys.modules:
 DISPLAY_POLICY_CHOICES = (
     ("show-all", "Show all content (including Not Allowed — internal demos only)"),
     ("include-unknown", "Show unknown + licensed content (e.g., OPDB images)"),
-    ("licensed-only", "Show only licensed content (CC BY-SA 4.0 and above)"),
+    ("licensed-only", "Show only licensed content (excludes unknown and not-allowed)"),
     ("public-domain-only", "Show only Public Domain / CC0 content"),
 )
 
