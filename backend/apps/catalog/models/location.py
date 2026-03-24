@@ -85,7 +85,7 @@ class CorporateEntityLocation(models.Model):
     ``location`` points to the most specific known level (city, subdivision,
     or country).  The full hierarchy is accessible via ``location.parent``.
 
-    Existence is controlled by ``"address"`` relationship claims on
+    Existence is controlled by ``"location"`` relationship claims on
     CorporateEntity — do not create or delete rows directly.
     """
 

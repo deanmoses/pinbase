@@ -904,13 +904,13 @@ class Command(BaseCommand):
             hq_path = _resolve_ce_location_path(entry, loc_by_path)
             if hq_path:
                 claim_key, value = build_relationship_claim(
-                    "address", {"location_path": hq_path}
+                    "location", {"location_path": hq_path}
                 )
                 address_claims.append(
                     Claim(
                         content_type_id=ct_id,
                         object_id=obj.pk,
-                        field_name="address",
+                        field_name="location",
                         claim_key=claim_key,
                         value=value,
                     )
@@ -924,7 +924,7 @@ class Command(BaseCommand):
         Claim.objects.bulk_assert_claims(
             source,
             address_claims,
-            sweep_field="address",
+            sweep_field="location",
             authoritative_scope=make_authoritative_scope(CorporateEntity, all_ce_pks),
         )
         loc_stats = resolve_all_corporate_entity_locations()

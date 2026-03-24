@@ -405,9 +405,9 @@ class TestResolveCorporateEntityLocations:
         )
 
     def _assert_address(self, source, ce, path):
-        claim_key, value = build_relationship_claim("address", {"location_path": path})
+        claim_key, value = build_relationship_claim("location", {"location_path": path})
         Claim.objects.assert_claim(
-            ce, "address", value, source=source, claim_key=claim_key
+            ce, "location", value, source=source, claim_key=claim_key
         )
 
     def test_creates_cel_from_active_claim(self, db):

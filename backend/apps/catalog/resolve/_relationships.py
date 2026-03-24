@@ -1115,7 +1115,7 @@ def resolve_all_corporate_entity_locations() -> dict[str, int]:
     loc_by_path = {loc.location_path: loc for loc in Location.objects.all()}
 
     active_claims = Claim.objects.filter(
-        content_type=ce_ct, field_name="address", is_active=True
+        content_type=ce_ct, field_name="location", is_active=True
     ).values("object_id", "value")
 
     desired: dict[int, set[str]] = defaultdict(set)

@@ -27,7 +27,7 @@ RELATIONSHIP_SCHEMAS: dict[str, dict[str, str]] = {
     "reward_type": {"reward_type_slug": "reward_type"},
     "abbreviation": {"value": "value"},
     # Address relationship — claim lives on CorporateEntity
-    "address": {"location_path": "location"},
+    "location": {"location_path": "location"},
     # Alias namespaces — claim lives on the parent object
     "theme_alias": {"alias_value": "alias"},
     "manufacturer_alias": {"alias_value": "alias"},
