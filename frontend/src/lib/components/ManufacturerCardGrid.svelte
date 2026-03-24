@@ -3,7 +3,8 @@
 	import ManufacturerCard from '$lib/components/cards/ManufacturerCard.svelte';
 
 	let {
-		manufacturers
+		manufacturers,
+		showCount = true
 	}: {
 		manufacturers: {
 			name: string;
@@ -11,10 +12,11 @@
 			model_count: number;
 			thumbnail_url?: string | null;
 		}[];
+		showCount?: boolean;
 	} = $props();
 </script>
 
-<ClientFilteredGrid items={manufacturers} entityName="manufacturer">
+<ClientFilteredGrid items={manufacturers} entityName="manufacturer" {showCount}>
 	{#snippet children(mfr)}
 		<ManufacturerCard
 			slug={mfr.slug}

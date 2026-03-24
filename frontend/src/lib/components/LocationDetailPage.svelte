@@ -58,7 +58,7 @@
 
 		<TwoColumnLayout>
 			{#snippet main()}
-				<ManufacturerCardGrid {manufacturers} />
+				<ManufacturerCardGrid {manufacturers} showCount={false} />
 			{/snippet}
 
 			{#snippet sidebar()}
