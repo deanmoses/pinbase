@@ -157,6 +157,36 @@ def _coerce(model_class: type[models.Model], attr: str, value):
 
 
 # ------------------------------------------------------------------
+# Claim query helpers
+# ------------------------------------------------------------------
+
+
+def _annotate_priority(qs):
+    """Filter to active claims from enabled sources, annotate effective_priority.
+
+    Returns a queryset with ``effective_priority`` annotation (highest wins)
+    and ``select_related("source", "user__profile")``.  Callers supply their
+    own ``.order_by()`` and may chain additional ``.select_related()`` or
+    ``.filter()`` calls.
+    """
+    from django.db.models import Case, F, IntegerField, Value, When
+
+    return (
+        qs.filter(is_active=True)
+        .exclude(source__is_enabled=False)
+        .select_related("source", "user__profile")
+        .annotate(
+            effective_priority=Case(
+                When(source__isnull=False, then=F("source__priority")),
+                When(user__isnull=False, then=F("user__profile__priority")),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+    )
+
+
+# ------------------------------------------------------------------
 # Field defaults
 # ------------------------------------------------------------------
 
@@ -193,21 +223,8 @@ def _pick_relationship_winners(
 
     Returns {claim_key: winning_claim}.
     """
-    from django.db.models import Case, F, IntegerField, Value, When
-
-    claims = (
-        obj.claims.filter(is_active=True, field_name=field_name)
-        .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("claim_key", "-effective_priority", "-created_at")
+    claims = _annotate_priority(obj.claims.filter(field_name=field_name)).order_by(
+        "claim_key", "-effective_priority", "-created_at"
     )
 
     winners: dict[str, Claim] = {}

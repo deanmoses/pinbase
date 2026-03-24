@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 
-from django.db.models import Case, F, IntegerField, Value, When
 from django.utils import timezone
 
 from apps.provenance.models import Claim
@@ -35,7 +34,7 @@ from ..models import (
     Theme,
     Title,
 )
-from ._helpers import _coerce, get_field_defaults
+from ._helpers import _annotate_priority, _coerce, get_field_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -159,26 +158,17 @@ def _resolve_single(
 
     This is the single-object counterpart to ``_resolve_bulk()``.
 
-    All resolvable fields are reset to their defaults first, then active
-    claim winners are applied.  Claims are the sole source of truth for
-    these fields: a field with no active claim will be blank/null after
-    resolution regardless of what was previously stored.
+    Resolvable fields are reset to their defaults, then active claim
+    winners are applied.  UNIQUE fields are preserved when no claim
+    exists (resetting them to a shared default like ``""`` would cause
+    integrity errors in the bulk path and semantic inconsistency in the
+    single path).  Non-unique fields with no active claim are
+    blank/null after resolution.
 
     Mutates *obj* in memory; the caller is responsible for saving.
     """
-    claims = (
-        obj.claims.filter(is_active=True)
-        .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("field_name", "-effective_priority", "-created_at")
+    claims = _annotate_priority(obj.claims.all()).order_by(
+        "field_name", "-effective_priority", "-created_at"
     )
 
     winners: dict[str, Claim] = {}
@@ -186,9 +176,17 @@ def _resolve_single(
         if claim.field_name not in winners:
             winners[claim.field_name] = claim
 
-    # Reset resolvable fields to defaults.
+    # Reset resolvable fields to defaults.  UNIQUE fields are preserved
+    # when no winning claim exists — see _resolve_bulk() for rationale.
     field_defaults = get_field_defaults(type(obj), direct_fields)
+    unique_attrs: set[str] = set()
+    for attr in direct_fields.values():
+        if type(obj)._meta.get_field(attr).unique:
+            unique_attrs.add(attr)
+    winner_attrs = {direct_fields[fn] for fn in winners if fn in direct_fields}
     for attr, default in field_defaults.items():
+        if attr in unique_attrs and attr not in winner_attrs:
+            continue
         setattr(obj, attr, default)
 
     # Apply winners.
@@ -221,6 +219,10 @@ def _resolve_bulk(
     writes back with a single bulk_update(). This is the bulk counterpart
     to _resolve_single().
 
+    UNIQUE fields are preserved when no winning claim exists — resetting
+    them to a shared default (e.g. ``""``) would cause IntegrityError
+    when multiple objects lack claims for that field.
+
     Parameters:
         model_class: The Django model class to resolve.
         direct_fields: Maps claim field_name to model attribute name.
@@ -237,19 +239,8 @@ def _resolve_bulk(
     ct = ContentType.objects.get_for_model(model_class)
 
     # 1. Pre-fetch all active claims for this model class.
-    claims_qs = (
-        Claim.objects.filter(content_type=ct, is_active=True)
-        .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "field_name", "-effective_priority", "-created_at")
+    claims_qs = _annotate_priority(Claim.objects.filter(content_type=ct)).order_by(
+        "object_id", "field_name", "-effective_priority", "-created_at"
     )
     if object_ids is not None:
         claims_qs = claims_qs.filter(object_id__in=object_ids)
@@ -420,17 +411,7 @@ def resolve_title(title: Title) -> Title:
     _resolve_single(title, TITLE_DIRECT_FIELDS)
     # Handle franchise FK.
     franchise_claim = (
-        title.claims.filter(field_name="franchise", is_active=True)
-        .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
+        _annotate_priority(title.claims.filter(field_name="franchise"))
         .order_by("-effective_priority", "-created_at")
         .first()
     )

@@ -9,9 +9,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from django.db.models import Case, F, IntegerField, Value, When
-
 from apps.provenance.models import Claim
+
+from ._helpers import _annotate_priority
 
 from ..models import (
     CorporateEntity,
@@ -116,22 +116,13 @@ def _resolve_all_m2m(
     )
 
     # Pre-fetch active claims with priority annotation.
-    claims_qs = Claim.objects.filter(
-        is_active=True, content_type=ct, field_name=spec.field_name
-    ).exclude(source__is_enabled=False)
+    claims_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name=spec.field_name)
+    )
     if model_ids is not None:
         claims_qs = claims_qs.filter(object_id__in=model_ids)
-    claims = (
-        claims_qs.select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    claims = claims_qs.order_by(
+        "object_id", "claim_key", "-effective_priority", "-created_at"
     )
 
     # Pick winner per (object_id, claim_key).
@@ -289,22 +280,13 @@ def resolve_all_gameplay_features(
         GameplayFeature.objects.values_list("slug", "pk")
     )
 
-    claims_qs = Claim.objects.filter(
-        is_active=True, content_type=ct, field_name="gameplay_feature"
-    ).exclude(source__is_enabled=False)
+    claims_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name="gameplay_feature")
+    )
     if model_ids is not None:
         claims_qs = claims_qs.filter(object_id__in=model_ids)
-    claims = (
-        claims_qs.select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    claims = claims_qs.order_by(
+        "object_id", "claim_key", "-effective_priority", "-created_at"
     )
 
     # Pick winner per (object_id, claim_key).
@@ -484,22 +466,13 @@ def resolve_all_credits(
         )
         return
 
-    credit_qs = Claim.objects.filter(
-        is_active=True, content_type=ct, field_name="credit"
-    ).exclude(source__is_enabled=False)
+    credit_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name="credit")
+    )
     if model_ids is not None:
         credit_qs = credit_qs.filter(object_id__in=model_ids)
-    credit_claims = (
-        credit_qs.select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    credit_claims = credit_qs.order_by(
+        "object_id", "claim_key", "-effective_priority", "-created_at"
     )
 
     winners_by_model: dict[int, list[Claim]] = {}
@@ -632,22 +605,13 @@ def resolve_all_title_abbreviations(
 
     ct = ContentType.objects.get_for_model(Title)
 
-    abbr_qs = Claim.objects.filter(
-        is_active=True, content_type=ct, field_name="abbreviation"
-    ).exclude(source__is_enabled=False)
+    abbr_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name="abbreviation")
+    )
     if title_ids is not None:
         abbr_qs = abbr_qs.filter(object_id__in=title_ids)
-    abbr_claims = (
-        abbr_qs.select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    abbr_claims = abbr_qs.order_by(
+        "object_id", "claim_key", "-effective_priority", "-created_at"
     )
 
     winners_by_title: dict[int, list[Claim]] = {}
@@ -736,22 +700,13 @@ def resolve_all_model_abbreviations(
 
     ct = ContentType.objects.get_for_model(MachineModel)
 
-    abbr_qs = Claim.objects.filter(
-        is_active=True, content_type=ct, field_name="abbreviation"
-    ).exclude(source__is_enabled=False)
+    abbr_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name="abbreviation")
+    )
     if model_ids is not None:
         abbr_qs = abbr_qs.filter(object_id__in=model_ids)
-    abbr_claims = (
-        abbr_qs.select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+    abbr_claims = abbr_qs.order_by(
+        "object_id", "claim_key", "-effective_priority", "-created_at"
     )
 
     winners_by_model: dict[int, list[Claim]] = {}
@@ -832,22 +787,9 @@ def _resolve_aliases(
 
     ct = ContentType.objects.get_for_model(parent_model)
 
-    claims_qs = (
-        Claim.objects.filter(
-            is_active=True, content_type=ct, field_name=claim_field_name
-        )
-        .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
-    )
+    claims_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name=claim_field_name)
+    ).order_by("object_id", "claim_key", "-effective_priority", "-created_at")
 
     # Pick winners per (object_id, claim_key).
     winners_by_parent: dict[int, list[Claim]] = {}
@@ -996,22 +938,9 @@ def _resolve_parents(parent_model, *, claim_field_prefix: str | None = None) -> 
     claim_field_name = f"{prefix}_parent"
     ct = ContentType.objects.get_for_model(parent_model)
 
-    claims_qs = (
-        Claim.objects.filter(
-            is_active=True, content_type=ct, field_name=claim_field_name
-        )
-        .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
-    )
+    claims_qs = _annotate_priority(
+        Claim.objects.filter(content_type=ct, field_name=claim_field_name)
+    ).order_by("object_id", "claim_key", "-effective_priority", "-created_at")
 
     # Pick winners per (object_id, claim_key).
     winners_by_child: dict[int, list[Claim]] = {}

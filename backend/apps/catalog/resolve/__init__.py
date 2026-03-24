@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.db.models import Case, F, IntegerField, Value, When
 from django.utils import timezone
 
 from apps.core.licensing import (
@@ -29,6 +28,7 @@ from ..models import (
 from ._helpers import (
     DIRECT_FIELDS,
     FK_FIELDS,
+    _annotate_priority,
     _coerce,
     _resolve_fk,
     build_fk_lookups,
@@ -99,78 +99,34 @@ logger = logging.getLogger(__name__)
 def resolve_model(machine_model: MachineModel) -> MachineModel:
     """Resolve all active claims into the given MachineModel's fields.
 
-    Picks the winning claim per field_name: highest effective priority
+    Picks the winning claim per claim_key: highest effective priority
     (from source or user profile), then most recent created_at as tiebreaker.
+    Delegates field application to ``_apply_resolution()`` (shared with the
+    bulk path in ``resolve_machine_models()``).
 
     Returns the saved MachineModel.
     """
+    # Fetch and pick winners (single-object).
     claims = (
-        machine_model.claims.filter(is_active=True)
-        .exclude(source__is_enabled=False)
-        .select_related("source", "source__default_license", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
+        _annotate_priority(machine_model.claims.all())
+        .select_related("source__default_license")
         .order_by("claim_key", "-effective_priority", "-created_at")
     )
-
-    # Group by claim_key — first claim per group is the winner.
     winners: dict[str, Claim] = {}
     for claim in claims:
         if claim.claim_key not in winners:
             winners[claim.claim_key] = claim
 
-    # Reset all resolvable fields to defaults before applying winners.
-    for spec in FK_FIELDS.values():
-        setattr(machine_model, spec.model_attr, None)
+    # Apply field values (shared with bulk path).
     field_defaults = get_field_defaults(MachineModel, DIRECT_FIELDS)
-    for attr, default in field_defaults.items():
-        setattr(machine_model, attr, default)
-
     fk_lookups = build_fk_lookups()
     sfl_map = build_source_field_license_map()
-    extra_data: dict = {}
+    _apply_resolution(machine_model, winners, field_defaults, fk_lookups, sfl_map)
 
-    # Apply winners to the model.
-    for claim_key, claim in winners.items():
-        if claim.field_name in RELATIONSHIP_NAMESPACES:
-            continue
-        if claim.field_name in FK_FIELDS:
-            spec = FK_FIELDS[claim.field_name]
-            setattr(
-                machine_model,
-                spec.model_attr,
-                _resolve_fk(
-                    claim.field_name, claim.value, fk_lookups[claim.field_name]
-                ),
-            )
-        elif claim.field_name in DIRECT_FIELDS:
-            attr = DIRECT_FIELDS[claim.field_name]
-            setattr(machine_model, attr, _coerce(MachineModel, attr, claim.value))
-        else:
-            extra_data[claim.field_name] = claim.value
-            if claim.field_name in IMAGE_FIELDS:
-                lic = resolve_effective_license(claim, sfl_map)
-                extra_data[f"{claim.field_name}.__license_slug"] = (
-                    lic.slug if lic else None
-                )
-                extra_data[f"{claim.field_name}.__permissiveness_rank"] = (
-                    lic.permissiveness_rank if lic else None
-                )
-
-    machine_model.extra_data = extra_data
-
-    # Conversions are not variants.
+    # Post-resolution guards (single-object only — the bulk path handles
+    # these differently via _resolve_opdb_conflicts and a separate loop).
     if machine_model.is_conversion and machine_model.variant_of_id is not None:
         machine_model.variant_of = None
-
-    # Guard against UNIQUE constraint on opdb_id: if another model already
-    # owns this opdb_id, clear it rather than crashing.
     if machine_model.opdb_id:
         conflict = (
             MachineModel.objects.filter(opdb_id=machine_model.opdb_id)
@@ -329,17 +285,8 @@ def _build_claims_by_model() -> dict[int, dict[str, Claim]]:
 
     ct = ContentType.objects.get_for_model(MachineModel)
     claims = (
-        Claim.objects.filter(is_active=True, content_type=ct)
-        .exclude(source__is_enabled=False)
-        .select_related("source", "source__default_license", "user__profile")
-        .annotate(
-            effective_priority=Case(
-                When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
+        _annotate_priority(Claim.objects.filter(content_type=ct))
+        .select_related("source__default_license")
         .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
     )
 

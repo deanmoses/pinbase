@@ -1,4 +1,4 @@
-"""Tests for _resolve_bulk and resolve_title."""
+"""Tests for _resolve_single, _resolve_bulk, and resolve_title."""
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
@@ -9,6 +9,7 @@ from apps.catalog.resolve import (
     TAXONOMY_DIRECT_FIELDS,
     TITLE_DIRECT_FIELDS,
     _resolve_bulk,
+    _resolve_single,
     resolve_title,
 )
 from apps.core.models import RecordReference
@@ -238,6 +239,48 @@ class TestResolveBulkUniqueFieldSafety:
 
         t.refresh_from_db()
         assert t.description == ""  # Reset to default.
+
+    def test_single_preserves_unique_name_without_claim(self, opdb):
+        """_resolve_single also preserves UNIQUE fields without claims (parity)."""
+        from apps.catalog.models import Theme
+        from apps.catalog.resolve import THEME_DIRECT_FIELDS
+
+        t = Theme.objects.create(name="Horror", slug="horror", description="Old desc")
+
+        # Description claim but no name claim.
+        Claim.objects.assert_claim(t, "description", "Scary stuff", source=opdb)
+
+        _resolve_single(t, THEME_DIRECT_FIELDS)
+
+        assert t.name == "Horror"  # Preserved — not reset to "".
+        assert t.description == "Scary stuff"  # Applied from claim.
+
+    def test_single_and_bulk_produce_same_result(self, opdb):
+        """Single and bulk resolution must agree on partial-claim entities."""
+        from apps.catalog.models import Theme
+        from apps.catalog.resolve import THEME_DIRECT_FIELDS
+
+        # Two identical themes, one resolved single, one bulk.
+        t_single = Theme.objects.create(
+            name="Horror", slug="horror", description="Old desc"
+        )
+        t_bulk = Theme.objects.create(
+            name="Horror Copy", slug="horror-copy", description="Old desc"
+        )
+
+        # Both get only a description claim, no name claim.
+        Claim.objects.assert_claim(t_single, "description", "Scary stuff", source=opdb)
+        Claim.objects.assert_claim(t_bulk, "description", "Scary stuff", source=opdb)
+
+        _resolve_single(t_single, THEME_DIRECT_FIELDS)
+        t_single.save()
+
+        _resolve_bulk(Theme, THEME_DIRECT_FIELDS, object_ids={t_bulk.pk})
+        t_bulk.refresh_from_db()
+
+        assert t_single.name == "Horror"  # Preserved.
+        assert t_bulk.name == "Horror Copy"  # Preserved.
+        assert t_single.description == t_bulk.description == "Scary stuff"
 
 
 @pytest.mark.django_db
