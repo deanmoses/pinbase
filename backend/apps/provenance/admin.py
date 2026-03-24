@@ -55,6 +55,9 @@ class ClaimAdmin(admin.ModelAdmin):
                 obj.value,
                 obj.citation,
                 source=obj.source,
+                user=obj.user,
+                claim_key=obj.claim_key,
+                license=obj.license,
             )
             obj.pk = created.pk
         else:
