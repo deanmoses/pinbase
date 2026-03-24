@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SITE_NAME, pageTitle } from '$lib/constants';
+	import { pageTitle } from '$lib/constants';
 
 	let scalarLoaded = $state(false);
 	let scalarError = $state('');
@@ -84,7 +84,10 @@
 
 <section class="hero">
 	<h1>Open Data API</h1>
-	<p>{SITE_NAME} is open data. Every bit of data is available through public APIs.</p>
+	<p>
+		Catalog data is available through public APIs, subject to
+		<a href="/licensing">licensing terms</a> that vary by source.
+	</p>
 </section>
 
 <section class="developer-resources">

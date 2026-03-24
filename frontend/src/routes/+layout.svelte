@@ -1,6 +1,7 @@
 <script>
 	import '../app.css';
 	import Nav from '$lib/components/Nav.svelte';
+	import Footer from '$lib/components/Footer.svelte';
 
 	let { children } = $props();
 </script>
@@ -10,6 +11,8 @@
 <main class="page-content">
 	{@render children()}
 </main>
+
+<Footer />
 
 <style>
 	.page-content {

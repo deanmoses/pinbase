@@ -11,8 +11,7 @@
 	const navItems = [
 		{ href: '/titles' as const, label: 'Titles' },
 		{ href: '/manufacturers' as const, label: 'Manufacturers' },
-		{ href: '/people' as const, label: 'People' },
-		{ href: '/api-docs' as const, label: 'API' }
+		{ href: '/people' as const, label: 'People' }
 	];
 
 	function isActive(href: string) {
