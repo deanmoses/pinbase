@@ -15,19 +15,7 @@ from django.utils import timezone
 from apps.provenance.models import Claim
 
 from ..models import (
-    Cabinet,
-    CreditRole,
-    DisplaySubtype,
-    DisplayType,
-    Franchise,
-    GameFormat,
     GameplayFeature,
-    RewardType,
-    Series,
-    System,
-    Tag,
-    TechnologyGeneration,
-    TechnologySubgeneration,
     Theme,
     Title,
 )
@@ -130,22 +118,6 @@ SERIES_DIRECT_FIELDS: dict[str, str] = {
     "description": "description",
 }
 
-# All taxonomy models that go through claim resolution.
-TAXONOMY_MODELS: list[tuple[type, dict[str, str]]] = [
-    (TechnologyGeneration, TAXONOMY_DIRECT_FIELDS),
-    (TechnologySubgeneration, TAXONOMY_DIRECT_FIELDS),
-    (DisplayType, TAXONOMY_DIRECT_FIELDS),
-    (DisplaySubtype, TAXONOMY_DIRECT_FIELDS),
-    (Cabinet, TAXONOMY_DIRECT_FIELDS),
-    (GameFormat, TAXONOMY_DIRECT_FIELDS),
-    (RewardType, REWARD_TYPE_DIRECT_FIELDS),
-    (Tag, TAXONOMY_DIRECT_FIELDS),
-    (CreditRole, TAXONOMY_DIRECT_FIELDS),
-    (Franchise, FRANCHISE_DIRECT_FIELDS),
-    (Series, SERIES_DIRECT_FIELDS),
-    (System, SYSTEM_DIRECT_FIELDS),
-]
-
 
 # ------------------------------------------------------------------
 # Generic single-object resolver
@@ -225,7 +197,6 @@ def _resolve_single(
 def _resolve_bulk(
     model_class,
     direct_fields: dict[str, str],
-    fk_handlers: dict[str, tuple[str, dict]] | None = None,
     object_ids: set[int] | None = None,
 ) -> int:
     """Bulk-resolve claims for all (or selected) instances of a model class.
@@ -238,12 +209,12 @@ def _resolve_bulk(
     them to a shared default (e.g. ``""``) would cause IntegrityError
     when multiple objects lack claims for that field.
 
+    FK fields in *direct_fields* are auto-detected and resolved by slug
+    (or model-declared ``claim_fk_lookups`` override).
+
     Parameters:
         model_class: The Django model class to resolve.
         direct_fields: Maps claim field_name to model attribute name.
-        fk_handlers: Maps claim field_name to (fk_field_name, slug_lookup_dict).
-            For each matching claim, resolves value via the lookup dict and
-            sets the FK attribute. The lookup dict maps slug to model instance.
         object_ids: If provided, only resolve these object IDs. If None,
             resolve all instances.
 
@@ -299,12 +270,6 @@ def _resolve_bulk(
                 getattr(obj, lookup_key): obj for obj in target_model.objects.all()
             }
 
-    # Collect FK attribute names for bulk_update (legacy fk_handlers).
-    fk_update_fields: list[str] = []
-    if fk_handlers:
-        for fk_field, _lookup in fk_handlers.values():
-            fk_update_fields.append(f"{fk_field}_id")
-
     # Check if model has extra_data field for unmatched claims.
     has_extra_data = hasattr(model_class, "extra_data")
 
@@ -320,11 +285,6 @@ def _resolve_bulk(
             if attr in unique_attrs and attr not in winner_attrs:
                 continue
             setattr(obj, attr, default)
-
-        # Reset FK fields.
-        if fk_handlers:
-            for fk_field, _lookup in fk_handlers.values():
-                setattr(obj, fk_field, None)
 
         # Apply winners.
         extra_data: dict = {} if has_extra_data else None
@@ -344,19 +304,6 @@ def _resolve_bulk(
                     )
                 else:
                     setattr(obj, attr, _coerce(model_class, attr, claim.value))
-            elif fk_handlers and field_name in fk_handlers:
-                fk_field, lookup = fk_handlers[field_name]
-                slug = str(claim.value).strip() if claim.value else ""
-                if slug:
-                    resolved = lookup.get(slug)
-                    if resolved:
-                        setattr(obj, fk_field, resolved)
-                    else:
-                        logger.warning(
-                            "Unmatched %s claim slug: %r",
-                            field_name,
-                            claim.value,
-                        )
             elif has_extra_data:
                 extra_data[field_name] = claim.value
         if has_extra_data:
@@ -365,9 +312,7 @@ def _resolve_bulk(
         obj.updated_at = now
 
     # 5. Bulk write.
-    update_fields = (
-        list(set(direct_fields.values())) + fk_update_fields + ["updated_at"]
-    )
+    update_fields = list(set(direct_fields.values())) + ["updated_at"]
     if has_extra_data:
         update_fields.append("extra_data")
     model_class.objects.bulk_update(all_objs, update_fields, batch_size=100)
@@ -441,12 +386,6 @@ def resolve_all_theme_entities():       return resolve_all_entities(Theme)  # no
 def resolve_title(title: Title) -> Title:
     """Resolve Title scalars."""
     return resolve_entity(title)
-
-
-def _resolve_all_taxonomy() -> None:
-    """Resolve claims for all taxonomy models (legacy)."""
-    for model_class, _direct_fields in TAXONOMY_MODELS:
-        resolve_all_entities(model_class)
 
 
 def resolve_all_locations() -> int:

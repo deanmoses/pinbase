@@ -72,11 +72,9 @@ from ._entities import (  # noqa: F401
     SERIES_DIRECT_FIELDS as SERIES_DIRECT_FIELDS,
     SYSTEM_DIRECT_FIELDS as SYSTEM_DIRECT_FIELDS,
     TAXONOMY_DIRECT_FIELDS as TAXONOMY_DIRECT_FIELDS,
-    TAXONOMY_MODELS as TAXONOMY_MODELS,
     THEME_DIRECT_FIELDS as THEME_DIRECT_FIELDS,
     TITLE_DIRECT_FIELDS as TITLE_DIRECT_FIELDS,
     # Internals used by the orchestrator and tests.
-    _resolve_all_taxonomy,
     _resolve_bulk as _resolve_bulk,
     _resolve_single as _resolve_single,
     # Generic resolvers (preferred API).

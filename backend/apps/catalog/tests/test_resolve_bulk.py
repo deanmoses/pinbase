@@ -66,33 +66,27 @@ class TestResolveBulkTitle:
         t.refresh_from_db()
         assert t.name == ""
 
-    def test_fk_handler_resolves_franchise(self, opdb):
+    def test_fk_resolves_franchise(self, opdb):
+        from apps.catalog.resolve import resolve_all_entities
+
         franchise = Franchise.objects.create(name="Godzilla", slug="godzilla")
         t = Title.objects.create(opdb_id="G1", name="", slug="t1")
 
         Claim.objects.assert_claim(t, "franchise", "godzilla", source=opdb)
 
-        franchise_lookup = {f.slug: f for f in Franchise.objects.all()}
-        _resolve_bulk(
-            Title,
-            TITLE_DIRECT_FIELDS,
-            fk_handlers={"franchise": ("franchise", franchise_lookup)},
-        )
+        resolve_all_entities(Title)
 
         t.refresh_from_db()
         assert t.franchise == franchise
 
-    def test_fk_handler_resets_when_no_claim(self, opdb):
+    def test_fk_resets_when_no_claim(self, opdb):
+        from apps.catalog.resolve import resolve_all_entities
+
         franchise = Franchise.objects.create(name="Godzilla", slug="godzilla")
         t = Title.objects.create(opdb_id="G1", name="", slug="t1", franchise=franchise)
 
         # No franchise claim — should reset to None.
-        franchise_lookup = {f.slug: f for f in Franchise.objects.all()}
-        _resolve_bulk(
-            Title,
-            TITLE_DIRECT_FIELDS,
-            fk_handlers={"franchise": ("franchise", franchise_lookup)},
-        )
+        resolve_all_entities(Title)
 
         t.refresh_from_db()
         assert t.franchise is None
