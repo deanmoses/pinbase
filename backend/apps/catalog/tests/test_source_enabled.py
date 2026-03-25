@@ -15,7 +15,7 @@ from apps.core.models import get_claim_fields
 from apps.catalog.resolve import (
     _resolve_bulk,
     resolve_entity,
-    resolve_themes,
+    resolve_all_themes,
 )
 from apps.catalog.resolve._relationships import resolve_all_credits
 from apps.provenance.models import Claim, Source
@@ -137,14 +137,14 @@ class TestIsEnabledRelationshipResolution:
         )
 
         # With source enabled, theme should resolve.
-        resolve_themes(pm)
+        resolve_all_themes(model_ids={pm.pk})
         assert theme in pm.themes.all()
 
         # Disable source; theme should be removed.
         source_a.is_enabled = False
         source_a.save()
 
-        resolve_themes(pm)
+        resolve_all_themes(model_ids={pm.pk})
         assert theme not in pm.themes.all()
 
     def test_disabled_source_credit_excluded(self, source_a):

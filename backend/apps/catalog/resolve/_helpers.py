@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from django.db import models
 
 if TYPE_CHECKING:
-    from apps.provenance.models import Claim
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -180,27 +180,3 @@ def get_field_defaults(
         else:
             defaults[attr] = ""
     return defaults
-
-
-# ------------------------------------------------------------------
-# Relationship winner picking
-# ------------------------------------------------------------------
-
-
-def _pick_relationship_winners(
-    obj,
-    field_name: str,
-) -> dict[str, Claim]:
-    """Fetch active relationship claims and pick winner per claim_key.
-
-    Returns {claim_key: winning_claim}.
-    """
-    claims = _annotate_priority(obj.claims.filter(field_name=field_name)).order_by(
-        "claim_key", "-effective_priority", "-created_at"
-    )
-
-    winners: dict[str, Claim] = {}
-    for claim in claims:
-        if claim.claim_key not in winners:
-            winners[claim.claim_key] = claim
-    return winners

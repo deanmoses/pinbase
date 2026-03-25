@@ -44,19 +44,13 @@ from ._relationships import (  # noqa: F401
     resolve_all_themes,
     resolve_all_title_abbreviations,
     resolve_corporate_entity_aliases,
-    resolve_credits,
     resolve_gameplay_feature_aliases,
     resolve_gameplay_feature_parents,
-    resolve_gameplay_features,
     resolve_manufacturer_aliases,
-    resolve_model_abbreviations,
     resolve_person_aliases,
     resolve_reward_type_aliases,
-    resolve_reward_types,
-    resolve_tags,
     resolve_theme_aliases,
     resolve_theme_parents,
-    resolve_themes,
 )
 
 from ._entities import (  # noqa: F401
@@ -126,12 +120,13 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     machine_model.save()
 
     # Resolve relationship claims after scalar save.
-    resolve_credits(machine_model)
-    resolve_themes(machine_model)
-    resolve_gameplay_features(machine_model)
-    resolve_reward_types(machine_model)
-    resolve_tags(machine_model)
-    resolve_model_abbreviations(machine_model)
+    model_ids = {machine_model.pk}
+    resolve_all_credits(model_ids=model_ids)
+    resolve_all_themes(model_ids=model_ids)
+    resolve_all_gameplay_features(model_ids=model_ids)
+    resolve_all_reward_types(model_ids=model_ids)
+    resolve_all_tags(model_ids=model_ids)
+    resolve_all_model_abbreviations(model_ids=model_ids)
 
     return machine_model
 

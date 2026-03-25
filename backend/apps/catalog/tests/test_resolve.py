@@ -13,7 +13,11 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
-from apps.catalog.resolve import resolve_machine_models, resolve_model, resolve_themes
+from apps.catalog.resolve import (
+    resolve_machine_models,
+    resolve_model,
+    resolve_all_themes,
+)
 from apps.catalog.resolve._relationships import resolve_all_corporate_entity_locations
 from apps.provenance.models import Claim, Source
 
@@ -280,7 +284,7 @@ class TestResolveThemes:
                 pm, "theme", value, source=ipdb, claim_key=claim_key
             )
 
-        resolve_themes(pm)
+        resolve_all_themes(model_ids={pm.pk})
         assert set(pm.themes.values_list("slug", flat=True)) == {
             "horror",
             "licensed",
@@ -306,7 +310,7 @@ class TestResolveThemes:
             pm, "theme", dispute_value, source=editorial, claim_key=claim_key
         )
 
-        resolve_themes(pm)
+        resolve_all_themes(model_ids={pm.pk})
         assert pm.themes.count() == 0
 
     def test_stale_themes_cleared(self):
@@ -318,12 +322,12 @@ class TestResolveThemes:
 
         claim_key, value = build_relationship_claim("theme", {"theme_slug": "horror"})
         Claim.objects.assert_claim(pm, "theme", value, source=ipdb, claim_key=claim_key)
-        resolve_themes(pm)
+        resolve_all_themes(model_ids={pm.pk})
         assert pm.themes.count() == 1
 
         # Deactivate claim, re-resolve — themes should be empty.
         pm.claims.filter(is_active=True).update(is_active=False)
-        resolve_themes(pm)
+        resolve_all_themes(model_ids={pm.pk})
         assert pm.themes.count() == 0
 
     def test_bulk_theme_resolution(self):

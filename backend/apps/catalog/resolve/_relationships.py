@@ -38,7 +38,6 @@ from ..models import (
     Title,
     TitleAbbreviation,
 )
-from ._helpers import _pick_relationship_winners
 
 logger = logging.getLogger(__name__)
 
@@ -75,33 +74,9 @@ M2M_FIELDS: dict[str, M2MFieldSpec] = {
 # ------------------------------------------------------------------
 
 
-def _resolve_m2m_single(obj, spec: M2MFieldSpec) -> None:
-    """Resolve M2M claims for a single object using the given spec."""
-    winners = _pick_relationship_winners(obj, spec.field_name)
-
-    desired_pks: set[int] = set()
-    for claim in winners.values():
-        val = claim.value
-        if not val.get("exists", True):
-            continue
-        target = spec.target_model.objects.filter(slug=val[spec.slug_key]).first()
-        if not target:
-            logger.warning(
-                "Unresolved %s slug %r in %s claim for %s",
-                spec.field_name,
-                val[spec.slug_key],
-                spec.field_name,
-                obj,
-            )
-            continue
-        desired_pks.add(target.pk)
-
-    getattr(obj, spec.m2m_attr).set(desired_pks)
-
-
 def _resolve_all_m2m(
     spec: M2MFieldSpec,
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -155,7 +130,12 @@ def _resolve_all_m2m(
         desired_by_model[model_id] = desired
 
     # Pre-fetch existing M2M through-table rows.
-    all_model_ids = model_ids if model_ids is not None else {pm.pk for pm in all_models}
+    if model_ids is not None:
+        all_model_ids = model_ids
+    elif all_models is not None:
+        all_model_ids = {pm.pk for pm in all_models}
+    else:
+        all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     through = getattr(MachineModel, spec.m2m_attr).through
     target_col = spec.target_model._meta.model_name + "_id"
 
@@ -198,68 +178,13 @@ def _resolve_all_m2m(
 # ------------------------------------------------------------------
 
 
-def resolve_themes(machine_model: MachineModel) -> None:
-    _resolve_m2m_single(machine_model, M2M_FIELDS["theme"])
-
-
-def resolve_gameplay_features(machine_model: MachineModel) -> None:
-    """Resolve gameplay feature claims into through-model rows for a single machine."""
-    winners = _pick_relationship_winners(machine_model, "gameplay_feature")
-
-    slug_lookup: dict[str, int] = dict(
-        GameplayFeature.objects.values_list("slug", "pk")
-    )
-
-    desired: dict[int, int | None] = {}  # {feature_pk: count}
-    for claim in winners.values():
-        val = claim.value
-        if not val.get("exists", True):
-            continue
-        feature_pk = slug_lookup.get(val["gameplay_feature_slug"])
-        if not feature_pk:
-            logger.warning(
-                "Unresolved gameplay_feature slug %r in claim for %s",
-                val["gameplay_feature_slug"],
-                machine_model,
-            )
-            continue
-        desired[feature_pk] = val.get("count")
-
-    existing = {
-        row.gameplayfeature_id: row
-        for row in MachineModelGameplayFeature.objects.filter(
-            machinemodel=machine_model
-        )
-    }
-
-    to_delete_pks = [row.pk for fk, row in existing.items() if fk not in desired]
-    if to_delete_pks:
-        MachineModelGameplayFeature.objects.filter(pk__in=to_delete_pks).delete()
-
-    for feature_pk, count in desired.items():
-        row = existing.get(feature_pk)
-        if row is None:
-            MachineModelGameplayFeature.objects.create(
-                machinemodel=machine_model,
-                gameplayfeature_id=feature_pk,
-                count=count,
-            )
-        elif row.count != count:
-            row.count = count
-            row.save(update_fields=["count"])
-
-
-def resolve_tags(machine_model: MachineModel) -> None:
-    _resolve_m2m_single(machine_model, M2M_FIELDS["tag"])
-
-
 # ------------------------------------------------------------------
 # Public M2M wrappers (bulk)
 # ------------------------------------------------------------------
 
 
 def resolve_all_themes(
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -267,7 +192,7 @@ def resolve_all_themes(
 
 
 def resolve_all_gameplay_features(
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -318,7 +243,12 @@ def resolve_all_gameplay_features(
         desired_by_model[mid] = desired
 
     # Pre-fetch existing through-table rows.
-    all_model_ids = model_ids if model_ids is not None else {pm.pk for pm in all_models}
+    if model_ids is not None:
+        all_model_ids = model_ids
+    elif all_models is not None:
+        all_model_ids = {pm.pk for pm in all_models}
+    else:
+        all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     existing_by_model: dict[int, dict[int, tuple[int, int | None]]] = {}
     for row in MachineModelGameplayFeature.objects.filter(
         machinemodel_id__in=all_model_ids
@@ -367,12 +297,8 @@ def resolve_all_gameplay_features(
         )
 
 
-def resolve_reward_types(machine_model: MachineModel) -> None:
-    _resolve_m2m_single(machine_model, M2M_FIELDS["reward_type"])
-
-
 def resolve_all_reward_types(
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -380,7 +306,7 @@ def resolve_all_reward_types(
 
 
 def resolve_all_tags(
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -392,63 +318,8 @@ def resolve_all_tags(
 # ------------------------------------------------------------------
 
 
-def resolve_credits(machine_model: MachineModel) -> None:
-    """Resolve credit claims into Credit rows for a single machine."""
-    winners = _pick_relationship_winners(machine_model, "credit")
-
-    role_lookup: dict[str, int] = dict(CreditRole.objects.values_list("slug", "pk"))
-    if not role_lookup:
-        if winners:
-            logger.warning(
-                "CreditRole table is empty — skipping credit resolution for %s. "
-                "Run ingest_pinbase_taxonomy to seed credit roles.",
-                machine_model.name,
-            )
-        return
-
-    desired: set[tuple[int, int]] = set()
-    for claim in winners.values():
-        val = claim.value
-        if not val.get("exists", True):
-            continue
-        person = Person.objects.filter(slug=val["person_slug"]).first()
-        if not person:
-            logger.warning(
-                "Unresolved person slug %r in credit claim for %s",
-                val["person_slug"],
-                machine_model.name,
-            )
-            continue
-        role_id = role_lookup.get(val["role"])
-        if role_id is None:
-            logger.warning(
-                "Unresolved credit role %r in credit claim for %s",
-                val["role"],
-                machine_model.name,
-            )
-            continue
-        desired.add((person.pk, role_id))
-
-    existing = set(machine_model.credits.values_list("person_id", "role_id"))
-
-    to_create = desired - existing
-    to_delete = existing - desired
-
-    if to_delete:
-        for person_id, role_id in to_delete:
-            machine_model.credits.filter(person_id=person_id, role_id=role_id).delete()
-
-    if to_create:
-        Credit.objects.bulk_create(
-            [
-                Credit(model=machine_model, person_id=person_id, role_id=role_id)
-                for person_id, role_id in to_create
-            ]
-        )
-
-
 def resolve_all_credits(
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -509,7 +380,12 @@ def resolve_all_credits(
             desired.add((person_pk, role_pk))
         desired_by_model[model_id] = desired
 
-    all_model_ids = model_ids if model_ids is not None else {pm.pk for pm in all_models}
+    if model_ids is not None:
+        all_model_ids = model_ids
+    elif all_models is not None:
+        all_model_ids = {pm.pk for pm in all_models}
+    else:
+        all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     existing_by_model: dict[int, set[tuple[int, int]]] = {}
     dc_qs = Credit.objects.filter(model_id__in=all_model_ids)
     for dc in dc_qs.values_list("model_id", "person_id", "role_id"):
@@ -544,55 +420,6 @@ def resolve_all_credits(
 # ------------------------------------------------------------------
 # Abbreviation resolvers (string values, dedup logic — not generic M2M)
 # ------------------------------------------------------------------
-
-
-def resolve_title_abbreviations(title: Title) -> None:
-    """Resolve abbreviation claims into TitleAbbreviation rows for a single Title."""
-    winners = _pick_relationship_winners(title, "abbreviation")
-
-    desired: set[str] = set()
-    for claim in winners.values():
-        val = claim.value
-        if not val.get("exists", True):
-            continue
-        desired.add(val["value"])
-
-    existing = set(title.abbreviations.values_list("value", flat=True))
-
-    for value in desired - existing:
-        TitleAbbreviation.objects.create(title=title, value=value)
-
-    if stale := existing - desired:
-        title.abbreviations.filter(value__in=stale).delete()
-
-
-def resolve_model_abbreviations(machine_model: MachineModel) -> None:
-    """Resolve abbreviation claims into ModelAbbreviation rows for a single MachineModel."""
-    winners = _pick_relationship_winners(machine_model, "abbreviation")
-
-    desired: set[str] = set()
-    for claim in winners.values():
-        val = claim.value
-        if not val.get("exists", True):
-            continue
-        desired.add(val["value"])
-
-    # Deduplicate: remove abbreviations that already exist on the title.
-    if machine_model.title_id:
-        title_abbrs = set(
-            TitleAbbreviation.objects.filter(
-                title_id=machine_model.title_id
-            ).values_list("value", flat=True)
-        )
-        desired -= title_abbrs
-
-    existing = set(machine_model.abbreviations.values_list("value", flat=True))
-
-    for value in desired - existing:
-        ModelAbbreviation.objects.create(machine_model=machine_model, value=value)
-
-    if stale := existing - desired:
-        machine_model.abbreviations.filter(value__in=stale).delete()
 
 
 def resolve_all_title_abbreviations(
@@ -691,7 +518,7 @@ def _get_title_abbrs_for_models(
 
 
 def resolve_all_model_abbreviations(
-    all_models: list[MachineModel],
+    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -727,7 +554,12 @@ def resolve_all_model_abbreviations(
             desired.add(val["value"])
         desired_by_model[model_id] = desired
 
-    all_model_ids = model_ids if model_ids is not None else {pm.pk for pm in all_models}
+    if model_ids is not None:
+        all_model_ids = model_ids
+    elif all_models is not None:
+        all_model_ids = {pm.pk for pm in all_models}
+    else:
+        all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     title_abbrs_by_model = _get_title_abbrs_for_models(all_model_ids)
     for model_id in list(desired_by_model):
         title_abbrs = title_abbrs_by_model.get(model_id, set())
