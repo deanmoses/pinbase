@@ -7,7 +7,6 @@ DISPLAY_POLICY_RANKS: dict[str, int] = {
     "show-all": 0,  # Everything, including Not Allowed
     "include-unknown": 5,  # Unknown (null, rank 5) + all licensed content
     "licensed-only": 38,  # Lowest CC license (CC BY-NC-ND 2.0) and above
-    "public-domain-only": 99,  # CC0 and Public Domain only
 }
 
 # Effective rank for null (unknown) license.

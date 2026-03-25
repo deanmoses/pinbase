@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { SITE_NAME } from '$lib/constants';
 	import { resolveHref } from '$lib/utils';
 </script>
 
@@ -11,7 +10,7 @@
 			<a href={resolveHref('/privacy')}>Privacy</a>
 			<a href={resolveHref('/api-docs')}>API</a>
 		</nav>
-		<p class="copyright">&copy; {new Date().getFullYear()} {SITE_NAME}</p>
+		<p class="copyright">&copy; {new Date().getFullYear()} The Flip</p>
 	</div>
 </footer>
 

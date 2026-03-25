@@ -186,10 +186,9 @@ if "pytest" in sys.modules:
     CONSTANCE_BACKEND = "constance.backends.memory.MemoryBackend"
 
 DISPLAY_POLICY_CHOICES = (
-    ("show-all", "Show all content (including Not Allowed — internal demos only)"),
-    ("include-unknown", "Show unknown + licensed content (e.g., OPDB images)"),
-    ("licensed-only", "Show only licensed content (excludes unknown and not-allowed)"),
-    ("public-domain-only", "Show only Public Domain / CC0 content"),
+    ("show-all", "☠️ Show All Content — includes Not Allowed (e.g. IPDB images)"),
+    ("include-unknown", "⚠️ Include Unknown License Content (e.g. OPDB images)"),
+    ("licensed-only", "✅ Show Only Licensed Content — no OPDB or IPDB images"),
 )
 
 CONSTANCE_CONFIG = {
