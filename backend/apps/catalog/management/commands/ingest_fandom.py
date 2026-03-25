@@ -47,10 +47,8 @@ from apps.catalog.ingestion.fandom_wiki import (
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.models import MachineModel, Manufacturer, Person
 from apps.catalog.resolve import (
-    MANUFACTURER_DIRECT_FIELDS,
-    PERSON_DIRECT_FIELDS,
-    _resolve_bulk,
     resolve_all_credits,
+    resolve_all_entities,
 )
 from apps.provenance.models import Claim, Source
 
@@ -367,9 +365,8 @@ class Command(BaseCommand):
 
         # Resolve claims into Person fields.
         resolved_person_ids: set[int] = {c.object_id for c in pending_person_claims}
-        _resolve_bulk(
+        resolve_all_entities(
             Person,
-            PERSON_DIRECT_FIELDS,
             object_ids=resolved_person_ids,
         )
 
@@ -405,9 +402,8 @@ class Command(BaseCommand):
             Claim.objects.bulk_assert_claims(source, pending_mfr_claims)
 
         matched_mfr_ids = {mfr.pk for mfr in matched_mfr_objects}
-        _resolve_bulk(
+        resolve_all_entities(
             Manufacturer,
-            MANUFACTURER_DIRECT_FIELDS,
             object_ids=matched_mfr_ids,
         )
 

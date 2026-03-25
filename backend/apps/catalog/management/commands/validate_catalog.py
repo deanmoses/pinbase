@@ -274,11 +274,20 @@ def check_unresolved_fk_claims(result: ValidationResult) -> None:
     This catches cases where ingestion asserted a claim like
     manufacturer=some-slug but no Manufacturer with that slug exists.
     """
-    from apps.catalog.resolve._helpers import FK_FIELDS
+    from apps.core.models import get_claim_fields
 
     ct = ContentType.objects.get_for_model(MachineModel)
+    claim_fields = get_claim_fields(MachineModel)
+    fk_lookups_map = getattr(MachineModel, "claim_fk_lookups", {})
 
-    for field_name, spec in FK_FIELDS.items():
+    for field_name in claim_fields:
+        field = MachineModel._meta.get_field(field_name)
+        if not field.is_relation:
+            continue
+
+        target_model = field.related_model
+        lookup_key = fk_lookups_map.get(field_name, "slug")
+
         # Get winning claim values for this field (one per object+claim_key).
         winners = _winning_claims(ct, field_name)
         if not winners:
@@ -287,9 +296,7 @@ def check_unresolved_fk_claims(result: ValidationResult) -> None:
         active_values = {c.value for c in winners}
 
         # Get all valid lookup keys.
-        valid_keys = set(
-            spec.target_model.objects.values_list(spec.lookup_key, flat=True)
-        )
+        valid_keys = set(target_model.objects.values_list(lookup_key, flat=True))
 
         unresolved = set()
         for v in active_values:

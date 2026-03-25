@@ -14,15 +14,11 @@ from django.utils import timezone
 
 from apps.provenance.models import Claim
 
-from ..models import (
-    GameplayFeature,
-    Theme,
-    Title,
-)
 from ._helpers import (
     _annotate_priority,
     _coerce,
     _resolve_fk_generic,
+    build_fk_info,
     get_field_defaults,
 )
 
@@ -40,83 +36,6 @@ def _sync_markdown_references(obj) -> None:
 
     for field_name in get_markdown_fields(type(obj)):
         sync_references(obj, getattr(obj, field_name, "") or "")
-
-
-# ------------------------------------------------------------------
-# Entity field maps
-# ------------------------------------------------------------------
-
-MANUFACTURER_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-    "logo_url": "logo_url",
-    "website": "website",
-}
-
-PERSON_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-    "birth_year": "birth_year",
-    "birth_month": "birth_month",
-    "birth_day": "birth_day",
-    "death_year": "death_year",
-    "death_month": "death_month",
-    "death_day": "death_day",
-    "birth_place": "birth_place",
-    "nationality": "nationality",
-    "photo_url": "photo_url",
-}
-
-TITLE_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-}
-
-THEME_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-}
-
-GAMEPLAY_FEATURE_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-}
-
-REWARD_TYPE_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "display_order": "display_order",
-    "description": "description",
-}
-
-CORPORATE_ENTITY_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-    "year_start": "year_start",
-    "year_end": "year_end",
-}
-
-SYSTEM_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-}
-
-# Taxonomy models: name, display_order, and description are claim-controlled.
-TAXONOMY_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "display_order": "display_order",
-    "description": "description",
-}
-
-# Franchise has no display_order.
-FRANCHISE_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-}
-
-SERIES_DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-}
 
 
 # ------------------------------------------------------------------
@@ -254,21 +173,12 @@ def _resolve_bulk(
     # default when no claim exists, or bulk_update will crash with a
     # UNIQUE constraint violation when multiple objects share the default.
     unique_attrs: set[str] = set()
-    # Identify FK fields in direct_fields and pre-build lookups.
-    fk_fields: set[str] = set()
-    fk_lookups: dict[str, dict[str, object]] = {}
-    fk_lookups_map = getattr(model_class, "claim_fk_lookups", {})
-    for claim_field, attr in direct_fields.items():
-        field = model_class._meta.get_field(attr)
-        if field.unique:
+    for attr in direct_fields.values():
+        if model_class._meta.get_field(attr).unique:
             unique_attrs.add(attr)
-        if field.is_relation:
-            fk_fields.add(attr)
-            lookup_key = fk_lookups_map.get(attr, "slug")
-            target_model = field.related_model
-            fk_lookups[attr] = {
-                getattr(obj, lookup_key): obj for obj in target_model.objects.all()
-            }
+
+    # Identify FK fields and pre-build lookups.
+    fk_info = build_fk_info(model_class, direct_fields)
 
     # Check if model has extra_data field for unmatched claims.
     has_extra_data = hasattr(model_class, "extra_data")
@@ -291,7 +201,7 @@ def _resolve_bulk(
         for field_name, claim in winners.items():
             if field_name in direct_fields:
                 attr = direct_fields[field_name]
-                if attr in fk_fields:
+                if attr in fk_info.fk_fields:
                     setattr(
                         obj,
                         attr,
@@ -299,7 +209,7 @@ def _resolve_bulk(
                             model_class,
                             attr,
                             claim.value,
-                            lookup=fk_lookups.get(attr),
+                            lookup=fk_info.lookups.get(attr),
                         ),
                     )
                 else:
@@ -357,39 +267,3 @@ def resolve_all_entities(model_class, *, object_ids=None) -> int:
 
     fields = get_claim_fields(model_class)
     return _resolve_bulk(model_class, fields, object_ids=object_ids)
-
-
-# ------------------------------------------------------------------
-# Legacy entity resolvers (delegate to resolve_entity/resolve_all_entities)
-#
-# These thin wrappers preserve backward compatibility for existing callers
-# (tests, ingest commands). New code should use resolve_entity() and
-# resolve_all_entities() directly.
-# ------------------------------------------------------------------
-
-
-# fmt: off
-def resolve_manufacturer(mfr):          return resolve_entity(mfr)  # noqa: E704
-def resolve_person(person):             return resolve_entity(person)  # noqa: E704
-def resolve_gameplay_feature(feature):  return resolve_entity(feature)  # noqa: E704
-def resolve_theme(theme):               return resolve_entity(theme)  # noqa: E704
-def resolve_corporate_entity(entity):   return resolve_entity(entity)  # noqa: E704
-def resolve_system(system):             return resolve_entity(system)  # noqa: E704
-def resolve_taxonomy(obj):              return resolve_entity(obj)  # noqa: E704
-def resolve_franchise(franchise):       return resolve_entity(franchise)  # noqa: E704
-def resolve_series(series):             return resolve_entity(series)  # noqa: E704
-def resolve_all_gameplay_feature_entities(): return resolve_all_entities(GameplayFeature)  # noqa: E704
-def resolve_all_theme_entities():       return resolve_all_entities(Theme)  # noqa: E704
-# fmt: on
-
-
-def resolve_title(title: Title) -> Title:
-    """Resolve Title scalars."""
-    return resolve_entity(title)
-
-
-def resolve_all_locations() -> int:
-    """Bulk-resolve claims for all Location instances."""
-    from ..models import Location
-
-    return resolve_all_entities(Location)

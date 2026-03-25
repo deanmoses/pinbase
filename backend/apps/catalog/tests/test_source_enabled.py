@@ -11,10 +11,10 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
+from apps.core.models import get_claim_fields
 from apps.catalog.resolve import (
-    TITLE_DIRECT_FIELDS,
     _resolve_bulk,
-    resolve_manufacturer,
+    resolve_entity,
     resolve_themes,
 )
 from apps.catalog.resolve._relationships import resolve_all_credits
@@ -45,7 +45,7 @@ class TestIsEnabledResolveSingle:
         source_a.is_enabled = False
         source_a.save()
 
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.name == ""
 
@@ -56,7 +56,7 @@ class TestIsEnabledResolveSingle:
         Claim.objects.assert_claim(mfr, "name", "High Priority", source=source_b)
 
         # With both enabled, source_b wins (priority 200 > 100).
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.name == "High Priority"
 
@@ -64,7 +64,7 @@ class TestIsEnabledResolveSingle:
         source_b.is_enabled = False
         source_b.save()
 
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.name == "Low Priority"
 
@@ -79,7 +79,7 @@ class TestIsEnabledResolveBulk:
         source_a.is_enabled = False
         source_a.save()
 
-        _resolve_bulk(Title, TITLE_DIRECT_FIELDS)
+        _resolve_bulk(Title, get_claim_fields(Title))
 
         t.refresh_from_db()
         assert t.name == ""
@@ -93,7 +93,7 @@ class TestIsEnabledResolveBulk:
         source_b.is_enabled = False
         source_b.save()
 
-        _resolve_bulk(Title, TITLE_DIRECT_FIELDS)
+        _resolve_bulk(Title, get_claim_fields(Title))
 
         t.refresh_from_db()
         assert t.name == "Low Priority"
@@ -115,7 +115,7 @@ class TestIsEnabledUserClaims:
         source_a.is_enabled = False
         source_a.save()
 
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.name == "User Claim"
 

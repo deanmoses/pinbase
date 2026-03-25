@@ -29,10 +29,7 @@ from apps.catalog.ingestion.wikidata_sparql import (
     parse_manufacturer_sparql_results,
 )
 from apps.catalog.models import Manufacturer
-from apps.catalog.resolve import (
-    MANUFACTURER_DIRECT_FIELDS,
-    _resolve_bulk,
-)
+from apps.catalog.resolve import resolve_all_entities
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)
@@ -166,9 +163,8 @@ class Command(BaseCommand):
 
         # 9. Bulk-resolve claims into Manufacturer fields.
         matched_mfr_ids = {mfr.pk for _wm, mfr in matched_pairs}
-        _resolve_bulk(
+        resolve_all_entities(
             Manufacturer,
-            MANUFACTURER_DIRECT_FIELDS,
             object_ids=matched_mfr_ids,
         )
 

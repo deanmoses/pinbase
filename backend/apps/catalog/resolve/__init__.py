@@ -21,17 +21,15 @@ from apps.provenance.models import Claim
 
 from ..claims import RELATIONSHIP_NAMESPACES
 from ..models import (
-    Franchise,
     MachineModel,
     Title,
 )
 from ._helpers import (
-    DIRECT_FIELDS,
-    FK_FIELDS,
+    FKInfo,
     _annotate_priority,
     _coerce,
-    _resolve_fk,
-    build_fk_lookups,
+    _resolve_fk_generic,
+    build_fk_info,
     get_field_defaults,
 )
 from ._relationships import (  # noqa: F401
@@ -61,39 +59,11 @@ from ._relationships import (  # noqa: F401
     resolve_themes,
 )
 
-# Re-exports: explicit `as` aliases satisfy ruff F401 for public API.
 from ._entities import (  # noqa: F401
-    # Legacy field map constants (still used by some ingest commands and tests).
-    CORPORATE_ENTITY_DIRECT_FIELDS as CORPORATE_ENTITY_DIRECT_FIELDS,
-    FRANCHISE_DIRECT_FIELDS as FRANCHISE_DIRECT_FIELDS,
-    GAMEPLAY_FEATURE_DIRECT_FIELDS as GAMEPLAY_FEATURE_DIRECT_FIELDS,
-    MANUFACTURER_DIRECT_FIELDS as MANUFACTURER_DIRECT_FIELDS,
-    PERSON_DIRECT_FIELDS as PERSON_DIRECT_FIELDS,
-    SERIES_DIRECT_FIELDS as SERIES_DIRECT_FIELDS,
-    SYSTEM_DIRECT_FIELDS as SYSTEM_DIRECT_FIELDS,
-    TAXONOMY_DIRECT_FIELDS as TAXONOMY_DIRECT_FIELDS,
-    THEME_DIRECT_FIELDS as THEME_DIRECT_FIELDS,
-    TITLE_DIRECT_FIELDS as TITLE_DIRECT_FIELDS,
-    # Internals used by the orchestrator and tests.
     _resolve_bulk as _resolve_bulk,
     _resolve_single as _resolve_single,
-    # Generic resolvers (preferred API).
     resolve_all_entities as resolve_all_entities,
     resolve_entity as resolve_entity,
-    # Legacy wrappers (delegate to resolve_entity/resolve_all_entities).
-    resolve_all_gameplay_feature_entities as resolve_all_gameplay_feature_entities,
-    resolve_all_locations as resolve_all_locations,
-    resolve_all_theme_entities as resolve_all_theme_entities,
-    resolve_corporate_entity as resolve_corporate_entity,
-    resolve_franchise as resolve_franchise,
-    resolve_gameplay_feature as resolve_gameplay_feature,
-    resolve_manufacturer as resolve_manufacturer,
-    resolve_person as resolve_person,
-    resolve_series as resolve_series,
-    resolve_system as resolve_system,
-    resolve_taxonomy as resolve_taxonomy,
-    resolve_theme as resolve_theme,
-    resolve_title as resolve_title,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,10 +91,15 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
             winners[claim.claim_key] = claim
 
     # Apply field values (shared with bulk path).
-    field_defaults = get_field_defaults(MachineModel, DIRECT_FIELDS)
-    fk_lookups = build_fk_lookups()
+    from apps.core.models import get_claim_fields
+
+    claim_fields = get_claim_fields(MachineModel)
+    field_defaults = get_field_defaults(MachineModel, claim_fields)
+    fk_info = build_fk_info(MachineModel, claim_fields)
     sfl_map = build_source_field_license_map()
-    _apply_resolution(machine_model, winners, field_defaults, fk_lookups, sfl_map)
+    _apply_resolution(
+        machine_model, winners, claim_fields, field_defaults, fk_info, sfl_map
+    )
 
     # Post-resolution guards (single-object only — the bulk path handles
     # these differently via _resolve_opdb_conflicts and a separate loop).
@@ -197,7 +172,7 @@ def resolve_machine_models(stdout=None) -> int:
     resolve_all_location_aliases()
     _status("Locations resolved")
 
-    from ..models import Series, System
+    from ..models import Franchise, Series, System
 
     for tax_model in [
         TechnologyGeneration,
@@ -233,8 +208,11 @@ def resolve_machine_models(stdout=None) -> int:
     resolve_all_title_abbreviations(list(Title.objects.all()))
 
     # 1. Pre-fetch lookup tables.
-    fk_lookups = build_fk_lookups()
-    field_defaults = get_field_defaults(MachineModel, DIRECT_FIELDS)
+    from apps.core.models import get_claim_fields
+
+    claim_fields = get_claim_fields(MachineModel)
+    field_defaults = get_field_defaults(MachineModel, claim_fields)
+    fk_info = build_fk_info(MachineModel, claim_fields)
     sfl_map = build_source_field_license_map()
 
     # 2. Pre-fetch all active claims, grouped by object_id (~1 query).
@@ -247,7 +225,7 @@ def resolve_machine_models(stdout=None) -> int:
     # 4. Resolve each model in memory.
     for pm in all_models:
         winners = claims_by_model.get(pm.pk, {})
-        _apply_resolution(pm, winners, field_defaults, fk_lookups, sfl_map)
+        _apply_resolution(pm, winners, claim_fields, field_defaults, fk_info, sfl_map)
 
     # 5. Conversions are not variants: clear variant_of on conversion models.
     for pm in all_models:
@@ -263,11 +241,7 @@ def resolve_machine_models(stdout=None) -> int:
         pm.updated_at = now
 
     # 8. Bulk write (~1 query, batched).
-    update_fields = (
-        list(DIRECT_FIELDS.values())
-        + [f"{spec.model_attr}_id" for spec in FK_FIELDS.values()]
-        + ["extra_data", "updated_at"]
-    )
+    update_fields = list(claim_fields.values()) + ["extra_data", "updated_at"]
     # batch_size=100 is optimal for SQLite (CASE WHEN overhead grows with
     # batch size × field count). PostgreSQL uses a more efficient UPDATE FROM
     # VALUES syntax and handles larger batches fine.
@@ -330,16 +304,13 @@ def _build_claims_by_model() -> dict[int, dict[str, Claim]]:
 def _apply_resolution(
     pm: MachineModel,
     winners: dict[str, Claim],
+    claim_fields: dict[str, str],
     field_defaults: dict[str, Any],
-    fk_lookups: dict[str, dict[str, Any]],
+    fk_info: FKInfo,
     sfl_map: dict | None = None,
 ) -> None:
     """Apply claim winners to a MachineModel instance in memory."""
-    # Reset FK fields.
-    for spec in FK_FIELDS.values():
-        setattr(pm, spec.model_attr, None)
-
-    # Reset all DIRECT_FIELDS to defaults.
+    # Reset all claim-controlled fields to defaults.
     for attr, default in field_defaults.items():
         setattr(pm, attr, default)
 
@@ -350,18 +321,21 @@ def _apply_resolution(
     for claim_key, claim in winners.items():
         if claim.field_name in RELATIONSHIP_NAMESPACES:
             continue
-        if claim.field_name in FK_FIELDS:
-            spec = FK_FIELDS[claim.field_name]
-            setattr(
-                pm,
-                spec.model_attr,
-                _resolve_fk(
-                    claim.field_name, claim.value, fk_lookups.get(claim.field_name)
-                ),
-            )
-        elif claim.field_name in DIRECT_FIELDS:
-            attr = DIRECT_FIELDS[claim.field_name]
-            setattr(pm, attr, _coerce(MachineModel, attr, claim.value))
+        if claim.field_name in claim_fields:
+            attr = claim_fields[claim.field_name]
+            if attr in fk_info.fk_fields:
+                setattr(
+                    pm,
+                    attr,
+                    _resolve_fk_generic(
+                        MachineModel,
+                        attr,
+                        claim.value,
+                        lookup=fk_info.lookups.get(attr),
+                    ),
+                )
+            else:
+                setattr(pm, attr, _coerce(MachineModel, attr, claim.value))
         else:
             extra_data[claim.field_name] = claim.value
             if claim.field_name in IMAGE_FIELDS:

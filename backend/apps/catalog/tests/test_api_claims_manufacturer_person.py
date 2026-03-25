@@ -129,9 +129,9 @@ class TestPatchManufacturerClaimsPersistence:
             name="LowPri", source_type="database", priority=10
         )
         Claim.objects.assert_claim(mfr, "description", "Source Name", source=source)
-        from apps.catalog.resolve import resolve_manufacturer
+        from apps.catalog.resolve import resolve_entity
 
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.description == "Source Name"
 

@@ -31,9 +31,8 @@ from apps.catalog.ingestion.wikidata_sparql import (
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.models import MachineModel, Person
 from apps.catalog.resolve import (
-    PERSON_DIRECT_FIELDS,
-    _resolve_bulk,
     resolve_all_credits,
+    resolve_all_entities,
 )
 from apps.provenance.models import Claim, Source
 
@@ -145,9 +144,8 @@ class Command(BaseCommand):
 
         # Bulk-resolve claims into Person fields.
         matched_person_ids = {person.pk for _wp, person in matched_pairs}
-        _resolve_bulk(
+        resolve_all_entities(
             Person,
-            PERSON_DIRECT_FIELDS,
             object_ids=matched_person_ids,
         )
 

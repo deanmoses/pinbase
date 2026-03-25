@@ -1,115 +1,26 @@
-"""Shared constants, coercion helpers, and lookup builders for claim resolution."""
+"""Shared helpers for claim resolution: coercion, FK lookup, priority annotation."""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.db import models
 
-from apps.provenance.models import Claim
-
-from ..models import (
-    Cabinet,
-    CorporateEntity,
-    DisplaySubtype,
-    DisplayType,
-    GameFormat,
-    MachineModel,
-    System,
-    TechnologyGeneration,
-    TechnologySubgeneration,
-    Title,
-)
+if TYPE_CHECKING:
+    from apps.provenance.models import Claim
 
 logger = logging.getLogger(__name__)
 
-# Fields on MachineModel that can be set directly from a claim value.
-# Maps field_name (as stored in Claim.field_name) → model attribute name.
-DIRECT_FIELDS: dict[str, str] = {
-    "name": "name",
-    "description": "description",
-    "year": "year",
-    "month": "month",
-    "player_count": "player_count",
-    "production_quantity": "production_quantity",
-    "flipper_count": "flipper_count",
-    "ipdb_rating": "ipdb_rating",
-    "pinside_rating": "pinside_rating",
-    "ipdb_id": "ipdb_id",
-    "opdb_id": "opdb_id",
-    "pinside_id": "pinside_id",
-    "is_conversion": "is_conversion",
-    "is_remake": "is_remake",
-}
 
+@dataclass
+class FKInfo:
+    """FK field metadata and pre-fetched lookups for bulk resolution."""
 
-# ------------------------------------------------------------------
-# FK field registry
-# ------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class FKFieldSpec:
-    """Descriptor for a foreign-key field resolved from claims."""
-
-    model_attr: str  # e.g. "title", "manufacturer"
-    target_model: type  # e.g. Title, Manufacturer
-    lookup_key: str  # field on target model used for lookup, e.g. "slug" or "opdb_id"
-
-
-FK_FIELDS: dict[str, FKFieldSpec] = {
-    "title": FKFieldSpec("title", Title, "slug"),
-    "system": FKFieldSpec("system", System, "slug"),
-    "technology_generation": FKFieldSpec(
-        "technology_generation", TechnologyGeneration, "slug"
-    ),
-    "technology_subgeneration": FKFieldSpec(
-        "technology_subgeneration", TechnologySubgeneration, "slug"
-    ),
-    "display_type": FKFieldSpec("display_type", DisplayType, "slug"),
-    "display_subtype": FKFieldSpec("display_subtype", DisplaySubtype, "slug"),
-    "cabinet": FKFieldSpec("cabinet", Cabinet, "slug"),
-    "game_format": FKFieldSpec("game_format", GameFormat, "slug"),
-    "corporate_entity": FKFieldSpec("corporate_entity", CorporateEntity, "slug"),
-    "variant_of": FKFieldSpec("variant_of", MachineModel, "slug"),
-    "converted_from": FKFieldSpec("converted_from", MachineModel, "slug"),
-    "remake_of": FKFieldSpec("remake_of", MachineModel, "slug"),
-}
-
-
-def build_fk_lookups() -> dict[str, dict[str, Any]]:
-    """Pre-fetch all FK lookup tables. Returns {claim_field_name: {key: instance}}."""
-    lookups: dict[str, dict[str, Any]] = {}
-    for field_name, spec in FK_FIELDS.items():
-        lookups[field_name] = {
-            getattr(obj, spec.lookup_key): obj
-            for obj in spec.target_model.objects.all()
-        }
-    return lookups
-
-
-def _resolve_fk(
-    field_name: str,
-    value,
-    lookup: dict[str, Any] | None = None,
-) -> Any | None:
-    """Resolve a claim value to an FK instance, optionally using a pre-fetched lookup."""
-    if not value:
-        return None
-    spec = FK_FIELDS[field_name]
-    key = str(value).strip()
-    if not key:
-        return None
-    if lookup is not None:
-        result = lookup.get(key)
-    else:
-        result = spec.target_model.objects.filter(**{spec.lookup_key: key}).first()
-    if not result:
-        logger.warning("Unmatched %s claim value: %r", field_name, value)
-    return result
+    fk_fields: set[str] = field(default_factory=set)
+    lookups: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------
@@ -152,6 +63,25 @@ def _resolve_fk_generic(
     if not result:
         logger.warning("Unmatched %s claim value: %r", field_name, value)
     return result
+
+
+def build_fk_info(
+    model_class: type[models.Model],
+    claim_fields: dict[str, str],
+) -> FKInfo:
+    """Identify FK fields and pre-build slug-to-instance lookups for bulk resolution."""
+    info = FKInfo()
+    fk_lookups_map = getattr(model_class, "claim_fk_lookups", {})
+    for attr in claim_fields.values():
+        f = model_class._meta.get_field(attr)
+        if f.is_relation:
+            info.fk_fields.add(attr)
+            lookup_key = fk_lookups_map.get(attr, "slug")
+            target_model = f.related_model
+            info.lookups[attr] = {
+                getattr(obj, lookup_key): obj for obj in target_model.objects.all()
+            }
+    return info
 
 
 # ------------------------------------------------------------------

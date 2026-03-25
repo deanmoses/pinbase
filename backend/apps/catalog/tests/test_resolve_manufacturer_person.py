@@ -3,7 +3,7 @@
 import pytest
 
 from apps.catalog.models import Manufacturer, Person
-from apps.catalog.resolve import resolve_manufacturer, resolve_person
+from apps.catalog.resolve import resolve_entity
 from apps.provenance.models import Claim, Source
 
 
@@ -33,14 +33,14 @@ class TestResolveManufacturer:
     def test_basic_resolution(self, mfr, ipdb):
         Claim.objects.assert_claim(mfr, "name", "Williams", source=ipdb)
 
-        resolved = resolve_manufacturer(mfr)
+        resolved = resolve_entity(mfr)
         assert resolved.name == "Williams"
 
     def test_higher_priority_wins(self, mfr, ipdb, editorial):
         Claim.objects.assert_claim(mfr, "name", "Williams Low", source=ipdb)
         Claim.objects.assert_claim(mfr, "name", "Williams High", source=editorial)
 
-        resolved = resolve_manufacturer(mfr)
+        resolved = resolve_entity(mfr)
         assert resolved.name == "Williams High"
 
     def test_deactivated_claim_is_not_applied(self, mfr, ipdb):
@@ -48,7 +48,7 @@ class TestResolveManufacturer:
         # Supersede it.
         Claim.objects.assert_claim(mfr, "description", "New desc", source=ipdb)
 
-        resolved = resolve_manufacturer(mfr)
+        resolved = resolve_entity(mfr)
         assert resolved.description == "New desc"
         assert mfr.claims.filter(is_active=False).count() == 1
 
@@ -57,24 +57,24 @@ class TestResolveManufacturer:
         mfr.description = "Something"
         mfr.save()
 
-        resolved = resolve_manufacturer(mfr)
+        resolved = resolve_entity(mfr)
         assert resolved.description == ""
 
     def test_all_claims_removed_field_blanked(self, mfr, ipdb):
         """Deactivating all claims for a field blanks it on the next resolve."""
         Claim.objects.assert_claim(mfr, "description", "Old bio", source=ipdb)
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         assert mfr.description == "Old bio"
 
         mfr.claims.filter(field_name="description").update(is_active=False)
 
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.description == ""  # blanked — no active claims remain
 
     def test_saves_to_db(self, mfr, ipdb):
         Claim.objects.assert_claim(mfr, "name", "Bally", source=ipdb)
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr.refresh_from_db()
         assert mfr.name == "Bally"
 
@@ -86,7 +86,7 @@ class TestResolvePerson:
             person, "description", "Designer of TAF.", source=ipdb
         )
 
-        resolved = resolve_person(person)
+        resolved = resolve_entity(person)
         assert resolved.name == "Pat Lawlor"
         assert resolved.description == "Designer of TAF."
 
@@ -96,7 +96,7 @@ class TestResolvePerson:
             person, "description", "Better bio.", source=editorial
         )
 
-        resolved = resolve_person(person)
+        resolved = resolve_entity(person)
         assert resolved.description == "Better bio."
 
     def test_no_claims_resets_to_defaults(self, person):
@@ -104,11 +104,11 @@ class TestResolvePerson:
         person.description = "Something"
         person.save()
 
-        resolved = resolve_person(person)
+        resolved = resolve_entity(person)
         assert resolved.description == ""
 
     def test_saves_to_db(self, person, ipdb):
         Claim.objects.assert_claim(person, "name", "Steve Ritchie", source=ipdb)
-        resolve_person(person)
+        resolve_entity(person)
         person.refresh_from_db()
         assert person.name == "Steve Ritchie"

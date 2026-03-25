@@ -48,21 +48,16 @@ from apps.catalog.models import (
     Title,
 )
 from apps.catalog.resolve import (
-    MANUFACTURER_DIRECT_FIELDS,
-    TITLE_DIRECT_FIELDS,
-    _resolve_bulk,
     resolve_all_corporate_entity_locations,
     resolve_all_credits,
-    resolve_all_gameplay_feature_entities,
+    resolve_all_entities,
     resolve_all_gameplay_features,
     resolve_all_location_aliases,
-    resolve_all_locations,
     resolve_all_reward_types,
     resolve_all_tags,
-    resolve_all_theme_entities,
     resolve_all_themes,
     resolve_all_title_abbreviations,
-    resolve_corporate_entity,
+    resolve_entity,
     resolve_corporate_entity_aliases,
     resolve_gameplay_feature_aliases,
     resolve_gameplay_feature_parents,
@@ -471,7 +466,7 @@ class Command(BaseCommand):
                 alias_by_pk[obj.pk] = entry["aliases"]
 
         Claim.objects.bulk_assert_claims(source, pending_claims)
-        resolve_all_locations()
+        resolve_all_entities(Location)
 
         alias_stats = self._assert_alias_claims(
             source, ct.pk, alias_by_pk, "location_alias"
@@ -641,7 +636,7 @@ class Command(BaseCommand):
                 )
 
         stats = self._assert_claims_split_descriptions(Theme, pending_claims)
-        resolve_all_theme_entities()
+        resolve_all_entities(Theme)
         self.stdout.write(
             f"  Theme: {len(entries)} records — "
             f"{stats['created']} claims created, "
@@ -755,7 +750,7 @@ class Command(BaseCommand):
                 )
 
         stats = self._assert_claims_split_descriptions(GameplayFeature, pending_claims)
-        resolve_all_gameplay_feature_entities()
+        resolve_all_entities(GameplayFeature)
         self.stdout.write(
             f"  GameplayFeature: {len(entries)} records — "
             f"{stats['created']} claims created, "
@@ -910,9 +905,7 @@ class Command(BaseCommand):
                 f"{stats['created']} created, {stats['superseded']} superseded"
             )
             touched_ids = {o.pk for o in objs}
-            _resolve_bulk(
-                Manufacturer, MANUFACTURER_DIRECT_FIELDS, object_ids=touched_ids
-            )
+            resolve_all_entities(Manufacturer, object_ids=touched_ids)
 
         # Sync aliases (claim-controlled).
         mfr_by_slug = {o.slug: o for o in objs}
@@ -1036,7 +1029,7 @@ class Command(BaseCommand):
                 f"{stats['created']} created, {stats['superseded']} superseded"
             )
             for ce in objs:
-                resolve_corporate_entity(ce)
+                resolve_entity(ce)
 
         # Assert alias claims.
         aliases_by_pk: dict[int, list[str]] = {}
@@ -1511,11 +1504,8 @@ class Command(BaseCommand):
 
         # Resolve touched titles.
         if touched_ids:
-            franchise_lookup = {f.slug: f for f in Franchise.objects.all()}
-            _resolve_bulk(
+            resolve_all_entities(
                 Title,
-                TITLE_DIRECT_FIELDS,
-                fk_handlers={"franchise": ("franchise", franchise_lookup)},
                 object_ids=touched_ids,
             )
             resolve_all_title_abbreviations(

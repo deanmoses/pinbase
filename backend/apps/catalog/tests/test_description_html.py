@@ -105,7 +105,7 @@ class TestReferenceSync:
         """Resolving a manufacturer with links creates RecordReference rows."""
         from django.contrib.contenttypes.models import ContentType
 
-        from apps.catalog.resolve import resolve_manufacturer
+        from apps.catalog.resolve import resolve_entity
         from apps.provenance.models import Claim, Source
 
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
@@ -117,7 +117,7 @@ class TestReferenceSync:
             f"Uses [[system:id:{system.pk}]].",
             source=source,
         )
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
 
         mfr_ct = ContentType.objects.get_for_model(Manufacturer)
         refs = RecordReference.objects.filter(source_type=mfr_ct, source_id=mfr.pk)
@@ -130,7 +130,7 @@ class TestReferenceSync:
         """When a description is blanked, stale RecordReference rows are removed."""
         from django.contrib.contenttypes.models import ContentType
 
-        from apps.catalog.resolve import resolve_manufacturer
+        from apps.catalog.resolve import resolve_entity
         from apps.provenance.models import Claim, Source
 
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
@@ -144,7 +144,7 @@ class TestReferenceSync:
             f"Uses [[system:id:{system.pk}]].",
             source=source,
         )
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
         mfr_ct = ContentType.objects.get_for_model(Manufacturer)
         assert (
             RecordReference.objects.filter(source_type=mfr_ct, source_id=mfr.pk).count()
@@ -155,7 +155,7 @@ class TestReferenceSync:
         Claim.objects.filter(
             content_type=mfr_ct, object_id=mfr.pk, field_name="description"
         ).update(is_active=False)
-        resolve_manufacturer(mfr)
+        resolve_entity(mfr)
 
         assert mfr.description == ""
         assert (
