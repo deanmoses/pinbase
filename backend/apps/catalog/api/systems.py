@@ -1,4 +1,4 @@
-"""Systems router — list and detail endpoints."""
+"""Systems router — list, detail, and claims endpoints."""
 
 from __future__ import annotations
 
@@ -9,9 +9,23 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
+from ninja.errors import HttpError
+from ninja.security import django_auth
 
-from .helpers import _build_rich_text, _claims_prefetch, _extract_image_urls
-from .schemas import Ref, RelatedTitleSchema, RichTextSchema
+from .edit_claims import execute_claims, validate_scalar_fields
+from .helpers import (
+    _build_activity,
+    _build_rich_text,
+    _claims_prefetch,
+    _extract_image_urls,
+)
+from .schemas import (
+    ClaimPatchSchema,
+    ClaimSchema,
+    Ref,
+    RelatedTitleSchema,
+    RichTextSchema,
+)
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -37,6 +51,7 @@ class SystemDetailSchema(Schema):
     manufacturer: Optional[Ref] = None
     titles: list[RelatedTitleSchema]
     sibling_systems: list[SiblingSystemSchema] = []
+    activity: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -138,4 +153,38 @@ def get_system(request, slug: str):
         ),
         "titles": list(titles.values()),
         "sibling_systems": sibling_systems,
+        "activity": _build_activity(getattr(system, "active_claims", [])),
+    }
+
+
+@systems_router.patch(
+    "/{slug}/claims/", auth=django_auth, response=SystemDetailSchema, tags=["private"]
+)
+def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
+    """Assert per-field claims from the authenticated user, then re-resolve."""
+    from ..models import System
+
+    if not data.fields:
+        raise HttpError(422, "No changes provided.")
+
+    system = get_object_or_404(System, slug=slug)
+    specs = validate_scalar_fields(System, data.fields)
+    if not specs:
+        raise HttpError(422, "No changes provided.")
+
+    execute_claims(system, specs, user=request.user)
+
+    system = get_object_or_404(
+        System.objects.prefetch_related(_claims_prefetch()), slug=system.slug
+    )
+    return {
+        "name": system.name,
+        "slug": system.slug,
+        "description": _build_rich_text(
+            system, "description", getattr(system, "active_claims", [])
+        ),
+        "manufacturer": None,
+        "titles": [],
+        "sibling_systems": [],
+        "activity": _build_activity(getattr(system, "active_claims", [])),
     }

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import EntityDetailLayout from '$lib/components/EntityDetailLayout.svelte';
 	import ClientFilteredGrid from '$lib/components/grid/ClientFilteredGrid.svelte';
 	import TitleCard from '$lib/components/cards/TitleCard.svelte';
 	import CreditsList from '$lib/components/CreditsList.svelte';
@@ -8,32 +7,26 @@
 	let series = $derived(data.series);
 </script>
 
-<EntityDetailLayout
-	name={series.name}
-	description={series.description}
-	breadcrumbs={[{ label: 'Series', href: '/series' }]}
->
-	{#if series.titles.length === 0}
-		<p class="empty">No titles in this series.</p>
-	{:else}
-		<section>
-			<h2>Titles ({series.titles.length})</h2>
-			<ClientFilteredGrid items={series.titles} showCount={false}>
-				{#snippet children(title)}
-					<TitleCard
-						slug={title.slug}
-						name={title.name}
-						thumbnailUrl={title.thumbnail_url}
-						manufacturerName={title.manufacturer_name}
-						year={title.year}
-					/>
-				{/snippet}
-			</ClientFilteredGrid>
-		</section>
-	{/if}
+{#if series.titles.length === 0}
+	<p class="empty">No titles in this series.</p>
+{:else}
+	<section>
+		<h2>Titles ({series.titles.length})</h2>
+		<ClientFilteredGrid items={series.titles} showCount={false}>
+			{#snippet children(title)}
+				<TitleCard
+					slug={title.slug}
+					name={title.name}
+					thumbnailUrl={title.thumbnail_url}
+					manufacturerName={title.manufacturer_name}
+					year={title.year}
+				/>
+			{/snippet}
+		</ClientFilteredGrid>
+	</section>
+{/if}
 
-	<CreditsList credits={series.credits} />
-</EntityDetailLayout>
+<CreditsList credits={series.credits} />
 
 <style>
 	h2 {

@@ -1,4 +1,4 @@
-"""Series router — list and detail endpoints."""
+"""Series router — list, detail, and claims endpoints."""
 
 from __future__ import annotations
 
@@ -9,10 +9,18 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
+from ninja.errors import HttpError
+from ninja.security import django_auth
 
-from .helpers import _build_rich_text, _claims_prefetch, _extract_image_urls
-from .schemas import RichTextSchema
+from .edit_claims import execute_claims, validate_scalar_fields
+from .helpers import (
+    _build_activity,
+    _build_rich_text,
+    _claims_prefetch,
+    _extract_image_urls,
+)
 from .machine_models import CreditSchema
+from .schemas import ClaimPatchSchema, ClaimSchema, RichTextSchema
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -43,6 +51,7 @@ class SeriesDetailSchema(Schema):
     description: RichTextSchema = RichTextSchema()
     titles: list[TitleRefSchema]
     credits: list[CreditSchema] = []
+    activity: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -167,4 +176,38 @@ def get_series(request, slug: str):
             }
             for c in series.credits.all()
         ],
+        "activity": _build_activity(getattr(series, "active_claims", [])),
+    }
+
+
+@series_router.patch(
+    "/{slug}/claims/", auth=django_auth, response=SeriesDetailSchema, tags=["private"]
+)
+def patch_series_claims(request, slug: str, data: ClaimPatchSchema):
+    """Assert per-field claims from the authenticated user, then re-resolve."""
+    from ..models import Series
+
+    if not data.fields:
+        raise HttpError(422, "No changes provided.")
+
+    series = get_object_or_404(Series, slug=slug)
+    specs = validate_scalar_fields(Series, data.fields)
+    if not specs:
+        raise HttpError(422, "No changes provided.")
+
+    execute_claims(series, specs, user=request.user)
+
+    series = get_object_or_404(
+        Series.objects.prefetch_related(_claims_prefetch()),
+        slug=series.slug,
+    )
+    return {
+        "name": series.name,
+        "slug": series.slug,
+        "description": _build_rich_text(
+            series, "description", getattr(series, "active_claims", [])
+        ),
+        "titles": [],
+        "credits": [],
+        "activity": _build_activity(getattr(series, "active_claims", [])),
     }

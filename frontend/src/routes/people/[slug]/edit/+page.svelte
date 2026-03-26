@@ -26,6 +26,21 @@
 	// untrack: intentional one-time capture; re-synced explicitly after save
 	let editFields = $state(untrack(() => personToFormFields(data.person)));
 
+	const months = [
+		'January',
+		'February',
+		'March',
+		'April',
+		'May',
+		'June',
+		'July',
+		'August',
+		'September',
+		'October',
+		'November',
+		'December'
+	];
+
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 	let saveError = $state('');
 
@@ -102,14 +117,12 @@
 					</div>
 					<div class="field-group">
 						<label for="ef-birth-month">Month</label>
-						<input
-							id="ef-birth-month"
-							type="number"
-							min="1"
-							max="12"
-							step="1"
-							bind:value={editFields.birth_month}
-						/>
+						<select id="ef-birth-month" bind:value={editFields.birth_month}>
+							<option value="">—</option>
+							{#each months as name, i (i)}
+								<option value={i + 1}>{name}</option>
+							{/each}
+						</select>
 					</div>
 					<div class="field-group">
 						<label for="ef-birth-day">Day</label>
@@ -146,14 +159,12 @@
 					</div>
 					<div class="field-group">
 						<label for="ef-death-month">Month</label>
-						<input
-							id="ef-death-month"
-							type="number"
-							min="1"
-							max="12"
-							step="1"
-							bind:value={editFields.death_month}
-						/>
+						<select id="ef-death-month" bind:value={editFields.death_month}>
+							<option value="">—</option>
+							{#each months as name, i (i)}
+								<option value={i + 1}>{name}</option>
+							{/each}
+						</select>
 					</div>
 					<div class="field-group">
 						<label for="ef-death-day">Day</label>
@@ -227,6 +238,7 @@
 	}
 
 	.field-group input,
+	.field-group select,
 	.field-group textarea {
 		font-size: var(--font-size-1);
 		color: var(--color-text-primary);

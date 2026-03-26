@@ -1,5 +1,4 @@
 <script lang="ts">
-	import EntityDetailLayout from '$lib/components/EntityDetailLayout.svelte';
 	import ClientFilteredGrid from '$lib/components/grid/ClientFilteredGrid.svelte';
 	import MachineCard from '$lib/components/cards/MachineCard.svelte';
 
@@ -7,30 +6,24 @@
 	let profile = $derived(data.profile);
 </script>
 
-<EntityDetailLayout
-	name={profile.name}
-	description={profile.description}
-	breadcrumbs={[{ label: 'Reward Types', href: '/reward-types' }]}
->
-	{#if profile.machines.length === 0}
-		<p class="empty">No machines with this reward type.</p>
-	{:else}
-		<section>
-			<h2>Machines ({profile.machines.length})</h2>
-			<ClientFilteredGrid items={profile.machines} showCount={false}>
-				{#snippet children(machine)}
-					<MachineCard
-						slug={machine.slug}
-						name={machine.name}
-						thumbnailUrl={machine.thumbnail_url}
-						manufacturerName={machine.manufacturer?.name}
-						year={machine.year}
-					/>
-				{/snippet}
-			</ClientFilteredGrid>
-		</section>
-	{/if}
-</EntityDetailLayout>
+{#if profile.machines.length === 0}
+	<p class="empty">No machines with this reward type.</p>
+{:else}
+	<section>
+		<h2>Machines ({profile.machines.length})</h2>
+		<ClientFilteredGrid items={profile.machines} showCount={false}>
+			{#snippet children(machine)}
+				<MachineCard
+					slug={machine.slug}
+					name={machine.name}
+					thumbnailUrl={machine.thumbnail_url}
+					manufacturerName={machine.manufacturer?.name}
+					year={machine.year}
+				/>
+			{/snippet}
+		</ClientFilteredGrid>
+	</section>
+{/if}
 
 <style>
 	h2 {
