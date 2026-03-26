@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
@@ -145,76 +147,80 @@ def get_gameplay_feature(request, slug: str):
     return _serialize_detail(feature)
 
 
-@gameplay_features_router.patch(
-    "/{slug}/claims/",
-    auth=django_auth,
-    response=GameplayFeatureDetailSchema,
-    tags=["private"],
-)
-def patch_gameplay_feature_claims(
-    request, slug: str, data: GameplayFeatureClaimPatchSchema
-):
-    """Assert per-field claims from the authenticated user, then re-resolve."""
+@dataclass(frozen=True)
+class _ClaimSpec:
+    """A planned claim to be written — separates diffing from execution."""
+
+    field_name: str
+    value: object
+    claim_key: str = ""
+
+
+def _validate_and_plan_claims(
+    feature,
+    data: GameplayFeatureClaimPatchSchema,
+) -> tuple[list[_ClaimSpec], bool]:
+    """Validate input and return (claim_specs, parents_changed).
+
+    Scalar fields are assertion-based: a spec is created for every field in
+    the request, even if the value matches the current state. Reasserting
+    the same value is meaningful (e.g., a user confirming a machine-sourced
+    value). The frontend is responsible for only sending changed fields.
+
+    Parent relationships are diff-based: specs are only created for parents
+    that are actually being added or removed relative to the current M2M
+    state, because redundant ``exists=True`` claims are pure waste.
+
+    Raises HttpError on validation failure or if no specs would be created.
+    """
     from apps.catalog.claims import build_relationship_claim
     from apps.core.markdown_links import prepare_markdown_claim_value
     from apps.core.models import get_claim_fields
-    from apps.provenance.models import ChangeSet, Claim
 
-    from ..cache import invalidate_all
     from ..models import GameplayFeature
-    from ..resolve import resolve_entity
-    from ..resolve._relationships import resolve_gameplay_feature_parents
 
-    # --- Validate scalars ---
+    specs: list[_ClaimSpec] = []
+
+    # --- Scalars ---
     editable_fields = set(get_claim_fields(GameplayFeature))
     unknown = set(data.fields.keys()) - editable_fields
     if unknown:
         raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
 
-    has_fields = bool(data.fields)
-    has_parents = data.parents is not None
-    desired_parent_slugs: set[str] = set(data.parents) if has_parents else set()
-
-    if not has_fields and not has_parents:
-        raise HttpError(422, "No changes provided.")
-
-    feature = get_object_or_404(GameplayFeature, slug=slug)
-
-    prepared: dict[str, object] = {}
     for field_name, value in data.fields.items():
         try:
-            prepared[field_name] = prepare_markdown_claim_value(
-                field_name, value, GameplayFeature
-            )
+            value = prepare_markdown_claim_value(field_name, value, GameplayFeature)
         except ValidationError as exc:
             raise HttpError(422, "; ".join(exc.messages)) from exc
+        specs.append(_ClaimSpec(field_name=field_name, value=value))
 
-    # --- Validate parents ---
-    if has_parents:
-        if feature.slug in desired_parent_slugs:
+    # --- Parents ---
+    parents_changed = False
+    if data.parents is not None:
+        desired = set(data.parents)
+
+        if feature.slug in desired:
             raise HttpError(422, "A feature cannot be its own parent.")
 
         existing_slugs = set(
-            GameplayFeature.objects.filter(slug__in=desired_parent_slugs).values_list(
+            GameplayFeature.objects.filter(slug__in=desired).values_list(
                 "slug", flat=True
             )
         )
-        missing = desired_parent_slugs - existing_slugs
+        missing = desired - existing_slugs
         if missing:
             raise HttpError(422, f"Unknown parent slugs: {sorted(missing)}")
 
-        # Cycle detection: for each proposed parent, walk up the existing
-        # graph (excluding the edited feature's current parents, since
-        # they're being replaced). If we reach the edited feature, reject.
-        if desired_parent_slugs:
+        # Cycle detection
+        if desired:
             all_features = GameplayFeature.objects.prefetch_related("parents").all()
             parent_map: dict[str, set[str]] = {}
             for f in all_features:
                 if f.slug == feature.slug:
-                    continue  # skip edited feature's current edges
+                    continue
                 parent_map[f.slug] = {p.slug for p in f.parents.all()}
 
-            for start_slug in desired_parent_slugs:
+            for start_slug in desired:
                 visited: set[str] = set()
                 stack = [start_slug]
                 while stack:
@@ -229,60 +235,85 @@ def patch_gameplay_feature_claims(
                     visited.add(current)
                     stack.extend(parent_map.get(current, set()))
 
-    # --- Compute parent diff ---
-    parents_to_add: set[str] = set()
-    parents_to_remove: set[str] = set()
-    if has_parents:
-        current_parent_slugs = set(feature.parents.values_list("slug", flat=True))
-        parents_to_add = desired_parent_slugs - current_parent_slugs
-        parents_to_remove = current_parent_slugs - desired_parent_slugs
+        # Diff against current M2M state
+        current = set(feature.parents.values_list("slug", flat=True))
+        for parent_slug in desired - current:
+            claim_key, value = build_relationship_claim(
+                "gameplay_feature_parent", {"parent_slug": parent_slug}
+            )
+            specs.append(
+                _ClaimSpec(
+                    field_name="gameplay_feature_parent",
+                    value=value,
+                    claim_key=claim_key,
+                )
+            )
+        for parent_slug in current - desired:
+            claim_key, value = build_relationship_claim(
+                "gameplay_feature_parent", {"parent_slug": parent_slug}, exists=False
+            )
+            specs.append(
+                _ClaimSpec(
+                    field_name="gameplay_feature_parent",
+                    value=value,
+                    claim_key=claim_key,
+                )
+            )
+        parents_changed = bool((desired - current) or (current - desired))
 
-    if not prepared and not parents_to_add and not parents_to_remove:
+    if not specs:
         raise HttpError(422, "No changes provided.")
 
-    # --- Write claims ---
+    return specs, parents_changed
+
+
+def _execute_claims(feature, specs, parents_changed, user, note):
+    """Create a ChangeSet + claims atomically and resolve."""
     from django.db import transaction
 
+    from apps.provenance.models import ChangeSet, Claim
+
+    from ..resolve import resolve_entity
+    from ..resolve._relationships import resolve_gameplay_feature_parents
+
+    with transaction.atomic():
+        cs = ChangeSet.objects.create(user=user, note=note)
+        for spec in specs:
+            Claim.objects.assert_claim(
+                feature,
+                spec.field_name,
+                spec.value,
+                user=user,
+                claim_key=spec.claim_key,
+                changeset=cs,
+            )
+        if parents_changed:
+            resolve_gameplay_feature_parents()
+        resolve_entity(feature)
+
+
+@gameplay_features_router.patch(
+    "/{slug}/claims/",
+    auth=django_auth,
+    response=GameplayFeatureDetailSchema,
+    tags=["private"],
+)
+def patch_gameplay_feature_claims(
+    request, slug: str, data: GameplayFeatureClaimPatchSchema
+):
+    """Assert per-field claims from the authenticated user, then re-resolve."""
+    from ..cache import invalidate_all
+    from ..models import GameplayFeature
+
+    if not data.fields and data.parents is None:
+        raise HttpError(422, "No changes provided.")
+
+    feature = get_object_or_404(GameplayFeature, slug=slug)
+
+    specs, parents_changed = _validate_and_plan_claims(feature, data)
+
     try:
-        with transaction.atomic():
-            cs = ChangeSet.objects.create(user=request.user, note=data.note)
-
-            for field_name, value in prepared.items():
-                Claim.objects.assert_claim(
-                    feature, field_name, value, user=request.user, changeset=cs
-                )
-
-            for parent_slug in parents_to_add:
-                claim_key, value = build_relationship_claim(
-                    "gameplay_feature_parent", {"parent_slug": parent_slug}
-                )
-                Claim.objects.assert_claim(
-                    feature,
-                    "gameplay_feature_parent",
-                    value,
-                    user=request.user,
-                    claim_key=claim_key,
-                    changeset=cs,
-                )
-            for parent_slug in parents_to_remove:
-                claim_key, value = build_relationship_claim(
-                    "gameplay_feature_parent",
-                    {"parent_slug": parent_slug},
-                    exists=False,
-                )
-                Claim.objects.assert_claim(
-                    feature,
-                    "gameplay_feature_parent",
-                    value,
-                    user=request.user,
-                    claim_key=claim_key,
-                    changeset=cs,
-                )
-
-            if parents_to_add or parents_to_remove:
-                resolve_gameplay_feature_parents()
-
-            resolve_entity(feature)
+        _execute_claims(feature, specs, parents_changed, request.user, data.note)
     except IntegrityError as exc:
         raise HttpError(422, f"Unique constraint violation: {exc}") from exc
 
