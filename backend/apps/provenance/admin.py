@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Claim, Source, SourceFieldLicense
+from .models import ChangeSet, Claim, Source, SourceFieldLicense
 
 
 class SourceFieldLicenseInline(admin.TabularInline):
@@ -25,6 +25,19 @@ class SourceAdmin(admin.ModelAdmin):
     inlines = [SourceFieldLicenseInline]
 
 
+@admin.register(ChangeSet)
+class ChangeSetAdmin(admin.ModelAdmin):
+    list_display = ("pk", "user", "note_truncated", "created_at")
+    list_filter = ("user",)
+    readonly_fields = ("created_at",)
+
+    @admin.display(description="Note")
+    def note_truncated(self, obj):
+        if len(obj.note) > 80:
+            return obj.note[:80] + "..."
+        return obj.note
+
+
 @admin.register(Claim)
 class ClaimAdmin(admin.ModelAdmin):
     list_display = (
@@ -37,7 +50,7 @@ class ClaimAdmin(admin.ModelAdmin):
     )
     list_filter = ("source", "is_active", "field_name")
     search_fields = ("field_name",)
-    readonly_fields = ("content_type", "object_id", "created_at")
+    readonly_fields = ("content_type", "object_id", "changeset", "created_at")
 
     @admin.display(description="Value")
     def value_truncated(self, obj):

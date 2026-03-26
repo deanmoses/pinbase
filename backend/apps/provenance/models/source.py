@@ -1,0 +1,79 @@
+"""Source models: data origin points and per-field license overrides."""
+
+from __future__ import annotations
+
+from django.db import models
+
+from apps.core.models import TimeStampedModel, unique_slug
+
+
+class Source(TimeStampedModel):
+    """A data origin point (external database, book, editorial team, etc.)."""
+
+    class SourceType(models.TextChoices):
+        DATABASE = "database", "Database"
+        BOOK = "book", "Book"
+        EDITORIAL = "editorial", "Editorial"
+        OTHER = "other", "Other"
+
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    source_type = models.CharField(
+        max_length=20, choices=SourceType.choices, default=SourceType.DATABASE
+    )
+    priority = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Higher priority wins when claims conflict.",
+    )
+    url = models.URLField(blank=True)
+    description = models.TextField(blank=True)
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text="Disabled sources are excluded from claim resolution.",
+    )
+    default_license = models.ForeignKey(
+        "core.License",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sources",
+        help_text="Default license for claims from this source.",
+    )
+
+    class Meta:
+        ordering = ["-priority", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = unique_slug(self, self.name, "source")
+        super().save(*args, **kwargs)
+
+
+class SourceFieldLicense(models.Model):
+    """Per-field license override for a source.
+
+    Wiki-style sources typically have different licenses for text vs images
+    (e.g., Fandom: text is CC BY-SA 3.0, images are fair use / not reusable).
+    This model captures that relationship without denormalizing to per-claim.
+    """
+
+    source = models.ForeignKey(
+        Source,
+        on_delete=models.CASCADE,
+        related_name="field_licenses",
+    )
+    field_name = models.CharField(max_length=255)
+    license = models.ForeignKey(
+        "core.License",
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+
+    class Meta:
+        unique_together = [("source", "field_name")]
+
+    def __str__(self) -> str:
+        return f"{self.source.name}: {self.field_name} → {self.license.short_name}"

@@ -1,10 +1,4 @@
-"""Provenance layer: Source + Claim.
-
-A Source is a named origin of data (external database, book, editorial team).
-A Claim is a single fact asserted by a Source or User about any catalog entity.
-Claims use a GenericForeignKey so they can target any model (MachineModel,
-Manufacturer, Person, etc.).
-"""
+"""Claim model and manager: atomic fact assertions about catalog entities."""
 
 from __future__ import annotations
 
@@ -13,9 +7,8 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 
-from apps.core.models import TimeStampedModel, unique_slug
-
-_RESERVED = frozenset("|:")
+from .changeset import ChangeSet
+from .source import Source
 
 
 def _escape_claim_value(s: str) -> str:
@@ -42,78 +35,6 @@ def make_claim_key(field_name: str, **identity_parts: object) -> str:
     return "|".join(parts)
 
 
-class Source(TimeStampedModel):
-    """A data origin point (external database, book, editorial team, etc.)."""
-
-    class SourceType(models.TextChoices):
-        DATABASE = "database", "Database"
-        BOOK = "book", "Book"
-        EDITORIAL = "editorial", "Editorial"
-        OTHER = "other", "Other"
-
-    name = models.CharField(max_length=200, unique=True)
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
-    source_type = models.CharField(
-        max_length=20, choices=SourceType.choices, default=SourceType.DATABASE
-    )
-    priority = models.PositiveSmallIntegerField(
-        default=0,
-        help_text="Higher priority wins when claims conflict.",
-    )
-    url = models.URLField(blank=True)
-    description = models.TextField(blank=True)
-    is_enabled = models.BooleanField(
-        default=True,
-        help_text="Disabled sources are excluded from claim resolution.",
-    )
-    default_license = models.ForeignKey(
-        "core.License",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="sources",
-        help_text="Default license for claims from this source.",
-    )
-
-    class Meta:
-        ordering = ["-priority", "name"]
-
-    def __str__(self) -> str:
-        return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "source")
-        super().save(*args, **kwargs)
-
-
-class SourceFieldLicense(models.Model):
-    """Per-field license override for a source.
-
-    Wiki-style sources typically have different licenses for text vs images
-    (e.g., Fandom: text is CC BY-SA 3.0, images are fair use / not reusable).
-    This model captures that relationship without denormalizing to per-claim.
-    """
-
-    source = models.ForeignKey(
-        Source,
-        on_delete=models.CASCADE,
-        related_name="field_licenses",
-    )
-    field_name = models.CharField(max_length=255)
-    license = models.ForeignKey(
-        "core.License",
-        on_delete=models.CASCADE,
-        related_name="+",
-    )
-
-    class Meta:
-        unique_together = [("source", "field_name")]
-
-    def __str__(self) -> str:
-        return f"{self.source.name}: {self.field_name} → {self.license.short_name}"
-
-
 class ClaimManager(models.Manager):
     def assert_claim(
         self,
@@ -126,6 +47,7 @@ class ClaimManager(models.Manager):
         user=None,
         claim_key: str = "",
         license=None,
+        changeset: ChangeSet | None = None,
     ) -> "Claim":
         """Create a claim, deactivating any existing active claim for the same claim_key+author.
 
@@ -133,10 +55,16 @@ class ClaimManager(models.Manager):
         Exactly one of ``source`` or ``user`` must be provided.
         ``claim_key`` defaults to ``field_name`` for scalar claims.
         ``license`` is an optional per-claim License override (null inherits from source).
+        ``changeset`` is an optional ChangeSet to group this claim with others.
         Runs in a transaction to ensure the old claim is deactivated atomically.
         """
         if (source is None) == (user is None):
             raise ValueError("Exactly one of source or user must be provided.")
+        if changeset is not None:
+            if source is not None:
+                raise ValueError("Source-attributed claims cannot use ChangeSets yet.")
+            if changeset.user_id != user.pk:
+                raise ValueError("ChangeSet user must match the claim user.")
         if not claim_key:
             claim_key = field_name
         ct = ContentType.objects.get_for_model(subject)
@@ -160,6 +88,7 @@ class ClaimManager(models.Manager):
                 value=value,
                 citation=citation,
                 license=license,
+                changeset=changeset,
             )
 
     def bulk_assert_claims(
@@ -326,6 +255,14 @@ class Claim(models.Model):
             "For relationship claims, encodes the relationship identity "
             '(e.g., "credit|person:pat-lawlor|role:art").'
         ),
+    )
+    changeset = models.ForeignKey(
+        ChangeSet,
+        on_delete=models.SET_NULL,
+        related_name="claims",
+        null=True,
+        blank=True,
+        help_text="Optional grouping of claims from a single edit session.",
     )
     value = models.JSONField()
     citation = models.TextField(blank=True)
