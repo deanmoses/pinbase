@@ -9,7 +9,12 @@ from ninja.decorators import decorate_view
 from ninja.errors import HttpError
 from ninja.security import django_auth
 
-from .edit_claims import execute_claims, plan_parent_claims, validate_scalar_fields
+from .edit_claims import (
+    execute_claims,
+    plan_alias_claims,
+    plan_parent_claims,
+    validate_scalar_fields,
+)
 from .helpers import (
     _build_activity,
     _build_edit_history,
@@ -59,25 +64,14 @@ def _detail_qs():
     )
 
 
-def _normalize(s: str) -> str:
-    s = s.lower().replace("-", "").replace(" ", "")
-    if s.endswith("s"):
-        s = s[:-1]
-    return s
-
-
 def _serialize_detail(feature) -> dict:
-    canonical_norm = _normalize(feature.name)
-    display_aliases = [
-        a.value for a in feature.aliases.all() if _normalize(a.value) != canonical_norm
-    ]
     return {
         "name": feature.name,
         "slug": feature.slug,
         "description": _build_rich_text(
             feature, "description", getattr(feature, "active_claims", [])
         ),
-        "aliases": display_aliases,
+        "aliases": [a.value for a in feature.aliases.all()],
         "parents": [{"name": p.name, "slug": p.slug} for p in feature.parents.all()],
         "children": [
             {"name": c.name, "slug": c.slug} for c in feature.children.order_by("name")
@@ -159,9 +153,12 @@ def get_gameplay_feature(request, slug: str):
 def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     from ..models import GameplayFeature
-    from ..resolve._relationships import resolve_gameplay_feature_parents
+    from ..resolve._relationships import (
+        resolve_gameplay_feature_aliases,
+        resolve_gameplay_feature_parents,
+    )
 
-    if not data.fields and data.parents is None:
+    if not data.fields and data.parents is None and data.aliases is None:
         raise HttpError(422, "No changes provided.")
 
     feature = get_object_or_404(GameplayFeature, slug=slug)
@@ -179,6 +176,16 @@ def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchS
         specs.extend(parent_specs)
         if parent_specs:
             resolvers.append(resolve_gameplay_feature_parents)
+
+    if data.aliases is not None:
+        alias_specs = plan_alias_claims(
+            feature,
+            data.aliases,
+            claim_field_name="gameplay_feature_alias",
+        )
+        specs.extend(alias_specs)
+        if alias_specs:
+            resolvers.append(resolve_gameplay_feature_aliases)
 
     if not specs:
         raise HttpError(422, "No changes provided.")

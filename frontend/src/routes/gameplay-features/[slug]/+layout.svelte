@@ -17,6 +17,18 @@
 	let profile = $derived(data.profile);
 	let slug = $derived(page.params.slug);
 
+	/** Normalize for near-duplicate alias filtering (matches backend's old _normalize). */
+	function normalizeAlias(s: string): string {
+		let n = s.toLowerCase().replace(/-/g, '').replace(/ /g, '');
+		if (n.endsWith('s')) n = n.slice(0, -1);
+		return n;
+	}
+
+	let displayAliases = $derived.by(() => {
+		const canonical = normalizeAlias(profile.name);
+		return (profile.aliases ?? []).filter((a: string) => normalizeAlias(a) !== canonical);
+	});
+
 	$effect(() => {
 		auth.load();
 	});
@@ -91,9 +103,9 @@
 					</SidebarList>
 				</SidebarSection>
 			{/if}
-			{#if profile.aliases && profile.aliases.length > 0}
+			{#if displayAliases.length > 0}
 				<SidebarSection heading="Also known as">
-					<p class="aliases">{profile.aliases.join(', ')}</p>
+					<p class="aliases">{displayAliases.join(', ')}</p>
 				</SidebarSection>
 			{/if}
 		{/snippet}

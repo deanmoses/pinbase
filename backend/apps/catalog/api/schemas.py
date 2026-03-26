@@ -33,6 +33,7 @@ class ClaimPatchSchema(Schema):
 class HierarchyClaimPatchSchema(Schema):
     fields: dict[str, Any] = {}
     parents: list[str] | None = None
+    aliases: list[str] | None = None
     note: str = ""
 
 

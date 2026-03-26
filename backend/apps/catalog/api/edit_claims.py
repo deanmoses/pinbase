@@ -135,6 +135,56 @@ def plan_parent_claims(
     return specs
 
 
+def plan_alias_claims(
+    entity,
+    desired_aliases: list[str],
+    *,
+    claim_field_name: str,
+) -> list[ClaimSpec]:
+    """Validate alias changes and return diff-based ClaimSpecs.
+
+    Normalises input (strip, deduplicate by lowercase key) and diffs
+    against current alias rows.  Preserves user-typed case via
+    ``alias_display`` so the resolver stores the display form.
+
+    Returns specs for adds, removes, and display-case updates.
+    """
+    from apps.catalog.claims import build_relationship_claim
+
+    # Normalise: strip, deduplicate by lowercase key, drop blanks.
+    # Last-write-wins for display case when duplicates differ only in case.
+    desired: dict[str, str] = {}  # lowercase → display string
+    for raw in desired_aliases:
+        val = raw.strip()
+        if val:
+            desired[val.lower()] = val
+
+    current: dict[str, str] = {}  # lowercase → stored display string
+    for a in entity.aliases.all():
+        current[a.value.lower()] = a.value
+
+    specs: list[ClaimSpec] = []
+    # Adds and display-case updates
+    for lower, display in desired.items():
+        if lower not in current or current[lower] != display:
+            claim_key, value = build_relationship_claim(
+                claim_field_name,
+                {"alias_value": lower, "alias_display": display},
+            )
+            specs.append(
+                ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
+            )
+    # Removes
+    for lower in current.keys() - desired.keys():
+        claim_key, value = build_relationship_claim(
+            claim_field_name, {"alias_value": lower}, exists=False
+        )
+        specs.append(
+            ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
+        )
+    return specs
+
+
 def execute_claims(
     entity,
     specs: list[ClaimSpec],

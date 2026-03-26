@@ -76,3 +76,34 @@ class TestPatchThemeClaims:
         cs = ChangeSet.objects.first()
         assert cs.note == "Test note"
         assert cs.claims.count() == 1
+
+
+@pytest.mark.django_db
+class TestPatchThemeAliases:
+    def test_add_aliases(self, client, user, theme):
+        client.force_login(user)
+        resp = _patch(client, theme.slug, {"aliases": ["Athletics", "Sport"]})
+        assert resp.status_code == 200
+        assert sorted(resp.json()["aliases"]) == ["Athletics", "Sport"]
+
+    def test_remove_aliases(self, client, user, theme):
+        client.force_login(user)
+        _patch(client, theme.slug, {"aliases": ["Athletics"]})
+        resp = _patch(client, theme.slug, {"aliases": []})
+        assert resp.status_code == 200
+        assert resp.json()["aliases"] == []
+
+    def test_display_case_preserved(self, client, user, theme):
+        client.force_login(user)
+        resp = _patch(client, theme.slug, {"aliases": ["eSports"]})
+        assert "eSports" in resp.json()["aliases"]
+        theme.refresh_from_db()
+        assert theme.aliases.get().value == "eSports"
+
+    def test_display_case_update(self, client, user, theme):
+        client.force_login(user)
+        _patch(client, theme.slug, {"aliases": ["esports"]})
+        resp = _patch(client, theme.slug, {"aliases": ["eSports"]})
+        assert resp.status_code == 200
+        theme.refresh_from_db()
+        assert theme.aliases.get().value == "eSports"

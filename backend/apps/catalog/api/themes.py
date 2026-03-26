@@ -10,7 +10,12 @@ from ninja.decorators import decorate_view
 from ninja.errors import HttpError
 from ninja.security import django_auth
 
-from .edit_claims import execute_claims, plan_parent_claims, validate_scalar_fields
+from .edit_claims import (
+    execute_claims,
+    plan_alias_claims,
+    plan_parent_claims,
+    validate_scalar_fields,
+)
 from .helpers import (
     _build_activity,
     _build_edit_history,
@@ -127,9 +132,9 @@ def get_theme(request, slug: str):
 def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     from ..models import Theme
-    from ..resolve._relationships import resolve_theme_parents
+    from ..resolve._relationships import resolve_theme_aliases, resolve_theme_parents
 
-    if not data.fields and data.parents is None:
+    if not data.fields and data.parents is None and data.aliases is None:
         raise HttpError(422, "No changes provided.")
 
     theme = get_object_or_404(Theme, slug=slug)
@@ -147,6 +152,16 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
         specs.extend(parent_specs)
         if parent_specs:
             resolvers.append(resolve_theme_parents)
+
+    if data.aliases is not None:
+        alias_specs = plan_alias_claims(
+            theme,
+            data.aliases,
+            claim_field_name="theme_alias",
+        )
+        specs.extend(alias_specs)
+        if alias_specs:
+            resolvers.append(resolve_theme_aliases)
 
     if not specs:
         raise HttpError(422, "No changes provided.")

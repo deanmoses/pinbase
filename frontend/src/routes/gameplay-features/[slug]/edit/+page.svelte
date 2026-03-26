@@ -4,6 +4,7 @@
 	import client from '$lib/api/client';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
+	import TagInput from '$lib/components/form/TagInput.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
 	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
 
@@ -24,6 +25,7 @@
 	let selectedParents = $state<string[]>(
 		untrack(() => (data.profile.parents ?? []).map((p: { slug: string }) => p.slug))
 	);
+	let editAliases = $state<string[]>(untrack(() => [...(data.profile.aliases ?? [])]));
 	let editNote = $state('');
 
 	// --- Parent options (loaded async) ---
@@ -61,6 +63,12 @@
 		return JSON.stringify(original) !== JSON.stringify(current);
 	}
 
+	function aliasesChanged(): boolean {
+		const original = [...(profile.aliases ?? [])].sort();
+		const current = [...editAliases].sort();
+		return JSON.stringify(original) !== JSON.stringify(current);
+	}
+
 	// --- Save ---
 
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -70,8 +78,9 @@
 		const fields = getChangedScalarFields();
 		const hasFields = Object.keys(fields).length > 0;
 		const hasParents = parentsChanged();
+		const hasAliases = aliasesChanged();
 
-		if (!hasFields && !hasParents) return;
+		if (!hasFields && !hasParents && !hasAliases) return;
 
 		saveStatus = 'saving';
 		saveError = '';
@@ -81,6 +90,7 @@
 			body: {
 				fields: hasFields ? fields : {},
 				parents: hasParents ? selectedParents : null,
+				aliases: hasAliases ? editAliases : null,
 				note: editNote.trim()
 			}
 		});
@@ -88,6 +98,7 @@
 		if (updated) {
 			editFields = toFormFields(updated);
 			selectedParents = (updated.parents ?? []).map((p) => p.slug);
+			editAliases = [...(updated.aliases ?? [])];
 			editNote = '';
 			await invalidateAll();
 			saveStatus = 'saved';
@@ -113,6 +124,13 @@
 			placeholder="Search features..."
 		/>
 	</div>
+
+	<TagInput
+		label="Aliases"
+		bind:tags={editAliases}
+		placeholder="Type an alias and press Enter"
+		optional
+	/>
 
 	<TextField
 		label="Edit note"

@@ -299,3 +299,82 @@ class TestPatchGameplayFeatureParents:
         resp = _patch(client, feature.slug, {"fields": {"description": "Updated"}})
         assert resp.status_code == 200
         assert [p["slug"] for p in resp.json()["parents"]] == ["scoring"]
+
+
+# ---------------------------------------------------------------------------
+# Aliases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPatchGameplayFeatureAliases:
+    """Alias PATCH tests.
+
+    Note: The GameplayFeature detail serializer filters aliases that
+    normalize to the same string as the canonical name (e.g. "Multi-Ball"
+    is hidden when the feature is "Multiball").  Tests that check the API
+    response use aliases that are clearly distinct; tests that check DB
+    state can use any alias.
+    """
+
+    def test_add_aliases(self, client, user, feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"aliases": ["MB", "Super Shot"]})
+        assert resp.status_code == 200
+        assert sorted(resp.json()["aliases"]) == ["MB", "Super Shot"]
+        feature.refresh_from_db()
+        assert sorted(feature.aliases.values_list("value", flat=True)) == [
+            "MB",
+            "Super Shot",
+        ]
+
+    def test_remove_aliases(self, client, user, feature):
+        client.force_login(user)
+        _patch(client, feature.slug, {"aliases": ["MB"]})
+        resp = _patch(client, feature.slug, {"aliases": []})
+        assert resp.status_code == 200
+        assert resp.json()["aliases"] == []
+        assert feature.aliases.count() == 0
+
+    def test_display_case_preserved(self, client, user, feature):
+        """User-typed case should round-trip, not be lowercased."""
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"aliases": ["Super Shot"]})
+        assert "Super Shot" in resp.json()["aliases"]
+        feature.refresh_from_db()
+        assert feature.aliases.get().value == "Super Shot"
+
+    def test_display_case_update(self, client, user, feature):
+        """Changing only the case of an existing alias should update it."""
+        client.force_login(user)
+        _patch(client, feature.slug, {"aliases": ["super shot"]})
+        resp = _patch(client, feature.slug, {"aliases": ["Super Shot"]})
+        assert resp.status_code == 200
+        feature.refresh_from_db()
+        assert feature.aliases.get().value == "Super Shot"
+
+    def test_aliases_only_no_fields_succeeds(self, client, user, feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"aliases": ["MB"]})
+        assert resp.status_code == 200
+
+    def test_null_aliases_leaves_aliases_unchanged(self, client, user, feature):
+        """When aliases key is omitted (None), existing aliases are not touched."""
+        client.force_login(user)
+        _patch(client, feature.slug, {"aliases": ["MB"]})
+        resp = _patch(client, feature.slug, {"fields": {"description": "Updated"}})
+        assert resp.status_code == 200
+        assert resp.json()["aliases"] == ["MB"]
+
+    def test_duplicate_aliases_deduplicated(self, client, user, feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"aliases": ["Super Shot", "super shot"]})
+        assert resp.status_code == 200
+        assert len(resp.json()["aliases"]) == 1
+
+    def test_noop_aliases_returns_422(self, client, user, feature):
+        """Submitting the same aliases that already exist is a no-op → 422."""
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"aliases": []})
+        assert resp.status_code == 422
+        assert ChangeSet.objects.count() == 0
