@@ -32,6 +32,7 @@ class ClaimPatchSchema(Schema):
 
 class GameplayFeatureClaimPatchSchema(Schema):
     fields: dict[str, Any] = {}
+    parents: list[str] | None = None
     note: str = ""
 
 

@@ -53,14 +53,14 @@ class TestPatchGameplayFeatureAuth:
 
 @pytest.mark.django_db
 class TestPatchGameplayFeatureValidation:
-    def test_empty_fields_returns_422(self, client, user, feature):
-        client.force_login(user)
-        resp = _patch(client, feature.slug, {"fields": {}})
-        assert resp.status_code == 422
-
-    def test_no_fields_key_returns_422(self, client, user, feature):
+    def test_empty_request_returns_422(self, client, user, feature):
         client.force_login(user)
         resp = _patch(client, feature.slug, {})
+        assert resp.status_code == 422
+
+    def test_empty_fields_no_parents_returns_422(self, client, user, feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"fields": {}})
         assert resp.status_code == 422
 
     def test_unknown_field_returns_422(self, client, user, feature):
@@ -194,3 +194,108 @@ class TestPatchGameplayFeatureChangeSet:
         _patch(client, feature.slug, {"fields": {"description": "Updated"}})
         cs = ChangeSet.objects.first()
         assert cs.note == ""
+
+
+# ---------------------------------------------------------------------------
+# Parents
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def parent_feature(db):
+    return GameplayFeature.objects.create(name="Scoring", slug="scoring")
+
+
+@pytest.fixture
+def child_feature(db):
+    return GameplayFeature.objects.create(name="Drop Targets", slug="drop-targets")
+
+
+@pytest.mark.django_db
+class TestPatchGameplayFeatureParents:
+    def test_add_parents(self, client, user, feature, parent_feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"parents": ["scoring"]})
+        assert resp.status_code == 200
+        assert [p["slug"] for p in resp.json()["parents"]] == ["scoring"]
+        feature.refresh_from_db()
+        assert list(feature.parents.values_list("slug", flat=True)) == ["scoring"]
+
+    def test_remove_parents(self, client, user, feature, parent_feature):
+        # Set up an existing parent via the API.
+        client.force_login(user)
+        _patch(client, feature.slug, {"parents": ["scoring"]})
+        # Now remove all parents.
+        resp = _patch(client, feature.slug, {"parents": []})
+        assert resp.status_code == 200
+        assert resp.json()["parents"] == []
+        feature.refresh_from_db()
+        assert feature.parents.count() == 0
+
+    def test_replace_parents(
+        self, client, user, feature, parent_feature, child_feature
+    ):
+        client.force_login(user)
+        _patch(client, feature.slug, {"parents": ["scoring"]})
+        resp = _patch(client, feature.slug, {"parents": ["drop-targets"]})
+        assert resp.status_code == 200
+        assert [p["slug"] for p in resp.json()["parents"]] == ["drop-targets"]
+
+    def test_invalid_parent_slug_returns_422(self, client, user, feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"parents": ["nonexistent"]})
+        assert resp.status_code == 422
+
+    def test_self_link_returns_422(self, client, user, feature):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"parents": ["multiball"]})
+        assert resp.status_code == 422
+
+    def test_cycle_returns_422(self, client, user, feature, parent_feature):
+        # Make "scoring" a child of "multiball" first.
+        client.force_login(user)
+        _patch(client, parent_feature.slug, {"parents": ["multiball"]})
+        # Now try to make "scoring" a parent of "multiball" — creates a cycle.
+        resp = _patch(client, feature.slug, {"parents": ["scoring"]})
+        assert resp.status_code == 422
+
+    def test_noop_parents_returns_422(self, client, user, feature):
+        """Submitting the same parents that already exist is a no-op → 422."""
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"parents": []})
+        assert resp.status_code == 422
+        assert ChangeSet.objects.count() == 0
+
+    def test_parents_only_no_fields_succeeds(
+        self, client, user, feature, parent_feature
+    ):
+        client.force_login(user)
+        resp = _patch(client, feature.slug, {"parents": ["scoring"]})
+        assert resp.status_code == 200
+
+    def test_combined_scalar_and_parents(self, client, user, feature, parent_feature):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            feature.slug,
+            {"fields": {"description": "Updated"}, "parents": ["scoring"]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["description"]["text"] == "Updated"
+        assert [p["slug"] for p in data["parents"]] == ["scoring"]
+        # All claims in one changeset.
+        assert ChangeSet.objects.count() == 1
+        cs = ChangeSet.objects.first()
+        assert cs.claims.count() == 2  # description + parent
+
+    def test_null_parents_leaves_parents_unchanged(
+        self, client, user, feature, parent_feature
+    ):
+        """When parents key is omitted (None), existing parents are not touched."""
+        client.force_login(user)
+        _patch(client, feature.slug, {"parents": ["scoring"]})
+        # PATCH with only fields, no parents key.
+        resp = _patch(client, feature.slug, {"fields": {"description": "Updated"}})
+        assert resp.status_code == 200
+        assert [p["slug"] for p in resp.json()["parents"]] == ["scoring"]

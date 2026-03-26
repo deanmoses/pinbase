@@ -155,6 +155,7 @@ def patch_gameplay_feature_claims(
     request, slug: str, data: GameplayFeatureClaimPatchSchema
 ):
     """Assert per-field claims from the authenticated user, then re-resolve."""
+    from apps.catalog.claims import build_relationship_claim
     from apps.core.markdown_links import prepare_markdown_claim_value
     from apps.core.models import get_claim_fields
     from apps.provenance.models import ChangeSet, Claim
@@ -162,18 +163,23 @@ def patch_gameplay_feature_claims(
     from ..cache import invalidate_all
     from ..models import GameplayFeature
     from ..resolve import resolve_entity
+    from ..resolve._relationships import resolve_gameplay_feature_parents
 
+    # --- Validate scalars ---
     editable_fields = set(get_claim_fields(GameplayFeature))
     unknown = set(data.fields.keys()) - editable_fields
     if unknown:
         raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
 
-    if not data.fields:
-        raise HttpError(422, "No fields provided.")
+    has_fields = bool(data.fields)
+    has_parents = data.parents is not None
+    desired_parent_slugs: set[str] = set(data.parents) if has_parents else set()
+
+    if not has_fields and not has_parents:
+        raise HttpError(422, "No changes provided.")
 
     feature = get_object_or_404(GameplayFeature, slug=slug)
 
-    # Validate all fields before creating any claims or changeset.
     prepared: dict[str, object] = {}
     for field_name, value in data.fields.items():
         try:
@@ -183,6 +189,58 @@ def patch_gameplay_feature_claims(
         except ValidationError as exc:
             raise HttpError(422, "; ".join(exc.messages)) from exc
 
+    # --- Validate parents ---
+    if has_parents:
+        if feature.slug in desired_parent_slugs:
+            raise HttpError(422, "A feature cannot be its own parent.")
+
+        existing_slugs = set(
+            GameplayFeature.objects.filter(slug__in=desired_parent_slugs).values_list(
+                "slug", flat=True
+            )
+        )
+        missing = desired_parent_slugs - existing_slugs
+        if missing:
+            raise HttpError(422, f"Unknown parent slugs: {sorted(missing)}")
+
+        # Cycle detection: for each proposed parent, walk up the existing
+        # graph (excluding the edited feature's current parents, since
+        # they're being replaced). If we reach the edited feature, reject.
+        if desired_parent_slugs:
+            all_features = GameplayFeature.objects.prefetch_related("parents").all()
+            parent_map: dict[str, set[str]] = {}
+            for f in all_features:
+                if f.slug == feature.slug:
+                    continue  # skip edited feature's current edges
+                parent_map[f.slug] = {p.slug for p in f.parents.all()}
+
+            for start_slug in desired_parent_slugs:
+                visited: set[str] = set()
+                stack = [start_slug]
+                while stack:
+                    current = stack.pop()
+                    if current == feature.slug:
+                        raise HttpError(
+                            422,
+                            f"Adding parent '{start_slug}' would create a cycle.",
+                        )
+                    if current in visited:
+                        continue
+                    visited.add(current)
+                    stack.extend(parent_map.get(current, set()))
+
+    # --- Compute parent diff ---
+    parents_to_add: set[str] = set()
+    parents_to_remove: set[str] = set()
+    if has_parents:
+        current_parent_slugs = set(feature.parents.values_list("slug", flat=True))
+        parents_to_add = desired_parent_slugs - current_parent_slugs
+        parents_to_remove = current_parent_slugs - desired_parent_slugs
+
+    if not prepared and not parents_to_add and not parents_to_remove:
+        raise HttpError(422, "No changes provided.")
+
+    # --- Write claims ---
     from django.db import transaction
 
     try:
@@ -193,6 +251,36 @@ def patch_gameplay_feature_claims(
                 Claim.objects.assert_claim(
                     feature, field_name, value, user=request.user, changeset=cs
                 )
+
+            for parent_slug in parents_to_add:
+                claim_key, value = build_relationship_claim(
+                    "gameplay_feature_parent", {"parent_slug": parent_slug}
+                )
+                Claim.objects.assert_claim(
+                    feature,
+                    "gameplay_feature_parent",
+                    value,
+                    user=request.user,
+                    claim_key=claim_key,
+                    changeset=cs,
+                )
+            for parent_slug in parents_to_remove:
+                claim_key, value = build_relationship_claim(
+                    "gameplay_feature_parent",
+                    {"parent_slug": parent_slug},
+                    exists=False,
+                )
+                Claim.objects.assert_claim(
+                    feature,
+                    "gameplay_feature_parent",
+                    value,
+                    user=request.user,
+                    claim_key=claim_key,
+                    changeset=cs,
+                )
+
+            if parents_to_add or parents_to_remove:
+                resolve_gameplay_feature_parents()
 
             resolve_entity(feature)
     except IntegrityError as exc:
