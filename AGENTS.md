@@ -60,6 +60,8 @@ Catalog data and the DuckDB exploration database live in separate repos:
 
 Both publish to Cloudflare R2. Pinbase pulls catalog JSON exports from R2 via `make pull-ingest`.
 
+See [DomainModel.md](DomainModel.md) for the catalog entity hierarchy (Title → Model, variants, remakes, manufacturers, taxonomy, etc.).
+
 **Key architectural decisions:**
 
 - Session-based auth via same-origin proxy (no JWT, no CORS)
