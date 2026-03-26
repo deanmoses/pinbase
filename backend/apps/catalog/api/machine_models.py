@@ -118,7 +118,7 @@ class MachineModelDetailSchema(Schema):
     ipdb_rating: Optional[float] = None
     pinside_rating: Optional[float] = None
     description: RichTextSchema = RichTextSchema()
-    title_description: str = ""
+    title_description: RichTextSchema = RichTextSchema()
     abbreviations: list[str] = []
     extra_data: dict
     credits: list[CreditSchema]
@@ -380,7 +380,9 @@ def _serialize_model_detail(pm) -> dict:
         "pinside_rating": float(pm.pinside_rating)
         if pm.pinside_rating is not None
         else None,
-        "title_description": pm.title.description if pm.title else "",
+        "title_description": _build_rich_text(pm.title, "description")
+        if pm.title
+        else {},
         "abbreviations": [a.value for a in pm.abbreviations.all()],
         "extra_data": pm.extra_data or {},
         "credits": credits,
@@ -613,7 +615,7 @@ class ModelRecentSchema(Schema):
 
 
 @models_router.get("/recent/", response=list[ModelRecentSchema])
-@decorate_view(cache_control(public=True, max_age=300))
+@decorate_view(cache_control(no_cache=True))
 def list_recent_models(request):
     """Return the 3 newest non-variant models, one per title."""
     from ..models import MachineModel
@@ -654,7 +656,7 @@ def list_recent_models(request):
 
 
 @models_router.get("/all/", response=list[MachineModelGridSchema])
-@decorate_view(cache_control(public=True, max_age=300))
+@decorate_view(cache_control(no_cache=True))
 def list_all_models(request):
     """Return every model (including variants) with minimal fields (no pagination)."""
     from django.core.cache import cache
@@ -719,7 +721,7 @@ def list_all_models(request):
 
 
 @models_router.get("/{slug}", response=MachineModelDetailSchema)
-@decorate_view(cache_control(public=True, max_age=300))
+@decorate_view(cache_control(no_cache=True))
 def get_model(request, slug: str):
     pm = get_object_or_404(_model_detail_qs(), slug=slug)
     return _serialize_model_detail(pm)

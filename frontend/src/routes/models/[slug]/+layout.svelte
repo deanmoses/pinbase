@@ -4,6 +4,7 @@
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
 	import ExternalLinksSidebarSection from '$lib/components/ExternalLinksSidebarSection.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 	import HeroHeader from '$lib/components/HeroHeader.svelte';
 	import ModelHierarchy from '$lib/components/ModelHierarchy.svelte';
 	import ModelSpecsSidebar from '$lib/components/ModelSpecsSidebar.svelte';
@@ -67,10 +68,10 @@
 
 	<TwoColumnLayout>
 		{#snippet main()}
-			{#if model.title_description && isOnlyModelInTitle}
+			{#if model.title_description?.html && isOnlyModelInTitle}
 				<section class="prose">
 					<h2>About</h2>
-					<p>{model.title_description}</p>
+					<Markdown html={model.title_description.html} />
 				</section>
 			{/if}
 
