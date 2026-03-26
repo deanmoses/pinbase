@@ -71,7 +71,7 @@
 				</SidebarSection>
 			{/if}
 			{#if theme.children && theme.children.length > 0}
-				<SidebarSection heading="Sub-themes">
+				<SidebarSection heading={`Sub-themes (${theme.children.length})`}>
 					<SidebarList>
 						{#each theme.children as child (child.slug)}
 							<SidebarListItem>
