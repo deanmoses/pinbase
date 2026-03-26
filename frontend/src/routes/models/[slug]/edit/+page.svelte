@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { resolveHref } from '$lib/utils';
 	import client from '$lib/api/client';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
@@ -71,6 +72,20 @@
 </script>
 
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
+	{#if model.title && model.title_models.length <= 1}
+		<section class="merged-note">
+			<h3>Merged Single-Model View</h3>
+			<p>
+				This title has one model, and the public detail page merges title and model information. You
+				are editing model-owned facts here.
+			</p>
+			<div class="merged-actions">
+				<a href={resolveHref(`/titles/${model.title.slug}/edit`)}>Edit title facts</a>
+				<a href={resolveHref(`/titles/${model.title.slug}/activity`)}>Title activity</a>
+			</div>
+		</section>
+	{/if}
+
 	<TextField label="Name" bind:value={editFields.name} />
 
 	<fieldset class="date-group">
@@ -119,6 +134,7 @@
 </EditFormShell>
 
 <style>
+	.merged-note,
 	.date-group,
 	.xref-group,
 	.ratings-group {
@@ -128,13 +144,37 @@
 		margin: 0;
 	}
 
+	.merged-note {
+		margin-bottom: var(--size-4);
+	}
+
+	.merged-note h3,
 	.date-group legend,
 	.xref-group legend,
 	.ratings-group legend {
 		font-size: var(--font-size-1);
 		font-weight: 500;
 		color: var(--color-text-muted);
+	}
+
+	.merged-note h3 {
+		margin: 0 0 var(--size-2);
+	}
+
+	.merged-note p {
+		margin: 0 0 var(--size-3);
+		color: var(--color-text-muted);
+	}
+
+	.date-group legend,
+	.xref-group legend,
+	.ratings-group legend {
 		padding: 0 var(--size-1);
+	}
+
+	.merged-actions {
+		display: flex;
+		gap: var(--size-4);
 	}
 
 	.date-row,

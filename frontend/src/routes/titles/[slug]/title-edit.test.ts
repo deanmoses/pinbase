@@ -84,7 +84,7 @@ describe('buildTitlePatchBody', () => {
 describe('buildModelBoundary', () => {
 	it('shows direct model edit and activity links for single-model titles', () => {
 		expect(buildModelBoundary(singleModelTitle)).toEqual({
-			modelLinks: [{ slug: 'attack-from-mars', name: 'Attack from Mars' }],
+			modelLinks: [],
 			singleModelActions: {
 				editHref: '/models/attack-from-mars/edit',
 				activityHref: '/models/attack-from-mars/activity'

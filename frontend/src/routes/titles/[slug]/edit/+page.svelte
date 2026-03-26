@@ -65,8 +65,22 @@
 </script>
 
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
+	{#if boundary.singleModelActions}
+		<section class="merged-note">
+			<h3>Merged Single-Model View</h3>
+			<p>
+				This title has one model, and the public detail page merges title and model information. You
+				are editing title-owned facts here.
+			</p>
+			<div class="merged-actions">
+				<a href={resolveHref(boundary.singleModelActions.editHref)}>Edit model facts</a>
+				<a href={resolveHref(boundary.singleModelActions.activityHref)}>Model activity</a>
+			</div>
+		</section>
+	{/if}
+
 	<section class="boundary">
-		<h3>Edited On Model Pages</h3>
+		<h3>Model-Owned Facts</h3>
 		<p>
 			Credits, machine roster, variants, specifications, ratings, external IDs, and other
 			model-specific metadata stay read-only here.
@@ -87,13 +101,6 @@
 						<li><a href={resolveHref(`/models/${model.slug}`)}>{model.name}</a></li>
 					{/each}
 				</ul>
-			</div>
-		{/if}
-
-		{#if boundary.singleModelActions}
-			<div class="single-model-actions">
-				<a href={resolveHref(boundary.singleModelActions.editHref)}>Edit model</a>
-				<a href={resolveHref(boundary.singleModelActions.activityHref)}>Model activity</a>
 			</div>
 		{/if}
 	</section>
@@ -123,6 +130,7 @@
 </EditFormShell>
 
 <style>
+	.merged-note,
 	.boundary {
 		border: 1px solid var(--color-border-soft);
 		border-radius: var(--radius-2);
@@ -130,11 +138,17 @@
 		background: var(--color-surface-2, rgba(0, 0, 0, 0.02));
 	}
 
+	.merged-note {
+		margin-bottom: var(--size-4);
+	}
+
+	.merged-note h3,
 	.boundary h3 {
 		margin: 0 0 var(--size-2);
 		font-size: var(--font-size-2);
 	}
 
+	.merged-note p,
 	.boundary p {
 		margin: 0 0 var(--size-3);
 		color: var(--color-text-muted);
@@ -156,10 +170,9 @@
 		font-weight: 600;
 	}
 
-	.single-model-actions {
+	.merged-actions {
 		display: flex;
 		gap: var(--size-4);
-		margin-top: var(--size-3);
 	}
 
 	.field-help {

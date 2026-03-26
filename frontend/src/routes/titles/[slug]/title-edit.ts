@@ -98,17 +98,19 @@ export function buildModelBoundary(title: TitleEditView): {
 	modelLinks: Array<{ slug: string; name: string }>;
 	singleModelActions: { editHref: string; activityHref: string } | null;
 } {
-	const modelLinks = title.machines.flatMap((machine) => [
-		{
-			slug: machine.slug,
-			name: machine.name
-		},
-		...(machine.variants ?? []).map((variant) => ({
-			slug: variant.slug,
-			name: variant.name
-		}))
-	]);
 	const singleModelSlug = title.model_detail?.slug ?? null;
+	const modelLinks = singleModelSlug
+		? []
+		: title.machines.flatMap((machine) => [
+				{
+					slug: machine.slug,
+					name: machine.name
+				},
+				...(machine.variants ?? []).map((variant) => ({
+					slug: variant.slug,
+					name: variant.name
+				}))
+			]);
 
 	return {
 		modelLinks,
