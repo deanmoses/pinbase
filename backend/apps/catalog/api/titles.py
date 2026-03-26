@@ -1,18 +1,22 @@
-"""Titles router — list and detail endpoints."""
+"""Titles router — list, detail, and claims endpoints."""
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from django.db.models import Count, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
+from ninja.errors import HttpError
 from ninja.pagination import PageNumberPagination, paginate
+from ninja.security import django_auth
 
 from .constants import DEFAULT_PAGE_SIZE
+from .edit_claims import ClaimSpec, execute_claims, validate_scalar_fields
 from .helpers import (
+    _build_activity,
     _build_rich_text,
     _claims_prefetch,
     _extract_image_urls,
@@ -20,6 +24,7 @@ from .helpers import (
 )
 from .machine_models import CreditSchema, MachineModelDetailSchema
 from .schemas import (
+    ClaimSchema,
     GameplayFeatureSchema,
     RichTextSchema,
     SeriesRefSchema,
@@ -99,6 +104,13 @@ class TitleDetailSchema(Schema):
     credits: list[CreditSchema] = []
     agreed_specs: AgreedSpecsSchema = AgreedSpecsSchema()
     model_detail: Optional[MachineModelDetailSchema] = None
+    activity: list[ClaimSchema] = []
+
+
+class TitleClaimPatchSchema(Schema):
+    fields: dict[str, Any] = {}
+    abbreviations: list[str] | None = None
+    note: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +424,7 @@ def _serialize_title_detail(title) -> dict:
         "credits": credits,
         "agreed_specs": agreed_specs,
         "model_detail": model_detail,
+        "activity": _build_activity(getattr(title, "active_claims", [])),
     }
 
 
@@ -446,6 +459,60 @@ def _title_models_prefetch():
         )
         .order_by("year", "name"),
     )
+
+
+def _detail_qs():
+    from ..models import Title
+
+    return Title.objects.select_related("franchise").prefetch_related(
+        _title_models_prefetch(),
+        "series",
+        "abbreviations",
+        _claims_prefetch(),
+    )
+
+
+def _normalize_abbreviations(values: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        value = raw_value.strip()
+        if not value:
+            continue
+        if len(value) > 50:
+            raise HttpError(422, "Abbreviations must be 50 characters or fewer.")
+        if value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def plan_title_abbreviation_claims(title, desired_values: list[str]) -> list[ClaimSpec]:
+    """Diff title abbreviations and return relationship ClaimSpecs."""
+    from apps.catalog.claims import build_relationship_claim
+
+    desired = set(_normalize_abbreviations(desired_values))
+    current = set(title.abbreviations.values_list("value", flat=True))
+    specs: list[ClaimSpec] = []
+
+    for value in desired - current:
+        claim_key, claim_value = build_relationship_claim(
+            "abbreviation", {"value": value}
+        )
+        specs.append(
+            ClaimSpec(field_name="abbreviation", value=claim_value, claim_key=claim_key)
+        )
+
+    for value in current - desired:
+        claim_key, claim_value = build_relationship_claim(
+            "abbreviation", {"value": value}, exists=False
+        )
+        specs.append(
+            ClaimSpec(field_name="abbreviation", value=claim_value, claim_key=claim_key)
+        )
+
+    return specs
 
 
 # ---------------------------------------------------------------------------
@@ -509,15 +576,42 @@ def list_all_titles(request):
 @titles_router.get("/{slug}", response=TitleDetailSchema)
 @decorate_view(cache_control(no_cache=True))
 def get_title(request, slug: str):
+    title = get_object_or_404(_detail_qs(), slug=slug)
+    return _serialize_title_detail(title)
+
+
+@titles_router.patch(
+    "/{slug}/claims/",
+    auth=django_auth,
+    response=TitleDetailSchema,
+    tags=["private"],
+)
+def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
+    """Assert title-owned claims and return the refreshed title detail."""
     from ..models import Title
+    from ..resolve._relationships import resolve_all_title_abbreviations
+
+    if not data.fields and data.abbreviations is None:
+        raise HttpError(422, "No changes provided.")
 
     title = get_object_or_404(
-        Title.objects.prefetch_related(
-            _title_models_prefetch(),
-            "series",
-            "abbreviations",
-            _claims_prefetch(),
-        ),
-        slug=slug,
+        Title.objects.prefetch_related("abbreviations"), slug=slug
     )
+    specs = validate_scalar_fields(Title, data.fields)
+
+    resolvers = []
+    if data.abbreviations is not None:
+        abbreviation_specs = plan_title_abbreviation_claims(title, data.abbreviations)
+        specs.extend(abbreviation_specs)
+        if abbreviation_specs:
+            resolvers.append(
+                lambda: resolve_all_title_abbreviations([title], title_ids={title.pk})
+            )
+
+    if not specs:
+        raise HttpError(422, "No changes provided.")
+
+    execute_claims(title, specs, user=request.user, note=data.note, resolvers=resolvers)
+
+    title = get_object_or_404(_detail_qs(), slug=title.slug)
     return _serialize_title_detail(title)

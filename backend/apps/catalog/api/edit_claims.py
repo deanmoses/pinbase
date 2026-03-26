@@ -45,6 +45,14 @@ def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
 
     specs: list[ClaimSpec] = []
     for field_name, value in fields.items():
+        field = model_class._meta.get_field(field_name)
+        # Claim.value is NOT NULL; store allowed clears as "" and let the
+        # resolver coerce that sentinel back to None/blank based on field
+        # metadata. Required fields must reject clears up front.
+        if value is None:
+            if not (field.null or getattr(field, "blank", False)):
+                raise HttpError(422, f"Field '{field_name}' cannot be cleared.")
+            value = ""
         try:
             value = prepare_markdown_claim_value(field_name, value, model_class)
         except ValidationError as exc:

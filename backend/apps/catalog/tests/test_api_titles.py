@@ -66,6 +66,7 @@ class TestTitlesAPI:
         data = resp.json()
         assert data["name"] == "Medieval Madness"
         assert len(data["machines"]) == 2
+        assert data["activity"] == []
 
     def test_get_title_detail_excludes_variants(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
@@ -94,6 +95,11 @@ class TestTitlesAPI:
     def test_get_title_404(self, client, db):
         resp = client.get("/api/titles/nonexistent")
         assert resp.status_code == 404
+
+    def test_get_title_detail_includes_activity(self, client, title):
+        resp = client.get(f"/api/titles/{title.slug}")
+        assert resp.status_code == 200
+        assert "activity" in resp.json()
 
 
 class TestTitlesAllFacets:

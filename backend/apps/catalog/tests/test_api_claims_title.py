@@ -1,0 +1,237 @@
+"""Tests for PATCH /api/titles/{slug}/claims/."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+from django.contrib.auth import get_user_model
+
+from apps.catalog.claims import build_relationship_claim
+from apps.catalog.models import Franchise, Title
+from apps.catalog.resolve import resolve_all_entities
+from apps.catalog.resolve._relationships import resolve_all_title_abbreviations
+from apps.provenance.models import ChangeSet, Claim, Source
+
+User = get_user_model()
+
+
+@pytest.fixture
+def user(db):
+    return User.objects.create_user(username="editor", password="testpass")  # pragma: allowlist secret  # fmt: skip
+
+
+@pytest.fixture
+def title(db):
+    return Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
+
+
+@pytest.fixture
+def franchise(db):
+    return Franchise.objects.create(name="Castle Games")
+
+
+@pytest.fixture
+def other_franchise(db):
+    return Franchise.objects.create(name="Remake Line")
+
+
+@pytest.fixture
+def source(db):
+    return Source.objects.create(
+        name="IPDB", slug="ipdb", source_type="database", priority=10
+    )
+
+
+def _patch(client, slug: str, body: dict):
+    return client.patch(
+        f"/api/titles/{slug}/claims/",
+        data=json.dumps(body),
+        content_type="application/json",
+    )
+
+
+def _assert_title_abbreviations(
+    title: Title, source: Source, values: list[str]
+) -> None:
+    for value in values:
+        claim_key, claim_value = build_relationship_claim(
+            "abbreviation", {"value": value}
+        )
+        Claim.objects.assert_claim(
+            title,
+            "abbreviation",
+            claim_value,
+            source=source,
+            claim_key=claim_key,
+        )
+    resolve_all_entities(Title, object_ids={title.pk})
+    resolve_all_title_abbreviations([title], title_ids={title.pk})
+
+
+@pytest.mark.django_db
+class TestPatchTitleClaims:
+    def test_anonymous_gets_401(self, client, title):
+        resp = _patch(client, title.slug, {"fields": {"description": "Updated"}})
+        assert resp.status_code in (401, 403)
+
+    def test_nonexistent_slug_returns_404(self, client, user):
+        client.force_login(user)
+        resp = _patch(client, "does-not-exist", {"fields": {"name": "Updated"}})
+        assert resp.status_code == 404
+
+    def test_unknown_field_returns_422(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(client, title.slug, {"fields": {"series": ["nope"]}})
+        assert resp.status_code == 422
+
+    def test_invalid_markdown_link_returns_422(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            title.slug,
+            {"fields": {"description": "Links to [[system:nope]]."}},
+        )
+        assert resp.status_code == 422
+        assert "nope" in resp.json()["detail"].lower()
+
+    def test_empty_changes_returns_422(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(client, title.slug, {"fields": {}})
+        assert resp.status_code == 422
+
+    def test_scalar_edit_updates_title_and_returns_activity(
+        self, client, user, title, franchise
+    ):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            title.slug,
+            {
+                "fields": {
+                    "name": "Medieval Madness Remastered",
+                    "description": "Updated title copy",
+                    "franchise": franchise.slug,
+                }
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Medieval Madness Remastered"
+        assert data["description"]["text"] == "Updated title copy"
+        assert data["franchise"]["slug"] == franchise.slug
+        assert any(
+            claim["field_name"] == "description" and claim["is_winner"]
+            for claim in data["activity"]
+        )
+
+        title.refresh_from_db()
+        assert title.name == "Medieval Madness Remastered"
+        assert title.description == "Updated title copy"
+        assert title.franchise == franchise
+
+    def test_franchise_can_be_changed_and_cleared(
+        self, client, user, title, franchise, other_franchise
+    ):
+        client.force_login(user)
+
+        resp = _patch(
+            client,
+            title.slug,
+            {"fields": {"franchise": franchise.slug}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["franchise"]["slug"] == franchise.slug
+
+        resp = _patch(
+            client,
+            title.slug,
+            {"fields": {"franchise": other_franchise.slug}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["franchise"]["slug"] == other_franchise.slug
+
+        resp = _patch(
+            client,
+            title.slug,
+            {"fields": {"franchise": None}},
+        )
+        assert resp.status_code == 200, resp.json()
+        assert resp.json()["franchise"] is None
+
+    def test_abbreviations_can_be_added(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            title.slug,
+            {"abbreviations": ["MM", "MMR"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["abbreviations"] == ["MM", "MMR"]
+
+    def test_abbreviations_can_be_removed(self, client, user, title, source):
+        _assert_title_abbreviations(title, source, ["MM", "MMR"])
+        client.force_login(user)
+
+        resp = _patch(
+            client,
+            title.slug,
+            {"abbreviations": ["MMR"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["abbreviations"] == ["MMR"]
+
+    def test_abbreviations_can_be_replaced_atomically(
+        self, client, user, title, source
+    ):
+        _assert_title_abbreviations(title, source, ["MM", "TAF"])
+        client.force_login(user)
+
+        resp = _patch(
+            client,
+            title.slug,
+            {"abbreviations": ["MM", "CC"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["abbreviations"] == ["CC", "MM"]
+
+    def test_scalar_and_abbreviation_edits_share_one_changeset(
+        self, client, user, title
+    ):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            title.slug,
+            {
+                "fields": {"description": "Fresh copy"},
+                "abbreviations": ["MM", "MMR"],
+                "note": "Grouped title edit",
+            },
+        )
+        assert resp.status_code == 200
+
+        assert ChangeSet.objects.count() == 1
+        changeset = ChangeSet.objects.get()
+        assert changeset.note == "Grouped title edit"
+        assert changeset.claims.count() == 3
+        assert {claim.field_name for claim in changeset.claims.all()} == {
+            "description",
+            "abbreviation",
+        }
+
+    def test_changeset_note_is_returned_in_activity(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            title.slug,
+            {
+                "fields": {"description": "Updated"},
+                "abbreviations": ["MM"],
+                "note": "Editorial cleanup",
+            },
+        )
+        assert resp.status_code == 200
+        assert any(
+            claim["changeset_note"] == "Editorial cleanup"
+            for claim in resp.json()["activity"]
+        )
