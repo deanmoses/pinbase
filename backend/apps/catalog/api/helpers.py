@@ -27,6 +27,7 @@ def _build_activity(active_claims) -> list[dict]:
                 "citation": claim.citation,
                 "created_at": claim.created_at.isoformat(),
                 "is_winner": is_winner,
+                "changeset_note": claim.changeset.note if claim.changeset else None,
             }
         )
     activity.sort(key=lambda c: c["created_at"], reverse=True)
@@ -41,7 +42,7 @@ def _claims_prefetch(to_attr: str = "active_claims"):
         "claims",
         queryset=Claim.objects.filter(is_active=True)
         .exclude(source__is_enabled=False)
-        .select_related("source", "user")
+        .select_related("source", "user", "changeset")
         .annotate(
             effective_priority=Case(
                 When(source__isnull=False, then=F("source__priority")),

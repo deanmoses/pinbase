@@ -1,14 +1,22 @@
-"""Gameplay features router — list and detail endpoints."""
+"""Gameplay features router — list, detail, and claims endpoints."""
 
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
+from ninja.errors import HttpError
+from ninja.security import django_auth
 
-from .helpers import _build_rich_text, _claims_prefetch
-from .schemas import GameplayFeatureSchema, RichTextSchema
+from .helpers import _build_activity, _build_rich_text, _claims_prefetch
+from .schemas import (
+    ClaimSchema,
+    GameplayFeatureClaimPatchSchema,
+    GameplayFeatureSchema,
+    RichTextSchema,
+)
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -29,6 +37,47 @@ class GameplayFeatureDetailSchema(Schema):
     aliases: list[str] = []
     parents: list[GameplayFeatureSchema] = []
     children: list[GameplayFeatureSchema] = []
+    activity: list[ClaimSchema] = []
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _detail_qs():
+    from ..models import GameplayFeature
+
+    return GameplayFeature.objects.prefetch_related(
+        "parents", "children", "aliases", _claims_prefetch()
+    )
+
+
+def _normalize(s: str) -> str:
+    s = s.lower().replace("-", "").replace(" ", "")
+    if s.endswith("s"):
+        s = s[:-1]
+    return s
+
+
+def _serialize_detail(feature) -> dict:
+    canonical_norm = _normalize(feature.name)
+    display_aliases = [
+        a.value for a in feature.aliases.all() if _normalize(a.value) != canonical_norm
+    ]
+    return {
+        "name": feature.name,
+        "slug": feature.slug,
+        "description": _build_rich_text(
+            feature, "description", getattr(feature, "active_claims", [])
+        ),
+        "aliases": display_aliases,
+        "parents": [{"name": p.name, "slug": p.slug} for p in feature.parents.all()],
+        "children": [
+            {"name": c.name, "slug": c.slug} for c in feature.children.order_by("name")
+        ],
+        "activity": _build_activity(getattr(feature, "active_claims", [])),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -91,36 +140,61 @@ def list_gameplay_features(request):
 @gameplay_features_router.get("/{slug}", response=GameplayFeatureDetailSchema)
 @decorate_view(cache_control(public=True, max_age=300))
 def get_gameplay_feature(request, slug: str):
+    feature = get_object_or_404(_detail_qs(), slug=slug)
+    return _serialize_detail(feature)
+
+
+@gameplay_features_router.patch(
+    "/{slug}/claims/",
+    auth=django_auth,
+    response=GameplayFeatureDetailSchema,
+    tags=["private"],
+)
+def patch_gameplay_feature_claims(
+    request, slug: str, data: GameplayFeatureClaimPatchSchema
+):
+    """Assert per-field claims from the authenticated user, then re-resolve."""
+    from apps.core.markdown_links import prepare_markdown_claim_value
+    from apps.core.models import get_claim_fields
+    from apps.provenance.models import ChangeSet, Claim
+
+    from ..cache import invalidate_all
     from ..models import GameplayFeature
+    from ..resolve import resolve_entity
 
-    feature = get_object_or_404(
-        GameplayFeature.objects.prefetch_related(
-            "parents", "children", "aliases", _claims_prefetch()
-        ),
-        slug=slug,
-    )
+    editable_fields = set(get_claim_fields(GameplayFeature))
+    unknown = set(data.fields.keys()) - editable_fields
+    if unknown:
+        raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
 
-    # Display-worthy aliases: exclude those that normalize to the canonical name.
-    def _normalize(s: str) -> str:
-        s = s.lower().replace("-", "").replace(" ", "")
-        if s.endswith("s"):
-            s = s[:-1]
-        return s
+    if not data.fields:
+        raise HttpError(422, "No fields provided.")
 
-    canonical_norm = _normalize(feature.name)
-    display_aliases = [
-        a.value for a in feature.aliases.all() if _normalize(a.value) != canonical_norm
-    ]
+    feature = get_object_or_404(GameplayFeature, slug=slug)
 
-    return {
-        "name": feature.name,
-        "slug": feature.slug,
-        "description": _build_rich_text(
-            feature, "description", getattr(feature, "active_claims", [])
-        ),
-        "aliases": display_aliases,
-        "parents": [{"name": p.name, "slug": p.slug} for p in feature.parents.all()],
-        "children": [
-            {"name": c.name, "slug": c.slug} for c in feature.children.order_by("name")
-        ],
-    }
+    # Validate all fields before creating any claims or changeset.
+    prepared: dict[str, object] = {}
+    for field_name, value in data.fields.items():
+        try:
+            prepared[field_name] = prepare_markdown_claim_value(
+                field_name, value, GameplayFeature
+            )
+        except ValidationError as exc:
+            raise HttpError(422, "; ".join(exc.messages)) from exc
+
+    from django.db import transaction
+
+    with transaction.atomic():
+        cs = ChangeSet.objects.create(user=request.user, note=data.note)
+
+        for field_name, value in prepared.items():
+            Claim.objects.assert_claim(
+                feature, field_name, value, user=request.user, changeset=cs
+            )
+
+        resolve_entity(feature)
+
+    invalidate_all()
+
+    feature = get_object_or_404(_detail_qs(), slug=feature.slug)
+    return _serialize_detail(feature)

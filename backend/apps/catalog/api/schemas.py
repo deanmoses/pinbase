@@ -23,10 +23,16 @@ class ClaimSchema(Schema):
     citation: str
     created_at: str
     is_winner: bool
+    changeset_note: Optional[str] = None
 
 
 class ClaimPatchSchema(Schema):
     fields: dict[str, Any]
+
+
+class GameplayFeatureClaimPatchSchema(Schema):
+    fields: dict[str, Any] = {}
+    note: str = ""
 
 
 class AttributionSchema(Schema):
