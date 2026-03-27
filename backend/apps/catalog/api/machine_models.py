@@ -29,10 +29,11 @@ from .helpers import (
 from .schemas import (
     AttributionSchema,
     ChangeSetSchema,
-    ClaimPatchSchema,
     ClaimSchema,
     FranchiseRefSchema,
     GameplayFeatureSchema,
+    ModelClaimPatchSchema,
+    ModelEditOptionsSchema,
     Ref,
     RewardTypeSchema,
     RichTextSchema,
@@ -722,6 +723,50 @@ def list_all_models(request):
     return result
 
 
+@models_router.get("/edit-options/", response=ModelEditOptionsSchema)
+@decorate_view(cache_control(no_cache=True))
+def get_model_edit_options(request):
+    """Return all dropdown options for the MachineModel edit form."""
+    from ..models import (
+        Cabinet,
+        CorporateEntity,
+        DisplaySubtype,
+        DisplayType,
+        GameFormat,
+        GameplayFeature,
+        RewardType,
+        System,
+        Tag,
+        TechnologyGeneration,
+        TechnologySubgeneration,
+        Theme,
+    )
+
+    def _opts(qs):
+        return [{"slug": obj.slug, "label": obj.name} for obj in qs]
+
+    return {
+        "themes": _opts(Theme.objects.order_by("name")),
+        "tags": _opts(Tag.objects.order_by("name")),
+        "reward_types": _opts(RewardType.objects.order_by("display_order", "name")),
+        "gameplay_features": _opts(GameplayFeature.objects.order_by("name")),
+        "technology_generations": _opts(
+            TechnologyGeneration.objects.order_by("display_order", "name")
+        ),
+        "technology_subgenerations": _opts(
+            TechnologySubgeneration.objects.order_by("display_order", "name")
+        ),
+        "display_types": _opts(DisplayType.objects.order_by("display_order", "name")),
+        "display_subtypes": _opts(
+            DisplaySubtype.objects.order_by("display_order", "name")
+        ),
+        "cabinets": _opts(Cabinet.objects.order_by("display_order", "name")),
+        "game_formats": _opts(GameFormat.objects.order_by("display_order", "name")),
+        "systems": _opts(System.objects.order_by("name")),
+        "corporate_entities": _opts(CorporateEntity.objects.order_by("name")),
+    }
+
+
 @models_router.get("/{slug}", response=MachineModelDetailSchema)
 @decorate_view(cache_control(no_cache=True))
 def get_model(request, slug: str):
@@ -735,22 +780,78 @@ def get_model(request, slug: str):
     response=MachineModelDetailSchema,
     tags=["private"],
 )
-def patch_model_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve the model."""
-    from .edit_claims import execute_claims, validate_scalar_fields
+    from .edit_claims import (
+        execute_claims,
+        plan_abbreviation_claims,
+        plan_gameplay_feature_claims,
+        plan_m2m_claims,
+        validate_scalar_fields,
+    )
 
-    from ..models import MachineModel
+    from ..models import MachineModel, RewardType, Tag, Theme
     from ..resolve import resolve_model
 
-    pm = get_object_or_404(MachineModel, slug=slug)
+    pm = get_object_or_404(
+        MachineModel.objects.prefetch_related(
+            "themes",
+            "tags",
+            "reward_types",
+            "machinemodelgameplayfeature_set__gameplayfeature",
+            "abbreviations",
+        ),
+        slug=slug,
+    )
 
     specs = validate_scalar_fields(MachineModel, data.fields)
+
+    if data.themes is not None:
+        specs.extend(
+            plan_m2m_claims(
+                pm,
+                set(data.themes),
+                target_model=Theme,
+                claim_field_name="theme",
+                slug_key="theme_slug",
+                m2m_attr="themes",
+            )
+        )
+    if data.tags is not None:
+        specs.extend(
+            plan_m2m_claims(
+                pm,
+                set(data.tags),
+                target_model=Tag,
+                claim_field_name="tag",
+                slug_key="tag_slug",
+                m2m_attr="tags",
+            )
+        )
+    if data.reward_types is not None:
+        specs.extend(
+            plan_m2m_claims(
+                pm,
+                set(data.reward_types),
+                target_model=RewardType,
+                claim_field_name="reward_type",
+                slug_key="reward_type_slug",
+                m2m_attr="reward_types",
+            )
+        )
+    if data.gameplay_features is not None:
+        specs.extend(plan_gameplay_feature_claims(pm, data.gameplay_features))
+    if data.abbreviations is not None:
+        specs.extend(plan_abbreviation_claims(pm, data.abbreviations))
+
     if not specs:
         raise HttpError(422, "No changes provided.")
 
     # MachineModel uses resolve_model (handles relationship claims + opdb_id
     # conflicts) instead of the generic resolve_entity.
-    execute_claims(pm, specs, user=request.user, resolve_fn=resolve_model)
+    execute_claims(
+        pm, specs, user=request.user, note=data.note, resolve_fn=resolve_model
+    )
 
     pm = get_object_or_404(_model_detail_qs(), slug=slug)
     return _serialize_model_detail(pm)

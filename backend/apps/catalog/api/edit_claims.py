@@ -185,6 +185,177 @@ def plan_alias_claims(
     return specs
 
 
+def plan_m2m_claims(
+    entity,
+    desired_slugs: set[str],
+    *,
+    target_model,
+    claim_field_name: str,
+    slug_key: str,
+    m2m_attr: str,
+) -> list[ClaimSpec]:
+    """Validate and diff a simple slug-set M2M relationship.
+
+    Works for any MachineModel M2M that is resolved by slug (themes, tags,
+    reward_types).  Unlike ``plan_parent_claims``, no hierarchy or cycle
+    checks are needed.
+
+    Raises HttpError 422 on unknown slugs.
+    """
+    from apps.catalog.claims import build_relationship_claim
+
+    if desired_slugs:
+        existing = set(
+            target_model.objects.filter(slug__in=desired_slugs).values_list(
+                "slug", flat=True
+            )
+        )
+        missing = desired_slugs - existing
+        if missing:
+            raise HttpError(422, f"Unknown {claim_field_name} slugs: {sorted(missing)}")
+
+    current_slugs = {obj.slug for obj in getattr(entity, m2m_attr).all()}
+    specs: list[ClaimSpec] = []
+    for slug in desired_slugs - current_slugs:
+        claim_key, value = build_relationship_claim(claim_field_name, {slug_key: slug})
+        specs.append(
+            ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
+        )
+    for slug in current_slugs - desired_slugs:
+        claim_key, value = build_relationship_claim(
+            claim_field_name, {slug_key: slug}, exists=False
+        )
+        specs.append(
+            ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
+        )
+    return specs
+
+
+def plan_gameplay_feature_claims(
+    entity,
+    desired_features: list,
+) -> list[ClaimSpec]:
+    """Validate and diff gameplay features (slug + optional count) on a MachineModel.
+
+    Each entry has a ``slug`` and optional ``count``.  Duplicate slugs in the
+    input are rejected.  Count must be positive if provided.
+
+    Assumes ``entity`` has a ``machinemodelgameplayfeature_set`` reverse
+    relation (i.e., is a MachineModel with that through-table prefetched).
+
+    Raises HttpError 422 on invalid input.
+    """
+    from apps.catalog.claims import build_relationship_claim
+    from apps.catalog.models import GameplayFeature
+
+    # Normalise input into {slug: count} and validate.
+    desired: dict[str, int | None] = {}
+    for feat in desired_features:
+        slug = feat.slug
+        count = feat.count
+        if slug in desired:
+            raise HttpError(422, f"Duplicate gameplay feature slug: {slug!r}")
+        if count is not None and count <= 0:
+            raise HttpError(422, f"Count must be positive for {slug!r}, got {count}")
+        desired[slug] = count
+
+    if desired:
+        existing = set(
+            GameplayFeature.objects.filter(slug__in=desired.keys()).values_list(
+                "slug", flat=True
+            )
+        )
+        missing = set(desired.keys()) - existing
+        if missing:
+            raise HttpError(422, f"Unknown gameplay_feature slugs: {sorted(missing)}")
+
+    # Current state from prefetched through-table.
+    current: dict[str, int | None] = {}
+    for row in entity.machinemodelgameplayfeature_set.all():
+        current[row.gameplayfeature.slug] = row.count
+
+    specs: list[ClaimSpec] = []
+    # Adds and count changes.
+    for slug, count in desired.items():
+        if slug not in current or current[slug] != count:
+            claim_key, value = build_relationship_claim(
+                "gameplay_feature", {"gameplay_feature_slug": slug}
+            )
+            value["count"] = count
+            specs.append(
+                ClaimSpec(
+                    field_name="gameplay_feature",
+                    value=value,
+                    claim_key=claim_key,
+                )
+            )
+    # Removes.
+    for slug in set(current.keys()) - set(desired.keys()):
+        claim_key, value = build_relationship_claim(
+            "gameplay_feature", {"gameplay_feature_slug": slug}, exists=False
+        )
+        specs.append(
+            ClaimSpec(
+                field_name="gameplay_feature",
+                value=value,
+                claim_key=claim_key,
+            )
+        )
+    return specs
+
+
+def plan_abbreviation_claims(
+    entity,
+    desired_values: list[str],
+) -> list[ClaimSpec]:
+    """Validate and diff abbreviation changes.
+
+    Normalises input (strip, deduplicate, drop blanks, enforce max length)
+    and diffs against current abbreviation rows.
+
+    Shared by MachineModel and Title.
+    """
+    from apps.catalog.claims import build_relationship_claim
+
+    desired = set(_normalize_abbreviations(desired_values))
+    current = set(entity.abbreviations.values_list("value", flat=True))
+    specs: list[ClaimSpec] = []
+
+    for value in desired - current:
+        claim_key, claim_value = build_relationship_claim(
+            "abbreviation", {"value": value}
+        )
+        specs.append(
+            ClaimSpec(field_name="abbreviation", value=claim_value, claim_key=claim_key)
+        )
+
+    for value in current - desired:
+        claim_key, claim_value = build_relationship_claim(
+            "abbreviation", {"value": value}, exists=False
+        )
+        specs.append(
+            ClaimSpec(field_name="abbreviation", value=claim_value, claim_key=claim_key)
+        )
+    return specs
+
+
+def _normalize_abbreviations(values: list[str]) -> list[str]:
+    """Strip, deduplicate, drop blanks, enforce max length."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        value = raw_value.strip()
+        if not value:
+            continue
+        if len(value) > 50:
+            raise HttpError(422, "Abbreviations must be 50 characters or fewer.")
+        if value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
 def execute_claims(
     entity,
     specs: list[ClaimSpec],

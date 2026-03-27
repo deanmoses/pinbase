@@ -43,6 +43,41 @@ class CorporateEntityClaimPatchSchema(Schema):
     note: str = ""
 
 
+class GameplayFeatureInput(Schema):
+    slug: str
+    count: int | None = None
+
+
+class ModelClaimPatchSchema(Schema):
+    fields: dict[str, Any] = {}
+    themes: list[str] | None = None
+    tags: list[str] | None = None
+    reward_types: list[str] | None = None
+    gameplay_features: list[GameplayFeatureInput] | None = None
+    abbreviations: list[str] | None = None
+    note: str = ""
+
+
+class EditOptionItem(Schema):
+    slug: str
+    label: str
+
+
+class ModelEditOptionsSchema(Schema):
+    themes: list[EditOptionItem]
+    tags: list[EditOptionItem]
+    reward_types: list[EditOptionItem]
+    gameplay_features: list[EditOptionItem]
+    technology_generations: list[EditOptionItem]
+    technology_subgenerations: list[EditOptionItem]
+    display_types: list[EditOptionItem]
+    display_subtypes: list[EditOptionItem]
+    cabinets: list[EditOptionItem]
+    game_formats: list[EditOptionItem]
+    systems: list[EditOptionItem]
+    corporate_entities: list[EditOptionItem]
+
+
 class AttributionSchema(Schema):
     """License and attribution info for a piece of content (image, description, etc.)."""
 

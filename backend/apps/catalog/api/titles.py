@@ -14,7 +14,11 @@ from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
 from .constants import DEFAULT_PAGE_SIZE
-from .edit_claims import ClaimSpec, execute_claims, validate_scalar_fields
+from .edit_claims import (
+    execute_claims,
+    plan_abbreviation_claims,
+    validate_scalar_fields,
+)
 from .helpers import (
     _build_activity,
     _build_edit_history,
@@ -474,49 +478,6 @@ def _detail_qs():
     )
 
 
-def _normalize_abbreviations(values: list[str]) -> list[str]:
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for raw_value in values:
-        value = raw_value.strip()
-        if not value:
-            continue
-        if len(value) > 50:
-            raise HttpError(422, "Abbreviations must be 50 characters or fewer.")
-        if value in seen:
-            continue
-        seen.add(value)
-        normalized.append(value)
-    return normalized
-
-
-def plan_title_abbreviation_claims(title, desired_values: list[str]) -> list[ClaimSpec]:
-    """Diff title abbreviations and return relationship ClaimSpecs."""
-    from apps.catalog.claims import build_relationship_claim
-
-    desired = set(_normalize_abbreviations(desired_values))
-    current = set(title.abbreviations.values_list("value", flat=True))
-    specs: list[ClaimSpec] = []
-
-    for value in desired - current:
-        claim_key, claim_value = build_relationship_claim(
-            "abbreviation", {"value": value}
-        )
-        specs.append(
-            ClaimSpec(field_name="abbreviation", value=claim_value, claim_key=claim_key)
-        )
-
-    for value in current - desired:
-        claim_key, claim_value = build_relationship_claim(
-            "abbreviation", {"value": value}, exists=False
-        )
-        specs.append(
-            ClaimSpec(field_name="abbreviation", value=claim_value, claim_key=claim_key)
-        )
-
-    return specs
-
-
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -603,7 +564,7 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
 
     resolvers = []
     if data.abbreviations is not None:
-        abbreviation_specs = plan_title_abbreviation_claims(title, data.abbreviations)
+        abbreviation_specs = plan_abbreviation_claims(title, data.abbreviations)
         specs.extend(abbreviation_specs)
         if abbreviation_specs:
             resolvers.append(
