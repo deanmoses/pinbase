@@ -50,7 +50,9 @@ class Series(Linkable, TimeStampedModel):
 
     link_url_pattern = "/series/{slug}"
 
-    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
+    name = models.CharField(
+        max_length=200, validators=[validate_no_mojibake], unique=True
+    )
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
     titles = models.ManyToManyField(

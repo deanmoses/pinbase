@@ -134,6 +134,19 @@ def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
                     validator(typed)
                 except ValidationError as exc:
                     raise HttpError(422, "; ".join(exc.messages)) from exc
+        # Reject name values that collide with existing alias values.
+        if field_name == "name" and value != "":
+            name_field_obj = model_class._meta.get_field("name")
+            if name_field_obj.unique:
+                alias_rel = getattr(model_class, "aliases", None)
+                if alias_rel is not None:
+                    alias_model = alias_rel.rel.related_model
+                    if alias_model.objects.filter(value__iexact=str(value)).exists():
+                        raise HttpError(
+                            422,
+                            f"Name '{value}' conflicts with an existing"
+                            f" {alias_model._meta.verbose_name} value.",
+                        )
         specs.append(ClaimSpec(field_name=field_name, value=value))
     return specs
 
@@ -235,6 +248,25 @@ def plan_alias_claims(
         val = raw.strip()
         if val:
             desired[val.lower()] = val
+
+    # Reject aliases that collide with an existing entity name.
+    parent_model = type(entity)
+    name_field = parent_model._meta.get_field("name")
+    if name_field.unique and desired:
+        from django.db.models.functions import Lower
+
+        existing_names = set(
+            parent_model.objects.annotate(lower_name=Lower("name")).values_list(
+                "lower_name", flat=True
+            )
+        )
+        for lower_val, display in desired.items():
+            if lower_val in existing_names:
+                raise HttpError(
+                    422,
+                    f"Alias '{display}' conflicts with an existing"
+                    f" {parent_model._meta.verbose_name} name.",
+                )
 
     current: dict[str, str] = {}  # lowercase → stored display string
     for a in entity.aliases.all():

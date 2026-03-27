@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from django.db.models.functions import Lower
+
 from apps.provenance.models import Claim
 
 from ._helpers import _annotate_priority
@@ -633,6 +635,15 @@ def _resolve_aliases(
 
     # Build desired aliases per parent: {lower_val → display_val}.
     # alias_display (original case) is preferred; falls back to alias_value.
+    #
+    # Skip aliases that collide with any name in the parent model (case-insensitive)
+    # to preserve the uniqueness of the combined name+alias namespace.
+    name_field = parent_model._meta.get_field("name")
+    if name_field.unique:
+        existing_names = set(parent_model.objects.values_list(Lower("name"), flat=True))
+    else:
+        existing_names = set()
+
     desired_by_parent: dict[int, dict[str, str]] = {}
     for parent_id, claims_list in winners_by_parent.items():
         desired: dict[str, str] = {}
@@ -642,6 +653,14 @@ def _resolve_aliases(
                 continue
             alias_val = val.get("alias_value", "")
             if alias_val:
+                if alias_val in existing_names:
+                    logger.warning(
+                        "Skipping alias %r on %s pk=%s: collides with an existing name",
+                        alias_val,
+                        parent_model.__name__,
+                        parent_id,
+                    )
+                    continue
                 display = val.get("alias_display") or alias_val
                 desired[alias_val] = display  # alias_val is already lowercase
         desired_by_parent[parent_id] = desired

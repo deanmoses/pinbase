@@ -15,6 +15,7 @@ from apps.core.models import (
     MarkdownField,
     TimeStampedModel,
     unique_slug,
+    validate_name_not_alias,
 )
 
 __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeature"]
@@ -49,6 +50,10 @@ class GameplayFeature(Linkable, TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+    def clean(self):
+        super().clean()
+        validate_name_not_alias(self)
 
     def save(self, *args, **kwargs):
         if not self.slug:

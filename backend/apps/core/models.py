@@ -41,6 +41,51 @@ class AliasBase(TimeStampedModel):
     def __str__(self) -> str:
         return self.value
 
+    def _get_parent_model(self) -> type[models.Model] | None:
+        """Return the parent model class by introspecting our FK fields."""
+        for f in self._meta.get_fields():
+            if isinstance(f, models.ForeignKey) and f.related_model is not type(self):
+                return f.related_model
+        return None
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        super().clean()
+        parent_model = self._get_parent_model()
+        if parent_model is None:
+            return
+        name_field = parent_model._meta.get_field("name")
+        if not name_field.unique:
+            return
+        if parent_model.objects.filter(name__iexact=self.value).exists():
+            raise ValidationError(
+                {
+                    "value": f"This alias conflicts with an existing {parent_model._meta.verbose_name} name."
+                }
+            )
+
+
+def validate_name_not_alias(instance) -> None:
+    """Raise ValidationError if instance.name collides with an alias value.
+
+    Call from ``clean()`` on any model whose ``aliases`` reverse relation
+    points to an AliasBase subclass.  Only checks models with ``unique=True``
+    on ``name``.
+    """
+    from django.core.exceptions import ValidationError
+
+    alias_rel = getattr(type(instance), "aliases", None)
+    if alias_rel is None:
+        return
+    alias_model = alias_rel.rel.related_model
+    if alias_model.objects.filter(value__iexact=instance.name).exists():
+        raise ValidationError(
+            {
+                "name": f"This name conflicts with an existing {alias_model._meta.verbose_name} value."
+            }
+        )
+
 
 class License(TimeStampedModel):
     """A content license (e.g., Creative Commons, GFDL, or a policy status).
