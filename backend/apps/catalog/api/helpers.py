@@ -305,6 +305,20 @@ def _location_ancestors(loc) -> list[dict]:
     return ancestors
 
 
+def _serialize_locations(entity) -> list[dict]:
+    """Serialize CorporateEntityLocation rows with ancestor chains."""
+    return [
+        {
+            "location_path": cel.location.location_path,
+            "location_type": cel.location.location_type,
+            "display_name": cel.location.short_name or cel.location.name,
+            "slug": cel.location.slug,
+            "ancestors": _location_ancestors(cel.location),
+        }
+        for cel in entity.locations.all()
+    ]
+
+
 def _extract_variant_features(extra_data: dict) -> list[str]:
     """Return variant feature list from extra_data variant_features claim."""
     features = extra_data.get("opdb.variant_features")

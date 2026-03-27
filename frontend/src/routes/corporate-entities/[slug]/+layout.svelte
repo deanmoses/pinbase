@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
+	import { formatYearRange } from '$lib/utils';
 	import { auth } from '$lib/auth.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import AttributionLine from '$lib/components/AttributionLine.svelte';
@@ -20,12 +21,7 @@
 		auth.load();
 	});
 
-	let yearsActive = $derived.by(() => {
-		if (ce.year_start && ce.year_end) return `${ce.year_start}–${ce.year_end}`;
-		if (ce.year_start) return `${ce.year_start}–present`;
-		if (ce.year_end) return `–${ce.year_end}`;
-		return null;
-	});
+	let yearsActive = $derived(formatYearRange(ce.year_start, ce.year_end));
 
 	let isDetail = $derived(
 		!page.url.pathname.endsWith('/edit') &&

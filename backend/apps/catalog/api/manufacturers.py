@@ -24,7 +24,7 @@ from .helpers import (
     _claims_prefetch,
     _collect_titles,
     _extract_image_urls,
-    _location_ancestors,
+    _serialize_locations,
 )
 from .schemas import (
     ChangeSetSchema,
@@ -166,16 +166,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
                 "slug": e.slug,
                 "year_start": e.year_start,
                 "year_end": e.year_end,
-                "locations": [
-                    {
-                        "location_path": cel.location.location_path,
-                        "location_type": cel.location.location_type,
-                        "display_name": cel.location.short_name or cel.location.name,
-                        "slug": cel.location.slug,
-                        "ancestors": _location_ancestors(cel.location),
-                    }
-                    for cel in e.locations.all()
-                ],
+                "locations": _serialize_locations(e),
             }
             for e in mfr.entities.all()
         ],

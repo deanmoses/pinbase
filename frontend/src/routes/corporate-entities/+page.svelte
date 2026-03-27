@@ -3,18 +3,12 @@
 	import client from '$lib/api/client';
 	import { createAsyncLoader } from '$lib/async-loader.svelte';
 	import { pageTitle } from '$lib/constants';
+	import { formatYearRange } from '$lib/utils';
 
 	const entities = createAsyncLoader(async () => {
 		const { data } = await client.GET('/api/corporate-entities/');
 		return data ?? [];
 	}, []);
-
-	function yearsLabel(e: { year_start?: number | null; year_end?: number | null }): string {
-		if (e.year_start && e.year_end) return `${e.year_start}–${e.year_end}`;
-		if (e.year_start) return `${e.year_start}–present`;
-		if (e.year_end) return `–${e.year_end}`;
-		return '';
-	}
 </script>
 
 <svelte:head>
@@ -40,8 +34,8 @@
 						<span class="entity-name">{entity.name}</span>
 						<span class="entity-meta">
 							<span class="manufacturer">{entity.manufacturer.name}</span>
-							{#if yearsLabel(entity)}
-								<span class="years">{yearsLabel(entity)}</span>
+							{#if formatYearRange(entity.year_start, entity.year_end)}
+								<span class="years">{formatYearRange(entity.year_start, entity.year_end)}</span>
 							{/if}
 							<span class="count">
 								{entity.model_count} model{entity.model_count === 1 ? '' : 's'}

@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
-	import { resolveHref } from '$lib/utils';
+	import { formatYearRange, resolveHref } from '$lib/utils';
 	import { auth } from '$lib/auth.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import ExpandableSidebarList from '$lib/components/ExpandableSidebarList.svelte';
@@ -20,12 +20,7 @@
 	let mfr = $derived(data.manufacturer);
 	let slug = $derived(page.params.slug);
 
-	let yearsActive = $derived.by(() => {
-		if (mfr.year_start && mfr.year_end) return `${mfr.year_start}–${mfr.year_end}`;
-		if (mfr.year_start) return `${mfr.year_start}–present`;
-		if (mfr.year_end) return `–${mfr.year_end}`;
-		return null;
-	});
+	let yearsActive = $derived(formatYearRange(mfr.year_start, mfr.year_end));
 
 	$effect(() => {
 		auth.load();
@@ -107,15 +102,9 @@
 									<a href={resolve(`/corporate-entities/${entity.slug}`)} class="entity-name"
 										>{entity.name}</a
 									>
-									{#if entity.year_start || entity.year_end}
+									{#if formatYearRange(entity.year_start, entity.year_end)}
 										<span class="muted">
-											{#if entity.year_start && entity.year_end}
-												{entity.year_start}–{entity.year_end}
-											{:else if entity.year_start}
-												{entity.year_start}–present
-											{:else if entity.year_end}
-												–{entity.year_end}
-											{/if}
+											{formatYearRange(entity.year_start, entity.year_end)}
 										</span>
 									{/if}
 									{#each entity.locations as loc, i (i)}

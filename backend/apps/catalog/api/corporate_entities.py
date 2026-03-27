@@ -19,7 +19,7 @@ from .helpers import (
     _build_rich_text,
     _claims_prefetch,
     _collect_titles,
-    _location_ancestors,
+    _serialize_locations,
 )
 from .manufacturers import CorporateEntityLocationSchema
 from .schemas import (
@@ -66,20 +66,6 @@ class CorporateEntityDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _serialize_locations(entity) -> list[dict]:
-    """Serialize CorporateEntityLocation rows with ancestor chains."""
-    return [
-        {
-            "location_path": cel.location.location_path,
-            "location_type": cel.location.location_type,
-            "display_name": cel.location.short_name or cel.location.name,
-            "slug": cel.location.slug,
-            "ancestors": _location_ancestors(cel.location),
-        }
-        for cel in entity.locations.all()
-    ]
 
 
 def _detail_qs():
