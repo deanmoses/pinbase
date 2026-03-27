@@ -179,12 +179,10 @@ class TestModelsAPI:
         conv = MachineModel.objects.create(
             name="Dark Rider",
             slug="dark-rider",
-            is_conversion=True,
             converted_from=source,
         )
         resp = client.get(f"/api/models/{conv.slug}")
         data = resp.json()
-        assert data["is_conversion"] is True
         assert data["converted_from"]["name"] == "Star Trek"
         assert data["converted_from"]["slug"] == "star-trek"
         assert data["converted_from"]["year"] == 1991
@@ -197,7 +195,6 @@ class TestModelsAPI:
         MachineModel.objects.create(
             name="Dark Rider",
             slug="dark-rider",
-            is_conversion=True,
             converted_from=source,
         )
         resp = client.get(f"/api/models/{source.slug}")
@@ -214,12 +211,34 @@ class TestModelsAPI:
         MachineModel.objects.create(
             name="Dark Rider",
             slug="dark-rider",
-            is_conversion=True,
             converted_from=source,
         )
         resp = client.get("/api/models/")
         data = resp.json()
         names = [m["name"] for m in data["items"]]
+        assert "Dark Rider" in names
+        assert "Star Trek" in names
+
+    def test_conversion_with_variant_of_appears_in_list(self, client, db):
+        """A conversion that is also a variant of another conversion still appears."""
+        source = MachineModel.objects.create(
+            name="Star Trek", slug="star-trek", year=1991
+        )
+        conv_a = MachineModel.objects.create(
+            name="Dark Rider",
+            slug="dark-rider",
+            converted_from=source,
+        )
+        MachineModel.objects.create(
+            name="Dark Rider LE",
+            slug="dark-rider-le",
+            converted_from=source,
+            variant_of=conv_a,
+        )
+        resp = client.get("/api/models/")
+        data = resp.json()
+        names = [m["name"] for m in data["items"]]
+        assert "Dark Rider LE" in names
         assert "Dark Rider" in names
         assert "Star Trek" in names
 

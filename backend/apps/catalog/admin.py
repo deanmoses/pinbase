@@ -499,7 +499,6 @@ class MachineModelAdmin(ProvenanceSaveMixin, admin.ModelAdmin):
                     "title",
                     "variant_of",
                     "converted_from",
-                    "is_conversion",
                     "year",
                     "month",
                 ),

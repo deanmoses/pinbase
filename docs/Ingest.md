@@ -73,7 +73,7 @@ OPDB's `features` array uses a unified single-pass classification with priority 
 2. Gameplay feature vocabulary
 3. Tag vocabulary
 4. Cabinet vocabulary
-5. `is_conversion` detection: "Conversion kit" or "Converted game" → sets `is_conversion = True` claim
+5. "Conversion kit" and "Converted game" terms are silently skipped (conversion status is determined by the `converted_from` FK)
 
 Terms in `_KNOWN_OPDB_VARIANT_LABELS` (LE, SE, Premium, Pro, etc.) are silently skipped. Any other unmatched term appears in the unmatched-term warning.
 

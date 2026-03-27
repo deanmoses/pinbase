@@ -97,21 +97,6 @@ class TestNamelessEntities:
         assert "person(s) have no name" in captured.out
 
 
-class TestConversionVariantConflict:
-    def test_conversion_with_variant_of_is_error(self, db, capsys):
-        parent = MachineModel.objects.create(name="Parent", slug="parent")
-        MachineModel.objects.create(
-            name="Child",
-            slug="child",
-            is_conversion=True,
-            variant_of=parent,
-        )
-        with pytest.raises(SystemExit, match="1"):
-            call_command("validate_catalog")
-        captured = capsys.readouterr()
-        assert "is_conversion=True and variant_of" in captured.out
-
-
 class TestVariantChains:
     def test_variant_chain_is_warning(self, db, capsys):
         root = MachineModel.objects.create(name="Root", slug="root")
@@ -356,7 +341,6 @@ class TestGoldenRecords:
         MachineModel.objects.create(
             name="Challenger",
             slug="challenger",
-            is_conversion=True,
             converted_from=parent,
         )
         golden_file(
@@ -365,7 +349,6 @@ class TestGoldenRecords:
                     {
                         "slug": "challenger",
                         "expect": {
-                            "is_conversion": True,
                             "converted_from_slug": "eight-ball",
                             "variant_of_slug": None,
                         },

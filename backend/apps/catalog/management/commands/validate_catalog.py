@@ -134,22 +134,6 @@ def check_nameless_persons(result: ValidationResult) -> None:
             result.error(f"  pk={p.pk} slug={p.slug!r}")
 
 
-def check_conversion_variant_conflict(result: ValidationResult) -> None:
-    """If is_conversion=True, variant_of must be null (and vice versa is a warning)."""
-    conflicts = MachineModel.objects.filter(
-        is_conversion=True, variant_of__isnull=False
-    )
-    count = conflicts.count()
-    if count:
-        result.error(
-            f"{count} model(s) have both is_conversion=True and variant_of set"
-        )
-        for pm in conflicts[:10]:
-            result.error(
-                f"  {pm.name!r} (pk={pm.pk}) variant_of={pm.variant_of.slug!r}"
-            )
-
-
 def check_self_referential_variant(result: ValidationResult) -> None:
     """variant_of and converted_from must not point to self."""
     self_variant = MachineModel.objects.filter(variant_of=models_F("pk"))
@@ -558,7 +542,6 @@ ALL_CHECKS = [
     check_nameless_models,
     check_nameless_titles,
     check_nameless_persons,
-    check_conversion_variant_conflict,
     check_self_referential_variant,
     check_variant_chains,
     check_duplicate_persons,

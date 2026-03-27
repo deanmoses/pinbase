@@ -1585,10 +1585,8 @@ class Command(BaseCommand):
         "description": "description",
         "ipdb_id": "ipdb_id",
         "opdb_id": "opdb_id",
-        "is_conversion": "is_conversion",
         "converted_from": "converted_from",
         "variant_of": "variant_of",
-        "is_remake": "is_remake",
         "remake_of": "remake_of",
     }
 
@@ -1727,10 +1725,6 @@ class Command(BaseCommand):
 
             matched += 1
             matched_pks.add(mm.pk)
-
-            # Infer is_remake from remake_of presence.
-            if entry.get("remake_of"):
-                entry.setdefault("is_remake", True)
 
             for claim_field, json_key in self.MODEL_CLAIM_FIELDS.items():
                 value = entry.get(json_key)

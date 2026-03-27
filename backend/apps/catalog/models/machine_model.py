@@ -59,10 +59,6 @@ class MachineModel(Linkable, TimeStampedModel):
         blank=True,
         help_text="Source machine if this is a conversion/retheme (resolved from claims).",
     )
-    is_conversion = models.BooleanField(
-        default=False,
-        help_text="True if this machine is a conversion/retheme (resolved from claims).",
-    )
     remake_of = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -70,10 +66,6 @@ class MachineModel(Linkable, TimeStampedModel):
         null=True,
         blank=True,
         help_text="Original model if this is a remake (resolved from claims).",
-    )
-    is_remake = models.BooleanField(
-        default=False,
-        help_text="True if this machine is a remake of an earlier model (resolved from claims).",
     )
 
     description = MarkdownField(blank=True)

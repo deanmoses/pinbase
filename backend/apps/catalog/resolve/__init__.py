@@ -96,9 +96,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     )
 
     # Post-resolution guards (single-object only — the bulk path handles
-    # these differently via _resolve_opdb_conflicts and a separate loop).
-    if machine_model.is_conversion and machine_model.variant_of_id is not None:
-        machine_model.variant_of = None
+    # opdb_id conflicts differently via _resolve_opdb_conflicts).
     if machine_model.opdb_id:
         conflict = (
             MachineModel.objects.filter(opdb_id=machine_model.opdb_id)
@@ -222,12 +220,7 @@ def resolve_machine_models(stdout=None) -> int:
         winners = claims_by_model.get(pm.pk, {})
         _apply_resolution(pm, winners, claim_fields, field_defaults, fk_info, sfl_map)
 
-    # 5. Conversions are not variants: clear variant_of on conversion models.
-    for pm in all_models:
-        if pm.is_conversion and pm.variant_of_id is not None:
-            pm.variant_of = None
-
-    # 6. Detect opdb_id conflicts across all resolved models.
+    # 5. Detect opdb_id conflicts across all resolved models.
     _resolve_opdb_conflicts(all_models)
 
     # 7. Set updated_at (auto_now not triggered by bulk_update).

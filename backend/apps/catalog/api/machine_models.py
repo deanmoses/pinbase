@@ -143,10 +143,8 @@ class MachineModelDetailSchema(Schema):
     series: list[SeriesRefSchema] = []
     variant_of: Optional[ModelRefSchema] = None
     variant_siblings: list[VariantSchema] = []
-    is_conversion: bool = False
     converted_from: Optional[ModelRefSchema] = None
     conversions: list[ConversionSchema] = []
-    is_remake: bool = False
     remake_of: Optional[ModelRefSchema] = None
     remakes: list[ConversionSchema] = []
     title_models: list[TitleMachineSchema] = []
@@ -183,7 +181,7 @@ def _build_model_list_qs(
             "title",
         )
         .prefetch_related("themes")
-        .filter(variant_of__isnull=True)
+        .filter(Q(variant_of__isnull=True) | Q(converted_from__isnull=False))
     )
 
     if manufacturer:
@@ -412,7 +410,6 @@ def _serialize_model_detail(pm) -> dict:
             else None
         ),
         "variant_siblings": variant_siblings,
-        "is_conversion": pm.is_conversion,
         "converted_from": (
             {
                 "name": pm.converted_from.name,
@@ -426,7 +423,6 @@ def _serialize_model_detail(pm) -> dict:
             {"name": c.name, "slug": c.slug, "year": c.year}
             for c in pm.conversions.all()
         ],
-        "is_remake": pm.is_remake,
         "remake_of": (
             {
                 "name": pm.remake_of.name,
@@ -519,7 +515,9 @@ def _model_detail_qs():
         "title__series",
         Prefetch(
             "title__machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
+            queryset=MachineModel.objects.filter(
+                Q(variant_of__isnull=True) | Q(converted_from__isnull=False)
+            )
             .select_related("corporate_entity__manufacturer", "technology_generation")
             .prefetch_related("variants")
             .order_by("year", "name"),
@@ -633,7 +631,9 @@ def list_recent_models(request):
     from ..models import MachineModel
 
     qs = (
-        MachineModel.objects.filter(variant_of__isnull=True)
+        MachineModel.objects.filter(
+            Q(variant_of__isnull=True) | Q(converted_from__isnull=False)
+        )
         .select_related("corporate_entity__manufacturer")
         .order_by(
             F("year").desc(nulls_last=True),

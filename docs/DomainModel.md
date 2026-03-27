@@ -57,7 +57,7 @@ The _Cactus Canyon_ Title includes the 1998 original and its remakes by Chicago 
 | Cactus Canyon | Cactus Canyon (Remake LE) | Chicago Gaming | 2021 | Cactus Canyon |
 | Cactus Canyon | Cactus Canyon (Remake SE) | Chicago Gaming | 2021 | Cactus Canyon |
 
-A **remake** is a Model that recreates an older game with new technology. Linked via `remake_of` and flagged with `is_remake`. The original and its remakes all belong to the same Title.
+A **remake** is a Model that recreates an older game with new technology. Linked via `remake_of`. The original and its remakes all belong to the same Title.
 
 ### Conversions
 
@@ -69,7 +69,7 @@ _Star Trek_ (Bally, 1979) was converted into machines by other manufacturers:
 | Star Trek | Challenger V | Professional Pinball | 1981 | Star Trek      |
 | Star Trek | Dark Rider   | Geiger-Automatenbau  | 1985 | Star Trek      |
 
-A **conversion** is a Model that reuses the physical cabinet of another machine with a new playfield or theme. Linked via `converted_from` and flagged with `is_conversion`.
+A **conversion** is a Model that reuses the physical cabinet of another machine with a new playfield or theme. Linked via `converted_from`.
 
 ## Franchises & Series
 
