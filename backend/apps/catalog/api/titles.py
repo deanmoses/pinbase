@@ -17,7 +17,6 @@ from .constants import DEFAULT_PAGE_SIZE
 from .edit_claims import (
     execute_claims,
     plan_abbreviation_claims,
-    validate_scalar_fields,
 )
 from .helpers import (
     _build_activity,
@@ -553,6 +552,7 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     """Assert title-owned claims and return the refreshed title detail."""
     from ..models import Title
     from ..resolve._relationships import resolve_all_title_abbreviations
+    from .edit_claims import plan_scalar_field_claims
 
     if not data.fields and data.abbreviations is None:
         raise HttpError(422, "No changes provided.")
@@ -560,7 +560,7 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     title = get_object_or_404(
         Title.objects.prefetch_related("abbreviations"), slug=slug
     )
-    specs = validate_scalar_fields(Title, data.fields)
+    specs = plan_scalar_field_claims(Title, data.fields) if data.fields else []
 
     resolvers = []
     if data.abbreviations is not None:

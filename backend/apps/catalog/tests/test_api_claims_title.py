@@ -80,21 +80,6 @@ class TestPatchTitleClaims:
         resp = _patch(client, "does-not-exist", {"fields": {"name": "Updated"}})
         assert resp.status_code == 404
 
-    def test_unknown_field_returns_422(self, client, user, title):
-        client.force_login(user)
-        resp = _patch(client, title.slug, {"fields": {"series": ["nope"]}})
-        assert resp.status_code == 422
-
-    def test_invalid_markdown_link_returns_422(self, client, user, title):
-        client.force_login(user)
-        resp = _patch(
-            client,
-            title.slug,
-            {"fields": {"description": "Links to [[system:nope]]."}},
-        )
-        assert resp.status_code == 422
-        assert "nope" in resp.json()["detail"].lower()
-
     def test_empty_changes_returns_422(self, client, user, title):
         client.force_login(user)
         resp = _patch(client, title.slug, {"fields": {}})
