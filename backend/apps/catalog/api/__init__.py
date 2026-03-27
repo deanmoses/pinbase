@@ -5,6 +5,7 @@ franchises, and all taxonomy types.
 Wired into the main NinjaAPI instance in config/api.py.
 """
 
+from .corporate_entities import corporate_entities_router
 from .franchises import franchises_router
 from .gameplay_features import gameplay_features_router
 from .locations import locations_router
@@ -29,6 +30,7 @@ from .titles import titles_router
 
 __all__ = [
     "cabinets_router",
+    "corporate_entities_router",
     "credit_roles_router",
     "display_subtypes_router",
     "display_types_router",

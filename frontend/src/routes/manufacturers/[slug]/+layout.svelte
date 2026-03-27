@@ -104,7 +104,9 @@
 						{#each mfr.entities as entity (entity.slug)}
 							<SidebarListItem>
 								<div class="entity">
-									<span class="entity-name">{entity.name}</span>
+									<a href={resolve(`/corporate-entities/${entity.slug}`)} class="entity-name"
+										>{entity.name}</a
+									>
 									{#if entity.year_start || entity.year_end}
 										<span class="muted">
 											{#if entity.year_start && entity.year_end}
@@ -211,6 +213,12 @@
 
 	.entity-name {
 		font-weight: 500;
+		color: var(--color-text-primary);
+		text-decoration: none;
+	}
+
+	.entity-name:hover {
+		color: var(--color-accent);
 	}
 
 	.muted {

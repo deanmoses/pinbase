@@ -4,6 +4,7 @@ from ninja import NinjaAPI, Schema
 from apps.accounts.api import auth_router
 from apps.catalog.api import (
     cabinets_router,
+    corporate_entities_router,
     credit_roles_router,
     display_subtypes_router,
     display_types_router,
@@ -68,6 +69,7 @@ def health(request):
 
 
 api.add_router("/auth/", auth_router)
+api.add_router("/corporate-entities/", corporate_entities_router)
 api.add_router("/display-types/", display_types_router)
 api.add_router("/technology-generations/", technology_generations_router)
 api.add_router("/models/", models_router)

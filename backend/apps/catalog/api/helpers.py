@@ -261,6 +261,50 @@ def _build_rich_text(obj, field_name: str, active_claims=None) -> dict:
     }
 
 
+def _collect_titles(models, *, include_manufacturer: bool = False) -> list[dict]:
+    """Group models by title into a deduplicated title list."""
+    titles: dict[str, dict] = {}
+    for m in models:
+        if m.title is None:
+            continue
+        key = m.title.slug
+        if key not in titles:
+            thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
+            entry: dict = {
+                "name": m.title.name,
+                "slug": m.title.slug,
+                "year": m.year,
+                "thumbnail_url": thumbnail_url,
+            }
+            if include_manufacturer:
+                entry["manufacturer_name"] = (
+                    m.corporate_entity.manufacturer.name
+                    if m.corporate_entity and m.corporate_entity.manufacturer
+                    else None
+                )
+            titles[key] = entry
+        elif titles[key]["thumbnail_url"] is None:
+            thumbnail_url = _extract_image_urls(m.extra_data or {})[0]
+            if thumbnail_url:
+                titles[key]["thumbnail_url"] = thumbnail_url
+    return sorted(titles.values(), key=lambda t: (t["year"] is None, -(t["year"] or 0)))
+
+
+def _location_ancestors(loc) -> list[dict]:
+    """Return ancestor locations from immediate parent up to root, in order."""
+    ancestors = []
+    current = loc.parent
+    while current is not None:
+        ancestors.append(
+            {
+                "display_name": current.short_name or current.name,
+                "location_path": current.location_path,
+            }
+        )
+        current = current.parent
+    return ancestors
+
+
 def _extract_variant_features(extra_data: dict) -> list[str]:
     """Return variant feature list from extra_data variant_features claim."""
     features = extra_data.get("opdb.variant_features")

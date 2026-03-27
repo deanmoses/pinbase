@@ -87,13 +87,14 @@ class ManufacturerAlias(AliasBase):
         ]
 
 
-class CorporateEntity(TimeStampedModel):
+class CorporateEntity(Linkable, TimeStampedModel):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
     across its ownership eras). Each entity maps to one brand-level Manufacturer.
     """
 
+    link_url_pattern = "/corporate-entities/{slug}"
     claims_exempt = frozenset({"manufacturer", "ipdb_manufacturer_id"})
 
     manufacturer = models.ForeignKey(

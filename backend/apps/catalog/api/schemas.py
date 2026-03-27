@@ -37,6 +37,12 @@ class HierarchyClaimPatchSchema(Schema):
     note: str = ""
 
 
+class CorporateEntityClaimPatchSchema(Schema):
+    fields: dict[str, Any] = {}
+    aliases: list[str] | None = None
+    note: str = ""
+
+
 class AttributionSchema(Schema):
     """License and attribution info for a piece of content (image, description, etc.)."""
 
