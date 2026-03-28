@@ -521,10 +521,11 @@ class Command(BaseCommand):
         unmatched_feature_terms: list[str] = []
         unknown_mpu_strings: set[str] = set()
 
-        for pm, rec, _was_created in record_models:
+        for pm, rec, was_created in record_models:
             self._collect_record_data(
                 pm,
                 rec,
+                was_created,
                 ct_id,
                 pending_claims,
                 credit_queue,
@@ -595,6 +596,7 @@ class Command(BaseCommand):
         self,
         pm: MachineModel,
         rec: IpdbRecord,
+        was_created: bool,
         ct_id: int,
         pending_claims: list[Claim],
         credit_queue: list[tuple[int, str, str]],
@@ -616,10 +618,14 @@ class Command(BaseCommand):
         """Collect claims, credits, theme slugs, and feature slugs for a single IPDB record."""
         # Collect claims for mapped fields.
         for attr, claim_field in CLAIM_FIELDS.items():
+            # Skip name claim for matched models — pindata already has the
+            # correct name; IPDB titles often contain encoding corruption.
+            if attr == "title" and not was_created:
+                continue
             value = getattr(rec, attr)
             if value is None or value == "":
                 continue
-            # Use corrected title for name claims.
+            # Use corrected title for name claims on newly created models.
             if attr == "title" and rec.ipdb_id in TITLE_FIXES:
                 value = TITLE_FIXES[rec.ipdb_id]
             # Convert production number to string.
@@ -887,16 +893,18 @@ class Command(BaseCommand):
         )
 
         # Assert name claims for all unique persons referenced in this ingest.
+        # Use the person's canonical name (from pindata), not the raw IPDB
+        # credit string which may contain encoding corruption.
         ct_person = ContentType.objects.get_for_model(Person)
-        unique_names = {name.lower(): name for _, name, _ in credit_queue}
+        unique_keys = {name.lower() for _, name, _ in credit_queue}
         person_claims: list[Claim] = [
             Claim(
                 content_type_id=ct_person.pk,
                 object_id=existing_persons[key].pk,
                 field_name="name",
-                value=canonical_name,
+                value=existing_persons[key].name,
             )
-            for key, canonical_name in unique_names.items()
+            for key in unique_keys
             if key in existing_persons
         ]
         person_claim_stats = Claim.objects.bulk_assert_claims(source, person_claims)
