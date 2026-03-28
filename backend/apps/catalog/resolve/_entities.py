@@ -186,6 +186,10 @@ def _resolve_bulk(
     # Check if model has extra_data field for unmatched claims.
     has_extra_data = hasattr(model_class, "extra_data")
 
+    # Snapshot slugs before resolution for conflict revert.
+    has_slug = "slug" in direct_fields
+    pre_slugs = {obj.pk: obj.slug for obj in all_objs} if has_slug else {}
+
     # 4. Resolve each object in memory.
     now = timezone.now()
     for obj in all_objs:
@@ -224,6 +228,10 @@ def _resolve_bulk(
 
         obj.updated_at = now
 
+    # 4b. Detect slug conflicts across resolved objects.
+    if has_slug:
+        _resolve_slug_conflicts(all_objs, pre_slugs)
+
     # 5. Bulk write.
     update_fields = list(set(direct_fields.values())) + ["updated_at"]
     if has_extra_data:
@@ -241,6 +249,54 @@ def _resolve_bulk(
 
 
 # ------------------------------------------------------------------
+# Slug conflict detection
+# ------------------------------------------------------------------
+
+
+def _resolve_slug_conflicts(all_objs, pre_slugs: dict[int, str]) -> None:
+    """Detect duplicate slugs after resolution, revert losers to pre-resolution value.
+
+    Unlike ``_resolve_opdb_conflicts`` (which clears the loser to ``None``),
+    slug is NOT NULL so the loser reverts to its previous working slug.
+    Pre-resolution slugs are guaranteed unique (DB constraint), so reverting
+    never creates a secondary conflict.
+
+    When a conflict is between an object that preserved its slug (no claim
+    changed it) and one that changed TO that slug, the preserver wins —
+    it's the rightful owner. When both changed, first encountered wins.
+    """
+    seen: dict[str, object] = {}
+    for obj in all_objs:
+        if not obj.slug:
+            continue
+        if obj.slug in seen:
+            owner = seen[obj.slug]
+            owner_changed = owner.slug != pre_slugs[owner.pk]
+            obj_changed = obj.slug != pre_slugs[obj.pk]
+            if owner_changed and not obj_changed:
+                # obj had this slug all along — it's the rightful owner.
+                # Revert the previous occupant (the changer).
+                loser, winner = owner, obj
+            else:
+                # Default: preserver/first-encountered wins.
+                loser, winner = obj, owner
+            logger.warning(
+                "Slug conflict %r: keeping on '%s' (pk=%s), "
+                "reverting '%s' (pk=%s) to previous slug %r",
+                winner.slug,
+                winner.name,
+                winner.pk,
+                loser.name,
+                loser.pk,
+                pre_slugs[loser.pk],
+            )
+            loser.slug = pre_slugs[loser.pk]
+            seen[winner.slug] = winner
+        else:
+            seen[obj.slug] = obj
+
+
+# ------------------------------------------------------------------
 # Generic entity resolvers (model-driven)
 # ------------------------------------------------------------------
 
@@ -255,7 +311,25 @@ def resolve_entity(obj):
     from apps.core.models import get_claim_fields
 
     fields = get_claim_fields(type(obj))
+    original_slug = getattr(obj, "slug", None)
     _resolve_single(obj, fields)
+
+    # Single-object slug conflict guard — check DB before save.
+    if (
+        "slug" in fields
+        and obj.slug
+        and obj.slug != original_slug
+        and type(obj).objects.filter(slug=obj.slug).exclude(pk=obj.pk).exists()
+    ):
+        logger.warning(
+            "Slug conflict %r on %s pk=%s: reverting to %r",
+            obj.slug,
+            type(obj).__name__,
+            obj.pk,
+            original_slug,
+        )
+        obj.slug = original_slug
+
     obj.save()
     _sync_markdown_references(obj)
     return obj

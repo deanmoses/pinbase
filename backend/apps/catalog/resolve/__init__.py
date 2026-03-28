@@ -57,6 +57,7 @@ from ._relationships import (  # noqa: F401
 from ._entities import (  # noqa: F401
     _resolve_bulk as _resolve_bulk,
     _resolve_single as _resolve_single,
+    _resolve_slug_conflicts as _resolve_slug_conflicts,
     resolve_all_entities as resolve_all_entities,
     resolve_entity as resolve_entity,
 )
@@ -92,12 +93,43 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     field_defaults = get_field_defaults(MachineModel, claim_fields)
     fk_info = build_fk_info(MachineModel, claim_fields)
     sfl_map = build_source_field_license_map()
+    preserve_when_unclaimed: set[str] = set()
+    for attr in claim_fields.values():
+        field = MachineModel._meta.get_field(attr)
+        if field.unique or (field.many_to_one and not field.null):
+            preserve_when_unclaimed.add(attr)
+    original_slug = machine_model.slug
     _apply_resolution(
-        machine_model, winners, claim_fields, field_defaults, fk_info, sfl_map
+        machine_model,
+        winners,
+        claim_fields,
+        field_defaults,
+        fk_info,
+        sfl_map,
+        preserve_when_unclaimed,
     )
 
     # Post-resolution guards (single-object only — the bulk path handles
-    # opdb_id conflicts differently via _resolve_opdb_conflicts).
+    # these conflicts differently via _resolve_opdb_conflicts / _resolve_slug_conflicts).
+    if machine_model.slug and machine_model.slug != original_slug:
+        conflict = (
+            MachineModel.objects.filter(slug=machine_model.slug)
+            .exclude(pk=machine_model.pk)
+            .first()
+        )
+        if conflict:
+            logger.warning(
+                "Slug conflict %r: already owned by '%s' (pk=%s), "
+                "reverting '%s' (pk=%s) to previous slug %r",
+                machine_model.slug,
+                conflict.name,
+                conflict.pk,
+                machine_model.name,
+                machine_model.pk,
+                original_slug,
+            )
+            machine_model.slug = original_slug
+
     if machine_model.opdb_id:
         conflict = (
             MachineModel.objects.filter(opdb_id=machine_model.opdb_id)
@@ -211,20 +243,38 @@ def resolve_machine_models(stdout=None) -> int:
     fk_info = build_fk_info(MachineModel, claim_fields)
     sfl_map = build_source_field_license_map()
 
+    # Fields whose computed default is invalid — preserve existing value
+    # when no winning claim exists (matches _resolve_bulk logic).
+    preserve_when_unclaimed: set[str] = set()
+    for attr in claim_fields.values():
+        field = MachineModel._meta.get_field(attr)
+        if field.unique or (field.many_to_one and not field.null):
+            preserve_when_unclaimed.add(attr)
+
     # 2. Pre-fetch all active claims, grouped by object_id (~1 query).
     claims_by_model = _build_claims_by_model()
     _status(f"Loaded {sum(len(v) for v in claims_by_model.values())} winning claims")
 
     # 3. Load all MachineModels (~1 query).
     all_models = list(MachineModel.objects.all())
+    pre_slugs = {pm.pk: pm.slug for pm in all_models}
 
     # 4. Resolve each model in memory.
     for pm in all_models:
         winners = claims_by_model.get(pm.pk, {})
-        _apply_resolution(pm, winners, claim_fields, field_defaults, fk_info, sfl_map)
+        _apply_resolution(
+            pm,
+            winners,
+            claim_fields,
+            field_defaults,
+            fk_info,
+            sfl_map,
+            preserve_when_unclaimed,
+        )
 
-    # 5. Detect opdb_id conflicts across all resolved models.
+    # 5. Detect opdb_id and slug conflicts across all resolved models.
     _resolve_opdb_conflicts(all_models)
+    _resolve_slug_conflicts(all_models, pre_slugs)
 
     # 7. Set updated_at (auto_now not triggered by bulk_update).
     now = timezone.now()
@@ -299,10 +349,20 @@ def _apply_resolution(
     field_defaults: dict[str, Any],
     fk_info: FKInfo,
     sfl_map: dict | None = None,
+    preserve_when_unclaimed: set[str] | None = None,
 ) -> None:
     """Apply claim winners to a MachineModel instance in memory."""
-    # Reset all claim-controlled fields to defaults.
+    # Reset claim-controlled fields to defaults — preserved fields keep
+    # their existing value unless a winning claim explicitly sets them.
+    _preserve = preserve_when_unclaimed or set()
+    winner_attrs = {
+        claim_fields[c.field_name]
+        for c in winners.values()
+        if c.field_name in claim_fields
+    }
     for attr, default in field_defaults.items():
+        if attr in _preserve and attr not in winner_attrs:
+            continue
         setattr(pm, attr, default)
 
     # Fresh extra_data dict (never shared between models).

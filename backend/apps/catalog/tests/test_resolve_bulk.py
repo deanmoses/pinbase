@@ -3,11 +3,20 @@
 import pytest
 from django.contrib.contenttypes.models import ContentType
 
-from apps.catalog.models import Franchise, Manufacturer, System, Tag, Title
+from apps.catalog.models import (
+    Franchise,
+    Manufacturer,
+    MachineModel,
+    System,
+    Tag,
+    Title,
+)
 from apps.catalog.resolve import (
     _resolve_bulk,
     _resolve_single,
     resolve_entity,
+    resolve_machine_models,
+    resolve_model,
 )
 from apps.core.models import RecordReference, get_claim_fields
 from apps.provenance.models import Claim, Source
@@ -401,3 +410,131 @@ class TestResolveTitle:
         result = resolve_entity(t)
 
         assert result.franchise is None
+
+
+@pytest.mark.django_db
+class TestSlugConflictDetection:
+    """Slug conflict detection reverts losers to pre-resolution slugs."""
+
+    @pytest.fixture
+    def title_fields_with_slug(self):
+        """Claim fields including slug (still exempt until Phase 2)."""
+        fields = get_claim_fields(Title)
+        fields["slug"] = "slug"
+        return fields
+
+    def test_bulk_slug_conflict_reverts_loser(self, opdb, title_fields_with_slug):
+        t1 = Title.objects.create(name="First", slug="target-slug")
+        t2 = Title.objects.create(name="Second", slug="original-slug")
+
+        Claim.objects.assert_claim(t1, "name", "First", source=opdb)
+        Claim.objects.assert_claim(t1, "slug", "target-slug", source=opdb)
+        Claim.objects.assert_claim(t2, "name", "Second", source=opdb)
+        # t2 claims the same slug as t1.
+        Claim.objects.assert_claim(t2, "slug", "target-slug", source=opdb)
+
+        _resolve_bulk(Title, title_fields_with_slug)
+
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t1.slug == "target-slug"  # First wins.
+        assert t2.slug == "original-slug"  # Reverted to pre-resolution slug.
+
+    def test_preserver_wins_over_changer(self, opdb, title_fields_with_slug):
+        """When A claims B's existing slug and B has no slug claim, B keeps it."""
+        t1 = Title.objects.create(name="Changer", slug="alpha")
+        t2 = Title.objects.create(name="Preserver", slug="beta")
+
+        Claim.objects.assert_claim(t1, "name", "Changer", source=opdb)
+        # t1 claims t2's slug — t1 is the changer.
+        Claim.objects.assert_claim(t1, "slug", "beta", source=opdb)
+        Claim.objects.assert_claim(t2, "name", "Preserver", source=opdb)
+        # t2 has no slug claim — preserved by preserve_when_unclaimed.
+
+        _resolve_bulk(Title, title_fields_with_slug)
+
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t2.slug == "beta"  # Preserver wins — it had this slug all along.
+        assert t1.slug == "alpha"  # Changer reverts to its original slug.
+
+    def test_no_conflict_when_slugs_differ(self, opdb, title_fields_with_slug):
+        t1 = Title.objects.create(name="First", slug="slug-a")
+        t2 = Title.objects.create(name="Second", slug="slug-b")
+
+        Claim.objects.assert_claim(t1, "name", "First", source=opdb)
+        Claim.objects.assert_claim(t1, "slug", "slug-a", source=opdb)
+        Claim.objects.assert_claim(t2, "name", "Second", source=opdb)
+        Claim.objects.assert_claim(t2, "slug", "slug-b", source=opdb)
+
+        _resolve_bulk(Title, title_fields_with_slug)
+
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t1.slug == "slug-a"
+        assert t2.slug == "slug-b"
+
+    def test_single_object_slug_conflict_reverts(self, opdb):
+        # t1 owns "taken-slug" in the DB.
+        Title.objects.create(name="Owner", slug="taken-slug")
+        t2 = Title.objects.create(name="Challenger", slug="original-slug")
+
+        Claim.objects.assert_claim(t2, "name", "Challenger", source=opdb)
+        Claim.objects.assert_claim(t2, "slug", "taken-slug", source=opdb)
+
+        # Use explicit fields so slug is included (still exempt until Phase 2).
+        fields = get_claim_fields(Title)
+        fields["slug"] = "slug"
+        _resolve_single(t2, fields)
+
+        # resolve_entity would save — we test the in-memory state.
+        # Slug should NOT be "taken-slug" because that conflicts.
+        # resolve_entity handles this; _resolve_single doesn't check DB.
+        # So test via resolve_entity instead.
+        t2 = Title.objects.get(pk=t2.pk)  # re-fetch clean
+        Claim.objects.assert_claim(t2, "name", "Challenger", source=opdb)
+        Claim.objects.assert_claim(t2, "slug", "taken-slug", source=opdb)
+
+        # resolve_entity checks DB for slug conflict and reverts.
+        result = resolve_entity(t2)
+        assert result.slug == "original-slug"  # Reverted.
+
+
+@pytest.mark.django_db
+class TestApplyResolutionPreserve:
+    """_apply_resolution preserves UNIQUE fields when no claim exists."""
+
+    def test_preserves_slug_without_claim(self, opdb):
+        mm = MachineModel.objects.create(name="Test", slug="test-slug")
+        Claim.objects.assert_claim(mm, "name", "Test Model", source=opdb)
+        # No slug claim — slug should be preserved after resolution.
+
+        resolve_model(mm)
+
+        mm.refresh_from_db()
+        assert mm.slug == "test-slug"  # Preserved.
+        assert mm.name == "Test Model"  # Resolved from claim.
+
+    def test_preserves_opdb_id_without_claim(self, opdb):
+        mm = MachineModel.objects.create(name="Test", slug="test-slug", opdb_id="O123")
+        Claim.objects.assert_claim(mm, "name", "Test Model", source=opdb)
+        # No opdb_id claim.
+
+        resolve_model(mm)
+
+        mm.refresh_from_db()
+        assert mm.opdb_id == "O123"  # Preserved.
+
+    def test_bulk_preserves_slug_without_claim(self, opdb):
+        mm1 = MachineModel.objects.create(name="A", slug="a-slug")
+        mm2 = MachineModel.objects.create(name="B", slug="b-slug")
+        Claim.objects.assert_claim(mm1, "name", "Model A", source=opdb)
+        Claim.objects.assert_claim(mm2, "name", "Model B", source=opdb)
+        # No slug claims — both should preserve their slugs.
+
+        resolve_machine_models()
+
+        mm1.refresh_from_db()
+        mm2.refresh_from_db()
+        assert mm1.slug == "a-slug"
+        assert mm2.slug == "b-slug"
