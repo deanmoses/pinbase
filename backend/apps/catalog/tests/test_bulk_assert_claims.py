@@ -3,7 +3,7 @@
 import pytest
 from django.contrib.contenttypes.models import ContentType
 
-from apps.catalog.models import CreditRole, MachineModel, Manufacturer, Person
+from apps.catalog.models import MachineModel, Manufacturer
 from apps.provenance.models import Claim, Source
 
 
@@ -257,15 +257,7 @@ class TestBulkAssertClaimsSourceSet:
 class TestBulkAssertClaimsSweep:
     """sweep_field + authoritative_scope deactivate stale claims."""
 
-    @pytest.fixture(autouse=True)
-    def _credit_targets(self, db):
-        """Create Person/CreditRole rows referenced by credit claims."""
-        Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
-        Person.objects.create(name="John Youssi", slug="john-youssi")
-        CreditRole.objects.create(name="Design", slug="design")
-        CreditRole.objects.create(name="Art", slug="art")
-
-    def test_sweep_deactivates_stale_claim(self, source, ct_id, pm1):
+    def test_sweep_deactivates_stale_claim(self, source, ct_id, pm1, credit_targets):
         """A claim no longer in the pending set is swept (deactivated)."""
         from apps.catalog.claims import build_relationship_claim
 
@@ -323,7 +315,9 @@ class TestBulkAssertClaimsSweep:
         remaining = Claim.objects.get(source=source, is_active=True)
         assert remaining.claim_key == key1
 
-    def test_sweep_with_zero_pending_deactivates_all(self, source, ct_id, pm1):
+    def test_sweep_with_zero_pending_deactivates_all(
+        self, source, ct_id, pm1, credit_targets
+    ):
         """authoritative_scope ensures stale claims are swept even when pending is empty."""
         from apps.catalog.claims import build_relationship_claim
 
@@ -358,7 +352,9 @@ class TestBulkAssertClaimsSweep:
         assert stats["swept"] == 1
         assert Claim.objects.filter(source=source, is_active=True).count() == 0
 
-    def test_sweep_does_not_touch_other_field_names(self, source, ct_id, pm1):
+    def test_sweep_does_not_touch_other_field_names(
+        self, source, ct_id, pm1, credit_targets
+    ):
         """Sweep only affects claims matching the sweep_field."""
         from apps.catalog.claims import build_relationship_claim
 
@@ -405,7 +401,9 @@ class TestBulkAssertClaimsSweep:
             == 0
         )
 
-    def test_sweep_scoped_to_authoritative_models(self, source, ct_id, pm1, pm2):
+    def test_sweep_scoped_to_authoritative_models(
+        self, source, ct_id, pm1, pm2, credit_targets
+    ):
         """Sweep only affects entities in the authoritative scope."""
         from apps.catalog.claims import build_relationship_claim
 

@@ -7,7 +7,6 @@ from django.core.exceptions import ValidationError
 
 from apps.catalog.models import (
     CorporateEntity,
-    CreditRole,
     Location,
     MachineModel,
     Manufacturer,
@@ -186,9 +185,7 @@ class TestValidateClaimsBatch:
         assert len(valid) == 1
         assert valid[0].field_name == "name"
 
-    def test_relationship_with_valid_targets_passes(self, model):
-        Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
-        CreditRole.objects.create(name="Design", slug="design")
+    def test_relationship_with_valid_targets_passes(self, model, credit_targets):
         claim = Claim.for_object(
             model,
             field_name="credit",
@@ -428,18 +425,10 @@ class TestValidateRelationshipClaimsBatch:
         return MachineModel.objects.create(name="Eight Ball", slug="eight-ball")
 
     @pytest.fixture
-    def person(self):
-        return Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
-
-    @pytest.fixture
-    def credit_role(self):
-        return CreditRole.objects.create(name="Design", slug="design")
-
-    @pytest.fixture
     def theme(self):
         return Theme.objects.create(name="Medieval", slug="medieval")
 
-    def test_valid_credit_passes(self, model, person, credit_role):
+    def test_valid_credit_passes(self, model, credit_targets):
         claim = Claim.for_object(
             model,
             field_name="credit",
@@ -449,7 +438,7 @@ class TestValidateRelationshipClaimsBatch:
         rejected = validate_relationship_claims_batch([claim])
         assert rejected == []
 
-    def test_nonexistent_person_rejected(self, model, credit_role):
+    def test_nonexistent_person_rejected(self, model, credit_targets):
         claim = Claim.for_object(
             model,
             field_name="credit",
@@ -463,7 +452,7 @@ class TestValidateRelationshipClaimsBatch:
         rejected = validate_relationship_claims_batch([claim])
         assert len(rejected) == 1
 
-    def test_nonexistent_role_rejected(self, model, person):
+    def test_nonexistent_role_rejected(self, model, credit_targets):
         claim = Claim.for_object(
             model,
             field_name="credit",
@@ -539,7 +528,7 @@ class TestValidateRelationshipClaimsBatch:
         assert rejected == []
 
     def test_batch_queries_once_per_group(
-        self, model, person, credit_role, django_assert_num_queries
+        self, model, credit_targets, django_assert_num_queries
     ):
         """Multiple credit claims should batch into one Person + one CreditRole query."""
         Person.objects.create(name="Steve Ritchie", slug="steve-ritchie")
@@ -576,15 +565,7 @@ class TestValidateClaimsBatchRelationships:
     def model(self):
         return MachineModel.objects.create(name="Test", slug="test")
 
-    @pytest.fixture
-    def person(self):
-        return Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
-
-    @pytest.fixture
-    def credit_role(self):
-        return CreditRole.objects.create(name="Design", slug="design")
-
-    def test_valid_relationship_passes_batch(self, model, person, credit_role):
+    def test_valid_relationship_passes_batch(self, model, credit_targets):
         claim = Claim.for_object(
             model,
             field_name="credit",
@@ -595,7 +576,7 @@ class TestValidateClaimsBatchRelationships:
         assert rejected == 0
         assert len(valid) == 1
 
-    def test_invalid_relationship_rejected_in_batch(self, model, credit_role):
+    def test_invalid_relationship_rejected_in_batch(self, model, credit_targets):
         claim = Claim.for_object(
             model,
             field_name="credit",
@@ -610,7 +591,7 @@ class TestValidateClaimsBatchRelationships:
         assert rejected == 1
         assert len(valid) == 0
 
-    def test_mixed_scalar_and_relationship(self, model, person, credit_role):
+    def test_mixed_scalar_and_relationship(self, model, credit_targets):
         good_scalar = Claim.for_object(model, field_name="name", value="Good Name")
         good_rel = Claim.for_object(
             model,

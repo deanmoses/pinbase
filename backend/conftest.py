@@ -1,5 +1,35 @@
 import pytest
 
+from apps.catalog.models import CreditRole, Person
+
+
+@pytest.fixture
+def credit_targets(db):
+    """Seed Person + CreditRole rows commonly referenced by credit claim tests.
+
+    Relationship claim validation checks target existence at the claim
+    boundary, so any test that creates credit claims needs the referenced
+    Person and CreditRole rows to exist.
+    """
+    Person.objects.bulk_create(
+        [
+            Person(name="Pat Lawlor", slug="pat-lawlor"),
+            Person(name="John Youssi", slug="john-youssi"),
+        ],
+        update_conflicts=True,
+        unique_fields=["slug"],
+        update_fields=["name"],
+    )
+    CreditRole.objects.bulk_create(
+        [
+            CreditRole(name="Design", slug="design"),
+            CreditRole(name="Art", slug="art"),
+        ],
+        update_conflicts=True,
+        unique_fields=["slug"],
+        update_fields=["name"],
+    )
+
 
 @pytest.fixture(autouse=True)
 def _use_locmem_cache(settings):
