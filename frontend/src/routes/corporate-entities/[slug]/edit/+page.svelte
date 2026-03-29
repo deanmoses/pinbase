@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import client from '$lib/api/client';
+	import { getEditRedirectHref } from '$lib/edit-routes';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TagInput from '$lib/components/form/TagInput.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
@@ -47,9 +48,14 @@
 		});
 
 		if (updated) {
+			const redirectHref = getEditRedirectHref('corporate-entities', ce.slug, updated.slug);
 			editFields = corporateEntityToFormFields(updated);
 			editAliases = [...(updated.aliases ?? [])];
 			editNote = '';
+			if (redirectHref) {
+				await goto(redirectHref, { replaceState: true });
+				return;
+			}
 			await invalidateAll();
 			saveStatus = 'saved';
 			setTimeout(() => (saveStatus = 'idle'), 3000);
@@ -62,6 +68,7 @@
 
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
 	<TextField label="Name" bind:value={editFields.name} />
+	<TextField label="Slug" bind:value={editFields.slug} />
 	<TextAreaField label="Description" bind:value={editFields.description} rows={6} />
 
 	<fieldset class="date-group">

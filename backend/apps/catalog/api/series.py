@@ -202,7 +202,7 @@ def patch_series_claims(request, slug: str, data: ClaimPatchSchema):
     from .edit_claims import plan_scalar_field_claims
 
     series = get_object_or_404(Series, slug=slug)
-    specs = plan_scalar_field_claims(Series, data.fields)
+    specs = plan_scalar_field_claims(Series, data.fields, entity=series)
 
     execute_claims(series, specs, user=request.user)
 

@@ -27,6 +27,7 @@ describe('personToFormFields', () => {
 				photo_url: null
 			})
 		).toEqual({
+			slug: 'pat-lawlor',
 			name: 'Pat Lawlor',
 			description: '',
 			nationality: 'American',
@@ -50,12 +51,14 @@ describe('buildPersonPatchBody', () => {
 	it('builds a scalar PATCH payload for changed fields', () => {
 		const fields: PersonFormFields = {
 			...personToFormFields(basePerson),
+			slug: 'pat-lawlor-jr',
 			nationality: 'USA',
 			birth_place: 'Austin'
 		};
 
 		expect(buildPersonPatchBody(fields, basePerson)).toEqual({
 			fields: {
+				slug: 'pat-lawlor-jr',
 				nationality: 'USA',
 				birth_place: 'Austin'
 			}

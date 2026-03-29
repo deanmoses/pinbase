@@ -560,7 +560,11 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     title = get_object_or_404(
         Title.objects.prefetch_related("abbreviations"), slug=slug
     )
-    specs = plan_scalar_field_claims(Title, data.fields) if data.fields else []
+    specs = (
+        plan_scalar_field_claims(Title, data.fields, entity=title)
+        if data.fields
+        else []
+    )
 
     resolvers = []
     if data.abbreviations is not None:

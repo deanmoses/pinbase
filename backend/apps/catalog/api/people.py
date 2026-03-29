@@ -223,7 +223,7 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
 
     person = get_object_or_404(Person, slug=slug)
 
-    specs = plan_scalar_field_claims(Person, data.fields)
+    specs = plan_scalar_field_claims(Person, data.fields, entity=person)
 
     execute_claims(person, specs, user=request.user)
 

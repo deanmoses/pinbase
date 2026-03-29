@@ -158,7 +158,7 @@ def patch_franchise_claims(request, slug: str, data: ClaimPatchSchema):
     from .edit_claims import plan_scalar_field_claims
 
     franchise = get_object_or_404(Franchise, slug=slug)
-    specs = plan_scalar_field_claims(Franchise, data.fields)
+    specs = plan_scalar_field_claims(Franchise, data.fields, entity=franchise)
 
     execute_claims(franchise, specs, user=request.user)
 

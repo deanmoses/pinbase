@@ -16,6 +16,7 @@ export type PersonEditView = {
 };
 
 export type PersonFormFields = {
+	slug: string;
 	name: string;
 	description: string;
 	nationality: string;
@@ -35,6 +36,7 @@ type PersonPatchBody = {
 
 export function personToFormFields(person: PersonEditView): PersonFormFields {
 	return {
+		slug: person.slug,
 		name: person.name,
 		description: person.description?.text ?? '',
 		nationality: person.nationality ?? '',

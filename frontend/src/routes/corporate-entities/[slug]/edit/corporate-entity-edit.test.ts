@@ -35,6 +35,7 @@ describe('corporateEntityToFormFields', () => {
 				year_end: null
 			})
 		).toEqual({
+			slug: 'williams-electronics-games',
 			name: 'Williams Electronics Games',
 			description: '',
 			year_start: '',
@@ -73,6 +74,19 @@ describe('buildCorporateEntityPatchBody', () => {
 			fields: { year_end: 2000 },
 			aliases: ['WMS Games'],
 			note: 'grouped edit'
+		});
+	});
+
+	it('includes slug changes in the scalar payload', () => {
+		const fields: CorporateEntityFormFields = {
+			...corporateEntityToFormFields(baseEntity),
+			slug: 'williams-games'
+		};
+
+		expect(buildCorporateEntityPatchBody(stateFromEntity({ fields }), baseEntity)).toEqual({
+			fields: { slug: 'williams-games' },
+			aliases: null,
+			note: ''
 		});
 	});
 

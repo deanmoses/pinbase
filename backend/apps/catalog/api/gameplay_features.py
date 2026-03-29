@@ -163,7 +163,7 @@ def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchS
 
     feature = get_object_or_404(GameplayFeature, slug=slug)
 
-    specs = validate_scalar_fields(GameplayFeature, data.fields)
+    specs = validate_scalar_fields(GameplayFeature, data.fields, entity=feature)
 
     resolvers = []
     if data.parents is not None:

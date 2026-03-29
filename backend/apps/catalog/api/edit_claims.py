@@ -25,7 +25,9 @@ class ClaimSpec:
     claim_key: str = ""
 
 
-def plan_scalar_field_claims(model_class, fields: dict) -> list[ClaimSpec]:
+def plan_scalar_field_claims(
+    model_class, fields: dict, *, entity=None
+) -> list[ClaimSpec]:
     """Validate scalar fields and reject empty/no-op field payloads.
 
     Shared by PATCH endpoints that only accept scalar ``fields`` payloads.
@@ -33,7 +35,7 @@ def plan_scalar_field_claims(model_class, fields: dict) -> list[ClaimSpec]:
     if not fields:
         raise HttpError(422, "No changes provided.")
 
-    specs = validate_scalar_fields(model_class, fields)
+    specs = validate_scalar_fields(model_class, fields, entity=entity)
     if not specs:
         raise HttpError(422, "No changes provided.")
     return specs
@@ -87,7 +89,9 @@ def get_field_constraints(model_class) -> dict[str, dict]:
     return constraints
 
 
-def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
+def validate_scalar_fields(
+    model_class, fields: dict, *, entity=None
+) -> list[ClaimSpec]:
     """Validate scalar fields and return ClaimSpecs.
 
     Scalar fields are assertion-based: a spec is created for every field in
@@ -119,6 +123,12 @@ def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
             value = validate_claim_value(field_name, value, model_class)
         except ValidationError as exc:
             raise HttpError(422, "; ".join(exc.messages)) from exc
+        if getattr(field, "unique", False) and value != "":
+            conflict_qs = model_class.objects.filter(**{field_name: value})
+            if entity is not None and getattr(entity, "pk", None) is not None:
+                conflict_qs = conflict_qs.exclude(pk=entity.pk)
+            if conflict_qs.exists():
+                raise HttpError(422, f"Field '{field_name}' must be unique.")
         specs.append(ClaimSpec(field_name=field_name, value=value))
     return specs
 

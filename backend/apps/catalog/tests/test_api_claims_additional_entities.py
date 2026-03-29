@@ -52,6 +52,14 @@ def _create_series():
     return Series.objects.create(name="Eight Ball", slug="eight-ball")
 
 
+def _create_conflicting_franchise():
+    return Franchise.objects.create(name="Star Trek Legacy", slug="star-trek-legacy")
+
+
+def _create_conflicting_series():
+    return Series.objects.create(name="Eight Ball Classics", slug="eight-ball-classics")
+
+
 def _create_system():
     return System.objects.create(name="WPC-95", slug="wpc-95")
 
@@ -191,6 +199,23 @@ PATCH_CASES = [
     ),
 ]
 
+SLUG_EDIT_CASES = [
+    pytest.param(
+        "/api/franchises/{slug}/claims/",
+        _create_franchise,
+        _create_conflicting_franchise,
+        "star-trek-remastered",
+        id="franchise",
+    ),
+    pytest.param(
+        "/api/series/{slug}/claims/",
+        _create_series,
+        _create_conflicting_series,
+        "eight-ball-classics",
+        id="series",
+    ),
+]
+
 
 @pytest.mark.django_db
 class TestAdditionalPatchClaimEndpoints:
@@ -270,6 +295,51 @@ class TestAdditionalPatchClaimEndpoints:
         changeset = ChangeSet.objects.get()
         assert changeset.user == user
         assert changeset.claims.count() == 1
+
+    @pytest.mark.parametrize(
+        ("path_template", "factory", "_conflict_factory", "new_slug"), SLUG_EDIT_CASES
+    )
+    def test_slug_can_be_changed(
+        self, client, user, path_template, factory, _conflict_factory, new_slug
+    ):
+        entity = factory()
+        old_slug = entity.slug
+        client.force_login(user)
+
+        resp = _patch(
+            client,
+            path_template.format(slug=old_slug),
+            {"fields": {"slug": new_slug}},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == new_slug
+
+        entity.refresh_from_db()
+        assert entity.slug == new_slug
+        detail_path = path_template.replace("/claims/", "").format(slug=new_slug)
+        old_detail_path = path_template.replace("/claims/", "").format(slug=old_slug)
+        assert client.get(detail_path).status_code == 200
+        assert client.get(old_detail_path).status_code == 404
+
+    @pytest.mark.parametrize(
+        ("path_template", "factory", "conflict_factory", "_new_slug"), SLUG_EDIT_CASES
+    )
+    def test_duplicate_slug_returns_422(
+        self, client, user, path_template, factory, conflict_factory, _new_slug
+    ):
+        entity = factory()
+        conflict = conflict_factory()
+        client.force_login(user)
+
+        resp = _patch(
+            client,
+            path_template.format(slug=entity.slug),
+            {"fields": {"slug": conflict.slug}},
+        )
+
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
 
 
 @pytest.mark.django_db

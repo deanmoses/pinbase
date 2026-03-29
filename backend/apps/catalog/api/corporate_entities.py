@@ -178,7 +178,7 @@ def patch_corporate_entity_claims(
 
     ce = get_object_or_404(CorporateEntity, slug=slug)
 
-    specs = validate_scalar_fields(CorporateEntity, data.fields)
+    specs = validate_scalar_fields(CorporateEntity, data.fields, entity=ce)
 
     resolvers = []
     if data.aliases is not None:

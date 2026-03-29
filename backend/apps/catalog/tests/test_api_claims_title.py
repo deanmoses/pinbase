@@ -117,6 +117,26 @@ class TestPatchTitleClaims:
         assert title.description == "Updated title copy"
         assert title.franchise == franchise
 
+    def test_slug_can_be_changed(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(
+            client, title.slug, {"fields": {"slug": "medieval-madness-remastered"}}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "medieval-madness-remastered"
+
+        title.refresh_from_db()
+        assert title.slug == "medieval-madness-remastered"
+        assert client.get(f"/api/titles/{title.slug}").status_code == 200
+        assert client.get("/api/titles/medieval-madness").status_code == 404
+
+    def test_duplicate_slug_returns_422(self, client, user, title):
+        Title.objects.create(name="Attack from Mars", slug="attack-from-mars")
+        client.force_login(user)
+        resp = _patch(client, title.slug, {"fields": {"slug": "attack-from-mars"}})
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
+
     def test_franchise_can_be_changed_and_cleared(
         self, client, user, title, franchise, other_franchise
     ):

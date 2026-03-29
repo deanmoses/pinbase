@@ -139,7 +139,7 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
 
     theme = get_object_or_404(Theme, slug=slug)
 
-    specs = validate_scalar_fields(Theme, data.fields)
+    specs = validate_scalar_fields(Theme, data.fields, entity=theme)
 
     resolvers = []
     if data.parents is not None:

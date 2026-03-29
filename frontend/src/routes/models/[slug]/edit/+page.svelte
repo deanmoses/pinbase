@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { resolveHref } from '$lib/utils';
 	import client from '$lib/api/client';
+	import { getEditRedirectHref } from '$lib/edit-routes';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import TagInput from '$lib/components/form/TagInput.svelte';
@@ -121,6 +122,7 @@
 		});
 
 		if (updated) {
+			const redirectHref = getEditRedirectHref('models', model.slug, updated.slug);
 			editFields = modelToFormFields(updated);
 			selectedThemes = updated.themes.map((t) => t.slug);
 			selectedTags = (updated.tags ?? []).map((t) => t.slug);
@@ -137,6 +139,10 @@
 			}));
 			editAbbreviations = [...updated.abbreviations];
 			editNote = '';
+			if (redirectHref) {
+				await goto(redirectHref, { replaceState: true });
+				return;
+			}
 			await invalidateAll();
 			saveStatus = 'saved';
 			setTimeout(() => (saveStatus = 'idle'), 3000);
@@ -187,6 +193,7 @@
 
 	<!-- Identity -->
 	<TextField label="Name" bind:value={editFields.name} />
+	<TextField label="Slug" bind:value={editFields.slug} />
 	<TextAreaField label="Description" bind:value={editFields.description} rows={6} />
 
 	<!-- Date -->

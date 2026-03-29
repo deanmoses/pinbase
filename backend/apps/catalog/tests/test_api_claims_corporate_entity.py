@@ -158,6 +158,33 @@ class TestPatchCorporateEntityScalars:
         assert resp.status_code == 200
         assert resp.json()["description"]["text"] == "Updated"
 
+    def test_slug_can_be_changed(self, client, user, entity):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            entity.slug,
+            {"fields": {"slug": "gottlieb-company"}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "gottlieb-company"
+
+        entity.refresh_from_db()
+        assert entity.slug == "gottlieb-company"
+        assert client.get(f"/api/corporate-entities/{entity.slug}").status_code == 200
+        assert (
+            client.get("/api/corporate-entities/d-gottlieb-company").status_code == 404
+        )
+
+    def test_duplicate_slug_returns_422(self, client, user, entity, other_entity):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            entity.slug,
+            {"fields": {"slug": other_entity.slug}},
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
+
     def test_edit_years(self, client, user, entity):
         client.force_login(user)
         resp = _patch(

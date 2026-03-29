@@ -38,7 +38,7 @@ def _taxonomy_detail_qs(model_class):
 def _patch_taxonomy(request, model_class, slug, data):
     """Shared PATCH handler for all taxonomy entities."""
     obj = get_object_or_404(model_class, slug=slug)
-    specs = plan_scalar_field_claims(model_class, data.fields)
+    specs = plan_scalar_field_claims(model_class, data.fields, entity=obj)
 
     execute_claims(obj, specs, user=request.user)
 
@@ -338,7 +338,7 @@ def patch_reward_type(request, slug: str, data: ClaimPatchSchema):
     from ..models import RewardType
 
     obj = get_object_or_404(RewardType, slug=slug)
-    specs = plan_scalar_field_claims(RewardType, data.fields)
+    specs = plan_scalar_field_claims(RewardType, data.fields, entity=obj)
 
     execute_claims(obj, specs, user=request.user)
 

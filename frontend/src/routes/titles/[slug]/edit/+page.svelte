@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { resolveHref } from '$lib/utils';
 	import client from '$lib/api/client';
+	import { getEditRedirectHref } from '$lib/edit-routes';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
@@ -51,9 +52,14 @@
 		});
 
 		if (updated) {
+			const redirectHref = getEditRedirectHref('titles', title.slug, updated.slug);
 			editFields = titleToFormState(updated);
 			selectedFranchise = updated.franchise?.slug ?? null;
 			editNote = '';
+			if (redirectHref) {
+				await goto(redirectHref, { replaceState: true });
+				return;
+			}
 			await invalidateAll();
 			saveStatus = 'saved';
 			setTimeout(() => (saveStatus = 'idle'), 3000);
@@ -106,6 +112,7 @@
 	</section>
 
 	<TextField label="Name" bind:value={editFields.name} />
+	<TextField label="Slug" bind:value={editFields.slug} />
 	<TextAreaField label="Description" bind:value={editFields.description} rows={6} />
 
 	<div class="field-group">

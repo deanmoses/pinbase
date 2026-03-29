@@ -114,6 +114,32 @@ class TestPatchClaimsPersistence:
         assert pm.year == 2001
         assert pm.name == "Updated Name"
 
+    def test_slug_can_be_changed(self, client, user, pm):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"slug": "medieval-madness-remastered"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "medieval-madness-remastered"
+
+        pm.refresh_from_db()
+        assert pm.slug == "medieval-madness-remastered"
+        assert client.get(f"/api/models/{pm.slug}").status_code == 200
+        assert client.get("/api/models/medieval-madness").status_code == 404
+
+    def test_duplicate_slug_returns_422(self, client, user, pm):
+        MachineModel.objects.create(name="Other Game", slug="other-game")
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"slug": "other-game"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
+
     def test_user_claim_beats_lower_priority_source(
         self, client, user, pm, low_priority_source
     ):

@@ -357,7 +357,7 @@ def patch_manufacturer_claims(request, slug: str, data: ClaimPatchSchema):
 
     mfr = get_object_or_404(Manufacturer, slug=slug)
 
-    specs = plan_scalar_field_claims(Manufacturer, data.fields)
+    specs = plan_scalar_field_claims(Manufacturer, data.fields, entity=mfr)
 
     execute_claims(mfr, specs, user=request.user)
 

@@ -180,7 +180,7 @@ def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
     from .edit_claims import plan_scalar_field_claims
 
     system = get_object_or_404(System, slug=slug)
-    specs = plan_scalar_field_claims(System, data.fields)
+    specs = plan_scalar_field_claims(System, data.fields, entity=system)
 
     execute_claims(system, specs, user=request.user)
 

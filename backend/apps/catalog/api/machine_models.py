@@ -831,7 +831,11 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
         slug=slug,
     )
 
-    specs = plan_scalar_field_claims(MachineModel, data.fields) if data.fields else []
+    specs = (
+        plan_scalar_field_claims(MachineModel, data.fields, entity=pm)
+        if data.fields
+        else []
+    )
 
     for field_name, value in data.fields.items():
         if field_name in _SELF_REF_FIELDS and value == slug:
@@ -888,7 +892,7 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
         pm, specs, user=request.user, note=data.note, resolve_fn=resolve_model
     )
 
-    pm = get_object_or_404(_model_detail_qs(), slug=slug)
+    pm = get_object_or_404(_model_detail_qs(), slug=pm.slug)
     return _serialize_model_detail(pm)
 
 

@@ -115,6 +115,32 @@ class TestPatchManufacturerClaimsPersistence:
         mfr.refresh_from_db()
         assert mfr.description == "WMS"
 
+    def test_slug_can_be_changed(self, client, user, mfr):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/manufacturers/{mfr.slug}/claims/",
+            data='{"fields": {"slug": "williams-electronics"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "williams-electronics"
+
+        mfr.refresh_from_db()
+        assert mfr.slug == "williams-electronics"
+        assert client.get(f"/api/manufacturers/{mfr.slug}").status_code == 200
+        assert client.get("/api/manufacturers/williams").status_code == 404
+
+    def test_duplicate_slug_returns_422(self, client, user, mfr):
+        Manufacturer.objects.create(name="Bally", slug="bally")
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/manufacturers/{mfr.slug}/claims/",
+            data='{"fields": {"slug": "bally"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
+
     def test_repeated_edit_supersedes_previous(self, client, user, mfr):
         client.force_login(user)
         client.patch(
@@ -224,6 +250,32 @@ class TestPatchPersonClaimsPersistence:
         assert data["name"] == "Pat Lawlor"
         person.refresh_from_db()
         assert person.description == "A great designer."
+
+    def test_slug_can_be_changed(self, client, user, person):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/people/{person.slug}/claims/",
+            data='{"fields": {"slug": "pat-lawlor-jr"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "pat-lawlor-jr"
+
+        person.refresh_from_db()
+        assert person.slug == "pat-lawlor-jr"
+        assert client.get(f"/api/people/{person.slug}").status_code == 200
+        assert client.get("/api/people/pat-lawlor").status_code == 404
+
+    def test_duplicate_slug_returns_422(self, client, user, person):
+        Person.objects.create(name="John Youssi", slug="john-youssi")
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/people/{person.slug}/claims/",
+            data='{"fields": {"slug": "john-youssi"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
 
     def test_response_includes_activity(self, client, user, person):
         client.force_login(user)
