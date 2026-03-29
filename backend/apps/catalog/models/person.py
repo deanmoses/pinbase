@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -36,6 +36,12 @@ class Person(SluggedModel, LinkableModel, TimeStampedModel):
         blank=True,
         verbose_name="Wikidata ID",
         help_text='Wikidata QID, e.g., "Q312897"',
+        validators=[
+            RegexValidator(
+                r"^Q\d+$",
+                message="Wikidata ID must be Q followed by digits (e.g. Q312897).",
+            )
+        ],
     )
 
     # Birth / death dates — claimed fields, resolved from provenance
@@ -71,8 +77,12 @@ class Person(SluggedModel, LinkableModel, TimeStampedModel):
     )
 
     # Biography context — claimed fields, resolved from provenance
-    birth_place = models.CharField(max_length=200, null=True, blank=True)
-    nationality = models.CharField(max_length=200, null=True, blank=True)
+    birth_place = models.CharField(
+        max_length=200, null=True, blank=True, validators=[validate_no_mojibake]
+    )
+    nationality = models.CharField(
+        max_length=200, null=True, blank=True, validators=[validate_no_mojibake]
+    )
     photo_url = models.URLField(null=True, blank=True)
 
     # Free-form staging area for source-specific data that doesn't have a

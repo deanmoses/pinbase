@@ -20,17 +20,17 @@ See [WritePathMatrix.md](WritePathMatrix.md) for the full inventory. The importa
 
 ### 1. There is not one write path today
 
-The current system has several distinct truth-affecting write paths:
+The system originally had several distinct truth-affecting write paths:
 
 - user-facing PATCH claim APIs
-- Django admin via `ProvenanceSaveMixin`
-- direct admin bypasses
+- ~~Django admin via `ProvenanceSaveMixin`~~ (removed — see "Remove Admin as a Catalog-Truth Writer")
+- ~~direct admin bypasses~~ (removed)
 - ingest bulk claim writes
-- ingest direct ORM writes
+- ingest direct ORM writes (to be eliminated by [ingest architecture redesign](IngestRefactor.md))
 - one-off management command claim writers
 - resolution/materialization itself
 
-There is no single place where "all data enters the system."
+The admin paths have been eliminated. The remaining direct ORM writes in ingest are the next target.
 
 ### 2. User-edit validation is the strongest path
 
@@ -67,15 +67,15 @@ WritePathMatrix identifies direct ORM writes with no claim at all, including:
 
 These are not just validation gaps. They are provenance coverage gaps.
 
-### 5. Admin is mixed, not cleanly claims-driven
+### 5. Admin is mixed, not cleanly claims-driven (now resolved)
 
-Admin is not one thing:
+Admin was not one thing:
 
-- `ProvenanceSaveMixin` routes changed scalar fields through claims, but only after the model row is first written
-- some admin screens bypass the provenance path entirely
-- some relationships remain directly editable rather than claim-controlled
+- `ProvenanceSaveMixin` routed changed scalar fields through claims, but only after the model row was first written
+- some admin screens bypassed the provenance path entirely
+- some relationships remained directly editable rather than claim-controlled
 
-"The admin validates it" is not the same thing as "it went through the claims system." More importantly, trying to make admin behave exactly like the claims UI/API would add complexity to the plan for relatively little value. If admin remains a full catalog edit surface, the system still has a fundamentally different human write path.
+This has been resolved by unregistering all catalog models from admin entirely. See "Remove Admin as a Catalog-Truth Writer."
 
 ### 6. Resolver and audit are carrying too much burden
 
@@ -162,7 +162,7 @@ WritePathMatrix is the authoritative field inventory for this work.
 3. Added `get_preserve_fields()` — a shared utility in `_helpers.py` that identifies UNIQUE and non-nullable FK fields. Replaces four inline copies of the same predicate.
 4. Fixed `_apply_resolution()` (MachineModel path) to use `preserve_when_unclaimed` logic, matching `_resolve_bulk` and `_resolve_single`.
 5. Asserted slug claims in all ingest commands for entities each source creates. Sources only assert slug claims for entities they create — not for pre-existing entities they reference (unlike scalar claims like name/year, no external source has a slug opinion).
-6. Direct slug writes (bootstrap `bulk_create_validated`, Title slug renames via `QuerySet.update`) remain as A4 bootstrap writes — the slug claim is asserted in the same pass.
+6. Direct slug writes (bootstrap `bulk_create_validated`, Title slug renames via `QuerySet.update`) coexist with slug claim assertions in the same ingest pass. The [ingest architecture redesign](IngestRefactor.md) will eliminate these direct writes entirely.
 
 **Source attribution rule for slug claims.** Sources only assert slug claims for entities they create — never for pre-existing entities they reference. This differs from scalar claims (name, year) where confirming a pre-existing value is useful provenance ("IPDB agrees the year is 1997"). No external source provides slug data, so asserting a slug claim for a pre-existing entity would attribute a decision that source never made. When a user edits an entity via the claims UI, they DO assert a slug claim — they are the source of that slug choice.
 
@@ -182,7 +182,7 @@ The result is that slugs are now claim-discovered, ingest-asserted, explicitly s
 
 ### A2. Replace direct ORM writes to claim-controlled data — subsumed ✓
 
-All direct ORM writes now have corresponding claim assertions in the same ingest pass (A4 bootstrap pattern). Slug writes (bootstrap `bulk_create_validated`, Title slug renames via `QuerySet.update`) are included. No separate A2 step was needed.
+All direct ORM writes now have corresponding claim assertions in the same ingest pass. Slug writes (bootstrap `bulk_create_validated`, Title slug renames via `QuerySet.update`) are included. The remaining direct writes will be eliminated by the [ingest architecture redesign](IngestRefactor.md). No separate A2 step was needed.
 
 ### A3. Bring remaining editorial relationships under claims ✓
 
@@ -229,11 +229,9 @@ This two-pass refactor was completed as part of A1 when `_ingest_titles` was mod
 
 The broader principle: **claims that reference another object's identity must be built after all identity updates in the same pass have been applied.**
 
-### A4. Document acceptable bootstrap writes
+### A4. Document acceptable bootstrap writes — dropped
 
-Some ingest commands write fields directly before asserting claims for those same fields in the same pass — for example, `MachineModel.objects.bulk_update([...], ["opdb_id", "ipdb_id"])` in `ingest_pinbase` and `ingest_opdb`, followed immediately by `bulk_assert_claims()` for the same values. This pattern is acceptable: the bootstrap write and the claim assertion travel together in the same ingest run, so the claim always catches up.
-
-No change is required for these writes. Inline comments documenting the bootstrap write dependency have not been added yet — this is a documentation-only task.
+The bootstrap write pattern (direct ORM write followed by a claim assertion in the same pass) exists because the current ingest commands create rows and assert claims in interleaved imperative code. The [ingest architecture redesign](IngestRefactor.md) eliminates this pattern entirely — `PlannedEntityCreate` means entity creation and claim persistence happen together in the apply layer's transaction, so there are no bootstrap writes to document.
 
 ### Lessons from A1 implementation
 
@@ -340,10 +338,28 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
 6. **Extend B3 to relationship target validation** (optional).
    Batch-validate slug references inside relationship claim dicts. `classify_claim()` already identifies relationship claims structurally; the remaining implementation is a provenance-owned registry mapping namespace + slug key to target model, plus grouped existence checks. Deferred because the resolver already logs warnings for unmatched targets.
 
-7. **Trim `validate_catalog` and review resolver guard rails.**
-   Review the resolver's defensive coercions — upstream validation now ensures only valid values reach claims through both `bulk_assert_claims` and `assert_claim`. Evidence: resolver tests for invalid-data coercion (`test_invalid_int_coercion`, `test_malformed_int_claim_uses_default`) now verify rejection at the claim boundary instead, confirming those resolver code paths are unreachable.
+7. ✓ **Audit model field validators.**
+   Audited every catalog model field on claims-bearing models (models with a `claims` GenericRelation). Three categories of missing validators were identified and fixed:
 
-   `validate_catalog` checks fall into three categories after Component B:
+   **Cross-reference IDs — `MinValueValidator(1)`:** `Manufacturer.opdb_manufacturer_id`, `CorporateEntity.ipdb_manufacturer_id`, `Title.fandom_page_id`. These are `PositiveIntegerField(unique=True, null=True)` — the DB enforces ≥0 but an ID of 0 is meaningless. Matches the existing pattern on `MachineModel.ipdb_id` and `pinside_id`.
+
+   **Wikidata IDs — `RegexValidator(r'^Q\d+$')`:** `Person.wikidata_id`, `Manufacturer.wikidata_id`. Wikidata identifiers are always Q followed by digits. The regex is strict enough that mojibake would also fail it.
+
+   **Text fields — `validate_no_mojibake`:** `Person.birth_place`, `Person.nationality`, `MachineModel.production_quantity`, `MachineModel.opdb_id`, `Title.opdb_id`, `Title.needs_review_notes`, `Location.location_type`, `Location.code`, `Location.short_name`, `Location.description`. These are `CharField`/`TextField` fields that receive data from external sources or user input but previously lacked the mojibake check that `name` fields and `MarkdownField` fields already had.
+
+   **Already covered (no changes needed):** all `name` fields (`validate_no_mojibake`), all `MarkdownField` descriptions (`validate_no_mojibake` via `default_validators`), all year/month/day fields (range validators), ratings (range validators), `player_count`/`flipper_count` (range validators), `ipdb_id`/`pinside_id` (`MinValueValidator(1)`), `MachineModelGameplayFeature.count` (`MinValueValidator(1)`), `URLField` fields (built-in `URLValidator`), `SlugField` fields (Django slug regex + `slug_not_blank()` constraint), `display_order` fields (`PositiveSmallIntegerField` enforces ≥0).
+
+   **Not in scope:** alias `value` fields, abbreviation `value` fields, `SystemMpuString.value`, and other through-table fields do not go through `validate_claim_value()`. Some ingest paths use `bulk_create_validated()` which checks mojibake, but the resolver's alias materialization (`_relationships.py`) uses bare `bulk_create()` without mojibake checking. This is a gap in the alias write path, not in the claim boundary — it should be addressed when the resolver alias code is next touched.
+
+   **Enforcement tests:** three structural metadata tests in `TestFieldValidatorCoverage` verify the rules hold across all claims-bearing catalog models, catching regressions when new fields are added. Integration tests in `provenance/tests/test_validation.py` verify `validate_claim_value()` rejects invalid data for each newly-protected field type.
+
+8. **Ingest architecture redesign.**
+   The remaining ingest problems — non-atomic execution, direct-write bypasses, claimless entity creation, implicit sync semantics, snowflake claim collection — are structural issues that require an architectural solution, not incremental fixes. See [IngestRefactor.md](IngestRefactor.md) for the target architecture: a planner/applier system with explicit sync modes, source policy, and a single transactional write path.
+
+9. **Trim `validate_catalog` and review resolver guard rails** (after ingest refactor).
+   Deferred until after the ingest redesign. Some resolver defensive coercions exist specifically to compensate for the current ingest's lack of validation. After the refactor, the apply layer validates everything before persisting, making it clearer which resolver guard rails are still reachable vs. dead code. Doing this review on the current code risks removing defenses that are still needed during the transition, or doing work that the refactor makes moot.
+
+   When this step is done, `validate_catalog` checks should be triaged:
 
    **Genuinely post-resolution** (keep):
    `check_golden_records` (end-to-end regression), `check_self_referential_variant`, `check_variant_chains` (structural invariants), `check_orphan_claims`, `check_unresolved_fk_claims`, `check_unresolved_credit_claims`, `check_unresolved_m2m_claims`, `check_credits_without_matching_claims` (referential integrity after resolution)
@@ -353,8 +369,6 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
 
    **Info/data quality only** (keep as-is):
    `check_summary_stats`, `check_duplicate_persons`, `check_duplicate_manufacturers`, `check_models_without_corporate_entity`, `check_models_without_year`, `check_titles_needing_review`, `check_uncurated_themes`
-
-8. **Only after that, decide whether new abstractions are warranted.**
 
 ## Follow-ups Out of Scope for This Plan
 
@@ -380,15 +394,15 @@ This is a separate feature project, not a prerequisite for this plan.
 
 This plan is successful when:
 
-- all intended catalog facts flow through claims
 - ✓ catalog models are unregistered from Django admin
-- remaining direct writes are either removed or explicitly documented as true bootstrap exceptions
-- ✓ `bulk_assert_claims()` and `assert_claim()` validate direct-field claim values using shared logic extracted from the interactive edit path
+- ✓ all intended catalog facts flow through claims (Component A)
+- ✓ `bulk_assert_claims()` and `assert_claim()` validate direct-field claim values using shared logic extracted from the interactive edit path (Component B)
 - ✓ FK existence checks run at claim-write time in ingest using batched lookups
 - ✓ provenance layer has no architectural imports from catalog (structural `classify_claim()` replaces `RELATIONSHIP_NAMESPACES` import)
-- relationship target existence checks run at claim-write time (deferred — resolver logs warnings for now)
-- editorial relationships identified in WritePathMatrix are materialised from claims, not written directly
-- `validate_catalog` no longer carries correctness rules that should have been enforced upstream
-- resolver defensive guard rails that compensate for upstream validation gaps have been reviewed and trimmed
 - ✓ catalog models no longer auto-generate slugs; explicit non-empty slugs are enforced in schema and tests
 - ✓ the codebase can be recreated cleanly from a reset initial migration set
+- relationship target existence checks run at claim-write time (deferred — resolver logs warnings for now)
+- ✓ catalog model fields carry adequate validators so `validate_claim_value()` and the model layer both enforce correctness (step 7)
+- remaining direct writes in ingest are eliminated by the ingest architecture redesign (see [IngestRefactor.md](IngestRefactor.md))
+- `validate_catalog` no longer carries correctness rules that should have been enforced upstream (deferred to post-ingest-refactor)
+- resolver defensive guard rails that compensate for upstream validation gaps have been reviewed and trimmed (deferred to post-ingest-refactor)

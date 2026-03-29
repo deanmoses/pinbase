@@ -38,12 +38,18 @@ class Location(models.Model):
     name = models.CharField(
         max_length=300, blank=True, validators=[validate_no_mojibake]
     )  # claim-controlled
-    location_type = models.CharField(max_length=50, blank=True)  # claim-controlled
-    code = models.CharField(max_length=20, blank=True)  # claim-controlled
+    location_type = models.CharField(
+        max_length=50, blank=True, validators=[validate_no_mojibake]
+    )  # claim-controlled
+    code = models.CharField(
+        max_length=20, blank=True, validators=[validate_no_mojibake]
+    )  # claim-controlled
     short_name = models.CharField(
-        max_length=100, blank=True
+        max_length=100, blank=True, validators=[validate_no_mojibake]
     )  # claim-controlled; e.g. "USA", "UK"
-    description = models.TextField(blank=True)  # claim-controlled
+    description = models.TextField(
+        blank=True, validators=[validate_no_mojibake]
+    )  # claim-controlled
     # claim-controlled; list of level-type labels for countries only
     # e.g. ["state", "city"] or ["region", "department", "city"]
     divisions = models.JSONField(null=True, blank=True)

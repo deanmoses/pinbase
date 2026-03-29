@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from apps.core.models import (
@@ -36,6 +37,7 @@ class Title(SluggedModel, LinkableModel, TimeStampedModel):
         blank=True,
         verbose_name="OPDB group ID",
         help_text='OPDB group ID (e.g., "G5pe4"). Null for titles without an OPDB group.',
+        validators=[validate_no_mojibake],
     )
     name = models.CharField(max_length=300, validators=[validate_no_mojibake])
     slug = models.SlugField(max_length=300, unique=True)
@@ -52,6 +54,7 @@ class Title(SluggedModel, LinkableModel, TimeStampedModel):
         null=True,
         blank=True,
         help_text="Fandom wiki page ID for deep-linking.",
+        validators=[MinValueValidator(1)],
     )
     needs_review = models.BooleanField(
         default=False,
@@ -60,6 +63,7 @@ class Title(SluggedModel, LinkableModel, TimeStampedModel):
     needs_review_notes = models.TextField(
         blank=True,
         help_text="Context for reviewers about why this title needs attention.",
+        validators=[validate_no_mojibake],
     )
 
     # Reverse access to provenance claims for this title.

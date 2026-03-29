@@ -40,7 +40,12 @@ class MachineModel(SluggedModel, LinkableModel, TimeStampedModel):
         validators=[MinValueValidator(1)],
     )
     opdb_id = models.CharField(
-        max_length=50, unique=True, null=True, blank=True, verbose_name="OPDB ID"
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name="OPDB ID",
+        validators=[validate_no_mojibake],
     )
     pinside_id = models.PositiveIntegerField(
         unique=True,
@@ -183,7 +188,9 @@ class MachineModel(SluggedModel, LinkableModel, TimeStampedModel):
         related_name="machine_models",
         help_text="Classification tags (materialized from relationship claims).",
     )
-    production_quantity = models.CharField(max_length=100, blank=True)
+    production_quantity = models.CharField(
+        max_length=100, blank=True, validators=[validate_no_mojibake]
+    )
     system = models.ForeignKey(
         "System",
         on_delete=models.SET_NULL,

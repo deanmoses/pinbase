@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -43,6 +43,7 @@ class Manufacturer(SluggedModel, LinkableModel, TimeStampedModel):
         null=True,
         blank=True,
         help_text="OPDB manufacturer_id for this brand.",
+        validators=[MinValueValidator(1)],
     )
     wikidata_id = models.CharField(
         max_length=20,
@@ -50,6 +51,12 @@ class Manufacturer(SluggedModel, LinkableModel, TimeStampedModel):
         null=True,
         blank=True,
         help_text="Wikidata QID, e.g. Q180268",
+        validators=[
+            RegexValidator(
+                r"^Q\d+$",
+                message="Wikidata ID must be Q followed by digits (e.g. Q180268).",
+            )
+        ],
     )
     description = MarkdownField(blank=True)
     logo_url = models.URLField(null=True, blank=True)
@@ -114,6 +121,7 @@ class CorporateEntity(SluggedModel, LinkableModel, TimeStampedModel):
         null=True,
         blank=True,
         help_text="IPDB ManufacturerId for this corporate entity.",
+        validators=[MinValueValidator(1)],
     )
     year_start = models.PositiveSmallIntegerField(
         null=True,

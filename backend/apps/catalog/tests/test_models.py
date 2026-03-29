@@ -1,5 +1,7 @@
 import pytest
-from django.db import IntegrityError
+from django.apps import apps
+from django.core.validators import MinValueValidator, RegexValidator
+from django.db import IntegrityError, models
 
 from apps.catalog.models import (
     CorporateEntity,
@@ -9,6 +11,8 @@ from apps.catalog.models import (
     Person,
     MachineModel,
 )
+from apps.core.models import get_claim_fields
+from apps.core.validators import validate_no_mojibake
 from apps.provenance.models import Claim, Source
 
 
@@ -237,3 +241,102 @@ class TestClaim:
         claim = Claim.objects.assert_claim(machine_model, "year", 1997, source=source)
         assert "IPDB" in str(claim)
         assert "year" in str(claim)
+
+
+# --- Field validator enforcement ---
+
+
+class TestFieldValidatorCoverage:
+    """Verify that catalog model fields carry the validators that
+    validate_claim_value() depends on.
+
+    These are structural/metadata tests — they check field definitions,
+    not runtime behaviour. The companion integration tests in
+    provenance/tests/test_validation.py verify that validate_claim_value()
+    rejects invalid data for these fields.
+    """
+
+    @staticmethod
+    def _catalog_models():
+        return list(apps.get_app_config("catalog").get_models())
+
+    @staticmethod
+    def _has_claims_relation(model):
+        """True if the model has a ``claims`` GenericRelation (receives claims)."""
+        return any(
+            f.name == "claims" and not getattr(f, "concrete", False)
+            for f in model._meta.get_fields()
+        )
+
+    def test_text_fields_have_mojibake_validator(self):
+        """Every claim-controlled CharField/TextField on a claims-bearing model
+        must have validate_no_mojibake (or an equivalent format validator).
+
+        Only checks models with a ``claims`` GenericRelation, since
+        ``validate_claim_value()`` only runs on those models.
+        Skips SlugField (Django's slug regex), URLField (built-in URLValidator),
+        and fields with a RegexValidator (stricter than mojibake).
+        """
+        missing = []
+        for model in self._catalog_models():
+            if not self._has_claims_relation(model):
+                continue
+            claim_fields = get_claim_fields(model)
+            for f in model._meta.get_fields():
+                if not getattr(f, "concrete", False):
+                    continue
+                if f.name not in claim_fields:
+                    continue
+                if not isinstance(f, (models.CharField, models.TextField)):
+                    continue
+                if isinstance(f, (models.SlugField, models.URLField)):
+                    continue
+                has_mojibake = validate_no_mojibake in f.validators
+                has_regex = any(isinstance(v, RegexValidator) for v in f.validators)
+                if not (has_mojibake or has_regex):
+                    missing.append(f"{model.__name__}.{f.name}")
+        assert missing == [], (
+            f"Claim-controlled text fields missing validate_no_mojibake: {missing}"
+        )
+
+    def test_nullable_unique_positive_int_fields_have_min_validator(self):
+        """Every nullable unique PositiveIntegerField (cross-reference ID)
+        on a claims-bearing model must have MinValueValidator(1).
+        """
+        missing = []
+        for model in self._catalog_models():
+            if not self._has_claims_relation(model):
+                continue
+            claim_fields = get_claim_fields(model)
+            for f in model._meta.get_fields():
+                if not getattr(f, "concrete", False):
+                    continue
+                if f.name not in claim_fields:
+                    continue
+                if not isinstance(f, models.PositiveIntegerField):
+                    continue
+                if not (f.null and getattr(f, "unique", False)):
+                    continue
+                has_min = any(
+                    isinstance(v, MinValueValidator) and v.limit_value >= 1
+                    for v in f.validators
+                )
+                if not has_min:
+                    missing.append(f"{model.__name__}.{f.name}")
+        assert missing == [], (
+            f"Nullable unique PositiveIntegerField fields missing MinValueValidator(1): {missing}"
+        )
+
+    def test_wikidata_id_fields_have_regex_validator(self):
+        """Every wikidata_id field must have a RegexValidator for Q-number format."""
+        missing = []
+        for model in self._catalog_models():
+            for f in model._meta.get_fields():
+                if not getattr(f, "concrete", False):
+                    continue
+                if f.name != "wikidata_id":
+                    continue
+                has_regex = any(isinstance(v, RegexValidator) for v in f.validators)
+                if not has_regex:
+                    missing.append(f"{model.__name__}.{f.name}")
+        assert missing == [], f"wikidata_id fields missing RegexValidator: {missing}"

@@ -5,7 +5,16 @@ from __future__ import annotations
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.catalog.models import MachineModel, Manufacturer, Person, System, Theme
+from apps.catalog.models import (
+    CorporateEntity,
+    Location,
+    MachineModel,
+    Manufacturer,
+    Person,
+    System,
+    Theme,
+    Title,
+)
 from apps.provenance.models import Claim, Source
 from apps.provenance.validation import (
     DIRECT,
@@ -69,6 +78,60 @@ class TestValidateClaimValue:
         # System.manufacturer is a FK to Manufacturer — should return unchanged.
         result = validate_claim_value("manufacturer", "some-slug", System)
         assert result == "some-slug"
+
+    # --- Validators added by field audit (step 7) ---
+
+    def test_wikidata_id_valid_format_passes(self):
+        result = validate_claim_value("wikidata_id", "Q312897", Person)
+        assert result == "Q312897"
+
+    def test_wikidata_id_invalid_format_rejected(self):
+        with pytest.raises(ValidationError, match="Wikidata ID"):
+            validate_claim_value("wikidata_id", "WD312897", Person)
+
+    def test_wikidata_id_bare_number_rejected(self):
+        with pytest.raises(ValidationError, match="Wikidata ID"):
+            validate_claim_value("wikidata_id", "312897", Person)
+
+    def test_wikidata_id_manufacturer_valid_passes(self):
+        result = validate_claim_value("wikidata_id", "Q180268", Manufacturer)
+        assert result == "Q180268"
+
+    def test_wikidata_id_manufacturer_invalid_rejected(self):
+        with pytest.raises(ValidationError, match="Wikidata ID"):
+            validate_claim_value("wikidata_id", "WD180268", Manufacturer)
+
+    def test_opdb_manufacturer_id_zero_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_claim_value("opdb_manufacturer_id", 0, Manufacturer)
+
+    def test_opdb_manufacturer_id_valid_passes(self):
+        result = validate_claim_value("opdb_manufacturer_id", 7, Manufacturer)
+        assert result == 7
+
+    def test_ipdb_manufacturer_id_zero_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_claim_value("ipdb_manufacturer_id", 0, CorporateEntity)
+
+    def test_fandom_page_id_zero_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_claim_value("fandom_page_id", 0, Title)
+
+    def test_fandom_page_id_valid_passes(self):
+        result = validate_claim_value("fandom_page_id", 42, Title)
+        assert result == 42
+
+    def test_production_quantity_mojibake_rejected(self):
+        with pytest.raises(ValidationError, match="mojibake"):
+            validate_claim_value("production_quantity", "Caf\u00c3\u00a9", MachineModel)
+
+    def test_birth_place_mojibake_rejected(self):
+        with pytest.raises(ValidationError, match="mojibake"):
+            validate_claim_value("birth_place", "Caf\u00c3\u00a9", Person)
+
+    def test_location_description_mojibake_rejected(self):
+        with pytest.raises(ValidationError, match="mojibake"):
+            validate_claim_value("description", "Caf\u00c3\u00a9", Location)
 
 
 # ---------------------------------------------------------------------------
