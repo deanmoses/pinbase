@@ -33,10 +33,10 @@ class CatalogConfig(AppConfig):
         from django.apps import apps
 
         from apps.core.markdown_links import LinkType, register
-        from apps.core.models import Linkable
+        from apps.core.models import LinkableModel
 
         for model in apps.get_app_config("catalog").get_models():
-            if not issubclass(model, Linkable) or model._meta.abstract:
+            if not issubclass(model, LinkableModel) or model._meta.abstract:
                 continue
             name = getattr(model, "link_type_name", model.__name__.lower())
             verbose_plural = model._meta.verbose_name_plural.replace(" ", "-")

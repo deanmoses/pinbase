@@ -41,12 +41,12 @@ def source(db):
 
 @pytest.fixture
 def manufacturer(db):
-    return Manufacturer.objects.create(name="Williams")
+    return Manufacturer.objects.create(name="Williams", slug="williams")
 
 
 @pytest.fixture
 def stern(db):
-    return Manufacturer.objects.create(name="Stern")
+    return Manufacturer.objects.create(name="Stern", slug="stern")
 
 
 _CREDIT_ROLES = [
@@ -76,7 +76,7 @@ def credit_roles(db):
 
 @pytest.fixture
 def person(db):
-    return Person.objects.create(name="Pat Lawlor")
+    return Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
 
 
 @pytest.fixture
@@ -143,6 +143,7 @@ def stern_entity(db, stern):
 def machine_model(db, williams_entity, solid_state):
     pm = MachineModel.objects.create(
         name="Medieval Madness",
+        slug="medieval-madness",
         corporate_entity=williams_entity,
         year=1997,
         technology_generation=solid_state,
@@ -230,6 +231,7 @@ def ipdb_narrative_features(db):
 def another_model(db, stern_entity, solid_state):
     return MachineModel.objects.create(
         name="The Mandalorian",
+        slug="the-mandalorian",
         corporate_entity=stern_entity,
         year=2021,
         technology_generation=solid_state,

@@ -5,28 +5,27 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-
-from apps.core.validators import validate_no_mojibake
 from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    slug_not_blank,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Person", "PersonAlias", "Credit"]
 
 
-class Person(Linkable, TimeStampedModel):
+class Person(SluggedModel, LinkableModel, TimeStampedModel):
     """A person involved in pinball machine design (designer, artist, etc.)."""
 
     link_url_pattern = "/people/{slug}"
 
     name = models.CharField(max_length=200, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
 
     # Wikidata cross-reference — direct field, not a claim
@@ -86,14 +85,10 @@ class Person(Linkable, TimeStampedModel):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "people"
+        constraints = [slug_not_blank()]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "person")
-        super().save(*args, **kwargs)
 
 
 class PersonAlias(AliasBase):

@@ -5,13 +5,19 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from apps.core.models import (
+    LinkableModel,
+    MarkdownField,
+    SluggedModel,
+    TimeStampedModel,
+    slug_not_blank,
+)
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Title", "TitleAbbreviation"]
 
 
-class Title(Linkable, TimeStampedModel):
+class Title(SluggedModel, LinkableModel, TimeStampedModel):
     """The canonical identity of a pinball game, independent of edition or variant.
 
     OPDB calls this a "group" in its JSON, but we use "Title" as it is the
@@ -32,7 +38,7 @@ class Title(Linkable, TimeStampedModel):
         help_text='OPDB group ID (e.g., "G5pe4"). Null for titles without an OPDB group.',
     )
     name = models.CharField(max_length=300, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    slug = models.SlugField(max_length=300, unique=True)
     description = MarkdownField(blank=True)
     franchise = models.ForeignKey(
         "Franchise",
@@ -61,14 +67,10 @@ class Title(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank()]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "title")
-        super().save(*args, **kwargs)
 
 
 class TitleAbbreviation(TimeStampedModel):

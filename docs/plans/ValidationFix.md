@@ -106,6 +106,11 @@ Finally, there is an operational decision that also simplifies the migration:
 
 That removes a large class of migration/backfill complexity. The plan can optimize for achieving a coherent architecture in the codebase rather than preserving every historical intermediate state in-place.
 
+Two implementation lessons from the completed tranches should guide the remaining work:
+
+- for invariant changes like "slug must be explicit and non-empty", prefer schema/DB enforcement or a shared low-level helper over `blank=False`, form validation, or relying on `save()` behavior
+- for claim-boundary validation, prefer structural classification from existing claim shape over adding new persisted metadata or parallel abstractions
+
 ## Remove Admin as a Catalog-Truth Writer ✓
 
 All 20 catalog models are unregistered from Django admin. `catalog/admin.py` contains only a docstring explaining the rationale. A test (`TestCatalogModelsNotInAdmin`) enforces this — any future registration will fail CI.
@@ -161,7 +166,19 @@ WritePathMatrix is the authoritative field inventory for this work.
 
 **Source attribution rule for slug claims.** Sources only assert slug claims for entities they create — never for pre-existing entities they reference. This differs from scalar claims (name, year) where confirming a pre-existing value is useful provenance ("IPDB agrees the year is 1997"). No external source provides slug data, so asserting a slug claim for a pre-existing entity would attribute a decision that source never made. When a user edits an entity via the claims UI, they DO assert a slug claim — they are the source of that slug choice.
 
-**Remaining:** Remove auto-slug generation from catalog model `save()` methods (17 models). Currently save() auto-generates a slug if blank — this is a safety net that is no longer needed now that all ingest paths supply slugs explicitly. Removing it enforces the invariant that slugs come from exactly two sources: ingest and user edit. This also requires fixing ~173 tests that create objects without providing a slug.
+**Auto-slug removal completed.** ✓
+
+Catalog models no longer auto-generate slugs in `save()`. Slugs are now explicit inputs, carried either by ingest/bootstrap code or by user edits through claims. The implementation was simplified by replacing the old field-level approach with a shared `SluggedModel` base class plus a reusable `slug_not_blank()` DB constraint. This enforces the real invariant at the database level: catalog rows may not persist `slug=""`.
+
+**What was done:**
+
+1. Deleted the old auto-slugging `save()` overrides from the catalog models that had them.
+2. Introduced `SluggedModel` in `core/models.py` so catalog models share one slug field definition instead of a custom field abstraction.
+3. Added `slug_not_blank()` constraints across catalog models so empty-string slugs fail at the DB layer even on ordinary ORM writes and `bulk_create()`.
+4. Updated ingest paths and test fixtures to supply explicit slugs everywhere they create catalog rows.
+5. Reset the catalog migration history to a fresh `0001_initial.py`, so the current schema and slug constraints are the baseline rather than layered historical cleanup.
+
+The result is that slugs are now claim-discovered, ingest-asserted, explicitly supplied, and DB-enforced as non-empty.
 
 ### A2. Replace direct ORM writes to claim-controlled data — subsumed ✓
 
@@ -218,6 +235,12 @@ Some ingest commands write fields directly before asserting claims for those sam
 
 No change is required for these writes. Inline comments documenting the bootstrap write dependency have not been added yet — this is a documentation-only task.
 
+### Lessons from A1 implementation
+
+**Shared low-level helpers beat per-model cleanup.** The successful pattern for slug enforcement was not 17 bespoke model fixes. It was one shared `SluggedModel` base plus one reusable `slug_not_blank()` constraint. Remaining cleanup should prefer common helpers or mixins over repeated local patches whenever the invariant is truly global.
+
+**Fixture fallout is part of the migration, not post-work cleanup.** Removing model-level fallback behavior exposed a large number of tests and helpers that had been implicitly relying on it. For the remaining tranches, fixture and factory updates should be treated as first-class implementation work and included in scope from the start.
+
 ## Component B — Reuse Existing Validation Logic at the Claim Boundary
 
 Once writes actually reach the claim boundary, add shared validation there by extracting and reusing the logic that already exists in the interactive edit path. This includes one-off management command claim writers: they already route through `assert_claim()` or `bulk_assert_claims()` (so they have no coverage gap), but they currently get no more validation than any other bulk caller. Component B closes that gap for `bulk_assert_claims()` callers automatically. Single-claim writers that use `assert_claim()` directly (such as `scrape_images`) are a smaller surface but should also be audited and wired to `validate_claim_value()` once it exists.
@@ -264,7 +287,7 @@ FK claims are validated in batch by `validate_fk_claims_batch()`:
 - uses the `claim_fk_lookups` convention from the resolver to determine the lookup key
 - rejects claims referencing non-existent targets
 
-**Relationship target validation is deferred.** Relationship claims are now structurally identifiable via `classify_claim()` without catalog imports. Extending B3 to validate their target slugs would require a registry mapping relationship namespace + slug key to target model. The resolver already logs warnings for unmatched relationship slugs. This is a follow-up, not a prerequisite.
+**Relationship target validation is deferred.** Relationship claims are now structurally identifiable via `classify_claim()` without catalog imports. The remaining work is concrete, not architectural: add a provenance-owned registry mapping relationship namespace + target slug key to model class, then batch-validate those targets using the same grouped-query pattern as FK validation. The resolver already logs warnings for unmatched relationship slugs, so this is a follow-up, not a prerequisite.
 
 ### B4. Validate `assert_claim()` callers ✓
 
@@ -306,7 +329,7 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
    All catalog models unregistered, `ProvenanceSaveMixin` removed, test enforcement in place.
 
 3. ✓ **Fix Component A.**
-   Remove non-justified `claims_exempt`, migrate direct writes, and bring claim-managed facts onto claims. Slug removed from `_CLAIMS_EXEMPT_NAMES`, slug claims asserted in all ingest commands, conflict detection generalised. Remaining: remove auto-slug from 17 catalog model `save()` methods + fix ~173 tests.
+   Remove non-justified `claims_exempt`, migrate direct writes, and bring claim-managed facts onto claims. Slug removed from `_CLAIMS_EXEMPT_NAMES`, slug claims asserted in all ingest commands, conflict detection generalised, auto-slug removed from catalog model `save()` methods, explicit slug creation enforced, and test fixtures updated accordingly.
 
 4. ✓ **Fix Component B: scalar and FK validation at the claim boundary.**
    `validate_claim_value()` extracted, called from `bulk_assert_claims()`, batched FK target checks added.
@@ -315,7 +338,7 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
    `assert_claim()` now validates DIRECT claims and rejects UNRECOGNIZED claims via `classify_claim()`.
 
 6. **Extend B3 to relationship target validation** (optional).
-   Batch-validate slug references inside relationship claim dicts. `classify_claim()` now identifies relationship claims structurally — a registry mapping namespace + slug key to target model is the remaining piece. Deferred because the resolver already logs warnings for unmatched targets.
+   Batch-validate slug references inside relationship claim dicts. `classify_claim()` already identifies relationship claims structurally; the remaining implementation is a provenance-owned registry mapping namespace + slug key to target model, plus grouped existence checks. Deferred because the resolver already logs warnings for unmatched targets.
 
 7. **Trim `validate_catalog` and review resolver guard rails.**
    Review the resolver's defensive coercions — upstream validation now ensures only valid values reach claims through both `bulk_assert_claims` and `assert_claim`. Evidence: resolver tests for invalid-data coercion (`test_invalid_int_coercion`, `test_malformed_int_claim_uses_default`) now verify rejection at the claim boundary instead, confirming those resolver code paths are unreachable.
@@ -337,9 +360,13 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
 
 ### Slug editing UI
 
-After A1 slug migration, the backend fully supports slug claims: `get_claim_fields()` returns `slug`, `execute_claims()` can process slug claims via PATCH, and the resolver materializes and conflict-checks them. Ingest slugs are fully claim-controlled with source attribution.
+After A1 slug migration, the backend fully supports slug claims: `get_claim_fields()` returns `slug`, `execute_claims()` can process slug claims via PATCH, the resolver materializes and conflict-checks them, and catalog models no longer auto-generate fallback slugs in `save()`. Ingest slugs are fully claim-controlled with source attribution, and empty slugs are rejected at the DB layer.
 
-What remains is the frontend UX: a propose/approve flow where the UI auto-generates a slug proposal from the name, the user can see, modify, and approve it, and it is submitted as a claim. This also applies to entity creation — the user needs to see and confirm the slug before the record is created. This is a UX feature that builds on the backend infrastructure but is separate from the coverage-gap work in this plan.
+What remains is the frontend UX: a propose/approve flow where the UI auto-generates a slug proposal from the name, the user can see, modify, and approve it, and it is submitted as a claim. This also applies to entity creation — the user needs to see and confirm the slug before the record is created.
+
+This remains intentionally transitional. While bootstrap ingest still uses slug-based identity in source data and relationship claims may still reference slugs, broad human slug editing should not be treated as a routine workflow. Before enabling broad live slug editing in production UX, relationship identity should be revisited so editable slugs are no longer overloaded as long-lived referential identity.
+
+This is a UX feature that builds on the backend infrastructure but is separate from the coverage-gap work in this plan.
 
 ### Taxonomy edit UIs
 
@@ -363,4 +390,5 @@ This plan is successful when:
 - editorial relationships identified in WritePathMatrix are materialised from claims, not written directly
 - `validate_catalog` no longer carries correctness rules that should have been enforced upstream
 - resolver defensive guard rails that compensate for upstream validation gaps have been reviewed and trimmed
-- the codebase can be recreated cleanly from a reset initial migration set
+- ✓ catalog models no longer auto-generate slugs; explicit non-empty slugs are enforced in schema and tests
+- ✓ the codebase can be recreated cleanly from a reset initial migration set

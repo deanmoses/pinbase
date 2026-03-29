@@ -16,12 +16,12 @@ def user(db):
 
 @pytest.fixture
 def mfr(db):
-    return Manufacturer.objects.create(name="Williams")
+    return Manufacturer.objects.create(name="Williams", slug="williams")
 
 
 @pytest.fixture
 def person(db):
-    return Person.objects.create(name="Pat Lawlor")
+    return Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ class TestPatchManufacturerClaimsValidation:
         assert resp.status_code == 404
 
     def test_duplicate_name_returns_422(self, client, user, mfr):
-        Manufacturer.objects.create(name="Bally")
+        Manufacturer.objects.create(name="Bally", slug="bally")
         client.force_login(user)
         resp = client.patch(
             f"/api/manufacturers/{mfr.slug}/claims/",

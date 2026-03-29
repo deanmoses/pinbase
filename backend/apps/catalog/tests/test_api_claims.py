@@ -22,7 +22,9 @@ def low_priority_source(db):
 
 @pytest.fixture
 def pm(db):
-    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+    return MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
 
 
 @pytest.mark.django_db

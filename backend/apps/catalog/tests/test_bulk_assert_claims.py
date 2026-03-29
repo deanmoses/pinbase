@@ -23,17 +23,21 @@ def other_source(db):
 
 @pytest.fixture
 def manufacturer(db):
-    return Manufacturer.objects.create(name="Williams")
+    return Manufacturer.objects.create(name="Williams", slug="williams")
 
 
 @pytest.fixture
 def pm1(db):
-    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+    return MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
 
 
 @pytest.fixture
 def pm2(db):
-    return MachineModel.objects.create(name="Monster Bash", year=1998)
+    return MachineModel.objects.create(
+        name="Monster Bash", slug="monster-bash", year=1998
+    )
 
 
 @pytest.fixture

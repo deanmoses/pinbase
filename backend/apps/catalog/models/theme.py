@@ -6,20 +6,20 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.validators import validate_no_mojibake
-
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    slug_not_blank,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Theme", "ThemeAlias"]
 
 
-class Theme(Linkable, TimeStampedModel):
+class Theme(SluggedModel, LinkableModel, TimeStampedModel):
     """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
 
     Supports a DAG hierarchy via the ``parents`` M2M (structural, not
@@ -32,7 +32,6 @@ class Theme(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
     parents = models.ManyToManyField(
         "self",
@@ -46,14 +45,10 @@ class Theme(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank()]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "theme")
-        super().save(*args, **kwargs)
 
 
 class ThemeAlias(AliasBase):

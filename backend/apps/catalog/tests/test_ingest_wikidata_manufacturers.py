@@ -26,7 +26,7 @@ def _seed_db(db):
     name claims from the originating source so that resolve()
     can restore them (claims are the sole source of truth for these fields).
     """
-    mfr = Manufacturer.objects.create(name="Williams")
+    mfr = Manufacturer.objects.create(name="Williams", slug="williams")
     ipdb = Source.objects.create(name="IPDB", source_type="database", priority=10)
     Claim.objects.assert_claim(mfr, "name", "Williams", source=ipdb)
     # "Obscure Pinball Co" has no DB record — exercises the no-match path.

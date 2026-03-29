@@ -24,6 +24,7 @@ def model_with_opdb_name(db, opdb_source):
     """A MachineModel with an OPDB name claim containing an abbreviation."""
     mm = MachineModel.objects.create(
         name="Foo (LE)",
+        slug="foo-le",
         opdb_id="Gtest-Mtest",
     )
     Claim.objects.bulk_assert_claims(
@@ -49,6 +50,7 @@ def model_with_opdb_name_simple(db, opdb_source):
 
     mm = MachineModel.objects.create(
         name="Foo (LE)",
+        slug="foo-le",
         opdb_id="Gtest-Mtest",
     )
     ct = ContentType.objects.get_for_model(MachineModel)
@@ -211,7 +213,9 @@ class TestIngestPinbaseModels:
 
     def test_variant_of_overrides_ingest(self, db):
         """variant_of from pinbase overrides a wrong variant_of from ingest_opdb."""
-        MachineModel.objects.create(name="Wrong Parent", opdb_id="Gtest-Mwrong")
+        MachineModel.objects.create(
+            name="Wrong Parent", slug="wrong-parent", opdb_id="Gtest-Mwrong"
+        )
         right_parent = MachineModel.objects.create(
             name="Right Parent", opdb_id="Gtest-Mright", slug="right-parent"
         )

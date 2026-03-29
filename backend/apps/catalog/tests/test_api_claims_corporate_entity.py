@@ -25,7 +25,7 @@ def user(db):
 
 @pytest.fixture
 def mfr(db):
-    return Manufacturer.objects.create(name="Gottlieb")
+    return Manufacturer.objects.create(name="Gottlieb", slug="gottlieb")
 
 
 @pytest.fixture
@@ -81,14 +81,21 @@ class TestListCorporateEntities:
         assert data[0]["manufacturer"]["slug"] == "gottlieb"
 
     def test_list_includes_model_count(self, client, entity):
-        MachineModel.objects.create(name="Ace High", corporate_entity=entity, year=1957)
+        MachineModel.objects.create(
+            name="Ace High", slug="ace-high", corporate_entity=entity, year=1957
+        )
         resp = client.get("/api/corporate-entities/")
         assert resp.json()[0]["model_count"] == 1
 
     def test_list_excludes_variants_from_count(self, client, entity):
-        base = MachineModel.objects.create(name="Ace High", corporate_entity=entity)
+        base = MachineModel.objects.create(
+            name="Ace High", slug="ace-high", corporate_entity=entity
+        )
         MachineModel.objects.create(
-            name="Ace High LE", corporate_entity=entity, variant_of=base
+            name="Ace High LE",
+            slug="ace-high-le",
+            corporate_entity=entity,
+            variant_of=base,
         )
         resp = client.get("/api/corporate-entities/")
         assert resp.json()[0]["model_count"] == 1
@@ -116,9 +123,13 @@ class TestGetCorporateEntity:
         assert "Gottlieb Co" in resp.json()["aliases"]
 
     def test_detail_includes_titles(self, client, entity):
-        title = Title.objects.create(name="Ace High")
+        title = Title.objects.create(name="Ace High", slug="ace-high")
         MachineModel.objects.create(
-            name="Ace High", corporate_entity=entity, title=title, year=1957
+            name="Ace High",
+            slug="ace-high",
+            corporate_entity=entity,
+            title=title,
+            year=1957,
         )
         resp = client.get(f"/api/corporate-entities/{entity.slug}")
         titles = resp.json()["titles"]

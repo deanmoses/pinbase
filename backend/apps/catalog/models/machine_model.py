@@ -6,14 +6,19 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from apps.core.models import (
+    LinkableModel,
+    MarkdownField,
+    SluggedModel,
+    TimeStampedModel,
+    slug_not_blank,
+)
 from apps.core.validators import validate_no_mojibake
-
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
 
 __all__ = ["MachineModel", "ModelAbbreviation"]
 
 
-class MachineModel(Linkable, TimeStampedModel):
+class MachineModel(SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball machine title/design — the resolved/materialized view.
 
     Fields are derived from resolving claims. The resolution logic picks the
@@ -24,7 +29,7 @@ class MachineModel(Linkable, TimeStampedModel):
 
     # Identity
     name = models.CharField(max_length=300, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    slug = models.SlugField(max_length=300, unique=True)
 
     # Cross-reference IDs
     ipdb_id = models.PositiveIntegerField(
@@ -219,6 +224,7 @@ class MachineModel(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank()]
         indexes = [
             models.Index(fields=["corporate_entity", "year"]),
             models.Index(fields=["technology_generation", "year"]),
@@ -232,16 +238,6 @@ class MachineModel(Linkable, TimeStampedModel):
         if self.year:
             parts.append(f"[{self.year}]")
         return " ".join(parts)
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            parts = [self.name]
-            if self.corporate_entity:
-                parts.append(self.corporate_entity.name)
-            if self.year:
-                parts.append(str(self.year))
-            self.slug = unique_slug(self, " ".join(parts), "model")
-        super().save(*args, **kwargs)
 
 
 class ModelAbbreviation(TimeStampedModel):

@@ -23,17 +23,19 @@ def user(db):
 
 @pytest.fixture
 def title(db):
-    return Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
+    return Title.objects.create(
+        name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"
+    )
 
 
 @pytest.fixture
 def franchise(db):
-    return Franchise.objects.create(name="Castle Games")
+    return Franchise.objects.create(name="Castle Games", slug="castle-games")
 
 
 @pytest.fixture
 def other_franchise(db):
-    return Franchise.objects.create(name="Remake Line")
+    return Franchise.objects.create(name="Remake Line", slug="remake-line")
 
 
 @pytest.fixture

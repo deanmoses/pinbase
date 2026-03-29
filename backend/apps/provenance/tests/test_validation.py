@@ -80,15 +80,15 @@ class TestValidateClaimValue:
 class TestValidateClaimsBatch:
     @pytest.fixture
     def manufacturer(self):
-        return Manufacturer.objects.create(name="Williams")
+        return Manufacturer.objects.create(name="Williams", slug="williams")
 
     @pytest.fixture
     def system(self, manufacturer):
-        return System.objects.create(name="WPC", manufacturer=manufacturer)
+        return System.objects.create(name="WPC", slug="wpc", manufacturer=manufacturer)
 
     @pytest.fixture
     def model(self):
-        return MachineModel.objects.create(name="Eight Ball")
+        return MachineModel.objects.create(name="Eight Ball", slug="eight-ball")
 
     def test_valid_scalar_claim_passes(self, model):
         claim = Claim.for_object(model, field_name="name", value="Eight Ball Deluxe")
@@ -181,11 +181,11 @@ class TestValidateClaimsBatch:
 class TestValidateFkClaimsBatch:
     @pytest.fixture
     def manufacturer(self):
-        return Manufacturer.objects.create(name="Williams")
+        return Manufacturer.objects.create(name="Williams", slug="williams")
 
     @pytest.fixture
     def system(self, manufacturer):
-        return System.objects.create(name="WPC", manufacturer=manufacturer)
+        return System.objects.create(name="WPC", slug="wpc", manufacturer=manufacturer)
 
     def test_valid_fk_passes(self, system, manufacturer):
         claim = Claim.for_object(
@@ -301,18 +301,18 @@ class TestAssertClaimValidation:
 
     def test_rejects_invalid_direct_claim(self, source):
         """assert_claim should reject invalid scalar values."""
-        model = MachineModel.objects.create(name="Test")
+        model = MachineModel.objects.create(name="Test", slug="test")
         with pytest.raises(ValidationError, match="must be an integer"):
             Claim.objects.assert_claim(model, "ipdb_id", "not-a-number", source=source)
 
     def test_allows_valid_direct_claim(self, source):
-        model = MachineModel.objects.create(name="Test")
+        model = MachineModel.objects.create(name="Test", slug="test")
         claim = Claim.objects.assert_claim(model, "ipdb_id", 42, source=source)
         assert claim.value == 42
 
     def test_allows_relationship_claim(self, source):
         """Relationship claims should pass through without validation."""
-        model = MachineModel.objects.create(name="Test")
+        model = MachineModel.objects.create(name="Test", slug="test")
         claim = Claim.objects.assert_claim(
             model,
             "credit",
@@ -324,7 +324,7 @@ class TestAssertClaimValidation:
 
     def test_allows_extra_data_claim(self, source):
         """Extra-data claims should pass through without validation."""
-        model = MachineModel.objects.create(name="Test")
+        model = MachineModel.objects.create(name="Test", slug="test")
         claim = Claim.objects.assert_claim(
             model, "opdb.description", "A great game", source=source
         )

@@ -7,20 +7,20 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.validators import validate_no_mojibake
-
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    slug_not_blank,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeature"]
 
 
-class GameplayFeature(Linkable, TimeStampedModel):
+class GameplayFeature(SluggedModel, LinkableModel, TimeStampedModel):
     """A gameplay mechanism: Flippers, Pop Bumpers, Ramps, Multiball, etc.
 
     Supports a DAG hierarchy via the ``parents`` M2M (claim-controlled).
@@ -32,7 +32,6 @@ class GameplayFeature(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
     parents = models.ManyToManyField(
         "self",
@@ -46,14 +45,10 @@ class GameplayFeature(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank()]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "feature")
-        super().save(*args, **kwargs)
 
 
 class MachineModelGameplayFeature(TimeStampedModel):

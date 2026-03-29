@@ -34,7 +34,7 @@ def person2(db):
 
 @pytest.fixture
 def machine(db):
-    return MachineModel.objects.create(name="Medieval Madness")
+    return MachineModel.objects.create(name="Medieval Madness", slug="medieval-madness")
 
 
 def _assert_credit_claim(machine, person_slug, role, source):

@@ -5,17 +5,17 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-
-from apps.core.validators import validate_no_mojibake
 from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    slug_not_blank,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = [
     "Manufacturer",
@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-class Manufacturer(Linkable, TimeStampedModel):
+class Manufacturer(SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball machine brand (user-facing grouping).
 
     Corporate incarnations are tracked separately in ManufacturerEntity.
@@ -38,7 +38,6 @@ class Manufacturer(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     opdb_manufacturer_id = models.PositiveIntegerField(
         unique=True,
         null=True,
@@ -65,14 +64,10 @@ class Manufacturer(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank()]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "manufacturer")
-        super().save(*args, **kwargs)
 
 
 class ManufacturerAlias(AliasBase):
@@ -93,7 +88,7 @@ class ManufacturerAlias(AliasBase):
         ]
 
 
-class CorporateEntity(Linkable, TimeStampedModel):
+class CorporateEntity(SluggedModel, LinkableModel, TimeStampedModel):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
@@ -107,7 +102,7 @@ class CorporateEntity(Linkable, TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="entities",
     )
-    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    slug = models.SlugField(max_length=300, unique=True)
     description = MarkdownField(blank=True)
     name = models.CharField(
         max_length=300,
@@ -139,7 +134,7 @@ class CorporateEntity(Linkable, TimeStampedModel):
         ordering = ["manufacturer", "year_start"]
         verbose_name = "corporate entity"
         verbose_name_plural = "corporate entities"
-        constraints = []
+        constraints = [slug_not_blank()]
 
     def __str__(self) -> str:
         if self.year_start:

@@ -73,7 +73,11 @@ class TestMojibakeClaimsApiIntegration:
     def pm(self):
         from apps.catalog.models import MachineModel
 
-        return MachineModel.objects.create(name="Medieval Madness", year=1997)
+        return MachineModel.objects.create(
+            name="Medieval Madness",
+            slug="medieval-madness",
+            year=1997,
+        )
 
     def test_rejects_mojibake_name_via_claims_api(self, client, user, pm):
         client.force_login(user)
@@ -110,7 +114,11 @@ class TestMojibakeBulkAssertClaims:
     def pm(self):
         from apps.catalog.models import MachineModel
 
-        return MachineModel.objects.create(name="Medieval Madness", year=1997)
+        return MachineModel.objects.create(
+            name="Medieval Madness",
+            slug="medieval-madness",
+            year=1997,
+        )
 
     def test_rejects_mojibake_name_claim(self, source, pm):
         from apps.provenance.models import Claim
@@ -149,7 +157,7 @@ class TestMojibakeBulkAssertClaims:
         names are legitimate lookup values."""
         from apps.catalog.models import Manufacturer
 
-        mfr = Manufacturer.objects.create(name="Williams")
+        mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         ct_id = ContentType.objects.get_for_model(mfr).pk
 
         from apps.provenance.models import Claim

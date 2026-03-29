@@ -195,7 +195,9 @@ class TestIngestOpdbAliases:
 @pytest.mark.django_db
 class TestIngestOpdbChangelog:
     def test_changelog_moves_opdb_id(self, db):
-        MachineModel.objects.create(name="Stale Machine", opdb_id="GSTALE-MOld1")
+        MachineModel.objects.create(
+            name="Stale Machine", slug="stale-machine", opdb_id="GSTALE-MOld1"
+        )
         call_command(
             "ingest_opdb",
             opdb=f"{FIXTURES}/opdb_sample.json",
@@ -205,7 +207,9 @@ class TestIngestOpdbChangelog:
         assert pm.opdb_id == "GFRESH-MNew1"
 
     def test_changelog_does_not_delete(self, db):
-        MachineModel.objects.create(name="Dead Machine", opdb_id="GDEAD-MDel1")
+        MachineModel.objects.create(
+            name="Dead Machine", slug="dead-machine", opdb_id="GDEAD-MDel1"
+        )
         call_command(
             "ingest_opdb",
             opdb=f"{FIXTURES}/opdb_sample.json",
@@ -214,8 +218,12 @@ class TestIngestOpdbChangelog:
         assert MachineModel.objects.filter(name="Dead Machine").exists()
 
     def test_changelog_no_overwrite_existing(self, db):
-        MachineModel.objects.create(name="Stale Machine", opdb_id="GSTALE-MOld1")
-        MachineModel.objects.create(name="New Machine", opdb_id="GFRESH-MNew1")
+        MachineModel.objects.create(
+            name="Stale Machine", slug="stale-machine", opdb_id="GSTALE-MOld1"
+        )
+        MachineModel.objects.create(
+            name="New Machine", slug="new-machine", opdb_id="GFRESH-MNew1"
+        )
         call_command(
             "ingest_opdb",
             opdb=f"{FIXTURES}/opdb_sample.json",
@@ -257,7 +265,9 @@ class TestOpdbAbortsMissingOpdbId:
 class TestOpdbConflictBranches:
     def test_matched_model_keeps_existing_opdb_id(self):
         """Models matched by opdb_id keep their existing opdb_id."""
-        MachineModel.objects.create(name="Test Game", opdb_id="GOLD-M1")
+        MachineModel.objects.create(
+            name="Test Game", slug="test-game", opdb_id="GOLD-M1"
+        )
         path = _opdb_dump(machines=[{"opdb_id": "GOLD-M1", "name": "Test Game"}])
         call_command("ingest_opdb", opdb=path)
         pm = MachineModel.objects.get(opdb_id="GOLD-M1")

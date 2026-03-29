@@ -103,6 +103,34 @@ def unique_slug(obj, source: str, fallback: str = "item") -> str:
     return slug
 
 
+class SluggedModel(models.Model):
+    """Abstract base for catalog entities that have a unique, non-empty slug.
+
+    Provides the slug field. Models needing max_length > 200 redeclare it.
+    Each concrete subclass must add the CHECK constraint to its own Meta
+    because Django does not inherit abstract parent constraints when a
+    concrete model defines its own ``class Meta``::
+
+        class Meta:
+            constraints = [slug_not_blank()]
+
+    Use ``slug_not_blank()`` to generate the constraint.
+    """
+
+    slug = models.SlugField(max_length=200, unique=True)
+
+    class Meta:
+        abstract = True
+
+
+def slug_not_blank():
+    """CHECK constraint: slug != ''. Use in each SluggedModel subclass Meta."""
+    return models.CheckConstraint(
+        condition=~models.Q(slug=""),
+        name="%(app_label)s_%(class)s_slug_not_blank",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Markdown field
 # ---------------------------------------------------------------------------
@@ -169,11 +197,11 @@ def get_claim_fields(model_class: type[models.Model]) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Linkable mixin (link target registration)
+# LinkableModel mixin (link target registration)
 # ---------------------------------------------------------------------------
 
 
-class Linkable(models.Model):
+class LinkableModel(models.Model):
     """Mixin marking a model as a markdown link target.
 
     Subclasses must define:

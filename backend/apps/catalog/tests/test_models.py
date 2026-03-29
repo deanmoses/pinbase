@@ -26,26 +26,31 @@ def editorial_source(db):
 
 @pytest.fixture
 def manufacturer(db):
-    return Manufacturer.objects.create(name="Williams")
+    return Manufacturer.objects.create(name="Williams", slug="williams")
 
 
 @pytest.fixture
 def corporate_entity(db, manufacturer):
     return CorporateEntity.objects.create(
-        name="Williams Electronics", manufacturer=manufacturer
+        name="Williams Electronics",
+        slug="williams-electronics",
+        manufacturer=manufacturer,
     )
 
 
 @pytest.fixture
 def machine_model(db, corporate_entity):
     return MachineModel.objects.create(
-        name="Medieval Madness", corporate_entity=corporate_entity, year=1997
+        name="Medieval Madness",
+        slug="medieval-madness",
+        corporate_entity=corporate_entity,
+        year=1997,
     )
 
 
 @pytest.fixture
 def person(db):
-    return Person.objects.create(name="Brian Eddy")
+    return Person.objects.create(name="Brian Eddy", slug="brian-eddy")
 
 
 # --- Source ---
@@ -67,16 +72,8 @@ class TestSource:
 
 
 class TestManufacturer:
-    def test_auto_slug(self, manufacturer):
-        assert manufacturer.slug == "williams"
-
     def test_str(self, manufacturer):
         assert str(manufacturer) == "Williams"
-
-    def test_slug_deduplication(self, db, manufacturer):
-        # "Williams!" slugifies to "williams" which collides with the fixture.
-        mfr2 = Manufacturer.objects.create(name="Williams!")
-        assert mfr2.slug == "williams-2"
 
 
 # --- CorporateEntity ---
@@ -135,38 +132,34 @@ class TestCorporateEntity:
 
 
 class TestMachineModel:
-    def test_auto_slug_with_corporate_entity_year(self, machine_model):
-        assert machine_model.slug == "medieval-madness-williams-electronics-1997"
-
-    def test_auto_slug_without_corporate_entity(self, db):
-        pm = MachineModel.objects.create(name="Test Game")
-        assert pm.slug == "test-game"
-
     def test_str(self, machine_model):
         assert "Medieval Madness" in str(machine_model)
         assert "Williams Electronics" in str(machine_model)
         assert "1997" in str(machine_model)
-
-    def test_slug_deduplication(self, db, corporate_entity, machine_model):
-        pm2 = MachineModel.objects.create(
-            name="Medieval Madness", corporate_entity=corporate_entity, year=1997
-        )
-        assert pm2.slug == "medieval-madness-williams-electronics-1997-2"
 
 
 # --- Person ---
 
 
 class TestPerson:
-    def test_auto_slug(self, person):
-        assert person.slug == "brian-eddy"
-
     def test_str(self, person):
         assert str(person) == "Brian Eddy"
 
-    def test_slug_deduplication(self, db, person):
-        p2 = Person.objects.create(name="Brian Eddy")
-        assert p2.slug == "brian-eddy-2"
+
+# --- Slug enforcement ---
+
+
+class TestCatalogSlugEnforcement:
+    """Verify that the DB CHECK constraint rejects empty slugs."""
+
+    def test_empty_slug_rejected(self, db):
+        with pytest.raises(IntegrityError):
+            Manufacturer.objects.create(name="Test", slug="")
+
+    def test_missing_slug_rejected(self, db):
+        """SlugField defaults to '' when not provided — CHECK catches it."""
+        with pytest.raises(IntegrityError):
+            Manufacturer.objects.create(name="Test")
 
 
 # --- Credit ---

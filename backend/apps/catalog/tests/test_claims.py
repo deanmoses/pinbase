@@ -80,8 +80,8 @@ class TestBuildRelationshipClaim:
 
 class TestMakeAuthoritativeScope:
     def test_builds_scope(self, db):
-        m1 = MachineModel.objects.create(name="Game 1")
-        m2 = MachineModel.objects.create(name="Game 2")
+        m1 = MachineModel.objects.create(name="Game 1", slug="game-1")
+        m2 = MachineModel.objects.create(name="Game 2", slug="game-2")
         scope = make_authoritative_scope(MachineModel, {m1.pk, m2.pk})
         from django.contrib.contenttypes.models import ContentType
 

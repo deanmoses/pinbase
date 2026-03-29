@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from django.utils.text import slugify
 from django.contrib.auth import get_user_model
 
 from apps.catalog.models import (
@@ -44,55 +45,59 @@ def _patch(client, path: str, body: dict):
 
 
 def _create_franchise():
-    return Franchise.objects.create(name="Star Trek")
+    return Franchise.objects.create(name="Star Trek", slug="star-trek")
 
 
 def _create_series():
-    return Series.objects.create(name="Eight Ball")
+    return Series.objects.create(name="Eight Ball", slug="eight-ball")
 
 
 def _create_system():
-    return System.objects.create(name="WPC-95")
+    return System.objects.create(name="WPC-95", slug="wpc-95")
 
 
 def _create_technology_generation():
-    return TechnologyGeneration.objects.create(name="Solid State")
+    return TechnologyGeneration.objects.create(name="Solid State", slug="solid-state")
 
 
 def _create_technology_subgeneration():
-    gen = TechnologyGeneration.objects.create(name="Electromechanical")
+    gen = TechnologyGeneration.objects.create(
+        name="Electromechanical", slug="electromechanical"
+    )
     return TechnologySubgeneration.objects.create(
         name="Late EM",
+        slug="late-em",
         technology_generation=gen,
     )
 
 
 def _create_display_type():
-    return DisplayType.objects.create(name="DMD")
+    return DisplayType.objects.create(name="DMD", slug="dmd")
 
 
 def _create_display_subtype():
-    display_type = DisplayType.objects.create(name="LCD")
+    display_type = DisplayType.objects.create(name="LCD", slug="lcd")
     return DisplaySubtype.objects.create(
         name="HD LCD",
+        slug="hd-lcd",
         display_type=display_type,
     )
 
 
 def _create_cabinet():
-    return Cabinet.objects.create(name="Widebody")
+    return Cabinet.objects.create(name="Widebody", slug="widebody")
 
 
 def _create_game_format():
-    return GameFormat.objects.create(name="Pinball")
+    return GameFormat.objects.create(name="Pinball", slug="pinball")
 
 
 def _create_reward_type():
-    return RewardType.objects.create(name="Replay")
+    return RewardType.objects.create(name="Replay", slug="replay")
 
 
 def _create_tag():
-    return Tag.objects.create(name="Prototype")
+    return Tag.objects.create(name="Prototype", slug="prototype")
 
 
 PATCH_CASES = [
@@ -272,16 +277,17 @@ class TestPatchSeriesResponseShape:
     def test_patch_preserves_titles_and_credits(
         self, client, user, williams_entity, credit_roles
     ):
-        series = Series.objects.create(name="Eight Ball")
-        title = Title.objects.create(name="Eight Ball Deluxe")
+        series = Series.objects.create(name="Eight Ball", slug="eight-ball")
+        title = Title.objects.create(name="Eight Ball Deluxe", slug="eight-ball-deluxe")
         series.titles.add(title)
         MachineModel.objects.create(
             name="Eight Ball Deluxe",
+            slug="eight-ball-deluxe",
             title=title,
             corporate_entity=williams_entity,
             year=1981,
         )
-        person = Person.objects.create(name="George Christian")
+        person = Person.objects.create(name="George Christian", slug="george-christian")
         role = CreditRole.objects.get(slug="design")
         Credit.objects.create(series=series, person=person, role=role)
 
@@ -323,8 +329,12 @@ class TestPatchSystemResponseShape:
         source = Source.objects.create(
             name="Test", slug="test", source_type="editorial", priority=100
         )
-        system = System.objects.create(name="WPC-95", manufacturer=manufacturer)
-        sibling = System.objects.create(name="System 11", manufacturer=manufacturer)
+        system = System.objects.create(
+            name="WPC-95", slug="wpc-95", manufacturer=manufacturer
+        )
+        sibling = System.objects.create(
+            name="System 11", slug="system-11", manufacturer=manufacturer
+        )
         # Manufacturer is now claim-controlled on System — assert claims so
         # resolution preserves the FK when description is PATCHed.
         Claim.objects.assert_claim(
@@ -333,9 +343,10 @@ class TestPatchSystemResponseShape:
         Claim.objects.assert_claim(
             sibling, "manufacturer", manufacturer.slug, source=source
         )
-        title = Title.objects.create(name="Medieval Madness")
+        title = Title.objects.create(name="Medieval Madness", slug="medieval-madness")
         MachineModel.objects.create(
             name="Medieval Madness",
+            slug="medieval-madness",
             title=title,
             system=system,
             corporate_entity=williams_entity,
@@ -373,10 +384,11 @@ class TestPatchRewardTypeResponseShape:
     def test_patch_preserves_machine_list(
         self, client, user, williams_entity, solid_state
     ):
-        reward_type = RewardType.objects.create(name="Replay")
-        title = Title.objects.create(name="Firepower")
+        reward_type = RewardType.objects.create(name="Replay", slug="replay")
+        title = Title.objects.create(name="Firepower", slug="firepower")
         model = MachineModel.objects.create(
             name="Firepower",
+            slug="firepower",
             title=title,
             corporate_entity=williams_entity,
             technology_generation=solid_state,
@@ -462,7 +474,7 @@ class TestUniqueNameValidation:
         self, client, user, path_template, factory, other_name
     ):
         entity = factory()
-        entity.__class__.objects.create(name=other_name)
+        entity.__class__.objects.create(name=other_name, slug=slugify(other_name))
 
         client.force_login(user)
         resp = _patch(

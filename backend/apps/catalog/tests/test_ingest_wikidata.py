@@ -21,15 +21,19 @@ def _seed_db(db, credit_roles):
     """Pre-seed the DB with persons and machine credits for matching."""
     # Steve Ritchie exists and has credits on machines whose titles overlap
     # with the Wikidata fixture ("Black Knight", "Terminator 2: Judgment Day").
-    steve = Person.objects.create(name="Steve Ritchie")
-    bk = MachineModel.objects.create(name="Black Knight", year=1980)
-    t2 = MachineModel.objects.create(name="Terminator 2: Judgment Day", year=1991)
+    steve = Person.objects.create(name="Steve Ritchie", slug="steve-ritchie")
+    bk = MachineModel.objects.create(
+        name="Black Knight", slug="black-knight", year=1980
+    )
+    t2 = MachineModel.objects.create(
+        name="Terminator 2: Judgment Day", slug="terminator-2-judgment-day", year=1991
+    )
     role = CreditRole.objects.get(slug="design")
     Credit.objects.create(model=bk, person=steve, role=role)
     Credit.objects.create(model=t2, person=steve, role=role)
 
     # Pat Designer exists but has NO credits in the DB.
-    Person.objects.create(name="Pat Designer")
+    Person.objects.create(name="Pat Designer", slug="pat-designer")
 
     # "Unknown Person" does NOT exist in the DB.
 

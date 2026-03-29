@@ -20,7 +20,9 @@ class TestManufacturersAPI:
     def test_get_manufacturer_detail(
         self, client, manufacturer, williams_entity, machine_model
     ):
-        title = Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
+        title = Title.objects.create(
+            name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"
+        )
         machine_model.title = title
         machine_model.save()
         resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
@@ -67,11 +69,13 @@ class TestManufacturersAPI:
     ):
         MachineModel.objects.create(
             name="No Year Game",
+            slug="no-year-game",
             corporate_entity=williams_entity,
             extra_data={"opdb.images": SAMPLE_IMAGES},
         )
         MachineModel.objects.create(
             name="Has Year Game",
+            slug="has-year-game",
             corporate_entity=williams_entity,
             year=2020,
             extra_data={
@@ -103,17 +107,25 @@ class TestManufacturersAPI:
             year_start=1943,
             year_end=1985,
         )
-        t_old = Title.objects.create(name="Old Game", opdb_id="T-old")
-        t_mid = Title.objects.create(name="Mid Game", opdb_id="T-mid")
-        t_new = Title.objects.create(name="New Game", opdb_id="T-new")
+        t_old = Title.objects.create(name="Old Game", slug="old-game", opdb_id="T-old")
+        t_mid = Title.objects.create(name="Mid Game", slug="mid-game", opdb_id="T-mid")
+        t_new = Title.objects.create(name="New Game", slug="new-game", opdb_id="T-new")
         MachineModel.objects.create(
-            name="Old", corporate_entity=entity2, title=t_old, year=1960
+            name="Old", slug="old", corporate_entity=entity2, title=t_old, year=1960
         )
         MachineModel.objects.create(
-            name="Mid", corporate_entity=williams_entity, title=t_mid, year=1995
+            name="Mid",
+            slug="mid",
+            corporate_entity=williams_entity,
+            title=t_mid,
+            year=1995,
         )
         MachineModel.objects.create(
-            name="New", corporate_entity=williams_entity, title=t_new, year=2020
+            name="New",
+            slug="new",
+            corporate_entity=williams_entity,
+            title=t_new,
+            year=2020,
         )
         resp = client.get(f"/api/manufacturers/{manufacturer.slug}")
         years = [t["year"] for t in resp.json()["titles"]]
@@ -126,7 +138,9 @@ class TestManufacturersAPI:
         CorporateEntityAlias.objects.create(
             corporate_entity=williams_entity, value="Williams Elektronik"
         )
-        MachineModel.objects.create(name="Test Game", corporate_entity=williams_entity)
+        MachineModel.objects.create(
+            name="Test Game", slug="test-game", corporate_entity=williams_entity
+        )
         resp = client.get("/api/manufacturers/all/")
         data = resp.json()
         mfr = data[0]
@@ -135,15 +149,21 @@ class TestManufacturersAPI:
     def test_get_manufacturer_detail_nulls_last(
         self, client, manufacturer, williams_entity, db
     ):
-        t1 = Title.objects.create(name="No Year Title", opdb_id="T-noyear")
-        t2 = Title.objects.create(name="Has Year Title", opdb_id="T-hasyear")
+        t1 = Title.objects.create(
+            name="No Year Title", slug="no-year-title", opdb_id="T-noyear"
+        )
+        t2 = Title.objects.create(
+            name="Has Year Title", slug="has-year-title", opdb_id="T-hasyear"
+        )
         MachineModel.objects.create(
             name="No Year Game",
+            slug="no-year-game",
             corporate_entity=williams_entity,
             title=t1,
         )
         MachineModel.objects.create(
             name="Has Year Game",
+            slug="has-year-game",
             corporate_entity=williams_entity,
             year=2020,
             title=t2,

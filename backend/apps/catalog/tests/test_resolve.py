@@ -41,7 +41,7 @@ def editorial(db):
 
 @pytest.fixture
 def pm(db):
-    return MachineModel.objects.create(name="Placeholder")
+    return MachineModel.objects.create(name="Placeholder", slug="placeholder")
 
 
 class TestResolveModel:
@@ -399,7 +399,7 @@ class TestResolveSystem:
 @pytest.mark.django_db
 class TestResolveCorporateEntityLocations:
     def _make_ce(self, slug):
-        mfr = Manufacturer.objects.create(name=slug)
+        mfr = Manufacturer.objects.create(name=slug, slug=slug)
         return CorporateEntity.objects.create(name=slug, slug=slug, manufacturer=mfr)
 
     def _make_location(self, path):

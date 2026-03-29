@@ -21,12 +21,12 @@ def editorial(db):
 
 @pytest.fixture
 def mfr(db):
-    return Manufacturer.objects.create(name="Placeholder Mfr")
+    return Manufacturer.objects.create(name="Placeholder Mfr", slug="placeholder-mfr")
 
 
 @pytest.fixture
 def person(db):
-    return Person.objects.create(name="Placeholder Person")
+    return Person.objects.create(name="Placeholder Person", slug="placeholder-person")
 
 
 class TestResolveManufacturer:
