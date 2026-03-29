@@ -146,27 +146,26 @@ WritePathMatrix is the authoritative field inventory for this work.
 
 **Resolver prerequisite: `preserve_when_unclaimed`.** The resolver resets all claim-controlled fields to defaults before applying winners. For UNIQUE fields and non-nullable FKs, the default is invalid (shared `""` causes IntegrityError or FK descriptor crash). The resolver already preserved UNIQUE fields, but the logic was named `unique_attrs` — hiding the invariant. This was renamed to `preserve_when_unclaimed` and widened to also cover non-nullable FK fields (`field.many_to_one and not field.null`). `get_field_defaults()` was also fixed to return `None` (not `""`) for FK fields, since Django's FK descriptor rejects `""` on assignment. Without this fix, resolving a `TechnologySubgeneration` via API PATCH (or in tests) without a `technology_generation` claim would crash.
 
-**The global exemption list in `core/models.py`.**
+**The global exemption list in `core/models.py`.** ✓
 
-`get_claim_fields()` uses a global `_CLAIMS_EXEMPT_NAMES` set that excludes `slug` and `extra_data` from claim discovery on every model. `extra_data` is legitimately exempt — it is the resolver's output bag, not an asserted fact. `slug` is not legitimately exempt.
+`slug` has been removed from `_CLAIMS_EXEMPT_NAMES`. `extra_data` remains legitimately exempt (it is the resolver's output bag, not an asserted fact).
 
-`slug` is still in `_CLAIMS_EXEMPT_NAMES` as of this writing. It must be removed. The intended behaviour: when a user enters a name in the edit UI, the system proposes a slug which the user can modify and approve. The approved slug becomes a claim. Ingest commands also assert slug claims. The resolver materialises the winning slug claim onto the model row, with conflict handling matching the existing `opdb_id` pattern.
+**What was done:**
 
-This requires:
+1. Removed `slug` from `_CLAIMS_EXEMPT_NAMES` so the resolver discovers and materialises slug claims.
+2. Added `resolve_unique_conflicts()` — a generalised conflict detection function in `_helpers.py` that handles both nullable unique fields (clear loser to None, e.g. `opdb_id`) and non-nullable unique fields (revert loser to pre-resolution value with preserver-wins semantics, e.g. `slug`). Replaces the old `_resolve_opdb_conflicts()`.
+3. Added `get_preserve_fields()` — a shared utility in `_helpers.py` that identifies UNIQUE and non-nullable FK fields. Replaces four inline copies of the same predicate.
+4. Fixed `_apply_resolution()` (MachineModel path) to use `preserve_when_unclaimed` logic, matching `_resolve_bulk` and `_resolve_single`.
+5. Asserted slug claims in all ingest commands for entities each source creates. Sources only assert slug claims for entities they create — not for pre-existing entities they reference (unlike scalar claims like name/year, no external source has a slug opinion).
+6. Direct slug writes (bootstrap `bulk_create_validated`, Title slug renames via `QuerySet.update`) remain as A4 bootstrap writes — the slug claim is asserted in the same pass.
 
-1. Remove `slug` from `_CLAIMS_EXEMPT_NAMES` so the resolver discovers and materialises slug claims.
-2. Add slug resolution and conflict handling to the resolver (a slug claimed by one object cannot be applied to another).
-3. Assert slug claims in all ingest commands that currently write slugs directly.
-4. Replace direct slug writes (`QuerySet.update()` for renames, slug assignments at creation time) with claim assertions — this is the remaining A2 work.
-5. The edit UI propose/approve flow for slug management is a separate feature — see Follow-ups.
+**Source attribution rule for slug claims.** Sources only assert slug claims for entities they create — never for pre-existing entities they reference. This differs from scalar claims (name, year) where confirming a pre-existing value is useful provenance ("IPDB agrees the year is 1997"). No external source provides slug data, so asserting a slug claim for a pre-existing entity would attribute a decision that source never made. When a user edits an entity via the claims UI, they DO assert a slug claim — they are the source of that slug choice.
 
-**Test impact warning.** Slug is UNIQUE, so `preserve_when_unclaimed` will prevent the resolver from crashing on objects without a slug claim. But every test that creates an object also creates a slug — and once slug is claim-controlled, any resolution triggered by a PATCH or `resolve_all_entities` will preserve the existing slug only as long as no _other_ object's slug claim conflicts with it. More importantly, the slug migration will touch every ingest command and every model, making it the widest A1-style change. Consider a test fixture or helper that creates an object with its corresponding slug claim, to avoid updating dozens of tests individually.
+**Remaining:** Remove auto-slug generation from catalog model `save()` methods (17 models). Currently save() auto-generates a slug if blank — this is a safety net that is no longer needed now that all ingest paths supply slugs explicitly. Removing it enforces the invariant that slugs come from exactly two sources: ingest and user edit. This also requires fixing ~173 tests that create objects without providing a slug.
 
-### A2. Replace direct ORM writes to claim-controlled data — subsumed
+### A2. Replace direct ORM writes to claim-controlled data — subsumed ✓
 
-A1 added claim assertions alongside existing direct writes. Those direct writes are now bootstrap writes covered by A4 (the claim and the direct write travel together in the same ingest pass). The remaining direct writes that lack claims are all slug-related (`QuerySet.update()` for slug renames in `_ingest_titles`, slug assignments at `bulk_create_validated` time). These are blocked on the slug migration — they will be addressed when `slug` is removed from `_CLAIMS_EXEMPT_NAMES`.
-
-No separate A2 step is needed.
+All direct ORM writes now have corresponding claim assertions in the same ingest pass (A4 bootstrap pattern). Slug writes (bootstrap `bulk_create_validated`, Title slug renames via `QuerySet.update`) are included. No separate A2 step was needed.
 
 ### A3. Bring remaining editorial relationships under claims ✓
 
@@ -244,17 +243,16 @@ This covers, for direct-field claims:
 
 ### B2. Call it from `bulk_assert_claims()` ✓
 
-`bulk_assert_claims()` now calls `validate_claims_batch()` before persisting claims. This function classifies each claim by `field_name` and applies the appropriate validation:
+`bulk_assert_claims()` now calls `validate_claims_batch()` before persisting claims. This function uses `classify_claim()` — a structural classifier in `provenance/validation.py` that derives claim type from data already on the claim, with no catalog-specific imports:
 
-1. **Relationship namespace** — in `RELATIONSHIP_NAMESPACES` → pass through
-2. **Scalar claim field** — in `get_claim_fields` and not a relation → validate via `validate_claim_value()`
-3. **FK claim field** — in `get_claim_fields` and is a relation → batch FK target check
-4. **Extra-data** — not in claim fields, but model has `extra_data` → pass through
-5. **Unrecognized** — not in claim fields, no `extra_data` fallback → reject
+- **DIRECT** — `field_name` in `get_claim_fields(model_class)` → scalar validation or FK batch check
+- **RELATIONSHIP** — compound `claim_key` + dict value with `exists` key → pass through
+- **EXTRA** — unrecognized field on a model with a concrete `extra_data` JSONField → pass through
+- **UNRECOGNIZED** — none of the above → reject with warning
+
+The classifier is tested exhaustively: a contract test iterates every namespace in `RELATIONSHIP_SCHEMAS` and proves that `build_relationship_claim()` output classifies as `RELATIONSHIP`. Boundary tests verify that unknown fields on models with `extra_data` classify as `EXTRA` while unknown fields on models without `extra_data` classify as `UNRECOGNIZED`.
 
 Batch mode logs and skips invalid claims rather than failing the entire ingest. `bulk_assert_claims()` returns a `validation_rejected` count in its stats dict.
-
-**`extra_data` classification.** Claims whose `field_name` is not in `get_claim_fields()` are not necessarily invalid. Models with an `extra_data` JSONField accept arbitrary claim field names — the resolver dumps unrecognized winners into `extra_data`. This includes dotted namespaces like `wikidata.description` and undotted names like `manufacturer` on MachineModel (where it is not a concrete field). Only models _without_ `extra_data` reject unrecognized field names.
 
 **JSON→Django type boundary.** Claim values are stored in a JSONField, which has no Decimal type — numeric values arrive as Python floats. `DecimalField.to_python(float)` produces IEEE 754 artifacts (e.g. `8.95` → `Decimal('8.950')`) that `DecimalValidator` rejects for exceeding `decimal_places`. The fix is to stringify floats before `to_python` so the string path produces clean Decimals: `to_python("8.95")` → `Decimal("8.95")`. This is a general concern at the JSON→Django type boundary, not a Decimal special case.
 
@@ -266,11 +264,13 @@ FK claims are validated in batch by `validate_fk_claims_batch()`:
 - uses the `claim_fk_lookups` convention from the resolver to determine the lookup key
 - rejects claims referencing non-existent targets
 
-**Relationship target validation is deferred.** Relationship claims (credit, theme, tag, etc.) have dict values whose slug-key-to-target-model mapping is catalog-layer domain knowledge in `RELATIONSHIP_SCHEMAS`. The resolver already logs warnings for unmatched relationship slugs. Extending B3 to cover relationship targets would require passing the schema mapping into the provenance layer or adding a registry — that is a follow-up.
+**Relationship target validation is deferred.** Relationship claims are now structurally identifiable via `classify_claim()` without catalog imports. Extending B3 to validate their target slugs would require a registry mapping relationship namespace + slug key to target model. The resolver already logs warnings for unmatched relationship slugs. This is a follow-up, not a prerequisite.
 
-### B4. Audit `assert_claim()` callers
+### B4. Validate `assert_claim()` callers ✓
 
-`assert_claim()` (the single-claim writer) has no validation. The PATCH path validates upstream before calling `execute_claims()` → `assert_claim()`, so interactive edits are covered. But `scrape_images` calls `assert_claim()` directly with no upstream validation. This should be audited and wired to `validate_claim_value()`.
+`assert_claim()` now calls `classify_claim()` and `validate_claim_value()` for DIRECT claims, and rejects UNRECOGNIZED claims with `ValueError`. This closes the gap for callers like `scrape_images` that lack upstream validation. The PATCH path double-validates (upstream in `validate_scalar_fields`, again in `assert_claim`) — harmless for single-claim writes.
+
+Resolver tests that previously persisted invalid data to test defensive coercion (`test_invalid_int_coercion`, `test_malformed_int_claim_uses_default`) now verify that `assert_claim` rejects the invalid value at the boundary. This confirms the resolver's defensive coercions for bad scalar data are no longer reachable through any write path.
 
 ### Implementation notes
 
@@ -305,20 +305,20 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
 2. ✓ **Remove admin as a catalog-truth writer.**
    All catalog models unregistered, `ProvenanceSaveMixin` removed, test enforcement in place.
 
-3. ✓ (slug remaining) **Fix Component A.**
-   Remove non-justified `claims_exempt`, migrate direct writes, and bring claim-managed facts onto claims. Slug migration is in progress separately.
+3. ✓ **Fix Component A.**
+   Remove non-justified `claims_exempt`, migrate direct writes, and bring claim-managed facts onto claims. Slug removed from `_CLAIMS_EXEMPT_NAMES`, slug claims asserted in all ingest commands, conflict detection generalised. Remaining: remove auto-slug from 17 catalog model `save()` methods + fix ~173 tests.
 
 4. ✓ **Fix Component B: scalar and FK validation at the claim boundary.**
    `validate_claim_value()` extracted, called from `bulk_assert_claims()`, batched FK target checks added.
 
-5. **Audit `assert_claim()` callers** (B4).
-   Wire `validate_claim_value()` into `assert_claim()` for callers like `scrape_images` that lack upstream validation.
+5. ✓ **Validate `assert_claim()` callers** (B4).
+   `assert_claim()` now validates DIRECT claims and rejects UNRECOGNIZED claims via `classify_claim()`.
 
 6. **Extend B3 to relationship target validation** (optional).
-   Batch-validate slug references inside relationship claim dicts. Deferred because the resolver already logs warnings for unmatched targets.
+   Batch-validate slug references inside relationship claim dicts. `classify_claim()` now identifies relationship claims structurally — a registry mapping namespace + slug key to target model is the remaining piece. Deferred because the resolver already logs warnings for unmatched targets.
 
 7. **Trim `validate_catalog` and review resolver guard rails.**
-   Review the resolver's defensive coercions — once upstream validation ensures only valid values reach claims, the resolver should not need to compensate for invalid data.
+   Review the resolver's defensive coercions — upstream validation now ensures only valid values reach claims through both `bulk_assert_claims` and `assert_claim`. Evidence: resolver tests for invalid-data coercion (`test_invalid_int_coercion`, `test_malformed_int_claim_uses_default`) now verify rejection at the claim boundary instead, confirming those resolver code paths are unreachable.
 
    `validate_catalog` checks fall into three categories after Component B:
 
@@ -337,7 +337,9 @@ For ingest (`validate_claims_batch` inside `bulk_assert_claims`):
 
 ### Slug editing UI
 
-Blocked on A1 slug migration (slug is still in `_CLAIMS_EXEMPT_NAMES`). Once slug is claim-controlled in the backend, the edit UI needs a propose/approve flow: when the user enters a name, the system auto-generates a slug proposal which the user can see, modify, and approve before it is submitted as a claim. This also applies to entity creation — the user needs to see and confirm the slug before the record is created. This is a UX feature that builds on the backend infrastructure but is separate from the coverage-gap work in this plan.
+After A1 slug migration, the backend fully supports slug claims: `get_claim_fields()` returns `slug`, `execute_claims()` can process slug claims via PATCH, and the resolver materializes and conflict-checks them. Ingest slugs are fully claim-controlled with source attribution.
+
+What remains is the frontend UX: a propose/approve flow where the UI auto-generates a slug proposal from the name, the user can see, modify, and approve it, and it is submitted as a claim. This also applies to entity creation — the user needs to see and confirm the slug before the record is created. This is a UX feature that builds on the backend infrastructure but is separate from the coverage-gap work in this plan.
 
 ### Taxonomy edit UIs
 
@@ -354,8 +356,9 @@ This plan is successful when:
 - all intended catalog facts flow through claims
 - ✓ catalog models are unregistered from Django admin
 - remaining direct writes are either removed or explicitly documented as true bootstrap exceptions
-- ✓ `bulk_assert_claims()` validates direct-field claim values using shared logic extracted from the interactive edit path
+- ✓ `bulk_assert_claims()` and `assert_claim()` validate direct-field claim values using shared logic extracted from the interactive edit path
 - ✓ FK existence checks run at claim-write time in ingest using batched lookups
+- ✓ provenance layer has no architectural imports from catalog (structural `classify_claim()` replaces `RELATIONSHIP_NAMESPACES` import)
 - relationship target existence checks run at claim-write time (deferred — resolver logs warnings for now)
 - editorial relationships identified in WritePathMatrix are materialised from claims, not written directly
 - `validate_catalog` no longer carries correctness rules that should have been enforced upstream
