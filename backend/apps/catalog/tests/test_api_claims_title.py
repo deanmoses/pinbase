@@ -70,7 +70,7 @@ def _assert_title_abbreviations(
             claim_key=claim_key,
         )
     resolve_all_entities(Title, object_ids={title.pk})
-    resolve_all_title_abbreviations([title], title_ids={title.pk})
+    resolve_all_title_abbreviations(model_ids={title.pk})
 
 
 @pytest.mark.django_db

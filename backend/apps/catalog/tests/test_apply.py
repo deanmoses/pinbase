@@ -60,7 +60,7 @@ def test_create_entities_and_claims(test_source):
     )
     report = apply_plan(plan)
 
-    assert report.created_entities == 1
+    assert report.records_created == 1
     assert report.asserted == 3
     assert report.unchanged == 0
 
@@ -282,7 +282,7 @@ def test_failed_apply_ingest_run_survives(test_source):
     mfr = Manufacturer.objects.create(name="Bally", slug="bally")
     ct_id = _mfr_ct_id()
 
-    def raise_error(model_ids):
+    def raise_error(*, model_ids=None):
         raise RuntimeError("Resolve failed!")
 
     plan = IngestPlan(
@@ -296,7 +296,7 @@ def test_failed_apply_ingest_run_survives(test_source):
                 object_id=mfr.pk,
             ),
         ],
-        resolve_map={ct_id: [raise_error]},
+        resolve_hooks={ct_id: [raise_error]},
     )
 
     with pytest.raises(RuntimeError, match="Resolve failed"):

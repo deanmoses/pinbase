@@ -222,7 +222,7 @@ def resolve_machine_models(stdout=None) -> int:
     _status("Titles resolved")
 
     # 0c. Resolve title abbreviations.
-    resolve_all_title_abbreviations(list(Title.objects.all()))
+    resolve_all_title_abbreviations()
 
     # 1. Pre-fetch lookup tables.
     from apps.core.models import get_claim_fields
@@ -275,25 +275,18 @@ def resolve_machine_models(stdout=None) -> int:
     MachineModel.objects.bulk_update(all_models, update_fields, batch_size=100)
     _status(f"Wrote {len(all_models)} models")
 
-    # 9. Bulk-resolve credit relationships.
-    resolve_all_credits(all_models)
+    # 9. Bulk-resolve relationship claims.
+    all_model_ids = {pm.pk for pm in all_models}
+    resolve_all_credits(model_ids=all_model_ids)
     _status("Credits resolved")
 
-    # 10. Bulk-resolve theme relationships.
-    resolve_all_themes(all_models)
-
-    # 11. Bulk-resolve gameplay feature relationships.
-    resolve_all_gameplay_features(all_models)
-
-    # 12. Bulk-resolve reward type relationships.
-    resolve_all_reward_types(all_models)
-
-    # 13. Bulk-resolve tag relationships.
-    resolve_all_tags(all_models)
+    resolve_all_themes(model_ids=all_model_ids)
+    resolve_all_gameplay_features(model_ids=all_model_ids)
+    resolve_all_reward_types(model_ids=all_model_ids)
+    resolve_all_tags(model_ids=all_model_ids)
     _status("Themes, features, reward types, tags resolved")
 
-    # 14. Bulk-resolve model abbreviations.
-    resolve_all_model_abbreviations(all_models)
+    resolve_all_model_abbreviations(model_ids=all_model_ids)
     _status("Abbreviations resolved")
 
     return len(all_models)

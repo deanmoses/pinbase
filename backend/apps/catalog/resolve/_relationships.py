@@ -26,6 +26,7 @@ from ..models import (
     ModelAbbreviation,
     Person,
     RewardType,
+    Series,
     Tag,
     Theme,
     Title,
@@ -69,7 +70,6 @@ M2M_FIELDS: dict[str, M2MFieldSpec] = {
 
 def _resolve_machine_model_m2m(
     spec: M2MFieldSpec,
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -125,8 +125,6 @@ def _resolve_machine_model_m2m(
     # Pre-fetch existing M2M through-table rows.
     if model_ids is not None:
         all_model_ids = model_ids
-    elif all_models is not None:
-        all_model_ids = {pm.pk for pm in all_models}
     else:
         all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     through = getattr(MachineModel, spec.m2m_attr).through
@@ -177,15 +175,13 @@ def _resolve_machine_model_m2m(
 
 
 def resolve_all_themes(
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
-    _resolve_machine_model_m2m(M2M_FIELDS["theme"], all_models, model_ids=model_ids)
+    _resolve_machine_model_m2m(M2M_FIELDS["theme"], model_ids=model_ids)
 
 
 def resolve_all_gameplay_features(
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -238,8 +234,6 @@ def resolve_all_gameplay_features(
     # Pre-fetch existing through-table rows.
     if model_ids is not None:
         all_model_ids = model_ids
-    elif all_models is not None:
-        all_model_ids = {pm.pk for pm in all_models}
     else:
         all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     existing_by_model: dict[int, dict[int, tuple[int, int | None]]] = {}
@@ -291,21 +285,17 @@ def resolve_all_gameplay_features(
 
 
 def resolve_all_reward_types(
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
-    _resolve_machine_model_m2m(
-        M2M_FIELDS["reward_type"], all_models, model_ids=model_ids
-    )
+    _resolve_machine_model_m2m(M2M_FIELDS["reward_type"], model_ids=model_ids)
 
 
 def resolve_all_tags(
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
-    _resolve_machine_model_m2m(M2M_FIELDS["tag"], all_models, model_ids=model_ids)
+    _resolve_machine_model_m2m(M2M_FIELDS["tag"], model_ids=model_ids)
 
 
 # ------------------------------------------------------------------
@@ -315,12 +305,10 @@ def resolve_all_tags(
 
 def resolve_all_series_titles(
     *,
-    series_ids: set[int] | None = None,
+    model_ids: set[int] | None = None,
 ) -> None:
     """Bulk-resolve series_title claims into Series.titles through-table rows."""
     from django.contrib.contenttypes.models import ContentType
-
-    from ..models import Series
 
     ct = ContentType.objects.get_for_model(Series)
     through = Series.titles.through
@@ -333,8 +321,8 @@ def resolve_all_series_titles(
     claims_qs = _annotate_priority(
         Claim.objects.filter(content_type=ct, field_name="series_title")
     )
-    if series_ids is not None:
-        claims_qs = claims_qs.filter(object_id__in=series_ids)
+    if model_ids is not None:
+        claims_qs = claims_qs.filter(object_id__in=model_ids)
     claims = claims_qs.order_by(
         "object_id", "claim_key", "-effective_priority", "-created_at"
     )
@@ -368,8 +356,8 @@ def resolve_all_series_titles(
         desired_by_series[series_id] = desired
 
     # Determine the full set of series to resolve.
-    if series_ids is not None:
-        all_series_ids = series_ids
+    if model_ids is not None:
+        all_series_ids = model_ids
     else:
         all_series_ids = set(Series.objects.values_list("pk", flat=True))
 
@@ -405,7 +393,6 @@ def resolve_all_series_titles(
 
 
 def resolve_all_credits(
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -468,8 +455,6 @@ def resolve_all_credits(
 
     if model_ids is not None:
         all_model_ids = model_ids
-    elif all_models is not None:
-        all_model_ids = {pm.pk for pm in all_models}
     else:
         all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     existing_by_model: dict[int, set[tuple[int, int]]] = {}
@@ -509,9 +494,8 @@ def resolve_all_credits(
 
 
 def resolve_all_title_abbreviations(
-    all_titles: list[Title],
     *,
-    title_ids: set[int] | None = None,
+    model_ids: set[int] | None = None,
 ) -> None:
     """Bulk-resolve abbreviation claims into TitleAbbreviation rows."""
     from django.contrib.contenttypes.models import ContentType
@@ -521,8 +505,8 @@ def resolve_all_title_abbreviations(
     abbr_qs = _annotate_priority(
         Claim.objects.filter(content_type=ct, field_name="abbreviation")
     )
-    if title_ids is not None:
-        abbr_qs = abbr_qs.filter(object_id__in=title_ids)
+    if model_ids is not None:
+        abbr_qs = abbr_qs.filter(object_id__in=model_ids)
     abbr_claims = abbr_qs.order_by(
         "object_id", "claim_key", "-effective_priority", "-created_at"
     )
@@ -545,7 +529,11 @@ def resolve_all_title_abbreviations(
             desired.add(val["value"])
         desired_by_title[title_id] = desired
 
-    all_title_ids = title_ids if title_ids is not None else {t.pk for t in all_titles}
+    all_title_ids = (
+        model_ids
+        if model_ids is not None
+        else set(Title.objects.values_list("pk", flat=True))
+    )
     existing_by_title: dict[int, set[str]] = {}
     for row in TitleAbbreviation.objects.filter(title_id__in=all_title_ids).values_list(
         "title_id", "value"
@@ -604,7 +592,6 @@ def _get_title_abbrs_for_models(
 
 
 def resolve_all_model_abbreviations(
-    all_models: list[MachineModel] | None = None,
     *,
     model_ids: set[int] | None = None,
 ) -> None:
@@ -642,8 +629,6 @@ def resolve_all_model_abbreviations(
 
     if model_ids is not None:
         all_model_ids = model_ids
-    elif all_models is not None:
-        all_model_ids = {pm.pk for pm in all_models}
     else:
         all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     title_abbrs_by_model = _get_title_abbrs_for_models(all_model_ids)

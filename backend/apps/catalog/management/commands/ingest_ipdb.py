@@ -1006,7 +1006,7 @@ class Command(BaseCommand):
         )
 
         # Resolve credit claims into materialized Credit rows.
-        resolve_all_credits([], model_ids=all_model_ids)
+        resolve_all_credits(model_ids=all_model_ids)
 
     def _bulk_create_themes(
         self,
@@ -1092,7 +1092,7 @@ class Command(BaseCommand):
         )
 
         # Resolve theme claims into materialized M2M rows.
-        resolve_all_themes([], model_ids=all_model_ids)
+        resolve_all_themes(model_ids=all_model_ids)
 
     def _bulk_create_gameplay_features(
         self,
@@ -1164,7 +1164,7 @@ class Command(BaseCommand):
         )
 
         # Resolve gameplay feature claims into materialized M2M rows.
-        resolve_all_gameplay_features([], model_ids=all_model_ids)
+        resolve_all_gameplay_features(model_ids=all_model_ids)
 
     def _bulk_create_reward_types(
         self,
@@ -1232,4 +1232,4 @@ class Command(BaseCommand):
         )
 
         # Resolve reward type claims into materialized M2M rows.
-        resolve_all_reward_types([], model_ids=all_model_ids)
+        resolve_all_reward_types(model_ids=all_model_ids)

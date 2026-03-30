@@ -34,14 +34,14 @@ logger = logging.getLogger(__name__)
 
 
 class ResolveHook(Protocol):
-    """A resolve hook called with ``model_ids=`` after scalar resolution.
+    """Signature for relationship resolvers registered in ``resolve_hooks``.
 
-    Adapters wrap relationship resolvers to match this signature, e.g.::
+    Matches the standardised resolve function signature::
 
-        lambda model_ids: resolve_all_credits(model_ids=model_ids)
+        def resolve_all_gameplay_features(*, model_ids: set[int] | None = None) -> None
     """
 
-    def __call__(self, model_ids: set[int]) -> None: ...
+    def __call__(self, *, model_ids: set[int] | None = None) -> None: ...
 
 
 class RetractEntry(NamedTuple):
@@ -112,14 +112,15 @@ class IngestPlan:
     retractions: list[PlannedClaimRetract] = field(default_factory=list)
     records_parsed: int = 0
     records_matched: int = 0
-    resolve_map: dict[int, list[ResolveHook]] = field(default_factory=dict)
+    resolve_hooks: dict[int, list[ResolveHook]] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class RunReport:
     """Counts and diagnostics returned by ``apply_plan``."""
 
-    created_entities: int = 0
+    records_created: int = 0
     asserted: int = 0
     unchanged: int = 0
     superseded: int = 0
@@ -137,6 +138,7 @@ class RunReport:
 def apply_plan(plan: IngestPlan, *, dry_run: bool = False) -> RunReport:
     """Execute an ingest plan.  See module docstring for full contract."""
     report = RunReport()
+    report.warnings.extend(plan.warnings)
 
     # ── Structural validation (before any DB writes) ──────────────
     _validate_entity_claim_consistency(plan)
@@ -154,7 +156,7 @@ def apply_plan(plan: IngestPlan, *, dry_run: bool = False) -> RunReport:
     try:
         with transaction.atomic():
             handle_map = _create_entities(plan.entities)
-            report.created_entities = len(plan.entities)
+            report.records_created = len(plan.entities)
 
             _patch_handles(plan.assertions, handle_map)
             all_claims = _build_claims(plan.assertions, plan.source)
@@ -173,7 +175,7 @@ def apply_plan(plan: IngestPlan, *, dry_run: bool = False) -> RunReport:
             report.retracted = len(retract_entries)
 
             _persist(run, to_create, superseded_ids, retract_entries)
-            _resolve(to_create, retract_entries, plan.resolve_map)
+            _resolve(to_create, retract_entries, plan.resolve_hooks)
 
     except Exception as exc:
         run.status = IngestRun.Status.FAILED
@@ -188,7 +190,7 @@ def apply_plan(plan: IngestPlan, *, dry_run: bool = False) -> RunReport:
     run.status = IngestRun.Status.SUCCESS
     run.records_parsed = plan.records_parsed
     run.records_matched = plan.records_matched
-    run.records_created = report.created_entities
+    run.records_created = report.records_created
     run.claims_asserted = report.asserted
     run.claims_retracted = report.retracted
     run.warnings = report.warnings
@@ -279,7 +281,7 @@ def _validate_assertion_targets(plan: IngestPlan) -> None:
 
 def _apply_dry_run(plan: IngestPlan, report: RunReport) -> RunReport:
     """Read-only path: validate and diff without writing anything."""
-    report.created_entities = len(plan.entities)
+    report.records_created = len(plan.entities)
 
     # Claims targeting existing entities: validate + diff.
     existing_assertions = [p for p in plan.assertions if p.handle is None]
@@ -601,7 +603,7 @@ def _persist(
 def _resolve(
     to_create: list[Claim],
     retract_entries: list[RetractEntry],
-    resolve_map: dict[int, list[ResolveHook]],
+    resolve_hooks: dict[int, list[ResolveHook]],
 ) -> None:
     """Materialise resolved values on affected entities."""
     from apps.catalog.resolve._entities import resolve_all_entities
@@ -615,5 +617,5 @@ def _resolve(
     for ct_id, obj_ids in affected_by_ct.items():
         model_class = ContentType.objects.get_for_id(ct_id).model_class()
         resolve_all_entities(model_class, object_ids=obj_ids)
-        for hook in resolve_map.get(ct_id, []):
+        for hook in resolve_hooks.get(ct_id, []):
             hook(model_ids=obj_ids)

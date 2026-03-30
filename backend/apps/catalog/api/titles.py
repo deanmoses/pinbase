@@ -572,7 +572,7 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
         specs.extend(abbreviation_specs)
         if abbreviation_specs:
             resolvers.append(
-                lambda: resolve_all_title_abbreviations([title], title_ids={title.pk})
+                lambda: resolve_all_title_abbreviations(model_ids={title.pk})
             )
 
     if not specs:

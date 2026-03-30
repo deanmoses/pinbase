@@ -273,7 +273,7 @@ class Command(BaseCommand):
             )
 
         # Resolve credit claims into materialized Credit rows.
-        resolve_all_credits([], model_ids=matched_machine_ids)
+        resolve_all_credits(model_ids=matched_machine_ids)
 
         # ------------------------------------------------------------------
         # 8. Ingest persons.

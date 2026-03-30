@@ -167,14 +167,14 @@ class TestIsEnabledRelationshipResolution:
         )
 
         # With source enabled, credit should resolve.
-        resolve_all_credits([pm])
+        resolve_all_credits(model_ids={pm.pk})
         assert pm.credits.filter(person=person, role=role).exists()
 
         # Disable source; credit should be removed.
         source_a.is_enabled = False
         source_a.save()
 
-        resolve_all_credits([pm])
+        resolve_all_credits(model_ids={pm.pk})
         assert not pm.credits.filter(person=person, role=role).exists()
 
 

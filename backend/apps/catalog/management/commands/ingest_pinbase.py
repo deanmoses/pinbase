@@ -1592,9 +1592,7 @@ class Command(BaseCommand):
         # Resolve touched titles.
         if touched_ids:
             resolve_all_entities(Title, object_ids=touched_ids)
-            resolve_all_title_abbreviations(
-                list(Title.objects.all()), title_ids=touched_ids
-            )
+            resolve_all_title_abbreviations(model_ids=touched_ids)
 
         # Assert series_title claims and resolve.
         # Scope covers ALL series in the DB (series_by_slug is fetched from
@@ -1611,7 +1609,7 @@ class Command(BaseCommand):
                 sweep_field="series_title",
                 authoritative_scope=scope,
             )
-            resolve_all_series_titles(series_ids=all_series_pks)
+            resolve_all_series_titles(model_ids=all_series_pks)
 
         self.stdout.write(
             f"  Titles: {titles_created} created, {membership_set} series memberships, "
@@ -1909,7 +1907,7 @@ class Command(BaseCommand):
                 f"{credit_stats['unchanged']} unchanged, "
                 f"{credit_stats['swept']} swept"
             )
-            resolve_all_credits([], model_ids=matched_pks)
+            resolve_all_credits(model_ids=matched_pks)
 
         if tag_claims or matched_pks:
             tag_stats = Claim.objects.bulk_assert_claims(
@@ -1920,7 +1918,7 @@ class Command(BaseCommand):
                 f"{tag_stats['unchanged']} unchanged, "
                 f"{tag_stats['swept']} swept"
             )
-            resolve_all_tags([], model_ids=matched_pks)
+            resolve_all_tags(model_ids=matched_pks)
 
         if theme_claims or matched_pks:
             theme_stats = Claim.objects.bulk_assert_claims(
@@ -1931,7 +1929,7 @@ class Command(BaseCommand):
                 f"{theme_stats['unchanged']} unchanged, "
                 f"{theme_stats['swept']} swept"
             )
-            resolve_all_themes([], model_ids=matched_pks)
+            resolve_all_themes(model_ids=matched_pks)
 
         if gameplay_feature_claims or matched_pks:
             gf_stats = Claim.objects.bulk_assert_claims(
@@ -1945,7 +1943,7 @@ class Command(BaseCommand):
                 f"{gf_stats['unchanged']} unchanged, "
                 f"{gf_stats['swept']} swept"
             )
-            resolve_all_gameplay_features([], model_ids=matched_pks)
+            resolve_all_gameplay_features(model_ids=matched_pks)
 
         if reward_type_claims or matched_pks:
             rt_stats = Claim.objects.bulk_assert_claims(
@@ -1959,4 +1957,4 @@ class Command(BaseCommand):
                 f"{rt_stats['unchanged']} unchanged, "
                 f"{rt_stats['swept']} swept"
             )
-            resolve_all_reward_types([], model_ids=matched_pks)
+            resolve_all_reward_types(model_ids=matched_pks)

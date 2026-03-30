@@ -194,7 +194,7 @@ class Command(BaseCommand):
                 f"{credit_stats['swept']} swept"
             )
             # Resolve credit claims into materialized Credit rows.
-            resolve_all_credits([], model_ids=matched_machine_ids)
+            resolve_all_credits(model_ids=matched_machine_ids)
         else:
             self.stdout.write("  Credit claims: 0 (no matches)")
         if unmatched_machines:
