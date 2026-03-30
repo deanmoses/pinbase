@@ -141,6 +141,15 @@ def validate_claim_value(
     if isinstance(value, str) and validate_no_mojibake in field.validators:
         validate_no_mojibake(value)
 
+    # Reject whitespace-only strings for required text fields.
+    # CharField.to_python() does not strip, so "   " passes through
+    # unchallenged.  For blank=False fields, whitespace-only is
+    # semantically blank and should be rejected at the claim boundary.
+    if isinstance(value, str) and not field.blank and not value.strip():
+        raise ValidationError(
+            f"Field '{field_name}' cannot be blank (whitespace-only)."
+        )
+
     # Markdown cross-ref conversion (authoring → storage format).
     # Returns value unchanged for non-markdown fields.
     value = prepare_markdown_claim_value(field_name, value, model_class)

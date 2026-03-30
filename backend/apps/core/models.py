@@ -51,6 +51,19 @@ def field_not_blank(field_name):
     )
 
 
+def nullable_id_not_empty(field_name):
+    """CHECK constraint: nullable string ID is NULL or non-empty.
+
+    Prevents '' on optional unique CharField IDs (opdb_id, wikidata_id),
+    which would consume the unique slot while being semantically null.
+    """
+    return models.CheckConstraint(
+        condition=models.Q(**{f"{field_name}__isnull": True})
+        | ~models.Q(**{field_name: ""}),
+        name=f"%(app_label)s_%(class)s_{field_name}_not_empty",
+    )
+
+
 class License(TimeStampedModel):
     """A content license (e.g., Creative Commons, GFDL, or a policy status).
 

@@ -298,7 +298,7 @@ Django's `CheckConstraint` conditions (`Q` objects) are not designed for introsp
 
 ### Phasing
 
-**Phase 1: Cross-field invariants and non-blank constraints.** These have zero enforcement today — not even Python-level. Purely additive `CheckConstraint` additions, each with a human-readable `violation_error_message`:
+**Phase 1: Cross-field invariants and non-blank constraints. ✓** These have zero enforcement today — not even Python-level. Purely additive `CheckConstraint` additions, each with a human-readable `violation_error_message`:
 
 - `CorporateEntity`: `year_start <= year_end` (when both non-null)
 - `Person`: `birth_year <= death_year` (when both non-null)
@@ -310,14 +310,14 @@ Wire `validate_constraints()` into the resolver (before `save()`) and the apply 
 
 **Cross-field validation:** `validate_claim_value()` validates one claim at a time and can't check relationships between fields. But Django's `Model.validate_constraints()` evaluates `CheckConstraint` conditions against the instance's current field values in Python. After resolution applies winning claim values to the model instance (but before `save()`), calling `instance.validate_constraints()` catches cross-field violations and raises `ValidationError` with the constraint's `violation_error_message` — clean 422 response, no raw `IntegrityError`. The constraint is defined once on the model and serves as both the DB-level backstop and the Python-level check. Each `CheckConstraint` should include a human-readable `violation_error_message` (e.g. "birth_year must be <= death_year").
 
-**Phase 2: Range constants + CheckConstraints.** The systematic work:
+**Phase 2: Range constants + CheckConstraints. ✓** The systematic work:
 
 1. Define range constants on each model class
 2. Reference constants in existing validators (update `MinValueValidator(1800)` to `MinValueValidator(YEAR_MIN)`)
 3. Add `CheckConstraint` for each range using the same constants
 4. Add a drift-detection test that asserts validator limits match constraint conditions
 
-**Phase 3: Mechanical cleanup.**
+Phase 3 (mechanical cleanup) is also complete:
 
 1. Migrate `unique_together` to `UniqueConstraint` (6 models)
 2. Add `db_default=Now()` on `created_at` fields only. `updated_at` stays Python-managed (`auto_now`) — true DB-managed update timestamps would require triggers, which is a separate concern. Verify during implementation that `db_default=Now()` alongside `auto_now_add=True` is accepted by `makemigrations` — the intent is correct (Python default for ORM inserts, DB default for non-ORM inserts) but the combination should be tested.
@@ -382,25 +382,25 @@ DB-level validation (~84 `CheckConstraint` additions) established the database a
 
 ## Implementation Phases
 
-### Phase 1: Apply layer framework
+### Phase 1: Apply layer framework ✓ (implemented)
 
 Build the source-agnostic engine that takes a plan and executes it. Data types (`PlannedEntityCreate`, `PlannedClaimAssert`, `PlannedClaimRetract`, `IngestPlan`, `RunReport`), the `apply_plan()` function, and tests with synthetic plans. No source adapter conversion.
 
-Depends on: IngestRun and ChangeSet models (done), `validate_claims_batch` (done).
-
 Delivers: the three primitives (`create_entity`, `assert_claim`, `retract_claim`) working end-to-end with transaction management, ChangeSet batching, idempotent diff, fail-fast validation, dry run, and IngestRun audit trail.
 
-### Phase 2: First source adapter (OPDB)
+Implemented in `catalog/ingestion/apply.py` with 19 tests in `catalog/tests/test_apply.py`. Includes `handle_refs` for cross-entity FK dependency resolution during entity creation.
+
+### Phase 2: First source adapter (OPDB) ✓ (implemented)
 
 Convert `ingest_opdb` from imperative command to plan/apply. OPDB is the simplest external source (single entity type, no entity creation, straightforward field mappings). Proves the framework works with real data.
 
-Depends on: Phase 1.
+Implemented in `catalog/ingestion/opdb/adapter.py` with `build_opdb_plan()` + `parse_opdb_records()`. Management command calls `build_opdb_plan()` → `apply_plan()`. Tests in `catalog/tests/test_opdb_adapter.py` validate plan output at the boundary.
 
-### Phase 3: Entity lifecycle (`status` field)
+### Phase 3: Entity lifecycle (`status` field) ✓ (implemented)
 
 Add claim-controlled `status` field (`active`, `deleted`) to all catalog entities. Wire `status=active` assertion into `create_entity` consistency check. Filter catalog queries on `status='active'`. Duplicate handling (`status=duplicate`, `duplicate_of` relationship claim) deferred to a follow-up.
 
-Depends on: Phase 1 (the consistency check references `status`). Can overlap with Phase 2.
+Implemented via `EntityStatusMixin` in `core/models.py` with `EntityStatus` enum (`active`, `deleted`), `status_valid()` DB constraint, and null allowed for entities with no remaining status claim.
 
 ### Phase 4: Relationship claim PK migration
 
@@ -440,21 +440,21 @@ This document defines the target architecture. It does not:
 
 This plan is successful when:
 
-- The claims system has three explicit primitive operations: `create_entity`, `assert_claim`, `retract_claim`
-- Entity existence is provenance-backed via a claim-controlled `status` field (`active`, `deleted`)
-- Entity rows are never hard-deleted; catalog queries filter on `status=active`
+- ✅ The claims system has three explicit primitive operations: `create_entity`, `assert_claim`, `retract_claim`
+- ✅ Entity existence is provenance-backed via a claim-controlled `status` field (`active`, `deleted`)
+- ✅ Entity rows are never hard-deleted; catalog queries filter on `status=active`
 - Relationship claims reference target entities by PK, not by slug
-- All catalog facts enter the system through claims — no direct ORM writes to claim-controlled fields
-- Every ingest run is recorded as an IngestRun with structured run metadata
-- Every entity touched in an ingest run has a ChangeSet grouping its claims
-- Retractions are linked to ChangeSets via `retracted_by_changeset`
-- The apply layer is source-agnostic — it processes explicit operations with no source-specific logic
-- The planner is non-mutating — dry run produces a report without writing to the database
-- Running the same ingest twice produces identical database state (idempotency)
-- Source adapters replace the current imperative ingest commands
+- All catalog facts enter the system through claims — no direct ORM writes to claim-controlled fields (OPDB done; IPDB, Fandom, Wikidata, pinbase remain)
+- ✅ Every ingest run is recorded as an IngestRun with structured run metadata
+- ✅ Every entity touched in an ingest run has a ChangeSet grouping its claims
+- ✅ Retractions are linked to ChangeSets via `retracted_by_changeset`
+- ✅ The apply layer is source-agnostic — it processes explicit operations with no source-specific logic
+- ✅ The planner is non-mutating — dry run produces a report without writing to the database
+- ✅ Running the same ingest twice produces identical database state (idempotency)
+- Source adapters replace the current imperative ingest commands (OPDB done; IPDB, Fandom, Wikidata, pinbase remain)
 - `validate_catalog` and resolver guard rails have been reviewed and trimmed post-redesign
 - `assert_claim()` validates relationship targets
-- Range limits are defined as shared constants referenced by both field validators and `CheckConstraint`
-- Cross-field invariants (year ordering, month-requires-year) are enforced at the DB level
-- Non-blank constraints exist for all `name` fields
-- `unique_together` migrated to `UniqueConstraint`
+- ✅ Range limits are defined as shared constants referenced by both field validators and `CheckConstraint`
+- ✅ Cross-field invariants (year ordering, month-requires-year) are enforced at the DB level
+- ✅ Non-blank constraints exist for all `name` fields
+- ✅ `unique_together` migrated to `UniqueConstraint`

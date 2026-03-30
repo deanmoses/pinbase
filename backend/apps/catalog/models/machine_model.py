@@ -13,6 +13,7 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    nullable_id_not_empty,
     slug_not_blank,
     status_valid,
 )
@@ -303,6 +304,8 @@ class MachineModel(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedMo
                 | models.Q(pinside_id__gte=EXTERNAL_ID_MIN),
                 name="catalog_machinemodel_pinside_id_min",
             ),
+            # Nullable string IDs: NULL or non-empty
+            nullable_id_not_empty("opdb_id"),
             # Cross-field: month requires year
             models.CheckConstraint(
                 condition=models.Q(month__isnull=True) | models.Q(year__isnull=False),

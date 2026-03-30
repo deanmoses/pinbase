@@ -99,6 +99,53 @@ class TestRangeConstraints:
 
 
 # ---------------------------------------------------------------------------
+# Nullable string ID constraints (NULL or non-empty)
+# ---------------------------------------------------------------------------
+
+
+class TestNullableIdConstraints:
+    def test_machine_model_opdb_id_empty_string_rejected(self, db):
+        mfr = Manufacturer.objects.create(name="Test", slug="test-mfr")
+        ce = CorporateEntity.objects.create(
+            name="Test Corp", slug="test-corp", manufacturer=mfr
+        )
+        mm = MachineModel.objects.create(
+            name="Test", slug="test-mm", corporate_entity=ce
+        )
+        with pytest.raises(IntegrityError):
+            _raw_update(MachineModel, mm.pk, opdb_id="")
+
+    def test_machine_model_opdb_id_null_accepted(self, db):
+        mfr = Manufacturer.objects.create(name="Test", slug="test-mfr")
+        ce = CorporateEntity.objects.create(
+            name="Test Corp", slug="test-corp", manufacturer=mfr
+        )
+        mm = MachineModel.objects.create(
+            name="Test", slug="test-mm", corporate_entity=ce, opdb_id="ABC"
+        )
+        _raw_update(MachineModel, mm.pk, opdb_id=None)
+        mm.refresh_from_db()
+        assert mm.opdb_id is None
+
+    def test_title_opdb_id_empty_string_rejected(self, db):
+        from apps.catalog.models import Title
+
+        t = Title.objects.create(name="Test", slug="test-title")
+        with pytest.raises(IntegrityError):
+            _raw_update(Title, t.pk, opdb_id="")
+
+    def test_person_wikidata_id_empty_string_rejected(self, db):
+        p = Person.objects.create(name="Test", slug="test-person")
+        with pytest.raises(IntegrityError):
+            _raw_update(Person, p.pk, wikidata_id="")
+
+    def test_manufacturer_wikidata_id_empty_string_rejected(self, db):
+        mfr = Manufacturer.objects.create(name="Test", slug="test-mfr")
+        with pytest.raises(IntegrityError):
+            _raw_update(Manufacturer, mfr.pk, wikidata_id="")
+
+
+# ---------------------------------------------------------------------------
 # Cross-field constraints
 # ---------------------------------------------------------------------------
 
@@ -255,6 +302,13 @@ class TestProvenanceConstraints:
         run.refresh_from_db()
         assert run.status == "success"
         assert run.finished_at is not None
+
+    def test_ingest_run_success_without_finished_at_rejected(self, db):
+        """Terminal status requires finished_at to be set."""
+        source = Source.objects.create(name="Test", source_type="database")
+        run = IngestRun.objects.create(source=source, input_fingerprint="sha256:abc")
+        with pytest.raises(IntegrityError):
+            _raw_update(IngestRun, run.pk, status="success")
 
     def test_source_invalid_type_rejected(self, db):
         with pytest.raises(IntegrityError):

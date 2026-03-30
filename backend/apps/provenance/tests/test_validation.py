@@ -63,6 +63,15 @@ class TestValidateClaimValue:
         result = validate_claim_value("name", "Café", Person)
         assert result == "Café"
 
+    def test_whitespace_only_rejected_for_required_field(self):
+        with pytest.raises(ValidationError, match="cannot be blank"):
+            validate_claim_value("name", "   ", MachineModel)
+
+    def test_whitespace_only_allowed_for_blank_field(self):
+        # production_quantity is blank=True — whitespace-only is fine
+        result = validate_claim_value("production_quantity", "   ", MachineModel)
+        assert result == "   "
+
     def test_empty_string_skips_validators(self):
         # Empty string is the sentinel for "clear this field". Should not run
         # validators (which would reject "" as out of range for ipdb_id).

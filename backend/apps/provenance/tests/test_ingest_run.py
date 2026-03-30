@@ -68,10 +68,13 @@ class TestIngestRunModel:
         assert run.errors == []
 
     def test_str(self, source):
+        from django.utils import timezone
+
         run = IngestRun.objects.create(
             source=source,
             input_fingerprint="sha256:abc",
             status=IngestRun.Status.FAILED,
+            finished_at=timezone.now(),
         )
         assert "TestSource" in str(run)
         assert "failed" in str(run)

@@ -13,6 +13,7 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    nullable_id_not_empty,
     slug_not_blank,
     status_valid,
 )
@@ -80,6 +81,7 @@ class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
             slug_not_blank(),
             status_valid(),
             field_not_blank("name"),
+            nullable_id_not_empty("opdb_id"),
             models.CheckConstraint(
                 condition=models.Q(fandom_page_id__isnull=True)
                 | models.Q(fandom_page_id__gte=EXTERNAL_ID_MIN),

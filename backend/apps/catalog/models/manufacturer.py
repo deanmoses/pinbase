@@ -15,6 +15,7 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    nullable_id_not_empty,
     slug_not_blank,
     status_valid,
 )
@@ -81,6 +82,7 @@ class Manufacturer(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedMo
             slug_not_blank(),
             status_valid(),
             field_not_blank("name"),
+            nullable_id_not_empty("wikidata_id"),
             models.CheckConstraint(
                 condition=models.Q(opdb_manufacturer_id__isnull=True)
                 | models.Q(opdb_manufacturer_id__gte=EXTERNAL_ID_MIN),

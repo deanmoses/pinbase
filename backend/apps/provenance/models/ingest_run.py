@@ -75,11 +75,16 @@ class IngestRun(models.Model):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(finished_at__isnull=True) | ~models.Q(status="running")
+                    models.Q(status="running", finished_at__isnull=True)
+                    | (
+                        ~models.Q(status="running")
+                        & models.Q(finished_at__isnull=False)
+                    )
                 ),
-                name="provenance_ingestrun_finished_requires_not_running",
+                name="provenance_ingestrun_finished_iff_not_running",
                 violation_error_message=(
-                    "finished_at is only allowed when status is not 'running'."
+                    "running requires finished_at=NULL; "
+                    "success/failed requires finished_at to be set."
                 ),
                 violation_error_code="cross_field",
             ),

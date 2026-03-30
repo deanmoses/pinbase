@@ -15,6 +15,7 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    nullable_id_not_empty,
     slug_not_blank,
     status_valid,
 )
@@ -106,6 +107,7 @@ class Person(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
             slug_not_blank(),
             status_valid(),
             field_not_blank("name"),
+            nullable_id_not_empty("wikidata_id"),
             # Range constraints
             models.CheckConstraint(
                 condition=models.Q(birth_year__isnull=True)
