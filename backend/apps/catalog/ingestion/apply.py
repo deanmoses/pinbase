@@ -1,0 +1,619 @@
+"""Apply layer: source-agnostic engine for executing ingest plans.
+
+Processes three explicit primitives — ``create_entity``,
+``assert_claim``, ``retract_claim`` — in one transaction.  Contains no
+source-specific logic.
+
+Design decisions that look like bugs but aren't:
+
+- ``IngestRun`` is created **outside** the transaction so it survives
+  rollback.  A failed run is exactly when you most want the audit record.
+- Structural plan errors (bad handles, missing assertions) raise
+  **before** ``IngestRun`` creation — they're adapter bugs, not data
+  issues, and shouldn't leave audit debris.
+- Validation is fail-fast but **exhaustive**: all invalid claims are
+  collected before raising, so one run surfaces every data quality issue.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, NamedTuple, Protocol
+
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
+from django.utils import timezone
+
+from apps.provenance.models import ChangeSet, Claim, IngestRun, Source
+from apps.provenance.validation import validate_claims_batch
+
+logger = logging.getLogger(__name__)
+
+
+class ResolveHook(Protocol):
+    """A resolve hook called with ``model_ids=`` after scalar resolution.
+
+    Adapters wrap relationship resolvers to match this signature, e.g.::
+
+        lambda model_ids: resolve_all_credits(model_ids=model_ids)
+    """
+
+    def __call__(self, model_ids: set[int]) -> None: ...
+
+
+class RetractEntry(NamedTuple):
+    """An active claim targeted for retraction."""
+
+    pk: int
+    content_type_id: int
+    object_id: int
+
+
+# ---------------------------------------------------------------------------
+# Plan data types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PlannedEntityCreate:
+    """A new catalog entity to be created inside the apply transaction.
+
+    ``handle`` is a temporary identifier used by ``PlannedClaimAssert``
+    to reference this entity before it has a PK.  Handles must be unique
+    within a plan.
+    """
+
+    model_class: type[models.Model]
+    kwargs: dict[str, Any]
+    handle: str
+
+
+@dataclass
+class PlannedClaimAssert:
+    """A claim to assert about a catalog entity.
+
+    Must target exactly one of:
+    - An existing entity: set ``content_type_id`` and ``object_id``.
+    - A planned entity: set ``handle`` (matching a ``PlannedEntityCreate``).
+    """
+
+    field_name: str
+    value: Any
+    claim_key: str = ""
+    citation: str = ""
+    content_type_id: int | None = None
+    object_id: int | None = None
+    handle: str | None = None
+    needs_review: bool = False
+    needs_review_notes: str = ""
+    license_id: int | None = None
+
+
+@dataclass
+class PlannedClaimRetract:
+    """An explicit retraction of a previously-active claim."""
+
+    content_type_id: int
+    object_id: int
+    claim_key: str
+
+
+@dataclass
+class IngestPlan:
+    """Declarative description of everything a source wants to write."""
+
+    source: Source
+    input_fingerprint: str
+    entities: list[PlannedEntityCreate] = field(default_factory=list)
+    assertions: list[PlannedClaimAssert] = field(default_factory=list)
+    retractions: list[PlannedClaimRetract] = field(default_factory=list)
+    records_parsed: int = 0
+    records_matched: int = 0
+    resolve_map: dict[int, list[ResolveHook]] = field(default_factory=dict)
+
+
+@dataclass
+class RunReport:
+    """Counts and diagnostics returned by ``apply_plan``."""
+
+    created_entities: int = 0
+    asserted: int = 0
+    unchanged: int = 0
+    superseded: int = 0
+    retracted: int = 0
+    rejected: int = 0
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+
+def apply_plan(plan: IngestPlan, *, dry_run: bool = False) -> RunReport:
+    """Execute an ingest plan.  See module docstring for full contract."""
+    report = RunReport()
+
+    # ── Structural validation (before any DB writes) ──────────────
+    _validate_entity_claim_consistency(plan)
+    _validate_assertion_targets(plan)
+
+    if dry_run:
+        return _apply_dry_run(plan, report)
+
+    # ── Create IngestRun outside transaction ──────────────────────
+    run = IngestRun.objects.create(
+        source=plan.source,
+        input_fingerprint=plan.input_fingerprint,
+    )
+
+    try:
+        with transaction.atomic():
+            handle_map = _create_entities(plan.entities)
+            report.created_entities = len(plan.entities)
+
+            _patch_handles(plan.assertions, handle_map)
+            all_claims = _build_claims(plan.assertions, plan.source)
+            valid_claims = _validate_fail_fast(all_claims, report)
+
+            to_create, superseded_ids = _diff_claims(valid_claims, plan.source)
+            report.asserted = len(to_create)
+            report.unchanged = len(valid_claims) - len(to_create)
+            report.superseded = len(superseded_ids)
+
+            retract_entries = _process_retractions(
+                plan.retractions,
+                plan.source,
+                report,
+            )
+            report.retracted = len(retract_entries)
+
+            _persist(run, to_create, superseded_ids, retract_entries)
+            _resolve(to_create, retract_entries, plan.resolve_map)
+
+    except Exception as exc:
+        run.status = IngestRun.Status.FAILED
+        run.claims_rejected = report.rejected
+        run.errors = report.errors if report.errors else [str(exc)]
+        run.finished_at = timezone.now()
+        run.save(
+            update_fields=["status", "claims_rejected", "errors", "finished_at"],
+        )
+        raise
+
+    run.status = IngestRun.Status.SUCCESS
+    run.records_parsed = plan.records_parsed
+    run.records_matched = plan.records_matched
+    run.records_created = report.created_entities
+    run.claims_asserted = report.asserted
+    run.claims_retracted = report.retracted
+    run.warnings = report.warnings
+    run.finished_at = timezone.now()
+    run.save(
+        update_fields=[
+            "status",
+            "records_parsed",
+            "records_matched",
+            "records_created",
+            "claims_asserted",
+            "claims_retracted",
+            "warnings",
+            "finished_at",
+        ],
+    )
+    return report
+
+
+# ---------------------------------------------------------------------------
+# Structural validation (shared by live and dry-run paths)
+# ---------------------------------------------------------------------------
+
+
+def _validate_entity_claim_consistency(plan: IngestPlan) -> None:
+    """Every claim-controlled kwarg in a PlannedEntityCreate must have a
+    matching PlannedClaimAssert targeting the same handle."""
+    from apps.core.models import get_claim_fields
+
+    asserted_by_handle: dict[str, set[str]] = defaultdict(set)
+    for pca in plan.assertions:
+        if pca.handle is not None:
+            asserted_by_handle[pca.handle].add(pca.field_name)
+
+    for entity in plan.entities:
+        claim_fields = get_claim_fields(entity.model_class)
+        asserted = asserted_by_handle.get(entity.handle, set())
+        for kwarg_name in entity.kwargs:
+            if kwarg_name in claim_fields and kwarg_name not in asserted:
+                raise ValueError(
+                    f"PlannedEntityCreate(handle={entity.handle!r}) populates "
+                    f"claim-controlled field {kwarg_name!r} but no matching "
+                    f"PlannedClaimAssert exists for that handle and field."
+                )
+
+
+def _validate_assertion_targets(plan: IngestPlan) -> None:
+    """Every assertion must target exactly one of handle or ct/obj."""
+    valid_handles = {e.handle for e in plan.entities}
+
+    # Duplicate handles.
+    if len(valid_handles) != len(plan.entities):
+        seen: set[str] = set()
+        for e in plan.entities:
+            if e.handle in seen:
+                raise ValueError(
+                    f"Duplicate handle {e.handle!r} in PlannedEntityCreate list"
+                )
+            seen.add(e.handle)
+
+    for pca in plan.assertions:
+        has_handle = pca.handle is not None
+        has_target = pca.content_type_id is not None and pca.object_id is not None
+
+        if has_handle and has_target:
+            raise ValueError(
+                f"PlannedClaimAssert(field_name={pca.field_name!r}) has both "
+                f"a handle ({pca.handle!r}) and content_type_id/object_id — "
+                f"set exactly one"
+            )
+        if has_handle:
+            if pca.handle not in valid_handles:
+                raise ValueError(
+                    f"PlannedClaimAssert references unknown handle "
+                    f"{pca.handle!r} (field_name={pca.field_name!r})"
+                )
+        elif not has_target:
+            raise ValueError(
+                f"PlannedClaimAssert(field_name={pca.field_name!r}) has "
+                f"neither a handle nor content_type_id/object_id"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Dry-run path
+# ---------------------------------------------------------------------------
+
+
+def _apply_dry_run(plan: IngestPlan, report: RunReport) -> RunReport:
+    """Read-only path: validate and diff without writing anything."""
+    report.created_entities = len(plan.entities)
+
+    # Claims targeting existing entities: validate + diff.
+    existing_assertions = [p for p in plan.assertions if p.handle is None]
+    if existing_assertions:
+        claims = _build_claims(existing_assertions, plan.source)
+        valid = _validate_and_collect_errors(claims, report)
+        if valid:
+            to_create, superseded_ids = _diff_claims(valid, plan.source)
+            report.asserted += len(to_create)
+            report.unchanged += len(valid) - len(to_create)
+            report.superseded += len(superseded_ids)
+
+    # Claims targeting planned entities: validate only (all are new by
+    # definition).  Build sentinel claims without mutating the plan.
+    planned_assertions = [p for p in plan.assertions if p.handle is not None]
+    if planned_assertions:
+        handle_to_ct: dict[str, int] = {
+            e.handle: ContentType.objects.get_for_model(e.model_class).pk
+            for e in plan.entities
+        }
+        sentinel_claims = [
+            Claim(
+                content_type_id=handle_to_ct[pca.handle],  # type: ignore[arg-type]
+                object_id=0,
+                field_name=pca.field_name,
+                claim_key=pca.claim_key or pca.field_name,
+                value=pca.value,
+                citation=pca.citation,
+                source=plan.source,
+                needs_review=pca.needs_review,
+                needs_review_notes=pca.needs_review_notes,
+                license_id=pca.license_id,
+            )
+            for pca in planned_assertions
+        ]
+        valid = _validate_and_collect_errors(sentinel_claims, report)
+        report.asserted += len(valid)
+
+    # Retractions: verify targets exist, count.
+    if plan.retractions:
+        entries = _process_retractions(plan.retractions, plan.source, report)
+        report.retracted = len(entries)
+
+    return report
+
+
+# ---------------------------------------------------------------------------
+# Live-path helpers
+# ---------------------------------------------------------------------------
+
+
+def _create_entities(
+    entities: list[PlannedEntityCreate],
+) -> dict[str, tuple[int, int]]:
+    """Bulk-create entities.  Returns ``{handle: (pk, content_type_id)}``.
+
+    Handle uniqueness is enforced by ``_validate_assertion_targets``.
+    """
+    if not entities:
+        return {}
+
+    handle_map: dict[str, tuple[int, int]] = {}
+
+    by_model: dict[
+        type[models.Model], list[tuple[PlannedEntityCreate, models.Model]]
+    ] = defaultdict(list)
+    for entity in entities:
+        instance = entity.model_class(**entity.kwargs)
+        by_model[entity.model_class].append((entity, instance))
+
+    for model_class, pairs in by_model.items():
+        instances = [inst for _, inst in pairs]
+        model_class.objects.bulk_create(instances)
+        ct_id = ContentType.objects.get_for_model(model_class).pk
+        for entity, instance in pairs:
+            handle_map[entity.handle] = (instance.pk, ct_id)
+
+    return handle_map
+
+
+def _patch_handles(
+    assertions: list[PlannedClaimAssert],
+    handle_map: dict[str, tuple[int, int]],
+) -> None:
+    """Resolve temporary handles to real PKs after entity creation."""
+    for pca in assertions:
+        if pca.handle is not None:
+            # handle validity already checked by _validate_assertion_targets
+            pca.object_id, pca.content_type_id = handle_map[pca.handle]
+
+
+def _build_claims(
+    assertions: list[PlannedClaimAssert],
+    source: Source,
+) -> list[Claim]:
+    """Convert planned assertions to unsaved Claim instances (deduplicated).
+
+    Last-write-wins per ``(content_type_id, object_id, claim_key)``.
+    """
+    seen: dict[tuple[int, int, str], Claim] = {}
+    for pca in assertions:
+        claim_key = pca.claim_key or pca.field_name
+        claim = Claim(
+            content_type_id=pca.content_type_id,
+            object_id=pca.object_id,
+            field_name=pca.field_name,
+            claim_key=claim_key,
+            value=pca.value,
+            citation=pca.citation,
+            source=source,
+            needs_review=pca.needs_review,
+            needs_review_notes=pca.needs_review_notes,
+            license_id=pca.license_id,
+        )
+        seen[(pca.content_type_id, pca.object_id, claim_key)] = claim
+    return list(seen.values())
+
+
+def _validate_fail_fast(
+    all_claims: list[Claim],
+    report: RunReport,
+) -> list[Claim]:
+    """Validate claims.  Raises ``ValidationError`` if any are rejected."""
+    valid, rejected_count = validate_claims_batch(all_claims)
+    if rejected_count > 0:
+        valid_ids = set(id(c) for c in valid)
+        for c in all_claims:
+            if id(c) not in valid_ids:
+                report.errors.append(
+                    f"Invalid claim: {c.field_name} on "
+                    f"ct={c.content_type_id} obj={c.object_id}"
+                )
+        report.rejected = rejected_count
+        raise ValidationError(f"{rejected_count} claim(s) failed validation")
+    return valid
+
+
+def _validate_and_collect_errors(
+    claims: list[Claim],
+    report: RunReport,
+) -> list[Claim]:
+    """Validate claims for dry-run (non-fatal).  Appends errors to report."""
+    valid, rejected_count = validate_claims_batch(claims)
+    if rejected_count > 0:
+        valid_ids = set(id(c) for c in valid)
+        for c in claims:
+            if id(c) not in valid_ids:
+                report.errors.append(
+                    f"Invalid claim: {c.field_name} on "
+                    f"ct={c.content_type_id} obj={c.object_id}"
+                )
+        report.rejected += rejected_count
+    return valid
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers (used by both live and dry-run paths)
+# ---------------------------------------------------------------------------
+
+
+def _diff_claims(
+    valid_claims: list[Claim],
+    source: Source,
+) -> tuple[list[Claim], list[int]]:
+    """Compare valid claims against existing active claims from the source.
+
+    Returns ``(to_create, superseded_ids)`` where *superseded_ids* are PKs
+    of existing claims deactivated because their value changed.
+    """
+    by_ct: dict[int, set[int]] = defaultdict(set)
+    for c in valid_claims:
+        by_ct[c.content_type_id].add(c.object_id)
+
+    existing: dict[tuple[int, int, str], tuple] = {}
+    for ct_id, obj_ids in by_ct.items():
+        for row in Claim.objects.filter(
+            source=source,
+            is_active=True,
+            content_type_id=ct_id,
+            object_id__in=obj_ids,
+        ).values_list(
+            "pk",
+            "content_type_id",
+            "object_id",
+            "claim_key",
+            "value",
+            "citation",
+            "needs_review",
+            "needs_review_notes",
+            "license_id",
+        ):
+            pk, ct, oid, ck, val, cit, nr, nrn, lic_id = row
+            existing[(ct, oid, ck)] = (val, cit, nr, nrn, lic_id, pk)
+
+    to_create: list[Claim] = []
+    superseded_ids: list[int] = []
+
+    for claim in valid_claims:
+        key = (claim.content_type_id, claim.object_id, claim.claim_key)
+        old = existing.get(key)
+        if old:
+            old_val, old_cit, old_nr, old_nrn, old_lic_id, old_pk = old
+            if (
+                old_val == claim.value
+                and old_cit == claim.citation
+                and old_nr == claim.needs_review
+                and old_nrn == claim.needs_review_notes
+                and old_lic_id == claim.license_id
+            ):
+                continue
+            superseded_ids.append(old_pk)
+        to_create.append(claim)
+
+    return to_create, superseded_ids
+
+
+def _process_retractions(
+    retractions: list[PlannedClaimRetract],
+    source: Source,
+    report: RunReport,
+) -> list[RetractEntry]:
+    """Find active claims targeted by explicit retractions."""
+    if not retractions:
+        return []
+
+    retract_keys = {
+        (r.content_type_id, r.object_id, r.claim_key): r for r in retractions
+    }
+
+    by_ct: dict[int, set[int]] = defaultdict(set)
+    for ct_id, obj_id, _ in retract_keys:
+        by_ct[ct_id].add(obj_id)
+
+    found: dict[tuple[int, int, str], int] = {}
+    for ct_id, obj_ids in by_ct.items():
+        for pk, c_ct, c_oid, c_ck in Claim.objects.filter(
+            source=source,
+            is_active=True,
+            content_type_id=ct_id,
+            object_id__in=obj_ids,
+        ).values_list("pk", "content_type_id", "object_id", "claim_key"):
+            key = (c_ct, c_oid, c_ck)
+            if key in retract_keys:
+                found[key] = pk
+
+    retract_entries: list[RetractEntry] = []
+    for key in retract_keys:
+        pk = found.get(key)
+        if pk is not None:
+            retract_entries.append(RetractEntry(pk, key[0], key[1]))
+        else:
+            r = retract_keys[key]
+            report.warnings.append(
+                f"Retract target not found: claim_key={r.claim_key!r} "
+                f"on ct={r.content_type_id} obj={r.object_id}"
+            )
+
+    return retract_entries
+
+
+def _persist(
+    run: IngestRun,
+    to_create: list[Claim],
+    superseded_ids: list[int],
+    retract_entries: list[RetractEntry],
+) -> None:
+    """Bulk-create ChangeSets and Claims, deactivate superseded/retracted.
+
+    Superseded claims are deactivated *before* new claims are inserted
+    to satisfy the unique constraint on
+    ``(content_type, object_id, source, claim_key)`` where
+    ``is_active=True``.
+    """
+    # superseded_ids is always a subset of the entities in to_create (a
+    # superseded claim has a replacement in to_create), so checking
+    # to_create is sufficient.
+    if not to_create and not retract_entries:
+        return
+
+    # One ChangeSet per affected entity.
+    affected: set[tuple[int, int]] = set()
+    for claim in to_create:
+        affected.add((claim.content_type_id, claim.object_id))
+    for entry in retract_entries:
+        affected.add((entry.content_type_id, entry.object_id))
+
+    entity_list = sorted(affected)
+    changesets = [ChangeSet(ingest_run=run) for _ in entity_list]
+    ChangeSet.objects.bulk_create(changesets)
+    entity_to_cs: dict[tuple[int, int], ChangeSet] = dict(
+        zip(entity_list, changesets),
+    )
+
+    # Deactivate superseded claims before inserting replacements.
+    if superseded_ids:
+        Claim.objects.filter(pk__in=superseded_ids).update(is_active=False)
+
+    # Assign changeset and bulk-create new claims.
+    for claim in to_create:
+        claim.changeset_id = entity_to_cs[(claim.content_type_id, claim.object_id)].pk
+
+    if to_create:
+        Claim.objects.bulk_create(to_create, batch_size=2000)
+
+    # Deactivate retracted claims with changeset link.
+    if retract_entries:
+        retract_by_cs: dict[int, list[int]] = defaultdict(list)
+        for entry in retract_entries:
+            cs = entity_to_cs[(entry.content_type_id, entry.object_id)]
+            retract_by_cs[cs.pk].append(entry.pk)
+
+        for cs_pk, pks in retract_by_cs.items():
+            Claim.objects.filter(pk__in=pks).update(
+                is_active=False,
+                retracted_by_changeset_id=cs_pk,
+            )
+
+
+def _resolve(
+    to_create: list[Claim],
+    retract_entries: list[RetractEntry],
+    resolve_map: dict[int, list[ResolveHook]],
+) -> None:
+    """Materialise resolved values on affected entities."""
+    from apps.catalog.resolve._entities import resolve_all_entities
+
+    affected_by_ct: dict[int, set[int]] = defaultdict(set)
+    for claim in to_create:
+        affected_by_ct[claim.content_type_id].add(claim.object_id)
+    for entry in retract_entries:
+        affected_by_ct[entry.content_type_id].add(entry.object_id)
+
+    for ct_id, obj_ids in affected_by_ct.items():
+        model_class = ContentType.objects.get_for_id(ct_id).model_class()
+        resolve_all_entities(model_class, object_ids=obj_ids)
+        for hook in resolve_map.get(ct_id, []):
+            hook(model_ids=obj_ids)

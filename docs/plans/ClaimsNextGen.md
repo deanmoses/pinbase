@@ -172,14 +172,16 @@ Two natural query levels:
 
 The apply layer is source-agnostic. It processes the three primitive operations (`create_entity`, `assert_claim`, `retract_claim`) and contains no source-specific logic.
 
-1. **Create IngestRun** (before transaction) — record source, start time, input fingerprint, status=`running`
-2. **Open transaction:**
-   a. **Create entities** — execute `create_entity` operations, capture PKs, patch them into associated claims. Validate that every `create_entity` has matching `assert_claim` operations for all claim-controlled fields it populated (including `status=active`).
+1. **Validate plan structure** (before IngestRun creation) — check that every `create_entity` has matching `assert_claim` operations for all claim-controlled fields it populated (including `status=active`), that every assertion targets a known handle or existing entity, and that handles are unique. Structural errors are adapter bugs, not data issues — they should not leave audit debris.
+2. **Create IngestRun** (before transaction) — record source, start time, input fingerprint, status=`running`
+3. **Open transaction:**
+   a. **Create entities** — execute `create_entity` operations via `bulk_create`, capture PKs, patch them into associated claims.
    b. **Validate** — run `validate_claims_batch` on all planned `assert_claim` operations (see [ValidationFix.md](ValidationFix.md) Component B). Validation collects ALL errors across the entire batch before failing — this is deliberate, so that a single run surfaces every data quality issue rather than forcing a fix-one-rerun-discover-next cycle. If any claim is invalid, the entire transaction fails after reporting all errors. No partial persistence. This is a deliberate pre-launch choice: the project rebuilds from a bare DB, so the fix is always to correct the source data and re-run. A post-launch system with incremental ingest against live data may need to revisit this in favor of skip-and-warn for non-fatal errors.
-   c. **Persist assertions** — bulk-create a ChangeSet per target entity, bulk-create new Claim rows linked to their ChangeSet. Unchanged claims (same value already active for this source) are skipped. ChangeSet creation must be batched (`bulk_create`), not one `create()` per entity in a loop.
-   d. **Persist retractions** — for any `retract_claim` operations, deactivate the targeted claims (set `is_active=False` and `retracted_by_changeset` to the entity's ChangeSet)
-   e. **Resolve** — materialise affected entities (same resolution layer as today)
-3. **Finalise IngestRun** (after transaction) — update counts, status, end time
+   c. **Diff** — compare validated claims against existing active claims from this source (scoped to entities in the plan). Unchanged claims are skipped. Changed claims are superseded (old deactivated, new created).
+   d. **Persist assertions** — deactivate superseded claims, then bulk-create a ChangeSet per target entity, then bulk-create new Claim rows linked to their ChangeSet. Superseded claims must be deactivated _before_ new claims are inserted — the unique constraint `(content_type, object_id, source, claim_key) WHERE is_active=True` would otherwise reject the insert. ChangeSet creation must be batched (`bulk_create`), not one `create()` per entity in a loop.
+   e. **Persist retractions** — for any `retract_claim` operations, deactivate the targeted claims (set `is_active=False` and `retracted_by_changeset` to the entity's ChangeSet)
+   f. **Resolve** — materialise affected entities (same resolution layer as today)
+4. **Finalise IngestRun** (after transaction) — update counts, status, end time
 
 The IngestRun record is created and updated **outside** the apply transaction. If the transaction rolls back on failure, the IngestRun still survives with status=`failed` and error details — which is exactly when you most want the audit record. ChangeSets and claims are created **inside** the transaction, so partial ingest state never persists on failure.
 
@@ -261,7 +263,7 @@ This also supports restoration — if a deletion was wrong, re-asserting `status
 
 **Actor revocation.** All claims from a bad actor are retracted. Entities they created that have since been confirmed by other sources retain their `status=active` claim from those other sources and survive. Entities with no remaining `status=active` claim from any source surface for review.
 
-## Database-level validation
+## Database-level validation ✓ (implemented)
 
 Python validators on model fields (`MinValueValidator`, `MaxValueValidator`, `RegexValidator`, `validate_no_mojibake`) run at the claim boundary via `validate_claim_value()` and during form/API input. But they are invisible to the database. Any write path that bypasses Python validation — `bulk_create()`, `QuerySet.update()`, `save()` without `full_clean()`, the resolver's `save(update_fields=...)` — can persist invalid data. The apply layer's fail-fast validation is the primary defense, but DB constraints are the safety net beneath it.
 
@@ -364,6 +366,15 @@ The database is being deleted and migrations reset to `0001`, so all constraints
 
 The apply layer calls `validate_claims_batch()` on all planned claims. It does not replace or duplicate the validation machinery.
 
+DB-level validation (~84 `CheckConstraint` additions) established the database as a safety net beneath claim-boundary validation:
+
+- `field_not_blank()` helper + 36 non-blank constraints on `name`/`value` fields
+- Module-level range constants referenced by both field validators and `CheckConstraint` (20 range constraints), with a drift-detection meta-test
+- Cross-field invariants: year ordering, month-requires-year, date component chains (10 constraints)
+- Self-referential anti-cycle: `variant_of`/`converted_from`/`remake_of`/`parent` != pk (4 constraints)
+- `unique_together` migrated to `UniqueConstraint` (6 models), `db_default` additions
+- `validate_check_constraints()` in the resolver filters to cross-field constraints only (via `violation_error_code`), because the resolver legitimately resets unclaimed fields to defaults like `""`
+
 [IngestRefactor.md](IngestRefactor.md) contains the earlier iteration of the ingest architecture design, including analysis of snowflake patterns and the original sync modes proposal. This document supersedes it.
 
 ### Remaining validation work
@@ -372,11 +383,58 @@ The apply layer calls `validate_claims_batch()` on all planned claims. It does n
 
 **Wire relationship target validation into `assert_claim()`.** The bulk path validates relationship targets; the single-claim path does not. Not a correctness hole today (the PATCH path validates upstream), but a gap for one-off management commands.
 
+## Implementation Phases
+
+### Phase 1: Apply layer framework
+
+Build the source-agnostic engine that takes a plan and executes it. Data types (`PlannedEntityCreate`, `PlannedClaimAssert`, `PlannedClaimRetract`, `IngestPlan`, `RunReport`), the `apply_plan()` function, and tests with synthetic plans. No source adapter conversion.
+
+Depends on: IngestRun and ChangeSet models (done), `validate_claims_batch` (done).
+
+Delivers: the three primitives (`create_entity`, `assert_claim`, `retract_claim`) working end-to-end with transaction management, ChangeSet batching, idempotent diff, fail-fast validation, dry run, and IngestRun audit trail.
+
+### Phase 2: First source adapter (OPDB)
+
+Convert `ingest_opdb` from imperative command to plan/apply. OPDB is the simplest external source (single entity type, no entity creation, straightforward field mappings). Proves the framework works with real data.
+
+Depends on: Phase 1.
+
+### Phase 3: Entity lifecycle (`status` field)
+
+Add claim-controlled `status` field (`active`, `deleted`, `duplicate`) to all catalog entities. Add `duplicate_of` relationship claim. Wire `status=active` assertion into `create_entity` consistency check. Filter catalog queries on `status='active'`.
+
+Depends on: Phase 1 (the consistency check references `status`). Can overlap with Phase 2.
+
+### Phase 4: Relationship claim PK migration
+
+Change relationship claims from slug-based identity (`person_slug`, `theme_slug`) to PK-based identity. Update `RELATIONSHIP_SCHEMAS`, `build_relationship_claim`, validators (`validate_relationship_claims_batch`), and resolvers. Migrate pindata export format.
+
+Depends on: Phase 2 (validates the framework with slug-based claims first, so this migration doesn't break an untested system).
+
+### Phase 5: Remaining source adapters
+
+Convert `ingest_ipdb`, `ingest_fandom`, `ingest_wikidata`, `ingest_pinbase` (compound plan). Each adapter: parse, reconcile, collect claims, produce plan. Remove old imperative commands.
+
+Depends on: Phase 1. Can proceed in parallel after Phase 2 proves the pattern. `ingest_pinbase` is last (compound plan, most complex).
+
+Note: the current `apply_plan` takes one flat plan. `ingest_pinbase` needs ordered sub-plans where each phase's created entities are available to the next phase's claims (e.g. titles reference manufacturers created in an earlier phase). This will require either a `list[IngestPlan]` variant that loops inside one transaction, or extending `IngestPlan` to carry ordered sub-plans. Design this when converting `ingest_pinbase`, not before — the simpler adapters don't need it.
+
+### Phase 6: Source permission enforcement
+
+Add per-source model/field permission declarations. The apply layer rejects claims targeting disallowed combinations. Requires all adapters converted (Phase 5) to avoid enforcing permissions against code that can't comply yet.
+
+Depends on: Phase 5.
+
+### Phase 7: Cleanup
+
+Trim `validate_catalog` checks redundant with claim boundary validation and DB-level constraints (some range and cross-field checks may already be covered — triage before writing new code). Review resolver defensive coercions. Wire relationship target validation into `assert_claim()` single-claim path.
+
+Depends on: Phase 5 (need all adapters converted to know which guard rails are still reachable).
+
 ## Non-Goals
 
 This document defines the target architecture. It does not:
 
-- Prescribe a migration order for the existing code
 - Define every dataclass or module in final detail
 - Choose a storage format for planned entity identities or run metadata
 - Decide exact package layout beyond the architectural split into source adapters and apply layer

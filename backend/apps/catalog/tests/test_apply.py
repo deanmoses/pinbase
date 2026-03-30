@@ -1,0 +1,585 @@
+"""Tests for the apply layer framework (synthetic plans, no real source data)."""
+
+from __future__ import annotations
+
+import pytest
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+
+from apps.catalog.ingestion.apply import (
+    IngestPlan,
+    PlannedClaimAssert,
+    PlannedClaimRetract,
+    PlannedEntityCreate,
+    RunReport,
+    apply_plan,
+)
+from apps.catalog.models import Manufacturer, Theme
+from apps.provenance.models import ChangeSet, Claim, IngestRun, Source
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def test_source(db):
+    return Source.objects.create(
+        name="TestSource",
+        slug="test-source",
+        source_type="database",
+        priority=50,
+    )
+
+
+def _mfr_ct_id() -> int:
+    return ContentType.objects.get_for_model(Manufacturer).pk
+
+
+# ── Test 1: Create entities + claims ───────────────────────────────
+
+
+def test_create_entities_and_claims(test_source):
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Manufacturer,
+                kwargs={"name": "Bally", "slug": "bally"},
+                handle="bally",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(field_name="name", value="Bally", handle="bally"),
+            PlannedClaimAssert(field_name="slug", value="bally", handle="bally"),
+            PlannedClaimAssert(
+                field_name="description",
+                value="A pinball company",
+                handle="bally",
+            ),
+        ],
+    )
+    report = apply_plan(plan)
+
+    assert report.created_entities == 1
+    assert report.asserted == 3
+    assert report.unchanged == 0
+
+    mfr = Manufacturer.objects.get(slug="bally")
+    assert mfr.name == "Bally"
+
+    active_claims = Claim.objects.filter(source=test_source, is_active=True)
+    assert active_claims.count() == 3
+
+    run = IngestRun.objects.get(source=test_source)
+    assert run.status == IngestRun.Status.SUCCESS
+    assert run.records_created == 1
+    assert run.claims_asserted == 3
+
+
+# ── Test 2: Idempotency ───────────────────────────────────────────
+
+
+def test_idempotency(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    def _make_plan(fp):
+        return IngestPlan(
+            source=test_source,
+            input_fingerprint=fp,
+            assertions=[
+                PlannedClaimAssert(
+                    field_name="description",
+                    value="A pinball company",
+                    content_type_id=ct_id,
+                    object_id=mfr.pk,
+                ),
+            ],
+        )
+
+    report1 = apply_plan(_make_plan("fp-1"))
+    assert report1.asserted == 1
+    assert report1.unchanged == 0
+
+    claim_count_after_first = Claim.objects.filter(source=test_source).count()
+
+    report2 = apply_plan(_make_plan("fp-2"))
+    assert report2.asserted == 0
+    assert report2.unchanged == 1
+    assert report2.superseded == 0
+    assert Claim.objects.filter(source=test_source).count() == claim_count_after_first
+
+
+# ── Test 3: Explicit retract_claim ─────────────────────────────────
+
+
+def test_explicit_retraction(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    # Run 1: assert description.
+    plan1 = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="Original",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+    )
+    apply_plan(plan1)
+    assert Claim.objects.filter(
+        source=test_source,
+        field_name="description",
+        is_active=True,
+    ).exists()
+
+    # Run 2: retract that claim.
+    plan2 = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-2",
+        retractions=[
+            PlannedClaimRetract(
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+                claim_key="description",
+            ),
+        ],
+    )
+    report2 = apply_plan(plan2)
+    assert report2.retracted == 1
+
+    claim = Claim.objects.get(source=test_source, field_name="description")
+    assert claim.is_active is False
+    assert claim.retracted_by_changeset is not None
+    assert claim.retracted_by_changeset.ingest_run.source == test_source
+
+
+# ── Test 4: Invalid claim fails entire run ─────────────────────────
+
+
+def test_invalid_claim_fails_run(test_source):
+    theme = Theme.objects.create(name="Medieval", slug="medieval")
+    ct_id = ContentType.objects.get_for_model(Theme).pk
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="bogus_field",
+                value="whatever",
+                content_type_id=ct_id,
+                object_id=theme.pk,
+            ),
+        ],
+    )
+
+    with pytest.raises(ValidationError):
+        apply_plan(plan)
+
+    run = IngestRun.objects.get(source=test_source)
+    assert run.status == IngestRun.Status.FAILED
+    assert run.claims_rejected == 1
+    assert len(run.errors) > 0
+    # Transaction rolled back — no claims persisted.
+    assert Claim.objects.filter(source=test_source).count() == 0
+
+
+# ── Test 5: Omitted field preserved (additive-only) ───────────────
+
+
+def test_omitted_field_preserved(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    # Run 1: assert description + website.
+    plan1 = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="A company",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+            PlannedClaimAssert(
+                field_name="website",
+                value="https://bally.com",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+    )
+    apply_plan(plan1)
+
+    # Run 2: assert only description (website omitted).
+    plan2 = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-2",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="A company",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+    )
+    apply_plan(plan2)
+
+    # Website claim is still active — not retracted.
+    website_claim = Claim.objects.get(
+        source=test_source,
+        field_name="website",
+        is_active=True,
+    )
+    assert website_claim.value == "https://bally.com"
+
+
+# ── Test 6: Dry run ────────────────────────────────────────────────
+
+
+def test_dry_run(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    initial_claims = Claim.objects.count()
+    initial_runs = IngestRun.objects.count()
+    initial_cs = ChangeSet.objects.count()
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-dry",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="Test",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+    )
+    report = apply_plan(plan, dry_run=True)
+
+    assert report.asserted == 1
+    assert report.rejected == 0
+    assert isinstance(report, RunReport)
+    # Nothing written.
+    assert Claim.objects.count() == initial_claims
+    assert IngestRun.objects.count() == initial_runs
+    assert ChangeSet.objects.count() == initial_cs
+
+
+# ── Test 7: Failed apply (exception in resolve) ───────────────────
+
+
+def test_failed_apply_ingest_run_survives(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    def raise_error(model_ids):
+        raise RuntimeError("Resolve failed!")
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="A pinball company",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+        resolve_map={ct_id: [raise_error]},
+    )
+
+    with pytest.raises(RuntimeError, match="Resolve failed"):
+        apply_plan(plan)
+
+    run = IngestRun.objects.get(source=test_source)
+    assert run.status == IngestRun.Status.FAILED
+    assert "Resolve failed!" in run.errors[0]
+    # Transaction rolled back — no claims persisted.
+    assert Claim.objects.filter(source=test_source).count() == 0
+
+
+# ── Test 8: ChangeSets per target entity ───────────────────────────
+
+
+def test_changesets_per_entity(test_source):
+    mfr1 = Manufacturer.objects.create(name="Bally", slug="bally")
+    mfr2 = Manufacturer.objects.create(name="Williams", slug="williams")
+    ct_id = _mfr_ct_id()
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="Company 1",
+                content_type_id=ct_id,
+                object_id=mfr1.pk,
+            ),
+            PlannedClaimAssert(
+                field_name="description",
+                value="Company 2",
+                content_type_id=ct_id,
+                object_id=mfr2.pk,
+            ),
+        ],
+    )
+    report = apply_plan(plan)
+    assert report.asserted == 2
+
+    run = IngestRun.objects.get(source=test_source)
+    changesets = ChangeSet.objects.filter(ingest_run=run)
+    assert changesets.count() == 2
+
+    # Each claim has a different changeset.
+    claims = Claim.objects.filter(source=test_source, is_active=True)
+    cs_ids = {c.changeset_id for c in claims}
+    assert len(cs_ids) == 2
+
+
+# ── Test 9: Entity-claim consistency validation ────────────────────
+
+
+def test_entity_claim_consistency(test_source):
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Manufacturer,
+                kwargs={"name": "Bally", "slug": "bally"},
+                handle="bally",
+            ),
+        ],
+        assertions=[
+            # Slug assertion present, but name assertion is missing.
+            PlannedClaimAssert(
+                field_name="slug",
+                value="bally",
+                handle="bally",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="name"):
+        apply_plan(plan)
+
+    # Structural validation runs before IngestRun creation — no run record.
+    assert not IngestRun.objects.filter(source=test_source).exists()
+    assert not Manufacturer.objects.filter(slug="bally").exists()
+
+
+# ── Test 10: Supersede (value change) ──────────────────────────────
+
+
+def test_supersede_on_value_change(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    # Run 1: assert description.
+    plan1 = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="Old value",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+    )
+    report1 = apply_plan(plan1)
+    assert report1.asserted == 1
+    old_claim = Claim.objects.get(
+        source=test_source,
+        field_name="description",
+        is_active=True,
+    )
+
+    # Run 2: assert different value for same field.
+    plan2 = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-2",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="New value",
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+            ),
+        ],
+    )
+    report2 = apply_plan(plan2)
+    assert report2.asserted == 1
+    assert report2.superseded == 1
+    assert report2.unchanged == 0
+
+    # Old claim deactivated, new one active.
+    old_claim.refresh_from_db()
+    assert old_claim.is_active is False
+    new_claim = Claim.objects.get(
+        source=test_source,
+        field_name="description",
+        is_active=True,
+    )
+    assert new_claim.value == "New value"
+    assert new_claim.pk != old_claim.pk
+
+
+# ── Test 11: Malformed assertion target ────────────────────────────
+
+
+def test_unknown_handle_raises(test_source):
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="whatever",
+                handle="nonexistent",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="unknown handle"):
+        apply_plan(plan)
+
+
+def test_missing_target_raises(test_source):
+    """Assertion with neither handle nor content_type_id/object_id."""
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="whatever",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="neither a handle nor"):
+        apply_plan(plan)
+
+
+# ── Test 12: Retraction warning for missing target ─────────────────
+
+
+def test_retraction_warning_for_missing_target(test_source):
+    mfr = Manufacturer.objects.create(name="Bally", slug="bally")
+    ct_id = _mfr_ct_id()
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        retractions=[
+            PlannedClaimRetract(
+                content_type_id=ct_id,
+                object_id=mfr.pk,
+                claim_key="description",
+            ),
+        ],
+    )
+    report = apply_plan(plan)
+    assert report.retracted == 0
+    assert len(report.warnings) == 1
+    assert "Retract target not found" in report.warnings[0]
+    assert "description" in report.warnings[0]
+
+
+# ── Test 13: Duplicate handle ──────────────────────────────────────
+
+
+def test_duplicate_handle_raises(test_source):
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Manufacturer,
+                kwargs={"name": "Bally", "slug": "bally"},
+                handle="dupe",
+            ),
+            PlannedEntityCreate(
+                model_class=Manufacturer,
+                kwargs={"name": "Williams", "slug": "williams"},
+                handle="dupe",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(field_name="name", value="Bally", handle="dupe"),
+            PlannedClaimAssert(field_name="slug", value="bally", handle="dupe"),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="Duplicate handle"):
+        apply_plan(plan)
+
+
+# ── Test 14: Dry-run rejects malformed targets ─────────────────────
+
+
+def test_dry_run_rejects_missing_target(test_source):
+    """Dry-run should produce the same ValueError as the live path."""
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-dry",
+        assertions=[
+            PlannedClaimAssert(
+                field_name="description",
+                value="whatever",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="neither a handle nor"):
+        apply_plan(plan, dry_run=True)
+
+
+# ── Test 15: Conflicting assertion target ──────────────────────────
+
+
+def test_both_handle_and_target_raises(test_source):
+    """Assertion with both handle and content_type_id/object_id is ambiguous."""
+    ct_id = _mfr_ct_id()
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Manufacturer,
+                kwargs={"name": "Bally", "slug": "bally"},
+                handle="bally",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(
+                field_name="name",
+                value="Bally",
+                handle="bally",
+                content_type_id=ct_id,
+                object_id=999,
+            ),
+            PlannedClaimAssert(
+                field_name="slug",
+                value="bally",
+                handle="bally",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="both a handle.*and content_type_id"):
+        apply_plan(plan)
