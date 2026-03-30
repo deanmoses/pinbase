@@ -8,12 +8,14 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -31,7 +33,9 @@ __all__ = [
 ]
 
 
-class TechnologyGeneration(SluggedModel, LinkableModel, TimeStampedModel):
+class TechnologyGeneration(
+    EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """A major technological era: Pure Mechanical, Electromechanical, Solid State.
 
     Name and display_order are claim-controlled; description is direct editorial.
@@ -49,13 +53,15 @@ class TechnologyGeneration(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class TechnologySubgeneration(SluggedModel, LinkableModel, TimeStampedModel):
+class TechnologySubgeneration(
+    EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """A subdivision within a TechnologyGeneration.
 
     e.g., Solid State → Discrete Logic, Integrated (MPU), PC-Based.
@@ -76,13 +82,13 @@ class TechnologySubgeneration(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class DisplayType(SluggedModel, LinkableModel, TimeStampedModel):
+class DisplayType(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A display technology category: Score Reels, DMD, LCD, etc.
 
     Replaces the old DisplayType enum.
@@ -100,13 +106,13 @@ class DisplayType(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class DisplaySubtype(SluggedModel, LinkableModel, TimeStampedModel):
+class DisplaySubtype(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A subdivision within a DisplayType.
 
     e.g., LCD → Standard LCD, HD LCD.
@@ -127,13 +133,13 @@ class DisplaySubtype(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class Cabinet(SluggedModel, LinkableModel, TimeStampedModel):
+class Cabinet(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """Physical cabinet form factor: Floor, Tabletop, Countertop, Cocktail."""
 
     link_url_pattern = "/cabinets/{slug}"
@@ -148,13 +154,13 @@ class Cabinet(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class GameFormat(SluggedModel, LinkableModel, TimeStampedModel):
+class GameFormat(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """Game format: Pinball, Bagatelle, Shuffle Alley, Pitch-and-Bat."""
 
     link_url_pattern = "/game-formats/{slug}"
@@ -169,13 +175,13 @@ class GameFormat(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class RewardType(SluggedModel, LinkableModel, TimeStampedModel):
+class RewardType(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball reward mechanism: replay, add-a-ball, free-play, etc.
 
     Reward types are the payoff mechanic for achieving a goal, distinct from
@@ -194,7 +200,7 @@ class RewardType(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order", "name"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
@@ -217,7 +223,7 @@ class RewardTypeAlias(AliasBase):
         ]
 
 
-class Tag(SluggedModel, LinkableModel, TimeStampedModel):
+class Tag(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A classification tag: Home Use, Prototype, Widebody, Remake, etc.
 
     Linked to MachineModel via M2M relationship claims.
@@ -235,13 +241,13 @@ class Tag(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class CreditRole(SluggedModel, LinkableModel, TimeStampedModel):
+class CreditRole(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A credit role category: Design, Art, Software, etc."""
 
     link_url_pattern = "/credit-roles/{slug}"
@@ -256,7 +262,7 @@ class CreditRole(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name

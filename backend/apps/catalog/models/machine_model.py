@@ -7,12 +7,14 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.core.models import (
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -28,7 +30,7 @@ RATING_MIN, RATING_MAX = 0, 10
 EXTERNAL_ID_MIN = 1
 
 
-class MachineModel(SluggedModel, LinkableModel, TimeStampedModel):
+class MachineModel(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball machine title/design — the resolved/materialized view.
 
     Fields are derived from resolving claims. The resolution logic picks the
@@ -249,6 +251,7 @@ class MachineModel(SluggedModel, LinkableModel, TimeStampedModel):
         ordering = ["name"]
         constraints = [
             slug_not_blank(),
+            status_valid(),
             field_not_blank("name"),
             # Range constraints
             models.CheckConstraint(

@@ -8,7 +8,7 @@ from django.db.models.functions import Lower
 
 from django.db.models.functions import Now
 
-from apps.core.models import AliasBase, field_not_blank
+from apps.core.models import AliasBase, EntityStatusMixin, field_not_blank, status_valid
 from apps.core.validators import validate_no_mojibake
 
 __all__ = [
@@ -18,7 +18,7 @@ __all__ = [
 ]
 
 
-class Location(models.Model):
+class Location(EntityStatusMixin, models.Model):
     """A canonical geographic location at any level of the hierarchy.
 
     The hierarchy is self-referential: a city's parent is its subdivision,
@@ -69,6 +69,7 @@ class Location(models.Model):
         constraints = [
             field_not_blank("location_path"),
             field_not_blank("slug"),
+            status_valid(),
             models.CheckConstraint(
                 condition=models.Q(parent__isnull=True)
                 | ~models.Q(parent=models.F("pk")),

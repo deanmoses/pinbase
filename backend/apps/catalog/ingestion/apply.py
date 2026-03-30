@@ -261,6 +261,13 @@ def _validate_entity_claim_consistency(plan: IngestPlan) -> None:
                     f"exists for that handle and field."
                 )
 
+        # Every new entity must have status='active' for creation provenance.
+        if "status" in claim_fields and entity.kwargs.get("status") != "active":
+            raise ValueError(
+                f"PlannedEntityCreate(handle={entity.handle!r}) must include "
+                f"status='active' in kwargs"
+            )
+
 
 def _attname_to_field_name(
     model_class: type[models.Model],

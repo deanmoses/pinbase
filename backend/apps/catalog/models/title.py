@@ -7,12 +7,14 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 from apps.core.models import (
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -21,7 +23,7 @@ __all__ = ["Title", "TitleAbbreviation"]
 EXTERNAL_ID_MIN = 1
 
 
-class Title(SluggedModel, LinkableModel, TimeStampedModel):
+class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """The canonical identity of a pinball game, independent of edition or variant.
 
     OPDB calls this a "group" in its JSON, but we use "Title" as it is the
@@ -76,6 +78,7 @@ class Title(SluggedModel, LinkableModel, TimeStampedModel):
         ordering = ["name"]
         constraints = [
             slug_not_blank(),
+            status_valid(),
             field_not_blank("name"),
             models.CheckConstraint(
                 condition=models.Q(fandom_page_id__isnull=True)

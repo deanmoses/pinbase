@@ -9,12 +9,14 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -29,7 +31,7 @@ YEAR_MIN, YEAR_MAX = 1800, 2100
 EXTERNAL_ID_MIN = 1
 
 
-class Manufacturer(SluggedModel, LinkableModel, TimeStampedModel):
+class Manufacturer(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball machine brand (user-facing grouping).
 
     Corporate incarnations are tracked separately in ManufacturerEntity.
@@ -77,6 +79,7 @@ class Manufacturer(SluggedModel, LinkableModel, TimeStampedModel):
         ordering = ["name"]
         constraints = [
             slug_not_blank(),
+            status_valid(),
             field_not_blank("name"),
             models.CheckConstraint(
                 condition=models.Q(opdb_manufacturer_id__isnull=True)
@@ -108,7 +111,7 @@ class ManufacturerAlias(AliasBase):
         ]
 
 
-class CorporateEntity(SluggedModel, LinkableModel, TimeStampedModel):
+class CorporateEntity(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
@@ -157,6 +160,7 @@ class CorporateEntity(SluggedModel, LinkableModel, TimeStampedModel):
         verbose_name_plural = "corporate entities"
         constraints = [
             slug_not_blank(),
+            status_valid(),
             field_not_blank("name"),
             models.CheckConstraint(
                 condition=models.Q(year_start__isnull=True)

@@ -291,6 +291,10 @@ class TestFieldValidatorCoverage:
                     continue
                 if isinstance(f, (models.SlugField, models.URLField)):
                     continue
+                # Fields with choices accept a fixed value set — mojibake
+                # is impossible because the input is constrained.
+                if f.choices:
+                    continue
                 has_mojibake = validate_no_mojibake in f.validators
                 has_regex = any(isinstance(v, RegexValidator) for v in f.validators)
                 if not (has_mojibake or has_regex):

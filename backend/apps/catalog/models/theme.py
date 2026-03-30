@@ -8,19 +8,21 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Theme", "ThemeAlias"]
 
 
-class Theme(SluggedModel, LinkableModel, TimeStampedModel):
+class Theme(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
 
     Supports a DAG hierarchy via the ``parents`` M2M (structural, not
@@ -46,7 +48,7 @@ class Theme(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name

@@ -6,19 +6,21 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from apps.core.models import (
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Franchise", "Series"]
 
 
-class Franchise(SluggedModel, LinkableModel, TimeStampedModel):
+class Franchise(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """An IP grouping that spans manufacturers and eras.
 
     e.g., Indiana Jones, Star Trek. Most Titles do not belong to a Franchise.
@@ -35,13 +37,13 @@ class Franchise(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
 
-class Series(SluggedModel, LinkableModel, TimeStampedModel):
+class Series(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A manually-curated grouping of related Titles sharing a thematic lineage.
 
     e.g., the "Eight Ball" series spans Eight Ball, Eight Ball Deluxe, and
@@ -65,7 +67,7 @@ class Series(SluggedModel, LinkableModel, TimeStampedModel):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "series"
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name

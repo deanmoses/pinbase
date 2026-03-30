@@ -6,19 +6,21 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from apps.core.models import (
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["System", "SystemMpuString"]
 
 
-class System(SluggedModel, LinkableModel, TimeStampedModel):
+class System(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """An electronic hardware generation for pinball machines.
 
     e.g. WPC-95, System 6, SAM System, SPIKE.
@@ -50,7 +52,7 @@ class System(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name

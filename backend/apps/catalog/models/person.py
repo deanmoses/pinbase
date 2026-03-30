@@ -9,12 +9,14 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -25,7 +27,7 @@ MONTH_MIN, MONTH_MAX = 1, 12
 DAY_MIN, DAY_MAX = 1, 31
 
 
-class Person(SluggedModel, LinkableModel, TimeStampedModel):
+class Person(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A person involved in pinball machine design (designer, artist, etc.)."""
 
     link_url_pattern = "/people/{slug}"
@@ -102,6 +104,7 @@ class Person(SluggedModel, LinkableModel, TimeStampedModel):
         verbose_name_plural = "people"
         constraints = [
             slug_not_blank(),
+            status_valid(),
             field_not_blank("name"),
             # Range constraints
             models.CheckConstraint(

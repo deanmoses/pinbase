@@ -9,19 +9,21 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    EntityStatusMixin,
     LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
     slug_not_blank,
+    status_valid,
 )
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeature"]
 
 
-class GameplayFeature(SluggedModel, LinkableModel, TimeStampedModel):
+class GameplayFeature(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A gameplay mechanism: Flippers, Pop Bumpers, Ramps, Multiball, etc.
 
     Supports a DAG hierarchy via the ``parents`` M2M (claim-controlled).
@@ -46,7 +48,7 @@ class GameplayFeature(SluggedModel, LinkableModel, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
-        constraints = [slug_not_blank(), field_not_blank("name")]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name

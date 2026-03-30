@@ -165,9 +165,13 @@ def build_opdb_plan(
                         "name": mr.record.name,
                         "opdb_id": mr.record.opdb_id,
                         "slug": mr.model.slug,
+                        "status": "active",
                     },
                     handle=handle,
                 )
+            )
+            plan.assertions.append(
+                PlannedClaimAssert(field_name="status", value="active", handle=handle)
             )
             _collect_claims(
                 mr.record,

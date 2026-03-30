@@ -231,11 +231,10 @@ This is wrong. A source asserting "this machine exists" is no different from a s
 
 ### Entity status as a claim-controlled field
 
-Every catalog entity gets a `status` field with three values:
+Every catalog entity gets a `status` field with two values:
 
 - **`active`** — the entity is live in the catalog (default)
 - **`deleted`** — the entity should not exist (data entry error, bad ingest, malicious actor)
-- **`duplicate`** — the entity is a duplicate of another entity
 
 `status` is claim-controlled like any other catalog field. Resolution picks the winner by source priority. An editorial claim (priority 300) asserting `status=deleted` overrides any external source's `status=active`.
 
@@ -243,23 +242,21 @@ Every entity gets a `status=active` claim at creation time — the planner expli
 
 **When no status claim remains** (e.g. after actor revocation retracts all claims including `status=active`), status resolves to null. Catalog queries filter on `status='active'`, so a null-status entity is automatically excluded from the live catalog. It surfaces in an admin review queue of entities with no active status claim. An admin can then re-assert `status=active` (if other sources confirm the entity) or assert `status=deleted` (if the entity was fabricated).
 
-### Duplicate handling
+### Duplicate handling (deferred)
 
-Entities marked `status=duplicate` also have a `duplicate_of` relationship claim pointing to the canonical entity. This follows the same pattern as `variant_of`, `conversion_of`, and `remake_of` — a relationship claim pointing to another entity of the same type.
+Duplicate detection (`status=duplicate`, `duplicate_of` relationship claim) will be addressed in a follow-up when there is an actual workflow that produces duplicates. Adding `duplicate` as a status choice without the `duplicate_of` FK and a UI/ingest workflow to drive it would be a half-implemented feature. The status field is trivially extensible — adding a new choice and the supporting FK later costs nothing, especially since the DB is being reset to `0001`.
 
-Claims on the duplicate do not move to the canonical entity. They stay as historical record — "IPDB said this about machine X" remains true even after we determine machine X is a duplicate of machine Y.
+The design intent is unchanged: `duplicate_of` will follow the `variant_of` pattern (self-referential FK, relationship claim), and claims on duplicates will stay as historical record rather than moving to the canonical entity.
 
 ### Soft delete
 
-Entity rows are never hard-deleted. A `status=deleted` or `status=duplicate` entity remains in the database with all its claims intact. The provenance trail records who marked it, when, and why (via the claim's citation and changeset). Catalog queries filter on `status=active` to exclude inactive entities from the live catalog.
+Entity rows are never hard-deleted. A `status=deleted` entity remains in the database with all its claims intact. The provenance trail records who marked it, when, and why (via the claim's citation and changeset). Catalog queries filter on `status=active` to exclude inactive entities from the live catalog.
 
 This also supports restoration — if a deletion was wrong, re-asserting `status=active` with sufficient priority reverses it through normal claim resolution.
 
 ### Scenarios
 
 **Data entry error / bad ingest.** A user asserts `status=deleted` with a citation explaining why. The entity disappears from the active catalog but its history survives.
-
-**Duplicate detection.** A user asserts `status=duplicate` and a `duplicate_of` claim pointing to the canonical entity. The duplicate disappears from the active catalog; references can redirect via `duplicate_of`.
 
 **Actor revocation.** All claims from a bad actor are retracted. Entities they created that have since been confirmed by other sources retain their `status=active` claim from those other sources and survive. Entities with no remaining `status=active` claim from any source surface for review.
 
@@ -401,7 +398,7 @@ Depends on: Phase 1.
 
 ### Phase 3: Entity lifecycle (`status` field)
 
-Add claim-controlled `status` field (`active`, `deleted`, `duplicate`) to all catalog entities. Add `duplicate_of` relationship claim. Wire `status=active` assertion into `create_entity` consistency check. Filter catalog queries on `status='active'`.
+Add claim-controlled `status` field (`active`, `deleted`) to all catalog entities. Wire `status=active` assertion into `create_entity` consistency check. Filter catalog queries on `status='active'`. Duplicate handling (`status=duplicate`, `duplicate_of` relationship claim) deferred to a follow-up.
 
 Depends on: Phase 1 (the consistency check references `status`). Can overlap with Phase 2.
 
@@ -444,8 +441,7 @@ This document defines the target architecture. It does not:
 This plan is successful when:
 
 - The claims system has three explicit primitive operations: `create_entity`, `assert_claim`, `retract_claim`
-- Entity existence is provenance-backed via a claim-controlled `status` field (`active`, `deleted`, `duplicate`)
-- `duplicate_of` is a relationship claim following the `variant_of` pattern
+- Entity existence is provenance-backed via a claim-controlled `status` field (`active`, `deleted`)
 - Entity rows are never hard-deleted; catalog queries filter on `status=active`
 - Relationship claims reference target entities by PK, not by slug
 - All catalog facts enter the system through claims — no direct ORM writes to claim-controlled fields

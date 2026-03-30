@@ -5,10 +5,13 @@ from __future__ import annotations
 from typing import Optional
 
 from django.core.cache import cache
+from django.db.models import Q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.errors import HttpError
+
+from apps.core.models import active_status_q
 
 from ..cache import LOCATIONS_TREE_KEY
 from .helpers import _extract_image_urls
@@ -85,15 +88,22 @@ def _get_location_tree():
 
     # Load all locations with parent chains (up to 4 levels deep).
     all_locs = list(
-        Location.objects.select_related("parent__parent__parent__parent").all()
+        Location.objects.active().select_related("parent__parent__parent__parent").all()
     )
 
     # Accumulate manufacturer PKs at each location and all its ancestors.
     mfr_pks_by_path: dict[str, set[int]] = {}
-    for cel in CorporateEntityLocation.objects.select_related(
-        "location__parent__parent__parent__parent",
-        "corporate_entity__manufacturer",
-    ).filter(corporate_entity__manufacturer__isnull=False):
+    for cel in (
+        CorporateEntityLocation.objects.select_related(
+            "location__parent__parent__parent__parent",
+            "corporate_entity__manufacturer",
+        )
+        .filter(corporate_entity__manufacturer__isnull=False)
+        .filter(
+            Q(corporate_entity__status="active")
+            | Q(corporate_entity__status__isnull=True)
+        )
+    ):
         mfr_pk = cel.corporate_entity.manufacturer_id
         loc = cel.location
         while loc is not None:
@@ -152,20 +162,23 @@ def _get_manufacturers_for_pks(pks):
     from ..models import CorporateEntity, MachineModel, Manufacturer
 
     qs = (
-        Manufacturer.objects.filter(pk__in=pks)
+        Manufacturer.objects.active()
+        .filter(pk__in=pks)
         .annotate(
             model_count=Count(
                 "entities__models",
-                filter=Q(entities__models__variant_of__isnull=True),
+                filter=Q(entities__models__variant_of__isnull=True)
+                & active_status_q("entities__models"),
             )
         )
         .prefetch_related(
             Prefetch(
                 "entities",
-                queryset=CorporateEntity.objects.prefetch_related(
+                queryset=CorporateEntity.objects.active().prefetch_related(
                     Prefetch(
                         "models",
-                        queryset=MachineModel.objects.filter(variant_of__isnull=True)
+                        queryset=MachineModel.objects.active()
+                        .filter(variant_of__isnull=True)
                         .order_by(F("year").desc(nulls_last=True))
                         .only("extra_data"),
                     ),

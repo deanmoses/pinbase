@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -59,8 +60,11 @@ class GameplayFeatureDetailSchema(Schema):
 def _detail_qs():
     from ..models import GameplayFeature
 
-    return GameplayFeature.objects.prefetch_related(
-        "parents", "children", "aliases", _claims_prefetch()
+    return GameplayFeature.objects.active().prefetch_related(
+        Prefetch("parents", queryset=GameplayFeature.objects.active()),
+        Prefetch("children", queryset=GameplayFeature.objects.active()),
+        "aliases",
+        _claims_prefetch(),
     )
 
 
@@ -93,7 +97,12 @@ def list_gameplay_features(request):
     from ..models import GameplayFeature, MachineModel
 
     features = list(
-        GameplayFeature.objects.prefetch_related("children", "parents").order_by("name")
+        GameplayFeature.objects.active()
+        .prefetch_related(
+            Prefetch("children", queryset=GameplayFeature.objects.active()),
+            Prefetch("parents", queryset=GameplayFeature.objects.active()),
+        )
+        .order_by("name")
     )
 
     # Build children map for transitive closure.
@@ -161,7 +170,7 @@ def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchS
     if not data.fields and data.parents is None and data.aliases is None:
         raise HttpError(422, "No changes provided.")
 
-    feature = get_object_or_404(GameplayFeature, slug=slug)
+    feature = get_object_or_404(GameplayFeature.objects.active(), slug=slug)
 
     specs = validate_scalar_fields(GameplayFeature, data.fields, entity=feature)
 

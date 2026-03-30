@@ -6,6 +6,8 @@ from typing import Optional
 
 from django.db.models import Count, F, Prefetch, Q
 from django.shortcuts import get_object_or_404
+
+from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -88,19 +90,25 @@ def _serialize_title_list(title) -> dict:
 def _series_titles_qs():
     from ..models import MachineModel, Title
 
-    return Title.objects.annotate(
-        machine_count=Count(
-            "machine_models",
-            filter=Q(machine_models__variant_of__isnull=True),
+    return (
+        Title.objects.active()
+        .annotate(
+            machine_count=Count(
+                "machine_models",
+                filter=Q(machine_models__variant_of__isnull=True)
+                & active_status_q("machine_models"),
+            )
         )
-    ).prefetch_related(
-        "abbreviations",
-        Prefetch(
-            "machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
-            .select_related("corporate_entity__manufacturer")
-            .order_by("year", "name"),
-        ),
+        .prefetch_related(
+            "abbreviations",
+            Prefetch(
+                "machine_models",
+                queryset=MachineModel.objects.active()
+                .filter(variant_of__isnull=True)
+                .select_related("corporate_entity__manufacturer")
+                .order_by("year", "name"),
+            ),
+        )
     )
 
 
@@ -113,7 +121,7 @@ def _series_credits_qs():
 def _series_detail_qs():
     from ..models import Series
 
-    return Series.objects.prefetch_related(
+    return Series.objects.active().prefetch_related(
         Prefetch("titles", queryset=_series_titles_qs()),
         Prefetch("credits", queryset=_series_credits_qs()),
         _claims_prefetch(),
@@ -154,13 +162,18 @@ def list_series(request):
     """Return all series with title count and thumbnail."""
     from ..models import MachineModel, Series
 
-    qs = Series.objects.annotate(title_count=Count("titles")).prefetch_related(
-        Prefetch(
-            "titles__machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
-            .exclude(extra_data={})
-            .order_by(F("year").asc(nulls_last=True))
-            .only("id", "extra_data"),
+    qs = (
+        Series.objects.active()
+        .annotate(title_count=Count("titles", filter=active_status_q("titles")))
+        .prefetch_related(
+            Prefetch(
+                "titles__machine_models",
+                queryset=MachineModel.objects.active()
+                .filter(variant_of__isnull=True)
+                .exclude(extra_data={})
+                .order_by(F("year").asc(nulls_last=True))
+                .only("id", "extra_data"),
+            )
         )
     )
     result = []
@@ -201,7 +214,7 @@ def patch_series_claims(request, slug: str, data: ClaimPatchSchema):
     from ..models import Series
     from .edit_claims import plan_scalar_field_claims
 
-    series = get_object_or_404(Series, slug=slug)
+    series = get_object_or_404(Series.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(Series, data.fields, entity=series)
 
     execute_claims(series, specs, user=request.user)

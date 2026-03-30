@@ -163,6 +163,17 @@ def validate_claim_value(
         for validator in field.validators:
             validator(typed)
 
+        # Django's choices validation lives in Field.validate(), not in
+        # Field.run_validators().  Check it explicitly so invalid choices
+        # (e.g. status='bogus') are caught at the claim boundary.
+        if field.choices:
+            valid_choices = {k for k, _v in field.flatchoices}
+            if typed not in valid_choices:
+                raise ValidationError(
+                    f"Value {value!r} is not a valid choice for "
+                    f"'{field_name}'. Valid: {sorted(valid_choices)}"
+                )
+
     return value
 
 

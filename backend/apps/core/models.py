@@ -145,6 +145,81 @@ def slug_not_blank():
 
 
 # ---------------------------------------------------------------------------
+# Entity status (claim-controlled lifecycle)
+# ---------------------------------------------------------------------------
+
+
+class EntityStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    DELETED = "deleted", "Deleted"
+
+
+class CatalogQuerySet(models.QuerySet):
+    def active(self):
+        """Return entities considered live in the catalog.
+
+        Includes ``status='active'`` and ``status IS NULL`` (transitional:
+        entities from ingest commands not yet converted to plan/apply don't
+        emit status claims).  Tighten to ``status='active'`` only after all
+        adapters are converted (Phase 5).
+        """
+        return self.filter(
+            models.Q(status=EntityStatus.ACTIVE) | models.Q(status__isnull=True)
+        )
+
+
+CatalogManager = models.Manager.from_queryset(CatalogQuerySet)
+
+
+def active_status_q(relation: str) -> models.Q:
+    """``Q`` filter for active-status entities reached through *relation*.
+
+    Use inside ``Count(filter=...)`` and similar annotations where the
+    queryset ``.active()`` method is not available::
+
+        Count("machine_models", filter=Q(...) & active_status_q("machine_models"))
+
+    Null-inclusive for transitional compatibility — tighten alongside
+    ``CatalogQuerySet.active()`` after Phase 5.
+    """
+    return models.Q(**{f"{relation}__status": EntityStatus.ACTIVE}) | models.Q(
+        **{f"{relation}__status__isnull": True}
+    )
+
+
+class EntityStatusMixin(models.Model):
+    """Abstract mixin adding claim-controlled entity lifecycle status.
+
+    Add to all independent catalog entity models (not aliases, through
+    models, or abbreviations).  Each concrete subclass must also add
+    ``status_valid()`` to its ``Meta.constraints``.
+    """
+
+    status = models.CharField(
+        max_length=10,
+        choices=EntityStatus.choices,
+        null=True,
+        blank=True,
+    )
+
+    objects = CatalogManager()
+
+    class Meta:
+        abstract = True
+
+
+def status_valid():
+    """CHECK constraint: status must be 'active', 'deleted', or null."""
+    return models.CheckConstraint(
+        condition=(
+            models.Q(status__in=[EntityStatus.ACTIVE, EntityStatus.DELETED])
+            | models.Q(status__isnull=True)
+        ),
+        name="%(app_label)s_%(class)s_status_valid",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Markdown field
 # ---------------------------------------------------------------------------
 

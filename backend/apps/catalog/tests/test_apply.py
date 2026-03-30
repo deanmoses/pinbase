@@ -44,13 +44,14 @@ def test_create_entities_and_claims(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Bally", "slug": "bally"},
+                kwargs={"name": "Bally", "slug": "bally", "status": "active"},
                 handle="bally",
             ),
         ],
         assertions=[
             PlannedClaimAssert(field_name="name", value="Bally", handle="bally"),
             PlannedClaimAssert(field_name="slug", value="bally", handle="bally"),
+            PlannedClaimAssert(field_name="status", value="active", handle="bally"),
             PlannedClaimAssert(
                 field_name="description",
                 value="A pinball company",
@@ -61,19 +62,19 @@ def test_create_entities_and_claims(test_source):
     report = apply_plan(plan)
 
     assert report.records_created == 1
-    assert report.asserted == 3
+    assert report.asserted == 4
     assert report.unchanged == 0
 
     mfr = Manufacturer.objects.get(slug="bally")
     assert mfr.name == "Bally"
 
     active_claims = Claim.objects.filter(source=test_source, is_active=True)
-    assert active_claims.count() == 3
+    assert active_claims.count() == 4
 
     run = IngestRun.objects.get(source=test_source)
     assert run.status == IngestRun.Status.SUCCESS
     assert run.records_created == 1
-    assert run.claims_asserted == 3
+    assert run.claims_asserted == 4
 
 
 # ── Test 2: Idempotency ───────────────────────────────────────────
@@ -358,15 +359,20 @@ def test_entity_claim_consistency(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Bally", "slug": "bally"},
+                kwargs={"name": "Bally", "slug": "bally", "status": "active"},
                 handle="bally",
             ),
         ],
         assertions=[
-            # Slug assertion present, but name assertion is missing.
+            # Slug + status assertions present, but name assertion is missing.
             PlannedClaimAssert(
                 field_name="slug",
                 value="bally",
+                handle="bally",
+            ),
+            PlannedClaimAssert(
+                field_name="status",
+                value="active",
                 handle="bally",
             ),
         ],
@@ -510,18 +516,19 @@ def test_duplicate_handle_raises(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Bally", "slug": "bally"},
+                kwargs={"name": "Bally", "slug": "bally", "status": "active"},
                 handle="dupe",
             ),
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Williams", "slug": "williams"},
+                kwargs={"name": "Williams", "slug": "williams", "status": "active"},
                 handle="dupe",
             ),
         ],
         assertions=[
             PlannedClaimAssert(field_name="name", value="Bally", handle="dupe"),
             PlannedClaimAssert(field_name="slug", value="bally", handle="dupe"),
+            PlannedClaimAssert(field_name="status", value="active", handle="dupe"),
         ],
     )
 
@@ -561,7 +568,7 @@ def test_both_handle_and_target_raises(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Bally", "slug": "bally"},
+                kwargs={"name": "Bally", "slug": "bally", "status": "active"},
                 handle="bally",
             ),
         ],
@@ -576,6 +583,11 @@ def test_both_handle_and_target_raises(test_source):
             PlannedClaimAssert(
                 field_name="slug",
                 value="bally",
+                handle="bally",
+            ),
+            PlannedClaimAssert(
+                field_name="status",
+                value="active",
                 handle="bally",
             ),
         ],
@@ -596,7 +608,7 @@ def test_handle_refs_resolves_fk(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Williams", "slug": "williams"},
+                kwargs={"name": "Williams", "slug": "williams", "status": "active"},
                 handle="mfr-williams",
             ),
             PlannedEntityCreate(
@@ -604,6 +616,7 @@ def test_handle_refs_resolves_fk(test_source):
                 kwargs={
                     "name": "Williams Electronics",
                     "slug": "williams-electronics",
+                    "status": "active",
                 },
                 handle="ce-williams",
                 handle_refs={"manufacturer_id": "mfr-williams"},
@@ -617,6 +630,9 @@ def test_handle_refs_resolves_fk(test_source):
                 field_name="slug", value="williams", handle="mfr-williams"
             ),
             PlannedClaimAssert(
+                field_name="status", value="active", handle="mfr-williams"
+            ),
+            PlannedClaimAssert(
                 field_name="name",
                 value="Williams Electronics",
                 handle="ce-williams",
@@ -624,6 +640,11 @@ def test_handle_refs_resolves_fk(test_source):
             PlannedClaimAssert(
                 field_name="slug",
                 value="williams-electronics",
+                handle="ce-williams",
+            ),
+            PlannedClaimAssert(
+                field_name="status",
+                value="active",
                 handle="ce-williams",
             ),
             PlannedClaimAssert(
@@ -636,7 +657,7 @@ def test_handle_refs_resolves_fk(test_source):
     report = apply_plan(plan)
 
     assert report.records_created == 2
-    assert report.asserted == 5
+    assert report.asserted == 7
 
     mfr = Manufacturer.objects.get(slug="williams")
     ce = CorporateEntity.objects.get(slug="williams-electronics")
@@ -657,13 +678,14 @@ def test_handle_refs_forward_reference_raises(test_source):
                 kwargs={
                     "name": "Williams Electronics",
                     "slug": "williams-electronics",
+                    "status": "active",
                 },
                 handle="ce-williams",
                 handle_refs={"manufacturer_id": "mfr-williams"},
             ),
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Williams", "slug": "williams"},
+                kwargs={"name": "Williams", "slug": "williams", "status": "active"},
                 handle="mfr-williams",
             ),
         ],
@@ -675,6 +697,9 @@ def test_handle_refs_forward_reference_raises(test_source):
                 field_name="slug", value="williams", handle="mfr-williams"
             ),
             PlannedClaimAssert(
+                field_name="status", value="active", handle="mfr-williams"
+            ),
+            PlannedClaimAssert(
                 field_name="name",
                 value="Williams Electronics",
                 handle="ce-williams",
@@ -682,6 +707,11 @@ def test_handle_refs_forward_reference_raises(test_source):
             PlannedClaimAssert(
                 field_name="slug",
                 value="williams-electronics",
+                handle="ce-williams",
+            ),
+            PlannedClaimAssert(
+                field_name="status",
+                value="active",
                 handle="ce-williams",
             ),
             PlannedClaimAssert(
@@ -707,7 +737,7 @@ def test_handle_refs_kwarg_conflict_raises(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Williams", "slug": "williams"},
+                kwargs={"name": "Williams", "slug": "williams", "status": "active"},
                 handle="mfr-williams",
             ),
             PlannedEntityCreate(
@@ -715,6 +745,7 @@ def test_handle_refs_kwarg_conflict_raises(test_source):
                 kwargs={
                     "name": "Williams Electronics",
                     "slug": "williams-electronics",
+                    "status": "active",
                     "manufacturer_id": 999,
                 },
                 handle="ce-williams",
@@ -729,6 +760,9 @@ def test_handle_refs_kwarg_conflict_raises(test_source):
                 field_name="slug", value="williams", handle="mfr-williams"
             ),
             PlannedClaimAssert(
+                field_name="status", value="active", handle="mfr-williams"
+            ),
+            PlannedClaimAssert(
                 field_name="name",
                 value="Williams Electronics",
                 handle="ce-williams",
@@ -736,6 +770,11 @@ def test_handle_refs_kwarg_conflict_raises(test_source):
             PlannedClaimAssert(
                 field_name="slug",
                 value="williams-electronics",
+                handle="ce-williams",
+            ),
+            PlannedClaimAssert(
+                field_name="status",
+                value="active",
                 handle="ce-williams",
             ),
             PlannedClaimAssert(
@@ -761,7 +800,7 @@ def test_handle_ref_without_claim_raises(test_source):
         entities=[
             PlannedEntityCreate(
                 model_class=Manufacturer,
-                kwargs={"name": "Williams", "slug": "williams"},
+                kwargs={"name": "Williams", "slug": "williams", "status": "active"},
                 handle="mfr-williams",
             ),
             PlannedEntityCreate(
@@ -769,6 +808,7 @@ def test_handle_ref_without_claim_raises(test_source):
                 kwargs={
                     "name": "Williams Electronics",
                     "slug": "williams-electronics",
+                    "status": "active",
                 },
                 handle="ce-williams",
                 handle_refs={"manufacturer_id": "mfr-williams"},
@@ -786,6 +826,11 @@ def test_handle_ref_without_claim_raises(test_source):
                 handle="mfr-williams",
             ),
             PlannedClaimAssert(
+                field_name="status",
+                value="active",
+                handle="mfr-williams",
+            ),
+            PlannedClaimAssert(
                 field_name="name",
                 value="Williams Electronics",
                 handle="ce-williams",
@@ -793,6 +838,11 @@ def test_handle_ref_without_claim_raises(test_source):
             PlannedClaimAssert(
                 field_name="slug",
                 value="williams-electronics",
+                handle="ce-williams",
+            ),
+            PlannedClaimAssert(
+                field_name="status",
+                value="active",
                 handle="ce-williams",
             ),
             # No manufacturer assertion for ce-williams — should fail.

@@ -6,6 +6,8 @@ from typing import Any, Optional
 
 from django.db.models import Count, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404
+
+from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -231,7 +233,8 @@ def _build_review_links(title) -> list[dict]:
 
     base_name = re.sub(r"\s*\([^)]*\)\s*$", "", title.name).strip()
     related = (
-        Title.objects.filter(Q(name__iexact=title.name) | Q(name__iexact=base_name))
+        Title.objects.active()
+        .filter(Q(name__iexact=title.name) | Q(name__iexact=base_name))
         .exclude(pk=title.pk)
         .exclude(opdb_id__isnull=True)
     )
@@ -438,7 +441,8 @@ def _title_models_prefetch():
 
     return Prefetch(
         "machine_models",
-        queryset=MachineModel.objects.filter(variant_of__isnull=True)
+        queryset=MachineModel.objects.active()
+        .filter(variant_of__isnull=True)
         .select_related(
             "corporate_entity__manufacturer",
             "technology_generation",
@@ -469,11 +473,15 @@ def _title_models_prefetch():
 def _detail_qs():
     from ..models import Title
 
-    return Title.objects.select_related("franchise").prefetch_related(
-        _title_models_prefetch(),
-        "series",
-        "abbreviations",
-        _claims_prefetch(),
+    return (
+        Title.objects.active()
+        .select_related("franchise")
+        .prefetch_related(
+            _title_models_prefetch(),
+            "series",
+            "abbreviations",
+            _claims_prefetch(),
+        )
     )
 
 
@@ -489,9 +497,11 @@ titles_router = Router(tags=["titles"])
 def list_titles(request, display: str = ""):
     from ..models import Title
 
-    qs = Title.objects.annotate(
+    qs = Title.objects.active().annotate(
         machine_count=Count(
-            "machine_models", filter=Q(machine_models__variant_of__isnull=True)
+            "machine_models",
+            filter=Q(machine_models__variant_of__isnull=True)
+            & active_status_q("machine_models"),
         )
     )
     if display:
@@ -517,9 +527,12 @@ def list_all_titles(request):
         return result
 
     qs = (
-        Title.objects.annotate(
+        Title.objects.active()
+        .annotate(
             machine_count=Count(
-                "machine_models", filter=Q(machine_models__variant_of__isnull=True)
+                "machine_models",
+                filter=Q(machine_models__variant_of__isnull=True)
+                & active_status_q("machine_models"),
             ),
             latest_year=Max(
                 "machine_models__year",
@@ -558,7 +571,7 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
         raise HttpError(422, "No changes provided.")
 
     title = get_object_or_404(
-        Title.objects.prefetch_related("abbreviations"), slug=slug
+        Title.objects.active().prefetch_related("abbreviations"), slug=slug
     )
     specs = (
         plan_scalar_field_claims(Title, data.fields, entity=title)

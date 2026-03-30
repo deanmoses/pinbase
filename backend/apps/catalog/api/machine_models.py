@@ -174,7 +174,8 @@ def _build_model_list_qs(
     from ..models import MachineModel
 
     qs = (
-        MachineModel.objects.select_related(
+        MachineModel.objects.active()
+        .select_related(
             "corporate_entity__manufacturer",
             "technology_generation",
             "display_type",
@@ -482,53 +483,58 @@ def _model_detail_qs():
     """Return the queryset used for model detail / patch endpoints."""
     from ..models import Credit, MachineModel, MachineModelGameplayFeature
 
-    return MachineModel.objects.select_related(
-        "corporate_entity__manufacturer",
-        "title",
-        "title__franchise",
-        "system",
-        "system__technology_subgeneration",
-        "technology_generation",
-        "technology_subgeneration",
-        "display_type",
-        "display_subtype",
-        "cabinet",
-        "game_format",
-        "variant_of",
-        "converted_from",
-        "remake_of",
-    ).prefetch_related(
-        "variants",
-        "variant_of__variants",
-        "conversions",
-        "remakes",
-        "themes",
-        Prefetch(
-            "machinemodelgameplayfeature_set",
-            queryset=MachineModelGameplayFeature.objects.select_related(
-                "gameplayfeature"
-            ).order_by("gameplayfeature__name"),
-        ),
-        "tags",
-        "reward_types",
-        "abbreviations",
-        "title__series",
-        Prefetch(
-            "title__machine_models",
-            queryset=MachineModel.objects.filter(
-                Q(variant_of__isnull=True) | Q(converted_from__isnull=False)
-            )
-            .select_related("corporate_entity__manufacturer", "technology_generation")
-            .prefetch_related("variants")
-            .order_by("year", "name"),
-        ),
-        Prefetch(
-            "credits",
-            queryset=Credit.objects.filter(model__isnull=False).select_related(
-                "person", "role"
+    return (
+        MachineModel.objects.active()
+        .select_related(
+            "corporate_entity__manufacturer",
+            "title",
+            "title__franchise",
+            "system",
+            "system__technology_subgeneration",
+            "technology_generation",
+            "technology_subgeneration",
+            "display_type",
+            "display_subtype",
+            "cabinet",
+            "game_format",
+            "variant_of",
+            "converted_from",
+            "remake_of",
+        )
+        .prefetch_related(
+            "variants",
+            "variant_of__variants",
+            "conversions",
+            "remakes",
+            "themes",
+            Prefetch(
+                "machinemodelgameplayfeature_set",
+                queryset=MachineModelGameplayFeature.objects.select_related(
+                    "gameplayfeature"
+                ).order_by("gameplayfeature__name"),
             ),
-        ),
-        _claims_prefetch(),
+            "tags",
+            "reward_types",
+            "abbreviations",
+            "title__series",
+            Prefetch(
+                "title__machine_models",
+                queryset=MachineModel.objects.active()
+                .filter(Q(variant_of__isnull=True) | Q(converted_from__isnull=False))
+                .select_related(
+                    "corporate_entity__manufacturer", "technology_generation"
+                )
+                .prefetch_related("variants")
+                .order_by("year", "name"),
+            ),
+            Prefetch(
+                "credits",
+                queryset=Credit.objects.filter(model__isnull=False).select_related(
+                    "person", "role"
+                ),
+            ),
+            _claims_prefetch(),
+        )
     )
 
 
@@ -631,9 +637,8 @@ def list_recent_models(request):
     from ..models import MachineModel
 
     qs = (
-        MachineModel.objects.filter(
-            Q(variant_of__isnull=True) | Q(converted_from__isnull=False)
-        )
+        MachineModel.objects.active()
+        .filter(Q(variant_of__isnull=True) | Q(converted_from__isnull=False))
         .select_related("corporate_entity__manufacturer")
         .order_by(
             F("year").desc(nulls_last=True),
@@ -679,7 +684,8 @@ def list_all_models(request):
     if result is not None:
         return result
     qs = (
-        MachineModel.objects.select_related(
+        MachineModel.objects.active()
+        .select_related(
             "corporate_entity__manufacturer",
             "technology_generation",
             "technology_subgeneration",
@@ -758,32 +764,40 @@ def get_model_edit_options(request):
         return [{"slug": obj.slug, "label": obj.name} for obj in qs]
 
     return {
-        "themes": _opts(Theme.objects.order_by("name")),
-        "tags": _opts(Tag.objects.order_by("name")),
-        "reward_types": _opts(RewardType.objects.order_by("display_order", "name")),
-        "gameplay_features": _opts(GameplayFeature.objects.order_by("name")),
+        "themes": _opts(Theme.objects.active().order_by("name")),
+        "tags": _opts(Tag.objects.active().order_by("name")),
+        "reward_types": _opts(
+            RewardType.objects.active().order_by("display_order", "name")
+        ),
+        "gameplay_features": _opts(GameplayFeature.objects.active().order_by("name")),
         "technology_generations": _opts(
-            TechnologyGeneration.objects.order_by("display_order", "name")
+            TechnologyGeneration.objects.active().order_by("display_order", "name")
         ),
         "technology_subgenerations": _opts(
-            TechnologySubgeneration.objects.order_by("display_order", "name")
+            TechnologySubgeneration.objects.active().order_by("display_order", "name")
         ),
-        "display_types": _opts(DisplayType.objects.order_by("display_order", "name")),
+        "display_types": _opts(
+            DisplayType.objects.active().order_by("display_order", "name")
+        ),
         "display_subtypes": _opts(
-            DisplaySubtype.objects.order_by("display_order", "name")
+            DisplaySubtype.objects.active().order_by("display_order", "name")
         ),
-        "cabinets": _opts(Cabinet.objects.order_by("display_order", "name")),
-        "game_formats": _opts(GameFormat.objects.order_by("display_order", "name")),
-        "systems": _opts(System.objects.order_by("name")),
-        "corporate_entities": _opts(CorporateEntity.objects.order_by("name")),
-        "people": _opts(Person.objects.order_by("name")),
-        "credit_roles": _opts(CreditRole.objects.order_by("display_order", "name")),
+        "cabinets": _opts(Cabinet.objects.active().order_by("display_order", "name")),
+        "game_formats": _opts(
+            GameFormat.objects.active().order_by("display_order", "name")
+        ),
+        "systems": _opts(System.objects.active().order_by("name")),
+        "corporate_entities": _opts(CorporateEntity.objects.active().order_by("name")),
+        "people": _opts(Person.objects.active().order_by("name")),
+        "credit_roles": _opts(
+            CreditRole.objects.active().order_by("display_order", "name")
+        ),
         "models": [
             {
                 "slug": obj.slug,
                 "label": f"{obj.name} ({obj.year})" if obj.year else obj.name,
             }
-            for obj in MachineModel.objects.order_by("name")
+            for obj in MachineModel.objects.active().order_by("name")
         ],
     }
 
@@ -819,7 +833,7 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
     from ..resolve import resolve_model
 
     pm = get_object_or_404(
-        MachineModel.objects.prefetch_related(
+        MachineModel.objects.active().prefetch_related(
             "themes",
             "tags",
             "reward_types",

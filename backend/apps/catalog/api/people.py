@@ -132,7 +132,7 @@ def _serialize_person_detail(person) -> dict:
 def _person_qs():
     from ..models import Credit, Person
 
-    return Person.objects.prefetch_related(
+    return Person.objects.active().prefetch_related(
         Prefetch(
             "credits",
             queryset=Credit.objects.filter(model__isnull=False)
@@ -158,7 +158,8 @@ def list_people(request):
     from ..models import Person
 
     return list(
-        Person.objects.annotate(credit_count=Count("credits"))
+        Person.objects.active()
+        .annotate(credit_count=Count("credits"))
         .order_by("name")
         .values("name", "slug", "credit_count")
     )
@@ -175,7 +176,8 @@ def list_all_people(request):
     from ..models import Person
 
     people = list(
-        Person.objects.annotate(credit_count=Count("credits"))
+        Person.objects.active()
+        .annotate(credit_count=Count("credits"))
         .prefetch_related("credits__model")
         .order_by("-credit_count")
     )
@@ -221,7 +223,7 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
 
     from ..models import Person
 
-    person = get_object_or_404(Person, slug=slug)
+    person = get_object_or_404(Person.objects.active(), slug=slug)
 
     specs = plan_scalar_field_claims(Person, data.fields, entity=person)
 

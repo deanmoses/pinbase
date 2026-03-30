@@ -6,6 +6,8 @@ from typing import Optional
 
 from django.db.models import Count, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404
+
+from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -63,14 +65,19 @@ class SystemDetailSchema(Schema):
 def _system_detail_qs():
     from ..models import MachineModel, System
 
-    return System.objects.select_related("manufacturer").prefetch_related(
-        _claims_prefetch(),
-        Prefetch(
-            "machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
-            .select_related("corporate_entity__manufacturer", "title")
-            .order_by(F("year").desc(nulls_last=True), "name"),
-        ),
+    return (
+        System.objects.active()
+        .select_related("manufacturer")
+        .prefetch_related(
+            _claims_prefetch(),
+            Prefetch(
+                "machine_models",
+                queryset=MachineModel.objects.active()
+                .filter(variant_of__isnull=True)
+                .select_related("corporate_entity__manufacturer", "title")
+                .order_by(F("year").desc(nulls_last=True), "name"),
+            ),
+        )
     )
 
 
@@ -103,7 +110,8 @@ def _serialize_system_detail(system) -> dict:
     sibling_systems = []
     if system.manufacturer:
         sibling_systems = list(
-            System.objects.filter(manufacturer=system.manufacturer)
+            System.objects.active()
+            .filter(manufacturer=system.manufacturer)
             .exclude(pk=system.pk)
             .annotate(latest_year=Max("machine_models__year"))
             .order_by(F("latest_year").desc(nulls_last=True), "name")
@@ -141,10 +149,13 @@ def list_all_systems(request):
     from ..models import System
 
     qs = (
-        System.objects.select_related("manufacturer")
+        System.objects.active()
+        .select_related("manufacturer")
         .annotate(
             machine_count=Count(
-                "machine_models", filter=Q(machine_models__variant_of__isnull=True)
+                "machine_models",
+                filter=Q(machine_models__variant_of__isnull=True)
+                & active_status_q("machine_models"),
             )
         )
         .order_by("name")
@@ -179,7 +190,7 @@ def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
     from ..models import System
     from .edit_claims import plan_scalar_field_claims
 
-    system = get_object_or_404(System, slug=slug)
+    system = get_object_or_404(System.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(System, data.fields, entity=system)
 
     execute_claims(system, specs, user=request.user)
