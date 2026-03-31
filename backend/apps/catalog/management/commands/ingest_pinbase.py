@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -253,18 +254,27 @@ class Command(BaseCommand):
             )
             self._ai_desc_sources[model_class] = src
 
-        self._ingest_locations()
-        self._ingest_taxonomy()
-        self._ingest_themes()
-        self._ingest_gameplay_features()
-        self._sync_reward_type_aliases()
-        self._ingest_manufacturers()
-        self._ingest_corporate_entities()
-        self._ingest_systems()
-        self._ingest_people()
-        self._ingest_series()
-        self._ingest_titles()
-        self._ingest_models()
+        # Description claims contain wikilinks like [[manufacturer:williams]]
+        # that are converted to [[manufacturer:id:42]] during validation.
+        # Defer them until all entities exist so the lookups succeed.
+        self._deferred_desc_claims: list[tuple[type, Claim]] = []
+
+        for phase in [
+            self._ingest_locations,
+            self._ingest_taxonomy,
+            self._ingest_themes,
+            self._ingest_gameplay_features,
+            self._sync_reward_type_aliases,
+            self._ingest_manufacturers,
+            self._ingest_corporate_entities,
+            self._ingest_systems,
+            self._ingest_people,
+            self._ingest_series,
+            self._ingest_titles,
+            self._ingest_models,
+            self._flush_deferred_descriptions,
+        ]:
+            self._run_timed(phase)
 
         self.stdout.write(self.style.SUCCESS("Pinbase ingestion complete."))
 
@@ -272,17 +282,26 @@ class Command(BaseCommand):
     # Helpers
     # ------------------------------------------------------------------
 
+    def _run_timed(self, phase):
+        """Run a phase function and print elapsed time."""
+        start = time.monotonic()
+        phase()
+        elapsed = time.monotonic() - start
+        if elapsed >= 1:
+            self.stdout.write(f"  ({elapsed:.0f}s)")
+
     def _assert_claims_split_descriptions(
         self,
         model_class: type,
         pending_claims: list[Claim],
         **kwargs,
     ) -> dict[str, int]:
-        """Assert claims, routing description claims to the AI description source.
+        """Assert claims, deferring description claims for later.
 
-        Non-description claims go to self.pinbase_source.
-        Description claims go to the per-entity AI description source.
-        Returns combined stats from both bulk_assert_claims calls.
+        Non-description claims go to self.pinbase_source immediately.
+        Description claims are stashed in ``_deferred_desc_claims`` and
+        flushed at the end of the pipeline (after all entities exist)
+        so that wikilink validation can resolve cross-references.
         """
         desc_claims = [c for c in pending_claims if c.field_name == "description"]
         other_claims = [c for c in pending_claims if c.field_name != "description"]
@@ -303,14 +322,38 @@ class Command(BaseCommand):
                 stats[k] += s[k]
 
         if desc_claims:
+            self._deferred_desc_claims.extend((model_class, c) for c in desc_claims)
+
+        return stats
+
+    def _flush_deferred_descriptions(self):
+        """Assert all deferred description claims now that every entity exists."""
+        if not self._deferred_desc_claims:
+            return
+
+        # Group by model class so each batch goes to the right AI source.
+        by_model: dict[type, list[Claim]] = {}
+        for model_class, claim in self._deferred_desc_claims:
+            by_model.setdefault(model_class, []).append(claim)
+
+        total_created = 0
+        total_unchanged = 0
+        for model_class, claims in by_model.items():
             ai_source = self._ai_desc_sources.get(model_class)
             if ai_source is None:
                 ai_source = self.pinbase_source
-            s = Claim.objects.bulk_assert_claims(ai_source, desc_claims)
-            for k in stats:
-                stats[k] += s[k]
+            s = Claim.objects.bulk_assert_claims(ai_source, claims)
+            total_created += s["created"]
+            total_unchanged += s["unchanged"]
 
-        return stats
+            # Re-resolve affected entities so descriptions land on the objects.
+            obj_ids = {c.object_id for c in claims}
+            resolve_all_entities(model_class, object_ids=obj_ids)
+
+        self.stdout.write(
+            f"  Deferred descriptions: {total_created} created, "
+            f"{total_unchanged} unchanged"
+        )
 
     def _assert_alias_claims(
         self,

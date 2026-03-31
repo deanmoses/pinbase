@@ -178,8 +178,12 @@ def _resolve_bulk(
     has_extra_data = hasattr(model_class, "extra_data")
 
     # Snapshot slugs before resolution for conflict revert.
-    has_slug = "slug" in direct_fields
-    pre_slugs = {obj.pk: obj.slug for obj in all_objs} if has_slug else {}
+    # Only check for global uniqueness if the slug field is actually unique.
+    slug_field = (
+        model_class._meta.get_field("slug") if "slug" in direct_fields else None
+    )
+    has_unique_slug = slug_field is not None and slug_field.unique
+    pre_slugs = {obj.pk: obj.slug for obj in all_objs} if has_unique_slug else {}
 
     # 4. Resolve each object in memory.
     now = timezone.now()
@@ -220,7 +224,7 @@ def _resolve_bulk(
         obj.updated_at = now
 
     # 4b. Detect unique-field conflicts across resolved objects.
-    if has_slug:
+    if has_unique_slug:
         resolve_unique_conflicts(all_objs, "slug", model_class, pre_slugs)
 
     # 4c. Validate check constraints before writing.

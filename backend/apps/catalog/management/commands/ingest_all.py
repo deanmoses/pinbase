@@ -9,6 +9,7 @@ Runs: ingest_pinbase → ingest_ipdb → ingest_opdb →
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from django.core.management import call_command
@@ -19,7 +20,6 @@ from django.db import transaction
 from apps.catalog.ingestion.constants import (
     DEFAULT_EXPORT_DIR,
     DEFAULT_IPDB_PATH,
-    DEFAULT_OPDB_CHANGELOG_PATH,
     DEFAULT_OPDB_PATH,
 )
 from apps.catalog.management.commands.ingest_pinbase import (
@@ -53,11 +53,6 @@ class Command(BaseCommand):
             help="Path to OPDB JSON dump.",
         )
         parser.add_argument(
-            "--opdb-changelog",
-            default=DEFAULT_OPDB_CHANGELOG_PATH,
-            help="Path to OPDB changelog JSON dump.",
-        )
-        parser.add_argument(
             "--export-dir",
             default=DEFAULT_EXPORT_DIR,
             help="Path to exported Pinbase JSON directory.",
@@ -73,7 +68,6 @@ class Command(BaseCommand):
         write = options["write"]
         ipdb_path = options["ipdb"]
         opdb_path = options["opdb"]
-        opdb_changelog = options["opdb_changelog"]
         export_dir = options["export_dir"]
 
         from apps.catalog.cache import invalidate_all
@@ -85,8 +79,17 @@ class Command(BaseCommand):
                 )
             )
 
+        pipeline_start = time.monotonic()
+
         try:
             with transaction.atomic():
+                # Ensure canonical license records exist (idempotent).
+                from apps.core.licensing import ensure_licenses
+
+                created = ensure_licenses()
+                if created:
+                    self.stdout.write(f"  Seeded {created} license(s).")
+
                 for step in STEPS:
                     prefix = "[DRY RUN] " if not write else ""
                     self.stdout.write(
@@ -98,13 +101,11 @@ class Command(BaseCommand):
                     elif step == "ingest_ipdb":
                         kwargs["ipdb"] = ipdb_path
                     elif step == "ingest_opdb":
-                        kwargs.update(
-                            {
-                                "opdb": opdb_path,
-                                "changelog": opdb_changelog,
-                            }
-                        )
+                        kwargs["opdb"] = opdb_path
+                    step_start = time.monotonic()
                     call_command(step, stdout=self.stdout, stderr=self.stderr, **kwargs)
+                    elapsed = time.monotonic() - step_start
+                    self.stdout.write(f"  ({elapsed:.0f}s)")
 
                 # Post-pipeline: validate cross-entity wikilinks now that all
                 # manufacturers, titles, and systems have been ingested.
@@ -117,9 +118,14 @@ class Command(BaseCommand):
         finally:
             invalidate_all()
 
+        total = time.monotonic() - pipeline_start
         if not write:
             self.stdout.write(
-                self.style.SUCCESS("Dry run complete — no data was modified.")
+                self.style.SUCCESS(
+                    f"Dry run complete — no data was modified. ({total:.0f}s)"
+                )
             )
         else:
-            self.stdout.write(self.style.SUCCESS("Full ingestion pipeline complete."))
+            self.stdout.write(
+                self.style.SUCCESS(f"Full ingestion pipeline complete. ({total:.0f}s)")
+            )

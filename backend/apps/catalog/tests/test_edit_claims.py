@@ -100,7 +100,7 @@ class TestGetFieldConstraints:
         assert result["year"] == {"min": 1800, "max": 2100, "step": 1}
         assert result["month"] == {"min": 1, "max": 12, "step": 1}
         assert result["flipper_count"] == {"min": 0, "max": 20, "step": 1}
-        assert result["player_count"] == {"min": 1, "max": 8, "step": 1}
+        assert result["player_count"] == {"min": 1, "max": 20, "step": 1}
         assert result["ipdb_rating"] == {"min": 0, "max": 10, "step": 0.01}
         assert result["ipdb_id"] == {"min": 1, "step": 1}
 

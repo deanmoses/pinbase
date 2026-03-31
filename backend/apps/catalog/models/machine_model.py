@@ -25,7 +25,7 @@ __all__ = ["MachineModel", "ModelAbbreviation"]
 # Module-level so they're accessible inside class Meta (nested class scoping).
 YEAR_MIN, YEAR_MAX = 1800, 2100
 MONTH_MIN, MONTH_MAX = 1, 12
-PLAYER_COUNT_MIN, PLAYER_COUNT_MAX = 1, 8
+PLAYER_COUNT_MIN, PLAYER_COUNT_MAX = 1, 20
 FLIPPER_COUNT_MIN, FLIPPER_COUNT_MAX = 0, 20
 RATING_MIN, RATING_MAX = 0, 10
 EXTERNAL_ID_MIN = 1
