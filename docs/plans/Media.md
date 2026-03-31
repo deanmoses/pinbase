@@ -1,15 +1,12 @@
-# Media Architecture Plan v2
+# Media Architecture Plan
 
 Plan date: 2026-03-31
 
-Supersedes: [Media.md](Media.md) (preserved for reference)
-
-This document proposes a media architecture for Pinbase after the database reset. No migration/backfill is needed. Decisions are informed by reviewing the flipfix sister project's production media system and adapting its patterns to Pinbase's claims-based architecture.
+This document proposes a media architecture for Pinbase after the database reset. No migration/backfill is needed. Decisions are informed by reviewing the Flipfix sister project's production media system and adapting its patterns to Pinbase's claims-based architecture.
 
 ## Goals
 
-- Allow Pinbase users to upload images (first PR) and video (follow-up).
-- First PR: image uploads for MachineModel only.
+- Allow Pinbase users to upload images (first PR) and video (follow-up) for MachineModel (first PR) then all catalog entity types (follow-up).
 - Keep third-party media external. OPDB, IPDB, Fandom, Wikidata images stay where they are (`extra_data["opdb.images"]`, etc.). Never copy external images into Pinbase storage.
 - Keep catalog truth claims-based. Media attachments, categories, and primary flags go through provenance.
 - Separate catalog truth from storage infrastructure. Binary files, renditions, storage keys are infrastructure.
@@ -241,15 +238,24 @@ Upload through Django, not presigned URLs. For images (typically 1-10MB), this i
 
 1. **Client** POSTs multipart form to `POST /api/media/upload/` with the image file.
 2. **Backend** validates the file (type, size, decodability).
-3. **Backend** saves the original to S3 via django-storages.
-4. **Backend** generates `thumb` and `display` variants synchronously using Pillow (stolen from flipfix's image processing — EXIF transpose, LANCZOS resize, WebP output).
-5. **Backend** saves variants to S3.
-6. **Backend** creates `MediaAsset` (status=`ready`) + 3 `MediaVariant` rows (original, thumb, display).
-7. **Backend** returns the asset UUID and variant URLs.
-8. **Client** creates/updates the media attachment claim on the target entity via the existing claim-patch API (or a new dedicated endpoint).
-9. **Resolution** materializes `EntityMedia`.
+3. **Backend** processes the image synchronously: generates `thumb` and `display` variants using Pillow (EXIF transpose, LANCZOS resize, WebP output).
+4. **Backend** uploads all three files (original, thumb, display) to R2 via django-storages.
+5. **Backend** creates `MediaAsset` (status=`ready`) + 3 `MediaVariant` rows in a single database transaction.
+6. **Backend** returns the asset UUID and variant URLs.
+7. **Client** creates/updates the media attachment claim on the target entity via the existing claim-patch API (or a new dedicated endpoint).
+8. **Resolution** materializes `EntityMedia`.
 
-Steps 1-7 are one synchronous HTTP request. No task queue, no polling, no "pending" state for images.
+Steps 1-6 are one synchronous HTTP request. No task queue, no polling, no "pending" state for images.
+
+### Atomicity and Failure Handling
+
+The upload flow must not leave orphaned state on failure:
+
+- **Processing failure** (Pillow can't generate derivatives): return error, nothing written to S3 or DB.
+- **S3 write failure** (one of the three uploads fails): clean up any S3 objects already written, return error, nothing written to DB.
+- **DB write failure** (transaction fails after S3 uploads succeed): clean up all S3 objects. DB transaction rollback handles the rows.
+
+The key invariant: **DB rows are only created after all S3 objects are successfully written.** This means orphaned DB rows can't exist. Orphaned S3 objects (written but DB transaction failed) are cleaned up in the error handler. A periodic cleanup job for orphaned S3 objects is not needed in the first PR but is a reasonable follow-up if operational experience shows leakage.
 
 ### Why Synchronous Processing For Images
 
@@ -267,6 +273,7 @@ Strict validation on upload — reject early, reject clearly:
 - **Pillow decodability**: `Image.open()` must succeed. This is the real validation — catches corrupt files, truncated uploads, and non-images regardless of extension or content-type header.
 - **File size**: configurable max (e.g. 20MB for images). Enforced both in Django's `DATA_UPLOAD_MAX_MEMORY_SIZE` and explicitly in the view. Return a clear error, not a generic 413.
 - **Dimensions after decode**: reject degenerate images (0×0, 1×1). Set a reasonable max dimension (e.g. 20000×20000) to prevent memory bombs during processing.
+- **MIME type derivation**: the Pillow-detected format is the canonical source of truth for the persisted `mime_type` on `MediaAsset` and `MediaVariant`. Client-provided content-type headers and file extensions are used for initial filtering only, never persisted.
 
 ## Image Processing
 
@@ -375,6 +382,55 @@ APIs return media metadata plus public URLs for ready variants:
 2. If no owned media exists for the needed slot, fall back to third-party referenced media from `extra_data` (`opdb.images`, `ipdb.image_urls`).
 
 The existing `_extract_image_urls()` helper in `catalog/api/helpers.py` handles the external fallback. The new code adds an owned-media-first layer on top.
+
+### Ordering
+
+API responses return media in deterministic order: primary first, then by `created_at` ascending. This applies both to the `owned_media` list in entity detail responses and to any future media listing endpoint. Pagination is not needed in the first PR — MachineModel images will be single-digit counts per entity.
+
+## Authorization
+
+For the first PR, keep permissions simple and explicit:
+
+- **Upload**: any authenticated user can upload an image. Anonymous uploads are never allowed.
+- **Attach**: any authenticated user can create a media attachment claim on any entity. This is consistent with how other claim types (credits, themes, etc.) work — claims go through provenance, and resolution picks winners by priority.
+- **Set primary / change category**: same as attach — these are fields on the attachment claim.
+- **Detach**: any authenticated user can deactivate their own attachment claim. Staff users can deactivate any attachment claim.
+- **Delete underlying asset**: only the original uploader or staff can delete a `MediaAsset`. Deletion is only allowed when the asset has no active attachment claims on any entity (see Deletion Policy below).
+
+This mirrors the existing claims model: broad write access via claims, with resolution and priority handling conflicts. Tighten later if abuse becomes a problem.
+
+## Rate Limits
+
+Basic per-user upload rate limiting to protect storage costs and moderation workload:
+
+- Per-user upload limit: configurable, e.g. 20 uploads per hour.
+- Enforced at the upload endpoint. Return 429 with a clear error message including when the user can retry.
+- Implementation: Django cache-based rate limiting (no new infrastructure).
+
+Per-entity attachment limits and more sophisticated quota systems are deferred until real usage patterns emerge.
+
+## Deletion Policy
+
+Media deletion has two distinct operations:
+
+### Detach (deactivate attachment claim)
+
+Deactivating a `media_attachment` claim removes the `EntityMedia` row on next resolution. The underlying `MediaAsset` and its S3 files are **not** deleted — the asset may be attached to other entities, and the claim history is preserved in provenance.
+
+### Delete asset
+
+Deleting a `MediaAsset` is a hard delete that removes:
+
+1. All `MediaVariant` rows (CASCADE).
+2. All S3 objects for those variants.
+3. The `MediaAsset` row itself.
+
+Preconditions for asset deletion:
+
+- The asset must have **no active attachment claims** on any entity. If active claims exist, the delete request is rejected with an error listing the entities.
+- Only the original uploader or staff can delete.
+
+There is no soft-delete or tombstone for `MediaAsset`. Assets are infrastructure, not catalog truth — provenance is preserved in the claim history (deactivated claims remain in the database), not in the asset row.
 
 ## Frontend Architecture
 
