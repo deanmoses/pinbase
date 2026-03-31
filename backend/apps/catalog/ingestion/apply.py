@@ -86,10 +86,20 @@ class PlannedClaimAssert:
     Must target exactly one of:
     - An existing entity: set ``content_type_id`` and ``object_id``.
     - A planned entity: set ``handle`` (matching a ``PlannedEntityCreate``).
+
+    Relationship claim identity uses exactly one of:
+    - ``claim_key`` + ``value`` — fully concrete (adapter calls
+      ``build_relationship_claim()`` itself).
+    - ``relationship_namespace`` + ``identity`` + ``identity_refs`` —
+      deferred.  The apply layer resolves handles in ``identity_refs``
+      to real PKs, then calls ``build_relationship_claim()`` to generate
+      both ``claim_key`` and ``value`` in sync.  This avoids the two
+      getting out of sync when relationship identity includes entities
+      created in the same plan.
     """
 
     field_name: str
-    value: Any
+    value: Any = None
     claim_key: str = ""
     citation: str = ""
     content_type_id: int | None = None
@@ -98,6 +108,10 @@ class PlannedClaimAssert:
     needs_review: bool = False
     needs_review_notes: str = ""
     license_id: int | None = None
+    # Deferred relationship claim identity:
+    relationship_namespace: str = ""
+    identity: dict[str, Any] = field(default_factory=dict)
+    identity_refs: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -341,6 +355,32 @@ def _validate_assertion_targets(plan: IngestPlan) -> None:
                 f"neither a handle nor content_type_id/object_id"
             )
 
+        # Deferred relationship identity: mutual exclusivity.
+        has_deferred = bool(pca.relationship_namespace)
+        has_concrete = bool(pca.claim_key) or pca.value is not None
+        if has_deferred and has_concrete:
+            raise ValueError(
+                f"PlannedClaimAssert(field_name={pca.field_name!r}) has both "
+                f"concrete claim_key/value and relationship_namespace — "
+                f"use one or the other"
+            )
+
+        # identity_refs requires relationship_namespace.
+        if pca.identity_refs and not pca.relationship_namespace:
+            raise ValueError(
+                f"PlannedClaimAssert(field_name={pca.field_name!r}) has "
+                f"identity_refs but no relationship_namespace"
+            )
+
+        # Validate identity_refs handles exist in the entity list.
+        for key, ref_handle in pca.identity_refs.items():
+            if ref_handle not in valid_handles:
+                raise ValueError(
+                    f"PlannedClaimAssert(field_name={pca.field_name!r}) "
+                    f"has identity_ref {key!r} → {ref_handle!r} but that "
+                    f"handle does not exist in the entity list"
+                )
+
 
 # ---------------------------------------------------------------------------
 # Dry-run path
@@ -351,8 +391,19 @@ def _apply_dry_run(plan: IngestPlan, report: RunReport) -> RunReport:
     """Read-only path: validate and diff without writing anything."""
     report.records_created = len(plan.entities)
 
+    # Deferred relationship claims (identity_refs) cannot be validated
+    # in dry-run — the relationship validation layer checks that
+    # referenced PKs exist in the DB, but those entities are only
+    # planned.  Count them toward asserted but skip claim validation.
+    # Structural correctness (namespace, handle existence) is already
+    # verified by _validate_assertion_targets().
+    deferred = [p for p in plan.assertions if p.relationship_namespace]
+    concrete = [p for p in plan.assertions if not p.relationship_namespace]
+
+    report.asserted += len(deferred)
+
     # Claims targeting existing entities: validate + diff.
-    existing_assertions = [p for p in plan.assertions if p.handle is None]
+    existing_assertions = [p for p in concrete if p.handle is None]
     if existing_assertions:
         claims = _build_claims(existing_assertions, plan.source)
         valid = _validate_and_collect_errors(claims, report)
@@ -364,7 +415,7 @@ def _apply_dry_run(plan: IngestPlan, report: RunReport) -> RunReport:
 
     # Claims targeting planned entities: validate only (all are new by
     # definition).  Build sentinel claims without mutating the plan.
-    planned_assertions = [p for p in plan.assertions if p.handle is not None]
+    planned_assertions = [p for p in concrete if p.handle is not None]
     if planned_assertions:
         handle_to_ct: dict[str, int] = {
             e.handle: ContentType.objects.get_for_model(e.model_class).pk
@@ -464,11 +515,34 @@ def _patch_handles(
     assertions: list[PlannedClaimAssert],
     handle_map: dict[str, tuple[int, int]],
 ) -> None:
-    """Resolve temporary handles to real PKs after entity creation."""
+    """Resolve temporary handles to real PKs after entity creation.
+
+    Two kinds of handle resolution:
+
+    1. **Target handles** — ``pca.handle`` references the entity this
+       claim is *about*.  Patches ``object_id`` and ``content_type_id``.
+
+    2. **Identity refs** — ``pca.identity_refs`` references entities
+       whose PKs appear *inside* relationship claim values (e.g. the
+       Person PK in a credit claim).  Resolves handles to PKs, merges
+       with concrete ``identity``, then calls
+       ``build_relationship_claim()`` to generate both ``claim_key``
+       and ``value`` in sync.
+    """
+    from apps.catalog.claims import build_relationship_claim
+
     for pca in assertions:
         if pca.handle is not None:
             # handle validity already checked by _validate_assertion_targets
             pca.object_id, pca.content_type_id = handle_map[pca.handle]
+        if pca.relationship_namespace:
+            resolved_identity = dict(pca.identity)
+            for key, ref_handle in pca.identity_refs.items():
+                ref_pk, _ = handle_map[ref_handle]
+                resolved_identity[key] = ref_pk
+            pca.claim_key, pca.value = build_relationship_claim(
+                pca.relationship_namespace, resolved_identity
+            )
 
 
 def _build_claims(

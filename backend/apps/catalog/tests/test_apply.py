@@ -851,3 +851,271 @@ def test_handle_ref_without_claim_raises(test_source):
 
     with pytest.raises(ValueError, match="manufacturer.*via handle_ref"):
         apply_plan(plan)
+
+
+# ── Test 20: identity_refs resolves PK in relationship claim ──────
+
+
+def test_identity_refs_resolves_pk(test_source):
+    """Deferred relationship claim gets claim_key + value generated after handle resolution."""
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Sports", "slug": "sports", "status": "active"},
+                handle="theme:sports",
+            ),
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Baseball", "slug": "baseball", "status": "active"},
+                handle="theme:baseball",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(
+                field_name="name", value="Sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="name", value="Baseball", handle="theme:baseball"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="baseball", handle="theme:baseball"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:baseball"
+            ),
+            # Deferred: Baseball's parent is Sports (both planned).
+            PlannedClaimAssert(
+                field_name="theme_parent",
+                handle="theme:baseball",
+                relationship_namespace="theme_parent",
+                identity={},
+                identity_refs={"parent": "theme:sports"},
+            ),
+        ],
+    )
+    report = apply_plan(plan)
+
+    assert report.records_created == 2
+    # 6 scalar claims + 1 relationship claim = 7
+    assert report.asserted == 7
+
+    sports = Theme.objects.get(slug="sports")
+    baseball = Theme.objects.get(slug="baseball")
+
+    # The relationship claim should have been resolved with the real PK.
+    claim = Claim.objects.get(
+        source=test_source,
+        field_name="theme_parent",
+        is_active=True,
+    )
+    assert claim.object_id == baseball.pk
+    assert claim.value["parent"] == sports.pk
+    assert claim.value["exists"] is True
+    assert f"parent:{sports.pk}" in claim.claim_key
+
+
+# ── Test 21: identity_refs with existing target ──────────────────
+
+
+def test_identity_refs_with_existing_target(test_source):
+    """Assertion targets existing entity by ct/obj but uses identity_refs for value."""
+    existing_parent = Theme.objects.create(
+        name="Sports", slug="sports", status="active"
+    )
+    ct_id = ContentType.objects.get_for_model(Theme).pk
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Baseball", "slug": "baseball", "status": "active"},
+                handle="theme:baseball",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(
+                field_name="name", value="Baseball", handle="theme:baseball"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="baseball", handle="theme:baseball"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:baseball"
+            ),
+            # Existing Sports gets a theme_parent claim referencing planned Baseball.
+            PlannedClaimAssert(
+                field_name="theme_parent",
+                content_type_id=ct_id,
+                object_id=existing_parent.pk,
+                relationship_namespace="theme_parent",
+                identity={},
+                identity_refs={"parent": "theme:baseball"},
+            ),
+        ],
+    )
+    report = apply_plan(plan)
+
+    assert report.records_created == 1
+    assert report.asserted == 4  # 3 scalar + 1 relationship
+
+    baseball = Theme.objects.get(slug="baseball")
+    claim = Claim.objects.get(
+        source=test_source,
+        field_name="theme_parent",
+        is_active=True,
+    )
+    assert claim.object_id == existing_parent.pk
+    assert claim.value["parent"] == baseball.pk
+
+
+# ── Test 22: unknown handle in identity_refs raises ──────────────
+
+
+def test_identity_refs_unknown_handle_raises(test_source):
+    """identity_ref referencing a non-existent handle is rejected."""
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Sports", "slug": "sports", "status": "active"},
+                handle="theme:sports",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(
+                field_name="name", value="Sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="theme_parent",
+                handle="theme:sports",
+                relationship_namespace="theme_parent",
+                identity={},
+                identity_refs={"parent": "theme:nonexistent"},
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="identity_ref.*parent.*theme:nonexistent"):
+        apply_plan(plan)
+
+
+# ── Test 23: mutual exclusivity — claim_key + relationship_namespace ─
+
+
+def test_identity_refs_mutual_exclusivity_raises(test_source):
+    """Having both claim_key/value and relationship_namespace is rejected."""
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-1",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Sports", "slug": "sports", "status": "active"},
+                handle="theme:sports",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(
+                field_name="name", value="Sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="theme_parent",
+                handle="theme:sports",
+                claim_key="theme_parent|parent:99",
+                value={"parent": 99, "exists": True},
+                relationship_namespace="theme_parent",
+                identity={},
+                identity_refs={"parent": "theme:sports"},
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="both concrete.*and relationship_namespace"):
+        apply_plan(plan)
+
+
+# ── Test 24: identity_refs excluded from dry-run validation ──────
+
+
+def test_identity_refs_dry_run(test_source):
+    """Deferred relationship claims are counted but not validated in dry-run."""
+    initial_claims = Claim.objects.count()
+
+    plan = IngestPlan(
+        source=test_source,
+        input_fingerprint="fp-dry",
+        entities=[
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Sports", "slug": "sports", "status": "active"},
+                handle="theme:sports",
+            ),
+            PlannedEntityCreate(
+                model_class=Theme,
+                kwargs={"name": "Baseball", "slug": "baseball", "status": "active"},
+                handle="theme:baseball",
+            ),
+        ],
+        assertions=[
+            PlannedClaimAssert(
+                field_name="name", value="Sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="sports", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:sports"
+            ),
+            PlannedClaimAssert(
+                field_name="name", value="Baseball", handle="theme:baseball"
+            ),
+            PlannedClaimAssert(
+                field_name="slug", value="baseball", handle="theme:baseball"
+            ),
+            PlannedClaimAssert(
+                field_name="status", value="active", handle="theme:baseball"
+            ),
+            # Deferred — would fail validation without real PKs.
+            PlannedClaimAssert(
+                field_name="theme_parent",
+                handle="theme:baseball",
+                relationship_namespace="theme_parent",
+                identity={},
+                identity_refs={"parent": "theme:sports"},
+            ),
+        ],
+    )
+    report = apply_plan(plan, dry_run=True)
+
+    assert report.records_created == 2
+    # 6 planned-entity scalar claims + 1 deferred relationship = 7
+    assert report.asserted == 7
+    assert report.rejected == 0
+    # Nothing written.
+    assert Claim.objects.count() == initial_claims
+    assert not Theme.objects.filter(slug="sports").exists()
