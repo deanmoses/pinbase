@@ -558,13 +558,10 @@ def _process_corporate_entity(
     ce = ce_by_ipdb_id.get(mfr_id) or ce_by_name.get(company.lower())
 
     if ce:
-        # CE is either a real DB entity or a planned entity from an earlier
-        # record in this run.  Planned CEs have pk=None.
-        planned_handle = ce_handles.get(mfr_id)
-        if planned_handle:
-            # Already planned in this run — subsequent records referencing
-            # the same manufacturer just skip (claims already asserted).
+        # Skip if this manufacturer was already processed (existing or planned).
+        if mfr_id in ce_handles:
             return
+        ce_handles[mfr_id] = ""  # Mark as processed (empty string = existing CE)
         # Existing CE — assert claims.  Include name so the resolve layer
         # doesn't reset it to blank (CE.name is not unique, so it's not
         # auto-preserved by the resolver).  Slug is unique and auto-preserved.

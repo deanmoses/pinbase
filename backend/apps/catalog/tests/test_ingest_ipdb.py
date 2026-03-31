@@ -135,6 +135,61 @@ class TestIngestIpdb:
 
 
 @pytest.mark.django_db
+class TestIngestIpdbDryRun:
+    def test_dry_run_creates_nothing(
+        self,
+        db,
+        credit_roles,
+        _mpu_strings,
+        ingest_taxonomy,
+        ipdb_locations,
+        ipdb_narrative_features,
+    ):
+        """--dry-run validates the plan without writing entities or claims."""
+        initial_mm = MachineModel.objects.count()
+        initial_persons = Person.objects.count()
+
+        call_command(
+            "ingest_ipdb",
+            ipdb=f"{FIXTURES}/ipdb_sample.json",
+            dry_run=True,
+        )
+
+        assert MachineModel.objects.count() == initial_mm
+        assert Person.objects.count() == initial_persons
+        assert Source.objects.filter(slug="ipdb").exists() is not False
+        # Source IS created (get_or_create_source runs before plan), but
+        # no IngestRun should exist (dry-run skips it).
+        from apps.provenance.models import IngestRun
+
+        assert IngestRun.objects.count() == 0
+
+    def test_dry_run_then_real_run(
+        self,
+        db,
+        credit_roles,
+        _mpu_strings,
+        ingest_taxonomy,
+        ipdb_locations,
+        ipdb_narrative_features,
+    ):
+        """Dry-run followed by real run produces the expected entities."""
+        call_command(
+            "ingest_ipdb",
+            ipdb=f"{FIXTURES}/ipdb_sample.json",
+            dry_run=True,
+        )
+        assert MachineModel.objects.count() == 0
+
+        call_command(
+            "ingest_ipdb",
+            ipdb=f"{FIXTURES}/ipdb_sample.json",
+        )
+        assert MachineModel.objects.count() == 4
+        assert Person.objects.count() == 6
+
+
+@pytest.mark.django_db
 @pytest.mark.django_db
 class TestIngestIpdbUnknownMpu:
     @pytest.mark.usefixtures("ipdb_narrative_features", "credit_roles")
