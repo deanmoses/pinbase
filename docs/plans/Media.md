@@ -91,12 +91,17 @@ Database constraints:
 
 - `field_not_blank("original_filename")` — no empty strings.
 - `field_not_blank("mime_type")` — no empty strings.
+- `original_filename` must contain at least one `.` — extensionless files are rejected at upload; enforce at DB level too.
 - `byte_size > 0` — zero-byte files are never valid.
 - `kind IN ('image', 'video')` — enforced at DB level, not just Django choices.
 - `status IN ('ready', 'processing', 'failed')` — enforced at DB level.
 - `width` and `height` must both be null or both be set — `(width IS NULL) = (height IS NULL)`.
+- `width > 0` and `height > 0` when set — PositiveIntegerField allows 0, but a 0-pixel dimension is never valid.
+- `duration_seconds > 0` when set — zero-length media is never valid.
 - When `status = 'ready'` and `kind = 'image'`, `width` and `height` must be set — a ready image always has known dimensions.
 - When `kind = 'image'`, `duration_seconds` must be null — images don't have duration.
+- When `kind = 'image'`, `status != 'processing'` — images are processed synchronously, never enter processing state.
+- `mime_type` must be consistent with `kind`: when `kind = 'image'`, `mime_type` must start with `image/`; when `kind = 'video'`, `mime_type` must start with `video/`.
 - `uuid` UNIQUE (field-level).
 
 Notes:
@@ -131,8 +136,11 @@ Database constraints:
 - `field_not_blank("mime_type")` — no empty strings.
 - `byte_size > 0` — zero-byte files are never valid.
 - `width` and `height` must both be null or both be set — `(width IS NULL) = (height IS NULL)`.
+- `width > 0` and `height > 0` when set — PositiveIntegerField allows 0, but a 0-pixel dimension is never valid.
+- `storage_key` must start with `catalog-media/` — enforces key prefix convention at DB level.
 - `storage_key` must not start with `http://` or `https://` — catches accidental full URL storage. Relative keys only.
 - `storage_key` must not contain `..` — prevents path traversal.
+- `storage_key` must not contain whitespace — catches encoding issues.
 - UNIQUE `(asset, role)` — one variant per role per asset.
 - `storage_key` UNIQUE (field-level) — no two variants share a storage path.
 
@@ -269,11 +277,38 @@ Strict validation on upload — reject early, reject clearly:
 
 - **Authentication**: user must be logged in. Anonymous uploads are never allowed.
 - **File presence**: request must contain exactly one file.
-- **File extension**: must be in the allowed set (`ALLOWED_IMAGE_EXTENSIONS`). Reject unknown extensions even if the content looks valid — defense in depth.
+- **File extension**: must be in `ALLOWED_IMAGE_EXTENSIONS` (see Accepted Image Formats below). Reject unknown extensions even if the content looks valid — defense in depth.
 - **Pillow decodability**: `Image.open()` must succeed. This is the real validation — catches corrupt files, truncated uploads, and non-images regardless of extension or content-type header.
 - **File size**: configurable max (e.g. 20MB for images). Enforced both in Django's `DATA_UPLOAD_MAX_MEMORY_SIZE` and explicitly in the view. Return a clear error, not a generic 413.
 - **Dimensions after decode**: reject degenerate images (0×0, 1×1). Set a reasonable max dimension (e.g. 20000×20000) to prevent memory bombs during processing.
 - **MIME type derivation**: the Pillow-detected format is the canonical source of truth for the persisted `mime_type` on `MediaAsset` and `MediaVariant`. Client-provided content-type headers and file extensions are used for initial filtering only, never persisted.
+
+### Accepted Image Formats
+
+Defined once in the media app's constants module, matching flipfix's proven set:
+
+```python
+ALLOWED_IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".gif", ".webp",  # Web-native
+    ".heic", ".heif",                           # iPhone photos
+    ".avif",                                    # Modern compression
+    ".bmp",                                     # Legacy, converted to JPEG
+}
+```
+
+| Upload format            | Preserved or converted | Output format     | Notes                                         |
+| ------------------------ | ---------------------- | ----------------- | --------------------------------------------- |
+| JPEG (.jpg, .jpeg)       | Preserved              | JPEG (quality=85) | Most common upload format                     |
+| PNG                      | Preserved              | PNG               | Transparency preserved                        |
+| WebP                     | Preserved              | WebP (quality=80) |                                               |
+| AVIF                     | Preserved              | AVIF (quality=63) |                                               |
+| HEIC/HEIF (.heic, .heif) | Converted              | JPEG              | iPhone default format; requires `pillow-heif` |
+| GIF                      | Converted              | JPEG              | Static frame only; animated GIF not supported |
+| BMP                      | Converted              | JPEG              | Legacy format                                 |
+
+Derivatives (thumb, display) are always WebP regardless of original format.
+
+HEIC support requires `pillow-heif`, a Pillow plugin that registers HEIC/HEIF format handlers. This is the same approach flipfix uses in production.
 
 ## Image Processing
 
@@ -291,9 +326,8 @@ Adapted from flipfix's `core/image_processing.py` — a production-proven Pillow
 
 ### Format Handling (from flipfix)
 
-- Web-native formats preserved: JPEG (quality=85), PNG, WebP (quality=80), AVIF (quality=63).
-- Non-web formats converted to JPEG: BMP, GIF, HEIC/HEIF.
-- PNG with transparency stays PNG.
+- **Original**: web-native formats preserved as-is; non-web formats (HEIC/HEIF, BMP, GIF) converted to JPEG. PNG with transparency stays PNG regardless. See the Accepted Image Formats table for the full mapping.
+- **Derivatives** (thumb, display): always WebP output.
 - LANCZOS resampling for resize.
 - Pillow `optimize` flag for JPEG/PNG.
 
@@ -389,21 +423,19 @@ API responses return media in deterministic order: primary first, then by `creat
 
 ## Authorization
 
-For the first PR, keep permissions simple and explicit:
+For the first PR, media follows the same rules as all other claim types:
 
-- **Upload**: any authenticated user can upload an image. Anonymous uploads are never allowed.
-- **Attach**: any authenticated user can create a media attachment claim on any entity. This is consistent with how other claim types (credits, themes, etc.) work — claims go through provenance, and resolution picks winners by priority.
-- **Set primary / change category**: same as attach — these are fields on the attachment claim.
-- **Detach**: any authenticated user can deactivate their own attachment claim. Staff users can deactivate any attachment claim.
+- **Upload**: any authenticated user. Anonymous uploads are never allowed.
+- **Attach / detach / set primary / change category**: any authenticated user, same as credits, themes, and other claim types. Claims go through provenance, and resolution picks winners by priority.
 - **Delete underlying asset**: only the original uploader or staff can delete a `MediaAsset`. Deletion is only allowed when the asset has no active attachment claims on any entity (see Deletion Policy below).
 
-This mirrors the existing claims model: broad write access via claims, with resolution and priority handling conflicts. Tighten later if abuse becomes a problem.
+The broader user-role/permission landscape (tiered permissions, who can retract whose claims, moderation workflows) is a cross-cutting concern that applies to all claim types, not just media. That is a separate follow-up discussion.
 
 ## Rate Limits
 
 Basic per-user upload rate limiting to protect storage costs and moderation workload:
 
-- Per-user upload limit: configurable, e.g. 20 uploads per hour.
+- Per-user upload limit: `MAX_UPLOADS_PER_HOUR = 60`, defined once in the media app's constants module.
 - Enforced at the upload endpoint. Return 429 with a clear error message including when the user can retry.
 - Implementation: Django cache-based rate limiting (no new infrastructure).
 
@@ -500,6 +532,7 @@ For the first PR, there is no polling step — image processing is synchronous. 
 
 - `django-storages[s3]` — S3 storage backend.
 - `Pillow` — Image processing (may already be present).
+- `pillow-heif` — HEIC/HEIF support for Pillow (iPhone photos). Registers format handlers on import.
 - `boto3` — S3 client (pulled in by django-storages).
 
 ### Settings
@@ -595,7 +628,13 @@ MEDIA_PUBLIC_BASE_URL = "/media/"
 - Switch `MEDIA_PUBLIC_BASE_URL` to the custom domain.
 - Configure cache headers and optional purge hooks.
 
-### Follow-Up 5 (Far Future): Dedupe
+### Follow-Up 5: User Roles and Permissions
+
+- Design a cross-cutting user-role/permission model that applies to all claim types (not just media).
+- Topics: tiered permissions, who can retract whose claims, moderation workflows, promotion paths.
+- This is a broader product decision that should be considered as a whole rather than decided piecemeal per feature.
+
+### Follow-Up 6 (Far Future): Dedupe
 
 - Add `sha256` field to `MediaAsset`.
 - Compute hash on upload, check for existing asset.
