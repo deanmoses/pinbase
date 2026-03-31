@@ -6,7 +6,7 @@
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TagInput from '$lib/components/form/TagInput.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
-	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
+	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 	import NumberField from '$lib/components/form/NumberField.svelte';
 	import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
 	import {
@@ -69,7 +69,7 @@
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
 	<TextField label="Name" bind:value={editFields.name} />
 	<TextField label="Slug" bind:value={editFields.slug} />
-	<TextAreaField label="Description" bind:value={editFields.description} rows={6} />
+	<MarkdownTextArea label="Description" bind:value={editFields.description} rows={6} />
 
 	<fieldset class="date-group">
 		<legend>Years active</legend>

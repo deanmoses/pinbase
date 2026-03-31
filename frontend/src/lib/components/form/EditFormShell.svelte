@@ -92,9 +92,4 @@
 	.save-feedback.error {
 		color: var(--color-error, #c0392b);
 	}
-
-	.not-authenticated {
-		font-size: var(--font-size-1);
-		color: var(--color-text-muted);
-	}
 </style>

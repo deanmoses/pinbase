@@ -25,6 +25,7 @@ from apps.catalog.api import (
     themes_router,
     titles_router,
 )
+from apps.core.api import link_types_router
 from apps.provenance.api import review_router, sources_router
 
 api = NinjaAPI(
@@ -90,6 +91,7 @@ api.add_router("/locations/", locations_router)
 api.add_router("/reward-types/", reward_types_router)
 api.add_router("/tags/", tags_router)
 api.add_router("/technology-subgenerations/", technology_subgenerations_router)
+api.add_router("/link-types/", link_types_router)
 api.add_router("/sources/", sources_router)
 api.add_router("/review/", review_router)
 

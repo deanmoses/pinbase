@@ -35,6 +35,7 @@ class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """
 
     link_url_pattern = "/titles/{slug}"
+    link_sort_order = 10
 
     opdb_id = models.CharField(
         max_length=50,

@@ -314,7 +314,10 @@ class LinkableModel(models.Model):
     - link_label: str — human-readable label for type picker
     - link_description: str — brief description
     - link_url_pattern: str — URL pattern like "/manufacturers/{slug}"
-    - link_sort_order: int — display order in type picker
+    - link_sort_order: int — display order in type picker (lower = higher)
+    - link_autocomplete_search_fields: tuple[str, ...] — model fields to search
+    - link_autocomplete_ordering: tuple[str, ...] — result ordering
+    - link_autocomplete_select_related: tuple[str, ...] — eager loading
     """
 
     class Meta:

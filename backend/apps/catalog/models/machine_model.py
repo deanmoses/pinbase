@@ -39,6 +39,7 @@ class MachineModel(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedMo
     """
 
     link_url_pattern = "/models/{slug}"
+    link_sort_order = 20
 
     # Identity
     name = models.CharField(max_length=300, validators=[validate_no_mojibake])

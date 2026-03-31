@@ -4,7 +4,7 @@
 	import client from '$lib/api/client';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
-	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
+	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 
 	let { data } = $props();
 	let system = $derived(data.system);
@@ -59,5 +59,5 @@
 
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
 	<TextField label="Name" bind:value={editFields.name} />
-	<TextAreaField label="Description" bind:value={editFields.description} />
+	<MarkdownTextArea label="Description" bind:value={editFields.description} />
 </EditFormShell>

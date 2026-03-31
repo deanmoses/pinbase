@@ -77,6 +77,49 @@ class TestSystemDescriptionHtml:
 
 
 @pytest.mark.django_db
+class TestDescriptionAuthoringFormat:
+    """API responses return description text in authoring format for editing."""
+
+    def test_storage_links_converted_to_authoring_in_text(self, client, db):
+        """description.text returns [[type:slug]] not [[type:id:N]]."""
+        williams = Manufacturer.objects.create(name="Williams", slug="williams")
+        System.objects.create(
+            name="WPC-95",
+            slug="wpc-95",
+            manufacturer=williams,
+            description=f"Made by [[manufacturer:id:{williams.pk}]].",
+        )
+        resp = client.get("/api/systems/wpc-95")
+        data = resp.json()
+        # text field should have authoring format (slug-based)
+        assert "[[manufacturer:williams]]" in data["description"]["text"]
+        assert f"[[manufacturer:id:{williams.pk}]]" not in data["description"]["text"]
+        # html field should still render the link correctly
+        assert "/manufacturers/williams" in data["description"]["html"]
+
+    def test_plain_text_description_unchanged(self, client, db):
+        """Descriptions without links are returned as-is."""
+        Manufacturer.objects.create(
+            name="Stern", slug="stern", description="Modern manufacturer."
+        )
+        resp = client.get("/api/manufacturers/stern")
+        data = resp.json()
+        assert data["description"]["text"] == "Modern manufacturer."
+
+    def test_broken_link_kept_in_storage_format(self, client, db):
+        """Links to deleted entities stay in storage format (graceful degradation)."""
+        Manufacturer.objects.create(
+            name="Stern",
+            slug="stern",
+            description="See [[manufacturer:id:99999]].",
+        )
+        resp = client.get("/api/manufacturers/stern")
+        data = resp.json()
+        # Broken link stays in storage format since there's no slug to convert to
+        assert "[[manufacturer:id:99999]]" in data["description"]["text"]
+
+
+@pytest.mark.django_db
 class TestReferenceSync:
     def test_resolve_creates_references(self):
         """Resolving a manufacturer with links creates RecordReference rows."""

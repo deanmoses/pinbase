@@ -5,7 +5,7 @@
 	import { getEditRedirectHref } from '$lib/edit-routes';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
-	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
+	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 	import NumberField from '$lib/components/form/NumberField.svelte';
 	import MonthSelect from '$lib/components/form/MonthSelect.svelte';
 	import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
@@ -99,7 +99,7 @@
 	</fieldset>
 
 	<TextField label="Photo URL" bind:value={editFields.photo_url} type="url" />
-	<TextAreaField label="Bio" bind:value={editFields.description} rows={8} />
+	<MarkdownTextArea label="Bio" bind:value={editFields.description} rows={8} />
 </EditFormShell>
 
 <style>

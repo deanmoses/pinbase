@@ -41,6 +41,7 @@ class Manufacturer(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedMo
     """
 
     link_url_pattern = "/manufacturers/{slug}"
+    link_sort_order = 30
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

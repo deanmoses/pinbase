@@ -37,6 +37,9 @@ class CatalogConfig(AppConfig):
         from apps.core.markdown_links import LinkType, register
         from apps.core.models import LinkableModel
 
+        def _default_serialize(obj):
+            return {"ref": obj.slug, "label": str(obj.name)}
+
         for model in apps.get_app_config("catalog").get_models():
             if not issubclass(model, LinkableModel) or model._meta.abstract:
                 continue
@@ -63,5 +66,25 @@ class CatalogConfig(AppConfig):
                     url_field="slug",
                     label_field="name",
                     sort_order=getattr(model, "link_sort_order", 100),
+                    autocomplete_search_fields=getattr(
+                        model,
+                        "link_autocomplete_search_fields",
+                        ("name__icontains",),
+                    ),
+                    autocomplete_ordering=getattr(
+                        model,
+                        "link_autocomplete_ordering",
+                        ("name",),
+                    ),
+                    autocomplete_select_related=getattr(
+                        model,
+                        "link_autocomplete_select_related",
+                        (),
+                    ),
+                    autocomplete_serialize=getattr(
+                        model,
+                        "link_autocomplete_serialize",
+                        _default_serialize,
+                    ),
                 )
             )

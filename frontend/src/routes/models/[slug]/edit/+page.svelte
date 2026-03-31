@@ -8,7 +8,7 @@
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import TagInput from '$lib/components/form/TagInput.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
-	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
+	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 	import NumberField from '$lib/components/form/NumberField.svelte';
 	import MonthSelect from '$lib/components/form/MonthSelect.svelte';
 	import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
@@ -194,7 +194,7 @@
 	<!-- Identity -->
 	<TextField label="Name" bind:value={editFields.name} />
 	<TextField label="Slug" bind:value={editFields.slug} />
-	<TextAreaField label="Description" bind:value={editFields.description} rows={6} />
+	<MarkdownTextArea label="Description" bind:value={editFields.description} rows={6} />
 
 	<!-- Date -->
 	<fieldset class="field-group">

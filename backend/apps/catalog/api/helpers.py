@@ -243,10 +243,16 @@ def _build_rich_text(obj, field_name: str, active_claims=None) -> dict:
 
     Reads the raw text from obj.{field_name}, renders HTML via
     render_markdown_fields, and extracts attribution from the winning claim.
+
+    The ``text`` value is returned in authoring format (``[[type:slug]]``)
+    so edit forms show human-readable link references.  The ``html`` value
+    is rendered from the storage format and is display-ready.
     """
     from apps.core.markdown import render_markdown_fields
+    from apps.core.markdown_links import convert_storage_to_authoring
 
-    text = getattr(obj, field_name, "") or ""
+    raw_text = getattr(obj, field_name, "") or ""
+    text = convert_storage_to_authoring(raw_text) if raw_text else raw_text
     html_fields = render_markdown_fields(obj)
     html = html_fields.get(f"{field_name}_html", "")
 

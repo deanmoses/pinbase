@@ -32,6 +32,7 @@ class Person(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A person involved in pinball machine design (designer, artist, etc.)."""
 
     link_url_pattern = "/people/{slug}"
+    link_sort_order = 40
 
     name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     description = MarkdownField(blank=True)

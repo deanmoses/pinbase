@@ -6,7 +6,7 @@
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TagInput from '$lib/components/form/TagInput.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
-	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
+	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 	import { buildHierarchyPatchBody, hierarchyToFormFields } from '$lib/hierarchy-edit';
 
 	let { data } = $props();
@@ -81,7 +81,7 @@
 
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
 	<TextField label="Name" bind:value={editFields.name} />
-	<TextAreaField label="Description" bind:value={editFields.description} rows={6} />
+	<MarkdownTextArea label="Description" bind:value={editFields.description} rows={6} />
 
 	<div class="field-group">
 		<SearchableSelect
