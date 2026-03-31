@@ -3,31 +3,37 @@
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
-
-from apps.core.validators import validate_no_mojibake
 from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    EntityStatusMixin,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    field_not_blank,
+    nullable_id_not_empty,
+    slug_not_blank,
+    status_valid,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Person", "PersonAlias", "Credit"]
 
+YEAR_MIN, YEAR_MAX = 1800, 2100
+MONTH_MIN, MONTH_MAX = 1, 12
+DAY_MIN, DAY_MAX = 1, 31
 
-class Person(Linkable, TimeStampedModel):
+
+class Person(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A person involved in pinball machine design (designer, artist, etc.)."""
 
     link_url_pattern = "/people/{slug}"
-    claims_exempt = frozenset({"wikidata_id"})
 
     name = models.CharField(max_length=200, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
 
     # Wikidata cross-reference — direct field, not a claim
@@ -38,46 +44,58 @@ class Person(Linkable, TimeStampedModel):
         blank=True,
         verbose_name="Wikidata ID",
         help_text='Wikidata QID, e.g., "Q312897"',
+        validators=[
+            RegexValidator(
+                r"^Q\d+$",
+                message="Wikidata ID must be Q followed by digits (e.g. Q312897).",
+            )
+        ],
     )
 
     # Birth / death dates — claimed fields, resolved from provenance
     birth_year = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        validators=[MinValueValidator(1800), MaxValueValidator(2100)],
+        validators=[MinValueValidator(YEAR_MIN), MaxValueValidator(YEAR_MAX)],
     )
     birth_month = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        validators=[MinValueValidator(MONTH_MIN), MaxValueValidator(MONTH_MAX)],
     )
     birth_day = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        validators=[MinValueValidator(1), MaxValueValidator(31)],
+        validators=[MinValueValidator(DAY_MIN), MaxValueValidator(DAY_MAX)],
     )
     death_year = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        validators=[MinValueValidator(1800), MaxValueValidator(2100)],
+        validators=[MinValueValidator(YEAR_MIN), MaxValueValidator(YEAR_MAX)],
     )
     death_month = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        validators=[MinValueValidator(MONTH_MIN), MaxValueValidator(MONTH_MAX)],
     )
     death_day = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        validators=[MinValueValidator(1), MaxValueValidator(31)],
+        validators=[MinValueValidator(DAY_MIN), MaxValueValidator(DAY_MAX)],
     )
 
     # Biography context — claimed fields, resolved from provenance
-    birth_place = models.CharField(max_length=200, null=True, blank=True)
-    nationality = models.CharField(max_length=200, null=True, blank=True)
+    birth_place = models.CharField(
+        max_length=200, null=True, blank=True, validators=[validate_no_mojibake]
+    )
+    nationality = models.CharField(
+        max_length=200, null=True, blank=True, validators=[validate_no_mojibake]
+    )
     photo_url = models.URLField(null=True, blank=True)
 
-    # Catch-all for fields without dedicated columns (e.g. fandom.bio)
+    # Free-form staging area for source-specific data that doesn't have a
+    # dedicated column yet (e.g. fandom.bio). Claims provide provenance
+    # but no validation is applied. Promote keys to real fields when needed.
     extra_data = models.JSONField(default=dict, blank=True)
 
     claims = GenericRelation("provenance.Claim")
@@ -85,14 +103,86 @@ class Person(Linkable, TimeStampedModel):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "people"
+        constraints = [
+            slug_not_blank(),
+            status_valid(),
+            field_not_blank("name"),
+            nullable_id_not_empty("wikidata_id"),
+            # Range constraints
+            models.CheckConstraint(
+                condition=models.Q(birth_year__isnull=True)
+                | models.Q(birth_year__gte=YEAR_MIN, birth_year__lte=YEAR_MAX),
+                name="catalog_person_birth_year_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(death_year__isnull=True)
+                | models.Q(death_year__gte=YEAR_MIN, death_year__lte=YEAR_MAX),
+                name="catalog_person_death_year_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(birth_month__isnull=True)
+                | models.Q(birth_month__gte=MONTH_MIN, birth_month__lte=MONTH_MAX),
+                name="catalog_person_birth_month_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(death_month__isnull=True)
+                | models.Q(death_month__gte=MONTH_MIN, death_month__lte=MONTH_MAX),
+                name="catalog_person_death_month_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(birth_day__isnull=True)
+                | models.Q(birth_day__gte=DAY_MIN, birth_day__lte=DAY_MAX),
+                name="catalog_person_birth_day_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(death_day__isnull=True)
+                | models.Q(death_day__gte=DAY_MIN, death_day__lte=DAY_MAX),
+                name="catalog_person_death_day_range",
+            ),
+            # Cross-field: birth_year <= death_year
+            models.CheckConstraint(
+                condition=(
+                    models.Q(birth_year__isnull=True)
+                    | models.Q(death_year__isnull=True)
+                    | models.Q(birth_year__lte=models.F("death_year"))
+                ),
+                name="catalog_person_birth_year_lte_death_year",
+                violation_error_message="birth_year must be <= death_year.",
+                violation_error_code="cross_field",
+            ),
+            # Cross-field: date component chains
+            models.CheckConstraint(
+                condition=models.Q(birth_month__isnull=True)
+                | models.Q(birth_year__isnull=False),
+                name="catalog_person_birth_month_requires_birth_year",
+                violation_error_message="birth_month requires birth_year.",
+                violation_error_code="cross_field",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(birth_day__isnull=True)
+                | models.Q(birth_month__isnull=False),
+                name="catalog_person_birth_day_requires_birth_month",
+                violation_error_message="birth_day requires birth_month.",
+                violation_error_code="cross_field",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(death_month__isnull=True)
+                | models.Q(death_year__isnull=False),
+                name="catalog_person_death_month_requires_death_year",
+                violation_error_message="death_month requires death_year.",
+                violation_error_code="cross_field",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(death_day__isnull=True)
+                | models.Q(death_month__isnull=False),
+                name="catalog_person_death_day_requires_death_month",
+                violation_error_message="death_day requires death_month.",
+                violation_error_code="cross_field",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "person")
-        super().save(*args, **kwargs)
 
 
 class PersonAlias(AliasBase):
@@ -104,6 +194,7 @@ class PersonAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_person_alias_lower",
@@ -130,7 +221,7 @@ class Credit(TimeStampedModel):
     )
     person = models.ForeignKey(
         Person,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="credits",
     )
     role = models.ForeignKey(

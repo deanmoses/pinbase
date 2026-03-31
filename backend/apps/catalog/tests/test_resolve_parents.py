@@ -26,7 +26,7 @@ class TestResolveGameplayFeatureParents:
         )
 
         claim_key, value = build_relationship_claim(
-            "gameplay_feature_parent", {"parent_slug": "multiball"}
+            "gameplay_feature_parent", {"parent": parent.pk}
         )
         Claim.objects.assert_claim(
             child,

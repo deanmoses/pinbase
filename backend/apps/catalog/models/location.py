@@ -6,7 +6,9 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.models import AliasBase
+from django.db.models.functions import Now
+
+from apps.core.models import AliasBase, EntityStatusMixin, field_not_blank, status_valid
 from apps.core.validators import validate_no_mojibake
 
 __all__ = [
@@ -16,7 +18,7 @@ __all__ = [
 ]
 
 
-class Location(models.Model):
+class Location(EntityStatusMixin, models.Model):
     """A canonical geographic location at any level of the hierarchy.
 
     The hierarchy is self-referential: a city's parent is its subdivision,
@@ -31,19 +33,25 @@ class Location(models.Model):
     claims_exempt = frozenset({"location_path"})
     claim_fk_lookups = {"parent": "location_path"}
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_default=Now())
     updated_at = models.DateTimeField(auto_now=True)
     location_path = models.CharField(max_length=500, unique=True)
     slug = models.SlugField(max_length=200)
     name = models.CharField(
         max_length=300, blank=True, validators=[validate_no_mojibake]
     )  # claim-controlled
-    location_type = models.CharField(max_length=50, blank=True)  # claim-controlled
-    code = models.CharField(max_length=20, blank=True)  # claim-controlled
+    location_type = models.CharField(
+        max_length=50, blank=True, validators=[validate_no_mojibake]
+    )  # claim-controlled
+    code = models.CharField(
+        max_length=20, blank=True, validators=[validate_no_mojibake]
+    )  # claim-controlled
     short_name = models.CharField(
-        max_length=100, blank=True
+        max_length=100, blank=True, validators=[validate_no_mojibake]
     )  # claim-controlled; e.g. "USA", "UK"
-    description = models.TextField(blank=True)  # claim-controlled
+    description = models.TextField(
+        blank=True, validators=[validate_no_mojibake]
+    )  # claim-controlled
     # claim-controlled; list of level-type labels for countries only
     # e.g. ["state", "city"] or ["region", "department", "city"]
     divisions = models.JSONField(null=True, blank=True)
@@ -51,13 +59,25 @@ class Location(models.Model):
         "self",
         null=True,
         blank=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="children",
     )
     claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["location_path"]
+        constraints = [
+            field_not_blank("location_path"),
+            field_not_blank("slug"),
+            status_valid(),
+            models.CheckConstraint(
+                condition=models.Q(parent__isnull=True)
+                | ~models.Q(parent=models.F("pk")),
+                name="catalog_location_parent_not_self",
+                violation_error_message="A location cannot be its own parent.",
+                violation_error_code="cross_field",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name or self.location_path
@@ -76,11 +96,12 @@ class LocationAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 "location",
                 name="catalog_unique_location_alias_per_location",
-            )
+            ),
         ]
 
 
@@ -107,7 +128,12 @@ class CorporateEntityLocation(models.Model):
     )
 
     class Meta:
-        unique_together = [("corporate_entity", "location")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["corporate_entity", "location"],
+                name="catalog_corporateentitylocation_unique_pair",
+            ),
+        ]
         verbose_name = "corporate entity location"
         verbose_name_plural = "corporate entity locations"
 

@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
-
-from apps.core.validators import validate_no_mojibake
 from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    EntityStatusMixin,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    field_not_blank,
+    nullable_id_not_empty,
+    slug_not_blank,
+    status_valid,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = [
     "Manufacturer",
@@ -24,8 +28,11 @@ __all__ = [
     "CorporateEntityAlias",
 ]
 
+YEAR_MIN, YEAR_MAX = 1800, 2100
+EXTERNAL_ID_MIN = 1
 
-class Manufacturer(Linkable, TimeStampedModel):
+
+class Manufacturer(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball machine brand (user-facing grouping).
 
     Corporate incarnations are tracked separately in ManufacturerEntity.
@@ -34,17 +41,16 @@ class Manufacturer(Linkable, TimeStampedModel):
     """
 
     link_url_pattern = "/manufacturers/{slug}"
-    claims_exempt = frozenset({"opdb_manufacturer_id", "wikidata_id"})
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     opdb_manufacturer_id = models.PositiveIntegerField(
         unique=True,
         null=True,
         blank=True,
         help_text="OPDB manufacturer_id for this brand.",
+        validators=[MinValueValidator(EXTERNAL_ID_MIN)],
     )
     wikidata_id = models.CharField(
         max_length=20,
@@ -52,26 +58,40 @@ class Manufacturer(Linkable, TimeStampedModel):
         null=True,
         blank=True,
         help_text="Wikidata QID, e.g. Q180268",
+        validators=[
+            RegexValidator(
+                r"^Q\d+$",
+                message="Wikidata ID must be Q followed by digits (e.g. Q180268).",
+            )
+        ],
     )
     description = MarkdownField(blank=True)
     logo_url = models.URLField(null=True, blank=True)
     website = models.URLField(blank=True)
 
-    # Catch-all for fields without dedicated columns (e.g. fandom.description)
+    # Free-form staging area for source-specific data that doesn't have a
+    # dedicated column yet (e.g. fandom.description). Claims provide provenance
+    # but no validation is applied. Promote keys to real fields when needed.
     extra_data = models.JSONField(default=dict, blank=True)
 
     claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            slug_not_blank(),
+            status_valid(),
+            field_not_blank("name"),
+            nullable_id_not_empty("wikidata_id"),
+            models.CheckConstraint(
+                condition=models.Q(opdb_manufacturer_id__isnull=True)
+                | models.Q(opdb_manufacturer_id__gte=EXTERNAL_ID_MIN),
+                name="catalog_manufacturer_opdb_manufacturer_id_min",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "manufacturer")
-        super().save(*args, **kwargs)
 
 
 class ManufacturerAlias(AliasBase):
@@ -85,6 +105,7 @@ class ManufacturerAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_manufacturer_alias_lower",
@@ -92,7 +113,7 @@ class ManufacturerAlias(AliasBase):
         ]
 
 
-class CorporateEntity(Linkable, TimeStampedModel):
+class CorporateEntity(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
@@ -100,14 +121,13 @@ class CorporateEntity(Linkable, TimeStampedModel):
     """
 
     link_url_pattern = "/corporate-entities/{slug}"
-    claims_exempt = frozenset({"manufacturer", "ipdb_manufacturer_id"})
 
     manufacturer = models.ForeignKey(
         Manufacturer,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="entities",
     )
-    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    slug = models.SlugField(max_length=300, unique=True)
     description = MarkdownField(blank=True)
     name = models.CharField(
         max_length=300,
@@ -119,18 +139,19 @@ class CorporateEntity(Linkable, TimeStampedModel):
         null=True,
         blank=True,
         help_text="IPDB ManufacturerId for this corporate entity.",
+        validators=[MinValueValidator(EXTERNAL_ID_MIN)],
     )
     year_start = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
         help_text="Year this corporate entity was established.",
-        validators=[MinValueValidator(1800), MaxValueValidator(2100)],
+        validators=[MinValueValidator(YEAR_MIN), MaxValueValidator(YEAR_MAX)],
     )
     year_end = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
         help_text="Year this corporate entity ceased operations.",
-        validators=[MinValueValidator(1800), MaxValueValidator(2100)],
+        validators=[MinValueValidator(YEAR_MIN), MaxValueValidator(YEAR_MAX)],
     )
 
     claims = GenericRelation("provenance.Claim")
@@ -139,7 +160,36 @@ class CorporateEntity(Linkable, TimeStampedModel):
         ordering = ["manufacturer", "year_start"]
         verbose_name = "corporate entity"
         verbose_name_plural = "corporate entities"
-        constraints = []
+        constraints = [
+            slug_not_blank(),
+            status_valid(),
+            field_not_blank("name"),
+            models.CheckConstraint(
+                condition=models.Q(year_start__isnull=True)
+                | models.Q(year_start__gte=YEAR_MIN, year_start__lte=YEAR_MAX),
+                name="catalog_corporateentity_year_start_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(year_end__isnull=True)
+                | models.Q(year_end__gte=YEAR_MIN, year_end__lte=YEAR_MAX),
+                name="catalog_corporateentity_year_end_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ipdb_manufacturer_id__isnull=True)
+                | models.Q(ipdb_manufacturer_id__gte=EXTERNAL_ID_MIN),
+                name="catalog_corporateentity_ipdb_manufacturer_id_min",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(year_start__isnull=True)
+                    | models.Q(year_end__isnull=True)
+                    | models.Q(year_start__lte=models.F("year_end"))
+                ),
+                name="catalog_corporateentity_year_start_lte_year_end",
+                violation_error_message="year_start must be <= year_end.",
+                violation_error_code="cross_field",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.year_start:
@@ -159,6 +209,7 @@ class CorporateEntityAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_corporate_entity_alias_lower",

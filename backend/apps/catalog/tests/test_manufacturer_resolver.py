@@ -33,6 +33,7 @@ class TestManufacturerResolver:
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         CorporateEntity.objects.create(
             name="Williams Electronic Games",
+            slug="williams-electronic-games",
             manufacturer=mfr,
         )
         resolver = ManufacturerResolver()
@@ -51,6 +52,7 @@ class TestManufacturerResolver:
         )
         CorporateEntity.objects.create(
             name="Stern Electronics, Incorporated",
+            slug="stern-electronics-incorporated",
             manufacturer=mfr,
         )
         resolver = ManufacturerResolver()

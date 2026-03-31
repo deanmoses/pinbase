@@ -299,26 +299,26 @@ def check_unresolved_fk_claims(result: ValidationResult) -> None:
 def check_unresolved_credit_claims(result: ValidationResult) -> None:
     """Credit claims referencing persons or roles that don't exist."""
     ct = ContentType.objects.get_for_model(MachineModel)
-    person_slugs = set(Person.objects.values_list("slug", flat=True))
-    role_slugs = set(CreditRole.objects.values_list("slug", flat=True))
+    person_pks = set(Person.objects.values_list("pk", flat=True))
+    role_pks = set(CreditRole.objects.values_list("pk", flat=True))
 
-    missing_persons: set[str] = set()
-    missing_roles: set[str] = set()
+    missing_persons: set = set()
+    missing_roles: set = set()
 
     for claim in _winning_claims(ct, "credit"):
         val = claim.value
         if not isinstance(val, dict):
             continue
-        ps = val.get("person_slug", "")
-        if ps and ps not in person_slugs:
+        ps = val.get("person")
+        if ps is not None and ps not in person_pks:
             missing_persons.add(ps)
-        role = val.get("role", "")
-        if role and role not in role_slugs:
+        role = val.get("role")
+        if role is not None and role not in role_pks:
             missing_roles.add(role)
 
     if missing_persons:
         result.warn(
-            f"{len(missing_persons)} credit claim(s) reference missing person slugs"
+            f"{len(missing_persons)} credit claim(s) reference missing person PKs"
         )
         for s in sorted(missing_persons)[:5]:
             result.warn(f"  {s!r}")
@@ -326,37 +326,35 @@ def check_unresolved_credit_claims(result: ValidationResult) -> None:
             result.warn(f"  ... and {len(missing_persons) - 5} more")
 
     if missing_roles:
-        result.warn(
-            f"{len(missing_roles)} credit claim(s) reference missing role slugs"
-        )
+        result.warn(f"{len(missing_roles)} credit claim(s) reference missing role PKs")
         for s in sorted(missing_roles):
             result.warn(f"  {s!r}")
 
 
 def check_unresolved_m2m_claims(result: ValidationResult) -> None:
-    """Theme/tag/gameplay_feature claims referencing slugs that don't exist."""
+    """Theme/tag/gameplay_feature claims referencing PKs that don't exist."""
     ct = ContentType.objects.get_for_model(MachineModel)
 
     checks: list[tuple[str, str, type]] = [
-        ("theme", "theme_slug", Theme),
-        ("tag", "tag_slug", Tag),
-        ("gameplay_feature", "gameplay_feature_slug", GameplayFeature),
+        ("theme", "theme", Theme),
+        ("tag", "tag", Tag),
+        ("gameplay_feature", "gameplay_feature", GameplayFeature),
     ]
 
-    for field_name, slug_key, model_class in checks:
-        valid_slugs = set(model_class.objects.values_list("slug", flat=True))
+    for field_name, pk_key, model_class in checks:
+        valid_pks = set(model_class.objects.values_list("pk", flat=True))
 
-        missing: set[str] = set()
+        missing: set = set()
         for claim in _winning_claims(ct, field_name):
             val = claim.value
             if not isinstance(val, dict):
                 continue
-            slug = val.get(slug_key, "")
-            if slug and slug not in valid_slugs:
-                missing.add(slug)
+            ref = val.get(pk_key)
+            if ref is not None and ref not in valid_pks:
+                missing.add(ref)
 
         if missing:
-            result.warn(f"{len(missing)} {field_name} claim(s) reference missing slugs")
+            result.warn(f"{len(missing)} {field_name} claim(s) reference missing PKs")
             for s in sorted(missing)[:5]:
                 result.warn(f"  {s!r}")
             if len(missing) > 5:
@@ -367,23 +365,22 @@ def check_credits_without_matching_claims(result: ValidationResult) -> None:
     """Credit rows that have no corresponding active claim (stale materialization)."""
     ct = ContentType.objects.get_for_model(MachineModel)
 
-    # Build set of (model_pk, person_slug, role_slug) from active credit claims.
-    claimed: set[tuple[int, str, str]] = set()
+    # Build set of (model_pk, person_pk, role_pk) from active credit claims.
+    claimed: set[tuple[int, int, int]] = set()
     for claim in Claim.objects.filter(
         content_type=ct, is_active=True, field_name="credit"
     ):
         val = claim.value
         if not isinstance(val, dict) or not val.get("exists", True):
             continue
-        claimed.add((claim.object_id, val.get("person_slug", ""), val.get("role", "")))
+        person_pk = val.get("person")
+        role_pk = val.get("role")
+        if person_pk is not None and role_pk is not None:
+            claimed.add((claim.object_id, person_pk, role_pk))
 
     stale_count = 0
-    for credit in Credit.objects.filter(model__isnull=False).select_related(
-        "person", "role"
-    ):
-        person_slug = credit.person.slug
-        role_slug = credit.role.slug
-        if (credit.model_id, person_slug, role_slug) not in claimed:
+    for credit in Credit.objects.filter(model__isnull=False):
+        if (credit.model_id, credit.person_id, credit.role_id) not in claimed:
             stale_count += 1
 
     if stale_count:

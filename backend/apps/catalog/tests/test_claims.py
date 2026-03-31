@@ -3,8 +3,8 @@
 import pytest
 
 from apps.catalog.claims import (
-    RELATIONSHIP_NAMESPACES,
     build_relationship_claim,
+    get_relationship_namespaces,
     make_authoritative_scope,
 )
 from apps.catalog.models import MachineModel, Manufacturer
@@ -21,16 +21,16 @@ class TestMakeClaimKey:
         assert make_claim_key("name") == "name"
 
     def test_with_identity_parts(self):
-        key = make_claim_key("credit", person="pat-lawlor", role="design")
-        assert key == "credit|person:pat-lawlor|role:design"
+        key = make_claim_key("credit", person=42, role=7)
+        assert key == "credit|person:42|role:7"
 
     def test_identity_parts_sorted(self):
-        key = make_claim_key("credit", role="design", person="pat-lawlor")
-        assert key == "credit|person:pat-lawlor|role:design"
+        key = make_claim_key("credit", role=7, person=42)
+        assert key == "credit|person:42|role:7"
 
     def test_none_becomes_null(self):
-        key = make_claim_key("recipient", person="pat-lawlor", year=None)
-        assert key == "recipient|person:pat-lawlor|year:null"
+        key = make_claim_key("recipient", person=42, year=None)
+        assert key == "recipient|person:42|year:null"
 
     def test_pipe_in_value_escaped(self):
         key = make_claim_key("credit", person="bad|value")
@@ -51,26 +51,30 @@ class TestMakeClaimKey:
 
 
 class TestBuildRelationshipClaim:
-    def test_credit_claim(self):
+    def test_credit_claim(self, credit_targets):
+        person_pk = credit_targets["persons"]["pat-lawlor"].pk
+        role_pk = credit_targets["roles"]["design"].pk
         key, val = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+            "credit", {"person": person_pk, "role": role_pk}
         )
-        assert key == "credit|person:pat-lawlor|role:design"
-        assert val == {"person_slug": "pat-lawlor", "role": "design", "exists": True}
+        assert key == f"credit|person:{person_pk}|role:{role_pk}"
+        assert val == {"person": person_pk, "role": role_pk, "exists": True}
 
-    def test_exists_false(self):
+    def test_exists_false(self, credit_targets):
+        person_pk = credit_targets["persons"]["pat-lawlor"].pk
+        role_pk = credit_targets["roles"]["design"].pk
         key, val = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}, exists=False
+            "credit", {"person": person_pk, "role": role_pk}, exists=False
         )
         assert val["exists"] is False
 
     def test_unknown_namespace_raises(self):
         with pytest.raises(ValueError, match="Unknown relationship namespace"):
-            build_relationship_claim("bogus", {"person_slug": "x", "role": "y"})
+            build_relationship_claim("bogus", {"person": 1, "role": 2})
 
     def test_missing_required_key_raises(self):
         with pytest.raises(ValueError, match="Missing required key"):
-            build_relationship_claim("credit", {"person_slug": "pat-lawlor"})
+            build_relationship_claim("credit", {"person": 1})
 
 
 # ---------------------------------------------------------------------------
@@ -80,8 +84,8 @@ class TestBuildRelationshipClaim:
 
 class TestMakeAuthoritativeScope:
     def test_builds_scope(self, db):
-        m1 = MachineModel.objects.create(name="Game 1")
-        m2 = MachineModel.objects.create(name="Game 2")
+        m1 = MachineModel.objects.create(name="Game 1", slug="game-1")
+        m2 = MachineModel.objects.create(name="Game 2", slug="game-2")
         scope = make_authoritative_scope(MachineModel, {m1.pk, m2.pk})
         from django.contrib.contenttypes.models import ContentType
 
@@ -94,11 +98,12 @@ class TestMakeAuthoritativeScope:
 
 
 # ---------------------------------------------------------------------------
-# RELATIONSHIP_NAMESPACES
+# get_relationship_namespaces()
 # ---------------------------------------------------------------------------
 
 
 class TestRelationshipNamespaces:
     def test_contains_credit_and_theme(self):
-        assert "credit" in RELATIONSHIP_NAMESPACES
-        assert "theme" in RELATIONSHIP_NAMESPACES
+        ns = get_relationship_namespaces()
+        assert "credit" in ns
+        assert "theme" in ns

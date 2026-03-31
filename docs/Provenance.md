@@ -16,7 +16,7 @@ Provenance tracks **attribution**, not just disputes. The claims system serves t
 
 Every piece of catalog data may eventually come from a different source or user, and the system must always be able to answer "who said this, and where did it come from?"
 
-Note on the `slug` exemption: slugs are stable identifiers generated from canonical names, not asserted facts — they are structural by nature, not by convenience.
+Slugs are claim-controlled: they are editorially curated values (e.g., which machine gets `breakout` vs `breakout-2` is an explicit editorial decision) and go through the claims system like any other catalog fact.
 
 ## Claims
 
@@ -50,7 +50,7 @@ Resolution picks a winner per field/claim-key and materializes the result:
 
 ## The Rule
 
-**Every catalog field must be claims-based.** This includes scalar fields, foreign keys, and relationships. The only exempt fields are internal infrastructure: `id`/`uuid`, `created_at`/`updated_at`, and `slug`.
+**Every catalog field must be claims-based.** This includes scalar fields, foreign keys, relationships, and slugs. The only exempt fields are internal infrastructure: `id`/`uuid`, `created_at`/`updated_at`.
 
 If you think a field needs an exception, ask the user first.
 

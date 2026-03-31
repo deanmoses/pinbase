@@ -7,20 +7,23 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.validators import validate_no_mojibake
-
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    EntityStatusMixin,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    field_not_blank,
+    slug_not_blank,
+    status_valid,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeature"]
 
 
-class GameplayFeature(Linkable, TimeStampedModel):
+class GameplayFeature(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A gameplay mechanism: Flippers, Pop Bumpers, Ramps, Multiball, etc.
 
     Supports a DAG hierarchy via the ``parents`` M2M (claim-controlled).
@@ -32,7 +35,6 @@ class GameplayFeature(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
     parents = models.ManyToManyField(
         "self",
@@ -46,30 +48,38 @@ class GameplayFeature(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "feature")
-        super().save(*args, **kwargs)
+
+COUNT_MIN = 1
 
 
 class MachineModelGameplayFeature(TimeStampedModel):
     """Through model for MachineModel ↔ GameplayFeature, carrying optional count."""
 
     machinemodel = models.ForeignKey("MachineModel", on_delete=models.CASCADE)
-    gameplayfeature = models.ForeignKey(GameplayFeature, on_delete=models.CASCADE)
+    gameplayfeature = models.ForeignKey(GameplayFeature, on_delete=models.PROTECT)
     count = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
         help_text="Quantity from source data, e.g. Flippers (2) → count=2.",
-        validators=[MinValueValidator(1)],
+        validators=[MinValueValidator(COUNT_MIN)],
     )
 
     class Meta:
-        unique_together = [("machinemodel", "gameplayfeature")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["machinemodel", "gameplayfeature"],
+                name="catalog_machinemodelgameplayfeature_unique_pair",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(count__isnull=True) | models.Q(count__gte=COUNT_MIN),
+                name="catalog_machinemodelgameplayfeature_count_min",
+            ),
+        ]
 
     def __str__(self) -> str:
         label = f"{self.machinemodel} → {self.gameplayfeature}"
@@ -87,6 +97,7 @@ class GameplayFeatureAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_gameplay_feature_alias_lower",

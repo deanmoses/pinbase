@@ -6,41 +6,12 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from django.db.models.functions import Now
+
+from apps.core.models import field_not_blank
 
 from .changeset import ChangeSet
 from .source import Source
-
-
-def _get_mojibake_checked_fields() -> set[tuple[int, str]]:
-    """Return {(content_type_id, field_name)} for fields with validate_no_mojibake.
-
-    Cached after first call — model metadata doesn't change at runtime.
-    """
-    if _get_mojibake_checked_fields._cache is not None:
-        return _get_mojibake_checked_fields._cache
-
-    from django.apps import apps
-
-    from apps.core.validators import validate_no_mojibake
-
-    result: set[tuple[int, str]] = set()
-    for model in apps.get_models():
-        try:
-            ct = ContentType.objects.get_for_model(model)
-        except Exception:
-            continue
-        for field in model._meta.get_fields():
-            if (
-                hasattr(field, "validators")
-                and validate_no_mojibake in field.validators
-            ):
-                result.add((ct.pk, field.name))
-
-    _get_mojibake_checked_fields._cache = result
-    return result
-
-
-_get_mojibake_checked_fields._cache = None
 
 
 def _escape_claim_value(s: str) -> str:
@@ -93,12 +64,37 @@ class ClaimManager(models.Manager):
         if (source is None) == (user is None):
             raise ValueError("Exactly one of source or user must be provided.")
         if changeset is not None:
-            if source is not None:
-                raise ValueError("Source-attributed claims cannot use ChangeSets yet.")
-            if changeset.user_id != user.pk:
+            if user is not None and changeset.user_id != user.pk:
                 raise ValueError("ChangeSet user must match the claim user.")
+            if source is not None and (
+                not changeset.ingest_run_id
+                or changeset.ingest_run.source_id != source.pk
+            ):
+                raise ValueError(
+                    "ChangeSet must belong to an IngestRun from the same source."
+                )
         if not claim_key:
             claim_key = field_name
+
+        # Classify and validate. Direct claims get scalar/FK validation.
+        # Relationship and extra-data claims pass through. Unrecognized
+        # claims are rejected outright.
+        from apps.provenance.validation import (
+            DIRECT,
+            UNRECOGNIZED,
+            classify_claim,
+            validate_claim_value,
+        )
+
+        model_class = type(subject)
+        ct_result = classify_claim(model_class, field_name, claim_key, value)
+        if ct_result == UNRECOGNIZED:
+            raise ValueError(
+                f"Unrecognized claim field_name {field_name!r} on {model_class.__name__}"
+            )
+        if ct_result == DIRECT:
+            value = validate_claim_value(field_name, value, model_class)
+
         ct = ContentType.objects.get_for_model(subject)
         with transaction.atomic():
             self.filter(
@@ -153,16 +149,10 @@ class ClaimManager(models.Manager):
         must cover every entity this source is authoritative for, not just a
         partial batch. Omit sweep_field for incremental ingests.
         """
-        # 0. Validate string claim values for mojibake on fields that require it.
-        from apps.core.validators import validate_no_mojibake
+        # 0. Validate claim values (scalars, FK targets, field name recognition).
+        from apps.provenance.validation import validate_claims_batch
 
-        mojibake_fields = _get_mojibake_checked_fields()
-        for claim in pending_claims:
-            if (
-                isinstance(claim.value, str)
-                and (claim.content_type_id, claim.field_name) in mojibake_fields
-            ):
-                validate_no_mojibake(claim.value)
+        pending_claims, validation_rejected = validate_claims_batch(pending_claims)
 
         # 1. Deduplicate: last-write-wins per (content_type_id, object_id, claim_key),
         #    matching assert_claim() semantics where later calls overwrite.
@@ -256,6 +246,7 @@ class ClaimManager(models.Manager):
             "superseded": len(to_deactivate_ids) - swept,
             "swept": swept,
             "duplicates_removed": duplicates_removed,
+            "validation_rejected": validation_rejected,
         }
 
 
@@ -271,7 +262,7 @@ class Claim(models.Model):
 
     objects = ClaimManager()
 
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    content_type = models.ForeignKey(ContentType, on_delete=models.PROTECT)
     object_id = models.PositiveIntegerField()
     subject = GenericForeignKey("content_type", "object_id")
 
@@ -284,7 +275,7 @@ class Claim(models.Model):
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="claims",
         null=True,
         blank=True,
@@ -292,7 +283,6 @@ class Claim(models.Model):
     field_name = models.CharField(max_length=255)
     claim_key = models.CharField(
         max_length=255,
-        default="",
         help_text=(
             "Identity key for uniqueness. Equals field_name for scalar claims. "
             "For relationship claims, encodes the relationship identity "
@@ -301,32 +291,47 @@ class Claim(models.Model):
     )
     changeset = models.ForeignKey(
         ChangeSet,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="claims",
         null=True,
         blank=True,
         help_text="Optional grouping of claims from a single edit session.",
     )
+    retracted_by_changeset = models.ForeignKey(
+        ChangeSet,
+        on_delete=models.PROTECT,
+        related_name="retracted_claims",
+        null=True,
+        blank=True,
+        help_text="The changeset that deactivated this claim (full_sync retraction).",
+    )
     value = models.JSONField()
-    citation = models.TextField(blank=True)
+    citation = models.TextField(blank=True, default="", db_default="")
     license = models.ForeignKey(
         "core.License",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="claims",
         help_text="Per-claim license override. Null inherits from source field license or source default.",
     )
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(
+        default=True,
+        db_default=True,
+        help_text="Current assertion from this author for this claim_key on this subject. False = superseded or retracted.",
+    )
     needs_review = models.BooleanField(
         default=False,
+        db_default=False,
         help_text="Flag for low-confidence claims that need human review.",
     )
     needs_review_notes = models.TextField(
         blank=True,
+        default="",
+        db_default="",
         help_text="Context for reviewers about why this claim needs attention.",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_default=Now())
 
     class Meta:
         indexes = [
@@ -355,7 +360,40 @@ class Claim(models.Model):
                 condition=models.Q(is_active=True, user__isnull=False),
                 name="provenance_unique_active_claim_per_user",
             ),
+            field_not_blank("field_name"),
+            field_not_blank("claim_key"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(retracted_by_changeset__isnull=True)
+                    | models.Q(is_active=False)
+                ),
+                name="provenance_claim_retracted_requires_inactive",
+                violation_error_message=(
+                    "retracted_by_changeset is only allowed when is_active=False."
+                ),
+                violation_error_code="cross_field",
+            ),
         ]
+
+    @classmethod
+    def for_object(
+        cls, obj, *, field_name: str, value, claim_key: str = "", **kwargs
+    ) -> "Claim":
+        """Construct an unsaved Claim for a model instance.
+
+        Derives content_type_id from obj automatically, so callers never need
+        to capture a ct_id variable. Returns an unsaved instance suitable for
+        passing to bulk_assert_claims().
+        """
+        ct_id = ContentType.objects.get_for_model(obj).pk
+        return cls(
+            content_type_id=ct_id,
+            object_id=obj.pk,
+            field_name=field_name,
+            claim_key=claim_key,
+            value=value,
+            **kwargs,
+        )
 
     def __str__(self) -> str:
         author = self.source.name if self.source_id else self.user.username

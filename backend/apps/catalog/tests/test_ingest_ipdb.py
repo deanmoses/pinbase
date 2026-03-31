@@ -6,7 +6,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.catalog.management.commands.ingest_ipdb import _extract_ipdb_gameplay_features
+from apps.catalog.ingestion.ipdb.features import extract_ipdb_gameplay_features
 from apps.catalog.models import Credit, MachineModel, Person, System, SystemMpuString
 from apps.provenance.models import Source
 
@@ -21,7 +21,14 @@ def _mpu_strings(db):
 
 
 @pytest.fixture
-def _run_ipdb(db, credit_roles, _mpu_strings, ipdb_locations, ipdb_narrative_features):
+def _run_ipdb(
+    db,
+    credit_roles,
+    _mpu_strings,
+    ingest_taxonomy,
+    ipdb_locations,
+    ipdb_narrative_features,
+):
     """Run ingest_ipdb with the sample fixture."""
     call_command(
         "ingest_ipdb",
@@ -128,6 +135,61 @@ class TestIngestIpdb:
 
 
 @pytest.mark.django_db
+class TestIngestIpdbDryRun:
+    def test_dry_run_creates_nothing(
+        self,
+        db,
+        credit_roles,
+        _mpu_strings,
+        ingest_taxonomy,
+        ipdb_locations,
+        ipdb_narrative_features,
+    ):
+        """--dry-run validates the plan without writing entities or claims."""
+        initial_mm = MachineModel.objects.count()
+        initial_persons = Person.objects.count()
+
+        call_command(
+            "ingest_ipdb",
+            ipdb=f"{FIXTURES}/ipdb_sample.json",
+            dry_run=True,
+        )
+
+        assert MachineModel.objects.count() == initial_mm
+        assert Person.objects.count() == initial_persons
+        assert Source.objects.filter(slug="ipdb").exists() is not False
+        # Source IS created (get_or_create_source runs before plan), but
+        # no IngestRun should exist (dry-run skips it).
+        from apps.provenance.models import IngestRun
+
+        assert IngestRun.objects.count() == 0
+
+    def test_dry_run_then_real_run(
+        self,
+        db,
+        credit_roles,
+        _mpu_strings,
+        ingest_taxonomy,
+        ipdb_locations,
+        ipdb_narrative_features,
+    ):
+        """Dry-run followed by real run produces the expected entities."""
+        call_command(
+            "ingest_ipdb",
+            ipdb=f"{FIXTURES}/ipdb_sample.json",
+            dry_run=True,
+        )
+        assert MachineModel.objects.count() == 0
+
+        call_command(
+            "ingest_ipdb",
+            ipdb=f"{FIXTURES}/ipdb_sample.json",
+        )
+        assert MachineModel.objects.count() == 4
+        assert Person.objects.count() == 6
+
+
+@pytest.mark.django_db
 @pytest.mark.django_db
 class TestIngestIpdbUnknownMpu:
     @pytest.mark.usefixtures("ipdb_narrative_features", "credit_roles")
@@ -158,7 +220,7 @@ class TestIngestIpdbUnknownMpu:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for _extract_ipdb_gameplay_features
+# Unit tests for extract_ipdb_gameplay_features
 #
 # All test inputs are complete, unmodified NotableFeatures strings taken
 # directly from the IPDB dataset (via pinexplore DuckDB explore.duckdb).
@@ -208,7 +270,7 @@ _FM = {
 
 
 class TestExtractIpdbGameplayFeatures:
-    """Unit tests for the _extract_ipdb_gameplay_features parsing pipeline.
+    """Unit tests for the extract_ipdb_gameplay_features parsing pipeline.
 
     Every raw string is a complete, verbatim IPDB NotableFeatures value.
 
@@ -219,15 +281,15 @@ class TestExtractIpdbGameplayFeatures:
     """
 
     def _slugs(self, raw: str) -> set[str]:
-        pairs, _ = _extract_ipdb_gameplay_features(raw, _FM)
+        pairs, _ = extract_ipdb_gameplay_features(raw, _FM)
         return {slug for slug, _count in pairs}
 
     def _counts(self, raw: str) -> dict[str, int | None]:
-        pairs, _ = _extract_ipdb_gameplay_features(raw, _FM)
+        pairs, _ = extract_ipdb_gameplay_features(raw, _FM)
         return {slug: count for slug, count in pairs}
 
     def _unmatched(self, raw: str) -> list[str]:
-        _, unmatched = _extract_ipdb_gameplay_features(raw, _FM)
+        _, unmatched = extract_ipdb_gameplay_features(raw, _FM)
         return unmatched
 
     def test_ipdb_876_two_features(self):
@@ -498,7 +560,7 @@ class TestExtractIpdbGameplayFeatures:
         # must appear only once in the output list.
         # IpdbId 876-style: "Kick-out hole" and a hypothetical plural back-to-back.
         raw = "Passive bumpers (12), Kick-out hole (1), Kick-out holes (1)."
-        pairs, _ = _extract_ipdb_gameplay_features(raw, _FM)
+        pairs, _ = extract_ipdb_gameplay_features(raw, _FM)
         slug_list = [slug for slug, _count in pairs]
         assert slug_list.count("kick-out-holes") == 1
 

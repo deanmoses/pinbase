@@ -20,8 +20,12 @@ def source(db):
 
 
 @pytest.fixture
-def pm(db):
-    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+def pm(db, _bootstrap_source):
+    pm = MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
+    Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=_bootstrap_source)
+    return pm
 
 
 @pytest.mark.django_db

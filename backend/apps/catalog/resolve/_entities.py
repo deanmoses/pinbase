@@ -20,6 +20,9 @@ from ._helpers import (
     _resolve_fk_generic,
     build_fk_info,
     get_field_defaults,
+    get_preserve_fields,
+    resolve_unique_conflicts,
+    validate_check_constraints,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,21 +72,18 @@ def _resolve_single(
         if claim.field_name not in winners:
             winners[claim.field_name] = claim
 
-    # Reset resolvable fields to defaults.  UNIQUE fields are preserved
-    # when no winning claim exists — see _resolve_bulk() for rationale.
-    field_defaults = get_field_defaults(type(obj), direct_fields)
-    unique_attrs: set[str] = set()
-    for attr in direct_fields.values():
-        if type(obj)._meta.get_field(attr).unique:
-            unique_attrs.add(attr)
+    # Reset resolvable fields to defaults.  Some fields must keep their
+    # existing value when no winning claim exists — see _resolve_bulk().
+    model_class = type(obj)
+    field_defaults = get_field_defaults(model_class, direct_fields)
+    preserve_when_unclaimed = get_preserve_fields(model_class, direct_fields)
     winner_attrs = {direct_fields[fn] for fn in winners if fn in direct_fields}
     for attr, default in field_defaults.items():
-        if attr in unique_attrs and attr not in winner_attrs:
+        if attr in preserve_when_unclaimed and attr not in winner_attrs:
             continue
         setattr(obj, attr, default)
 
     # Apply winners.
-    model_class = type(obj)
     has_extra_data = hasattr(obj, "extra_data")
     extra_data: dict = {} if has_extra_data else None
     for field_name, claim in winners.items():
@@ -169,13 +169,7 @@ def _resolve_bulk(
     # 3. Compute field defaults once.
     field_defaults = get_field_defaults(model_class, direct_fields)
 
-    # Identify UNIQUE direct fields — these must NOT be reset to their
-    # default when no claim exists, or bulk_update will crash with a
-    # UNIQUE constraint violation when multiple objects share the default.
-    unique_attrs: set[str] = set()
-    for attr in direct_fields.values():
-        if model_class._meta.get_field(attr).unique:
-            unique_attrs.add(attr)
+    preserve_when_unclaimed = get_preserve_fields(model_class, direct_fields)
 
     # Identify FK fields and pre-build lookups.
     fk_info = build_fk_info(model_class, direct_fields)
@@ -183,16 +177,24 @@ def _resolve_bulk(
     # Check if model has extra_data field for unmatched claims.
     has_extra_data = hasattr(model_class, "extra_data")
 
+    # Snapshot slugs before resolution for conflict revert.
+    # Only check for global uniqueness if the slug field is actually unique.
+    slug_field = (
+        model_class._meta.get_field("slug") if "slug" in direct_fields else None
+    )
+    has_unique_slug = slug_field is not None and slug_field.unique
+    pre_slugs = {obj.pk: obj.slug for obj in all_objs} if has_unique_slug else {}
+
     # 4. Resolve each object in memory.
     now = timezone.now()
     for obj in all_objs:
         winners = claims_by_obj.get(obj.pk, {})
 
-        # Reset direct fields (skip UNIQUE fields — they keep their
-        # existing value unless a winning claim explicitly sets them).
+        # Reset direct fields — preserved fields keep their existing
+        # value unless a winning claim explicitly sets them.
         winner_attrs = {direct_fields[fn] for fn in winners if fn in direct_fields}
         for attr, default in field_defaults.items():
-            if attr in unique_attrs and attr not in winner_attrs:
+            if attr in preserve_when_unclaimed and attr not in winner_attrs:
                 continue
             setattr(obj, attr, default)
 
@@ -220,6 +222,14 @@ def _resolve_bulk(
             obj.extra_data = extra_data
 
         obj.updated_at = now
+
+    # 4b. Detect unique-field conflicts across resolved objects.
+    if has_unique_slug:
+        resolve_unique_conflicts(all_objs, "slug", model_class, pre_slugs)
+
+    # 4c. Validate check constraints before writing.
+    for obj in all_objs:
+        validate_check_constraints(obj)
 
     # 5. Bulk write.
     update_fields = list(set(direct_fields.values())) + ["updated_at"]
@@ -251,8 +261,31 @@ def resolve_entity(obj):
     """
     from apps.core.models import get_claim_fields
 
-    fields = get_claim_fields(type(obj))
+    model_class = type(obj)
+    fields = get_claim_fields(model_class)
+    original_slug = getattr(obj, "slug", None)
     _resolve_single(obj, fields)
+
+    # Single-object slug conflict guard — only slug gets silent revert.
+    # Other unique fields (e.g. name) rely on save() → IntegrityError
+    # which execute_claims() catches and returns as 422.
+    if (
+        "slug" in fields
+        and obj.slug
+        and obj.slug != original_slug
+        and model_class.objects.filter(slug=obj.slug).exclude(pk=obj.pk).exists()
+    ):
+        logger.warning(
+            "Cannot resolve slug=%r on %s pk=%s: "
+            "already owned by another object, reverting to %r",
+            obj.slug,
+            model_class.__name__,
+            obj.pk,
+            original_slug,
+        )
+        obj.slug = original_slug
+
+    validate_check_constraints(obj)
     obj.save()
     _sync_markdown_references(obj)
     return obj

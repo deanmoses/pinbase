@@ -20,12 +20,15 @@ from .conftest import SAMPLE_IMAGES
 class TestTitlesAPI:
     @pytest.fixture
     def title(self, db):
-        return Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
+        return Title.objects.create(
+            name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"
+        )
 
     @pytest.fixture
     def title_with_machines(self, title, williams_entity):
         MachineModel.objects.create(
             name="Medieval Madness",
+            slug="medieval-madness",
             corporate_entity=williams_entity,
             year=1997,
             title=title,
@@ -33,6 +36,7 @@ class TestTitlesAPI:
         )
         MachineModel.objects.create(
             name="Medieval Madness (Remake)",
+            slug="medieval-madness-remake",
             corporate_entity=williams_entity,
             year=2015,
             title=title,
@@ -72,6 +76,7 @@ class TestTitlesAPI:
         parent = MachineModel.objects.get(name="Medieval Madness")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
+            slug="medieval-madness-le",
             title=title_with_machines,
             variant_of=parent,
         )
@@ -85,6 +90,7 @@ class TestTitlesAPI:
         parent = MachineModel.objects.get(name="Medieval Madness")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
+            slug="medieval-madness-le",
             title=title_with_machines,
             variant_of=parent,
         )
@@ -113,21 +119,24 @@ class TestTitlesAllFacets:
 
     @pytest.fixture
     def faceted_title(self, db, williams_entity, solid_state, credit_roles):
-        title = Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
-        franchise = Franchise.objects.create(name="Castle Games")
+        title = Title.objects.create(
+            name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"
+        )
+        franchise = Franchise.objects.create(name="Castle Games", slug="castle-games")
         title.franchise = franchise
         title.save()
-        series = Series.objects.create(name="Castle Series")
+        series = Series.objects.create(name="Castle Series", slug="castle-series")
         series.titles.add(title)
 
         dmd = DisplayType.objects.create(name="DMD", slug="dmd")
         wpc = System.objects.create(name="WPC-95", slug="wpc-95")
-        person = Person.objects.create(name="Pat Lawlor")
+        person = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
         theme = Theme.objects.create(name="Medieval", slug="medieval")
         role = CreditRole.objects.get(slug="design")
 
         m1 = MachineModel.objects.create(
             name="Medieval Madness",
+            slug="medieval-madness",
             corporate_entity=williams_entity,
             year=1997,
             title=title,
@@ -143,6 +152,7 @@ class TestTitlesAllFacets:
         # Second model with different year to test year_min/year_max
         MachineModel.objects.create(
             name="Medieval Madness (Remake)",
+            slug="medieval-madness-remake",
             corporate_entity=williams_entity,
             year=2015,
             title=title,
@@ -212,6 +222,7 @@ class TestTitlesAllFacets:
         lcd = DisplayType.objects.create(name="LCD", slug="lcd")
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
+            slug="medieval-madness-le",
             title=faceted_title,
             variant_of=parent,
             display_type=lcd,
@@ -223,7 +234,7 @@ class TestTitlesAllFacets:
 
     def test_all_titles_empty_title(self, client, db):
         """Title with no models returns empty facet arrays."""
-        Title.objects.create(name="Empty", opdb_id="EMPTY")
+        Title.objects.create(name="Empty", slug="empty", opdb_id="EMPTY")
         resp = client.get("/api/titles/all/")
         data = resp.json()
         item = data[0]

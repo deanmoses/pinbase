@@ -62,14 +62,15 @@ class ThemeDetailSchema(Schema):
 def _detail_qs():
     from ..models import MachineModel, Theme
 
-    return Theme.objects.prefetch_related(
-        "parents",
-        "children",
+    return Theme.objects.active().prefetch_related(
+        Prefetch("parents", queryset=Theme.objects.active()),
+        Prefetch("children", queryset=Theme.objects.active()),
         "aliases",
         _claims_prefetch(),
         Prefetch(
             "machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
+            queryset=MachineModel.objects.active()
+            .filter(variant_of__isnull=True)
             .select_related("corporate_entity__manufacturer", "technology_generation")
             .order_by(F("year").desc(nulls_last=True), "name"),
         ),
@@ -105,7 +106,11 @@ themes_router = Router(tags=["themes"])
 def list_themes(request):
     from ..models import Theme
 
-    themes = Theme.objects.prefetch_related("parents").order_by("name")
+    themes = (
+        Theme.objects.active()
+        .prefetch_related(Prefetch("parents", queryset=Theme.objects.active()))
+        .order_by("name")
+    )
     return [
         {
             "name": t.name,
@@ -137,9 +142,9 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     if not data.fields and data.parents is None and data.aliases is None:
         raise HttpError(422, "No changes provided.")
 
-    theme = get_object_or_404(Theme, slug=slug)
+    theme = get_object_or_404(Theme.objects.active(), slug=slug)
 
-    specs = validate_scalar_fields(Theme, data.fields)
+    specs = validate_scalar_fields(Theme, data.fields, entity=theme)
 
     resolvers = []
     if data.parents is not None:

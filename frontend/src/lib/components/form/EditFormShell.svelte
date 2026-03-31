@@ -39,8 +39,6 @@
 			</div>
 		</form>
 	</section>
-{:else}
-	<p class="not-authenticated">Sign in to edit this record.</p>
 {/if}
 
 <style>

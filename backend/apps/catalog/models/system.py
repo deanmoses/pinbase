@@ -5,13 +5,22 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from apps.core.models import (
+    EntityStatusMixin,
+    LinkableModel,
+    MarkdownField,
+    SluggedModel,
+    TimeStampedModel,
+    field_not_blank,
+    slug_not_blank,
+    status_valid,
+)
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["System", "SystemMpuString"]
 
 
-class System(Linkable, TimeStampedModel):
+class System(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """An electronic hardware generation for pinball machines.
 
     e.g. WPC-95, System 6, SAM System, SPIKE.
@@ -19,23 +28,21 @@ class System(Linkable, TimeStampedModel):
     """
 
     link_url_pattern = "/systems/{slug}"
-    claims_exempt = frozenset({"manufacturer", "technology_subgeneration"})
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
     manufacturer = models.ForeignKey(
         "Manufacturer",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="systems",
         null=True,
         blank=True,
     )
     technology_subgeneration = models.ForeignKey(
         "TechnologySubgeneration",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="systems",
         null=True,
         blank=True,
@@ -45,14 +52,10 @@ class System(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "system")
-        super().save(*args, **kwargs)
 
 
 class SystemMpuString(TimeStampedModel):
@@ -73,6 +76,7 @@ class SystemMpuString(TimeStampedModel):
                 fields=["value"],
                 name="catalog_unique_system_mpu_string",
             ),
+            field_not_blank("value"),
         ]
 
     def __str__(self) -> str:

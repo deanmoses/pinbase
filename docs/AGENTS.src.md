@@ -51,7 +51,7 @@ The provenance system serves **three purposes simultaneously**:
 
 "It only comes from one source today" is **not** a valid reason to bypass claims — that source may not be the only one tomorrow.
 
-**"Structural" is not a valid exemption category.** The only exempt fields are true internal infrastructure: `id`/`uuid`, `created_at`/`updated_at`, and `slug`. Everything else — scalars, FKs, M2M relationships, aliases, hierarchy parents — requires claims.
+**"Structural" is not a valid exemption category.** The only exempt fields are true internal infrastructure: `id`/`uuid`, `created_at`/`updated_at`. Everything else — scalars, FKs, M2M relationships, aliases, hierarchy parents, and slugs — requires claims. Slugs are editorially curated values (e.g. which machine gets `breakout` vs `breakout-2` is an explicit editorial decision) and must be claim-controlled.
 
 **Anti-patterns to avoid:**
 

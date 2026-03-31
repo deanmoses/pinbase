@@ -23,16 +23,22 @@ class TestSystemsAPI:
 
     @pytest.fixture
     def system_with_machines(self, system):
-        t1 = Title.objects.create(name="Medieval Madness", opdb_id="G5pe4-s")
-        t2 = Title.objects.create(name="No Good Gofers", opdb_id="T-ngg")
+        t1 = Title.objects.create(
+            name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4-s"
+        )
+        t2 = Title.objects.create(
+            name="No Good Gofers", slug="no-good-gofers", opdb_id="T-ngg"
+        )
         MachineModel.objects.create(
             name="Medieval Madness",
+            slug="medieval-madness",
             year=1997,
             system=system,
             title=t1,
         )
         MachineModel.objects.create(
             name="No Good Gofers",
+            slug="no-good-gofers",
             year=1997,
             system=system,
             title=t2,
@@ -51,9 +57,10 @@ class TestSystemsAPI:
     def test_get_system_detail_titles_sorted_year_desc(
         self, client, system_with_machines
     ):
-        t3 = Title.objects.create(name="Old Title", opdb_id="T-old-s")
+        t3 = Title.objects.create(name="Old Title", slug="old-title", opdb_id="T-old-s")
         MachineModel.objects.create(
             name="Old Game",
+            slug="old-game",
             year=1990,
             system=system_with_machines,
             title=t3,

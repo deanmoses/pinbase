@@ -9,6 +9,7 @@ export type ManufacturerEditView = {
 };
 
 export type ManufacturerFormFields = {
+	slug: string;
 	name: string;
 	description: string;
 	logo_url: string;
@@ -23,6 +24,7 @@ export function manufacturerToFormFields(
 	manufacturer: ManufacturerEditView
 ): ManufacturerFormFields {
 	return {
+		slug: manufacturer.slug,
 		name: manufacturer.name,
 		description: manufacturer.description?.text ?? '',
 		logo_url: manufacturer.logo_url ?? '',

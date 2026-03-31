@@ -13,6 +13,8 @@ from ninja.decorators import decorate_view
 from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
+from apps.core.models import active_status_q
+
 
 from ..cache import MANUFACTURERS_ALL_KEY
 from .constants import DEFAULT_PAGE_SIZE
@@ -183,10 +185,11 @@ def _manufacturer_qs():
 
     from ..models import CorporateEntityLocation
 
-    return Manufacturer.objects.prefetch_related(
+    return Manufacturer.objects.active().prefetch_related(
         Prefetch(
             "entities",
-            queryset=CorporateEntity.objects.prefetch_related(
+            queryset=CorporateEntity.objects.active()
+            .prefetch_related(
                 Prefetch(
                     "locations",
                     queryset=CorporateEntityLocation.objects.select_related(
@@ -195,14 +198,16 @@ def _manufacturer_qs():
                 ),
                 Prefetch(
                     "models",
-                    queryset=MachineModel.objects.filter(variant_of__isnull=True)
+                    queryset=MachineModel.objects.active()
+                    .filter(variant_of__isnull=True)
                     .select_related("technology_generation", "title")
                     .prefetch_related("credits__person", "credits__role")
                     .order_by(F("year").desc(nulls_last=True), "name"),
                 ),
-            ).order_by("year_start"),
+            )
+            .order_by("year_start"),
         ),
-        Prefetch("systems", queryset=System.objects.order_by("name")),
+        Prefetch("systems", queryset=System.objects.active().order_by("name")),
         _claims_prefetch(),
     )
 
@@ -236,7 +241,13 @@ def list_manufacturers(request):
     from ..models import Manufacturer
 
     return list(
-        Manufacturer.objects.annotate(model_count=Count("entities__models"))
+        Manufacturer.objects.active()
+        .annotate(
+            model_count=Count(
+                "entities__models",
+                filter=active_status_q("entities__models"),
+            )
+        )
         .order_by("name")
         .values("name", "slug", "model_count")
     )
@@ -258,16 +269,18 @@ def list_all_manufacturers(request):
     )
 
     qs = (
-        Manufacturer.objects.annotate(
+        Manufacturer.objects.active()
+        .annotate(
             model_count=Count(
                 "entities__models",
-                filter=Q(entities__models__variant_of__isnull=True),
+                filter=Q(entities__models__variant_of__isnull=True)
+                & active_status_q("entities__models"),
             )
         )
         .prefetch_related(
             Prefetch(
                 "entities",
-                queryset=CorporateEntity.objects.prefetch_related(
+                queryset=CorporateEntity.objects.active().prefetch_related(
                     Prefetch(
                         "locations",
                         queryset=CorporateEntityLocation.objects.select_related(
@@ -277,7 +290,8 @@ def list_all_manufacturers(request):
                     "aliases",
                     Prefetch(
                         "models",
-                        queryset=MachineModel.objects.filter(variant_of__isnull=True)
+                        queryset=MachineModel.objects.active()
+                        .filter(variant_of__isnull=True)
                         .select_related("technology_generation")
                         .prefetch_related("credits__person")
                         .order_by(F("year").desc(nulls_last=True)),
@@ -355,9 +369,9 @@ def patch_manufacturer_claims(request, slug: str, data: ClaimPatchSchema):
 
     from ..models import Manufacturer
 
-    mfr = get_object_or_404(Manufacturer, slug=slug)
+    mfr = get_object_or_404(Manufacturer.objects.active(), slug=slug)
 
-    specs = plan_scalar_field_claims(Manufacturer, data.fields)
+    specs = plan_scalar_field_claims(Manufacturer, data.fields, entity=mfr)
 
     execute_claims(mfr, specs, user=request.user)
 

@@ -32,13 +32,13 @@ def _serialize_taxonomy(obj) -> dict:
 
 
 def _taxonomy_detail_qs(model_class):
-    return model_class.objects.prefetch_related(_claims_prefetch())
+    return model_class.objects.active().prefetch_related(_claims_prefetch())
 
 
 def _patch_taxonomy(request, model_class, slug, data):
     """Shared PATCH handler for all taxonomy entities."""
-    obj = get_object_or_404(model_class, slug=slug)
-    specs = plan_scalar_field_claims(model_class, data.fields)
+    obj = get_object_or_404(model_class.objects.active(), slug=slug)
+    specs = plan_scalar_field_claims(model_class, data.fields, entity=obj)
 
     execute_claims(obj, specs, user=request.user)
 
@@ -73,7 +73,7 @@ def list_technology_generations(request):
 
     return [
         _serialize_taxonomy(t)
-        for t in TechnologyGeneration.objects.order_by("display_order")
+        for t in TechnologyGeneration.objects.active().order_by("display_order")
     ]
 
 
@@ -109,7 +109,8 @@ def list_display_types(request):
     from ..models import DisplayType
 
     return [
-        _serialize_taxonomy(d) for d in DisplayType.objects.order_by("display_order")
+        _serialize_taxonomy(d)
+        for d in DisplayType.objects.active().order_by("display_order")
     ]
 
 
@@ -146,7 +147,7 @@ def list_technology_subgenerations(request):
 
     return [
         _serialize_taxonomy(t)
-        for t in TechnologySubgeneration.objects.order_by("display_order")
+        for t in TechnologySubgeneration.objects.active().order_by("display_order")
     ]
 
 
@@ -182,7 +183,8 @@ def list_display_subtypes(request):
     from ..models import DisplaySubtype
 
     return [
-        _serialize_taxonomy(d) for d in DisplaySubtype.objects.order_by("display_order")
+        _serialize_taxonomy(d)
+        for d in DisplaySubtype.objects.active().order_by("display_order")
     ]
 
 
@@ -217,7 +219,10 @@ cabinets_router = Router(tags=["cabinets"])
 def list_cabinets(request):
     from ..models import Cabinet
 
-    return [_serialize_taxonomy(c) for c in Cabinet.objects.order_by("display_order")]
+    return [
+        _serialize_taxonomy(c)
+        for c in Cabinet.objects.active().order_by("display_order")
+    ]
 
 
 @cabinets_router.get("/{slug}", response=TaxonomySchema)
@@ -252,7 +257,8 @@ def list_game_formats(request):
     from ..models import GameFormat
 
     return [
-        _serialize_taxonomy(g) for g in GameFormat.objects.order_by("display_order")
+        _serialize_taxonomy(g)
+        for g in GameFormat.objects.active().order_by("display_order")
     ]
 
 
@@ -290,11 +296,12 @@ reward_types_router = Router(tags=["reward-types"])
 def _reward_type_detail_qs():
     from ..models import MachineModel, RewardType
 
-    return RewardType.objects.prefetch_related(
+    return RewardType.objects.active().prefetch_related(
         _claims_prefetch(),
         Prefetch(
             "machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
+            queryset=MachineModel.objects.active()
+            .filter(variant_of__isnull=True)
             .select_related("corporate_entity__manufacturer", "technology_generation")
             .order_by(F("year").desc(nulls_last=True), "name"),
         ),
@@ -317,7 +324,7 @@ def list_reward_types(request):
 
     return [
         _serialize_taxonomy(rt)
-        for rt in RewardType.objects.order_by("display_order", "name")
+        for rt in RewardType.objects.active().order_by("display_order", "name")
     ]
 
 
@@ -337,8 +344,8 @@ def get_reward_type(request, slug: str):
 def patch_reward_type(request, slug: str, data: ClaimPatchSchema):
     from ..models import RewardType
 
-    obj = get_object_or_404(RewardType, slug=slug)
-    specs = plan_scalar_field_claims(RewardType, data.fields)
+    obj = get_object_or_404(RewardType.objects.active(), slug=slug)
+    specs = plan_scalar_field_claims(RewardType, data.fields, entity=obj)
 
     execute_claims(obj, specs, user=request.user)
 
@@ -358,7 +365,9 @@ tags_router = Router(tags=["tags"])
 def list_tags(request):
     from ..models import Tag
 
-    return [_serialize_taxonomy(t) for t in Tag.objects.order_by("display_order")]
+    return [
+        _serialize_taxonomy(t) for t in Tag.objects.active().order_by("display_order")
+    ]
 
 
 @tags_router.get("/{slug}", response=TaxonomySchema)
@@ -391,7 +400,8 @@ def list_credit_roles(request):
     from ..models import CreditRole
 
     return [
-        _serialize_taxonomy(c) for c in CreditRole.objects.order_by("display_order")
+        _serialize_taxonomy(c)
+        for c in CreditRole.objects.active().order_by("display_order")
     ]
 
 
@@ -400,4 +410,6 @@ def list_credit_roles(request):
 def get_credit_role(request, slug: str):
     from ..models import CreditRole
 
-    return _serialize_taxonomy(get_object_or_404(CreditRole, slug=slug))
+    return _serialize_taxonomy(
+        get_object_or_404(_taxonomy_detail_qs(CreditRole), slug=slug)
+    )

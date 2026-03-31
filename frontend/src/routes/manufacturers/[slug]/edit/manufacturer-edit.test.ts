@@ -24,6 +24,7 @@ describe('manufacturerToFormFields', () => {
 				website: null
 			})
 		).toEqual({
+			slug: 'williams',
 			name: 'Williams',
 			description: '',
 			logo_url: '',
@@ -42,12 +43,14 @@ describe('buildManufacturerPatchBody', () => {
 	it('builds a payload for changed scalar fields', () => {
 		const fields: ManufacturerFormFields = {
 			...manufacturerToFormFields(baseManufacturer),
+			slug: 'williams-electronics',
 			name: 'Williams Electronics',
 			website: 'https://williams.example'
 		};
 
 		expect(buildManufacturerPatchBody(fields, baseManufacturer)).toEqual({
 			fields: {
+				slug: 'williams-electronics',
 				name: 'Williams Electronics',
 				website: 'https://williams.example'
 			}

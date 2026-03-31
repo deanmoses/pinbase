@@ -15,6 +15,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const baseModel: ModelEditView = {
+	slug: 'medieval-madness',
 	name: 'Medieval Madness',
 	description: { text: 'Castle bashers.' },
 	year: 1997,
@@ -89,6 +90,7 @@ function stateFromModel(model: ModelEditView, overrides?: Partial<ModelEditState
 describe('modelToFormFields', () => {
 	it('converts model data to form state', () => {
 		const fields = modelToFormFields(baseModel);
+		expect(fields.slug).toBe('medieval-madness');
 		expect(fields.name).toBe('Medieval Madness');
 		expect(fields.description).toBe('Castle bashers.');
 		expect(fields.year).toBe(1997);
@@ -144,13 +146,18 @@ describe('buildModelPatchBody — scalars', () => {
 	it('detects changed scalar fields', () => {
 		const fields: ModelFormFields = {
 			...modelToFormFields(baseModel),
+			slug: 'medieval-madness-remastered',
 			name: 'Medieval Madness Remake',
 			year: 2024
 		};
 		const state = stateFromModel(baseModel, { fields });
 		const body = buildModelPatchBody(state, baseModel)!;
 		expect(body).not.toBeNull();
-		expect(body.fields).toEqual({ name: 'Medieval Madness Remake', year: 2024 });
+		expect(body.fields).toEqual({
+			slug: 'medieval-madness-remastered',
+			name: 'Medieval Madness Remake',
+			year: 2024
+		});
 	});
 
 	it('sends null for cleared fields', () => {

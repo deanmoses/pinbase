@@ -22,18 +22,22 @@ def user(db):
 
 
 @pytest.fixture
-def title(db):
-    return Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
+def title(db, _bootstrap_source):
+    t = Title.objects.create(
+        name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"
+    )
+    Claim.objects.assert_claim(t, "name", "Medieval Madness", source=_bootstrap_source)
+    return t
 
 
 @pytest.fixture
 def franchise(db):
-    return Franchise.objects.create(name="Castle Games")
+    return Franchise.objects.create(name="Castle Games", slug="castle-games")
 
 
 @pytest.fixture
 def other_franchise(db):
-    return Franchise.objects.create(name="Remake Line")
+    return Franchise.objects.create(name="Remake Line", slug="remake-line")
 
 
 @pytest.fixture
@@ -66,7 +70,7 @@ def _assert_title_abbreviations(
             claim_key=claim_key,
         )
     resolve_all_entities(Title, object_ids={title.pk})
-    resolve_all_title_abbreviations([title], title_ids={title.pk})
+    resolve_all_title_abbreviations(model_ids={title.pk})
 
 
 @pytest.mark.django_db
@@ -114,6 +118,26 @@ class TestPatchTitleClaims:
         assert title.name == "Medieval Madness Remastered"
         assert title.description == "Updated title copy"
         assert title.franchise == franchise
+
+    def test_slug_can_be_changed(self, client, user, title):
+        client.force_login(user)
+        resp = _patch(
+            client, title.slug, {"fields": {"slug": "medieval-madness-remastered"}}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "medieval-madness-remastered"
+
+        title.refresh_from_db()
+        assert title.slug == "medieval-madness-remastered"
+        assert client.get(f"/api/titles/{title.slug}").status_code == 200
+        assert client.get("/api/titles/medieval-madness").status_code == 404
+
+    def test_duplicate_slug_returns_422(self, client, user, title):
+        Title.objects.create(name="Attack from Mars", slug="attack-from-mars")
+        client.force_login(user)
+        resp = _patch(client, title.slug, {"fields": {"slug": "attack-from-mars"}})
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
 
     def test_franchise_can_be_changed_and_cleared(
         self, client, user, title, franchise, other_franchise

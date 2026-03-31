@@ -3,7 +3,7 @@
 import pytest
 
 from apps.catalog.claims import build_relationship_claim
-from apps.catalog.models import Credit, MachineModel, Person
+from apps.catalog.models import Credit, CreditRole, MachineModel, Person
 from apps.catalog.resolve import resolve_all_credits
 from apps.provenance.models import Claim, Source
 
@@ -34,13 +34,14 @@ def person2(db):
 
 @pytest.fixture
 def machine(db):
-    return MachineModel.objects.create(name="Medieval Madness")
+    return MachineModel.objects.create(name="Medieval Madness", slug="medieval-madness")
 
 
-def _assert_credit_claim(machine, person_slug, role, source):
+def _assert_credit_claim(machine, person_pk, role_slug, source):
     """Helper to create a credit claim via the manager."""
+    role = CreditRole.objects.get(slug=role_slug)
     claim_key, value = build_relationship_claim(
-        "credit", {"person_slug": person_slug, "role": role}
+        "credit", {"person": person_pk, "role": role.pk}
     )
     Claim.objects.assert_claim(
         machine, "credit", value, source=source, claim_key=claim_key
@@ -49,7 +50,7 @@ def _assert_credit_claim(machine, person_slug, role, source):
 
 class TestResolveCredits:
     def test_basic_materialization(self, machine, person, source, credit_roles):
-        _assert_credit_claim(machine, "pat-lawlor", "design", source)
+        _assert_credit_claim(machine, person.pk, "design", source)
         resolve_all_credits(model_ids={machine.pk})
 
         assert Credit.objects.filter(
@@ -57,8 +58,8 @@ class TestResolveCredits:
         ).exists()
 
     def test_multiple_credits(self, machine, person, person2, source, credit_roles):
-        _assert_credit_claim(machine, "pat-lawlor", "design", source)
-        _assert_credit_claim(machine, "john-youssi", "art", source)
+        _assert_credit_claim(machine, person.pk, "design", source)
+        _assert_credit_claim(machine, person2.pk, "art", source)
         resolve_all_credits(model_ids={machine.pk})
 
         assert Credit.objects.filter(model=machine).count() == 2
@@ -70,7 +71,7 @@ class TestResolveCredits:
         ).exists()
 
     def test_idempotent(self, machine, person, source, credit_roles):
-        _assert_credit_claim(machine, "pat-lawlor", "design", source)
+        _assert_credit_claim(machine, person.pk, "design", source)
         resolve_all_credits(model_ids={machine.pk})
         resolve_all_credits(model_ids={machine.pk})
 
@@ -80,14 +81,14 @@ class TestResolveCredits:
         self, machine, person, person2, source, credit_roles
     ):
         """If a credit claim is deactivated, resolution removes the Credit."""
-        _assert_credit_claim(machine, "pat-lawlor", "design", source)
-        _assert_credit_claim(machine, "john-youssi", "art", source)
+        _assert_credit_claim(machine, person.pk, "design", source)
+        _assert_credit_claim(machine, person2.pk, "art", source)
         resolve_all_credits(model_ids={machine.pk})
         assert Credit.objects.filter(model=machine).count() == 2
 
         # Deactivate the art credit claim.
         Claim.objects.filter(
-            field_name="credit", claim_key__contains="john-youssi"
+            field_name="credit", claim_key__contains=str(person2.pk)
         ).update(is_active=False)
         resolve_all_credits(model_ids={machine.pk})
 
@@ -98,13 +99,14 @@ class TestResolveCredits:
         self, machine, person, source, high_source, credit_roles
     ):
         """A higher-priority exists=False claim prevents materialization."""
-        _assert_credit_claim(machine, "pat-lawlor", "design", source)
+        _assert_credit_claim(machine, person.pk, "design", source)
         resolve_all_credits(model_ids={machine.pk})
         assert Credit.objects.filter(model=machine).count() == 1
 
         # Higher-priority source disputes the credit.
+        design_role = CreditRole.objects.get(slug="design")
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}, exists=False
+            "credit", {"person": person.pk, "role": design_role.pk}, exists=False
         )
         Claim.objects.assert_claim(
             machine, "credit", value, source=high_source, claim_key=claim_key
@@ -117,9 +119,10 @@ class TestResolveCredits:
         self, machine, person, person2, source, high_source, credit_roles
     ):
         """Credits from multiple sources are unioned (each claim_key is independent)."""
-        _assert_credit_claim(machine, "pat-lawlor", "design", source)
+        _assert_credit_claim(machine, person.pk, "design", source)
+        art_role = CreditRole.objects.get(slug="art")
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": "john-youssi", "role": "art"}
+            "credit", {"person": person2.pk, "role": art_role.pk}
         )
         Claim.objects.assert_claim(
             machine, "credit", value, source=high_source, claim_key=claim_key
@@ -128,10 +131,16 @@ class TestResolveCredits:
 
         assert Credit.objects.filter(model=machine).count() == 2
 
-    def test_unresolved_slug_warning(self, machine, source, caplog, credit_roles):
-        """Credit claim for a non-existent person slug logs a warning."""
-        _assert_credit_claim(machine, "nobody-here", "design", source)
+    def test_unresolved_pk_warning(self, machine, source, caplog, credit_roles):
+        """Credit claim for a non-existent person PK logs a warning."""
+        design_role = CreditRole.objects.get(slug="design")
+        claim_key, value = build_relationship_claim(
+            "credit", {"person": 99999, "role": design_role.pk}
+        )
+        Claim.objects.assert_claim(
+            machine, "credit", value, source=source, claim_key=claim_key
+        )
         resolve_all_credits(model_ids={machine.pk})
 
         assert Credit.objects.filter(model=machine).count() == 0
-        assert "Unresolved person slug" in caplog.text
+        assert "Unresolved person" in caplog.text

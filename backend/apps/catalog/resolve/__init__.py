@@ -19,7 +19,7 @@ from apps.core.licensing import (
 )
 from apps.provenance.models import Claim
 
-from ..claims import RELATIONSHIP_NAMESPACES
+from ..claims import get_relationship_namespaces
 from ..models import (
     MachineModel,
     Title,
@@ -31,6 +31,9 @@ from ._helpers import (
     _resolve_fk_generic,
     build_fk_info,
     get_field_defaults,
+    get_preserve_fields,
+    resolve_unique_conflicts,
+    validate_check_constraints,
 )
 from ._relationships import (  # noqa: F401
     resolve_all_aliases,
@@ -40,6 +43,7 @@ from ._relationships import (  # noqa: F401
     resolve_all_location_aliases,
     resolve_all_model_abbreviations,
     resolve_all_reward_types,
+    resolve_all_series_titles,
     resolve_all_tags,
     resolve_all_themes,
     resolve_all_title_abbreviations,
@@ -91,30 +95,48 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     field_defaults = get_field_defaults(MachineModel, claim_fields)
     fk_info = build_fk_info(MachineModel, claim_fields)
     sfl_map = build_source_field_license_map()
+    preserve_when_unclaimed = get_preserve_fields(MachineModel, claim_fields)
+    original_slug = machine_model.slug
+    original_opdb_id = machine_model.opdb_id
     _apply_resolution(
-        machine_model, winners, claim_fields, field_defaults, fk_info, sfl_map
+        machine_model,
+        winners,
+        claim_fields,
+        field_defaults,
+        fk_info,
+        sfl_map,
+        preserve_when_unclaimed,
     )
 
-    # Post-resolution guards (single-object only — the bulk path handles
-    # opdb_id conflicts differently via _resolve_opdb_conflicts).
-    if machine_model.opdb_id:
+    # Post-resolution guards for cross-reference fields only (slug, opdb_id).
+    # Other unique fields (e.g. name) rely on save() → IntegrityError which
+    # execute_claims() catches and returns as 422.
+    _CONFLICT_FIELDS = [
+        ("slug", original_slug, original_slug),  # (attr, check_original, revert_to)
+        ("opdb_id", original_opdb_id, None),  # nullable — clear to None
+    ]
+    for attr, original, revert in _CONFLICT_FIELDS:
+        value = getattr(machine_model, attr)
+        if not value or value == original:
+            continue
         conflict = (
-            MachineModel.objects.filter(opdb_id=machine_model.opdb_id)
+            MachineModel.objects.filter(**{attr: value})
             .exclude(pk=machine_model.pk)
             .first()
         )
         if conflict:
             logger.warning(
-                "Cannot resolve opdb_id=%s onto '%s' (pk=%s): "
-                "already owned by '%s' (pk=%s)",
-                machine_model.opdb_id,
+                "Cannot resolve %s=%r onto '%s' (pk=%s): already owned by '%s' (pk=%s)",
+                attr,
+                value,
                 machine_model.name,
                 machine_model.pk,
                 conflict.name,
                 conflict.pk,
             )
-            machine_model.opdb_id = None
+            setattr(machine_model, attr, revert)
 
+    validate_check_constraints(machine_model)
     machine_model.save()
 
     # Resolve relationship claims after scalar save.
@@ -182,6 +204,8 @@ def resolve_machine_models(stdout=None) -> int:
         System,
     ]:
         resolve_all_entities(tax_model)
+    resolve_all_series_titles()
+    _status("Series titles resolved")
     resolve_all_entities(Theme)
     resolve_all_entities(GameplayFeature)
     _status("Taxonomy, themes, gameplay features resolved")
@@ -198,7 +222,7 @@ def resolve_machine_models(stdout=None) -> int:
     _status("Titles resolved")
 
     # 0c. Resolve title abbreviations.
-    resolve_all_title_abbreviations(list(Title.objects.all()))
+    resolve_all_title_abbreviations()
 
     # 1. Pre-fetch lookup tables.
     from apps.core.models import get_claim_fields
@@ -207,6 +231,7 @@ def resolve_machine_models(stdout=None) -> int:
     field_defaults = get_field_defaults(MachineModel, claim_fields)
     fk_info = build_fk_info(MachineModel, claim_fields)
     sfl_map = build_source_field_license_map()
+    preserve_when_unclaimed = get_preserve_fields(MachineModel, claim_fields)
 
     # 2. Pre-fetch all active claims, grouped by object_id (~1 query).
     claims_by_model = _build_claims_by_model()
@@ -214,14 +239,28 @@ def resolve_machine_models(stdout=None) -> int:
 
     # 3. Load all MachineModels (~1 query).
     all_models = list(MachineModel.objects.all())
+    pre_slugs = {pm.pk: pm.slug for pm in all_models}
 
     # 4. Resolve each model in memory.
     for pm in all_models:
         winners = claims_by_model.get(pm.pk, {})
-        _apply_resolution(pm, winners, claim_fields, field_defaults, fk_info, sfl_map)
+        _apply_resolution(
+            pm,
+            winners,
+            claim_fields,
+            field_defaults,
+            fk_info,
+            sfl_map,
+            preserve_when_unclaimed,
+        )
 
-    # 5. Detect opdb_id conflicts across all resolved models.
-    _resolve_opdb_conflicts(all_models)
+    # 5. Detect unique-field conflicts across all resolved models.
+    resolve_unique_conflicts(all_models, "opdb_id", MachineModel)
+    resolve_unique_conflicts(all_models, "slug", MachineModel, pre_slugs)
+
+    # 6. Validate check constraints before writing.
+    for pm in all_models:
+        validate_check_constraints(pm)
 
     # 7. Set updated_at (auto_now not triggered by bulk_update).
     now = timezone.now()
@@ -236,25 +275,18 @@ def resolve_machine_models(stdout=None) -> int:
     MachineModel.objects.bulk_update(all_models, update_fields, batch_size=100)
     _status(f"Wrote {len(all_models)} models")
 
-    # 9. Bulk-resolve credit relationships.
-    resolve_all_credits(all_models)
+    # 9. Bulk-resolve relationship claims.
+    all_model_ids = {pm.pk for pm in all_models}
+    resolve_all_credits(model_ids=all_model_ids)
     _status("Credits resolved")
 
-    # 10. Bulk-resolve theme relationships.
-    resolve_all_themes(all_models)
-
-    # 11. Bulk-resolve gameplay feature relationships.
-    resolve_all_gameplay_features(all_models)
-
-    # 12. Bulk-resolve reward type relationships.
-    resolve_all_reward_types(all_models)
-
-    # 13. Bulk-resolve tag relationships.
-    resolve_all_tags(all_models)
+    resolve_all_themes(model_ids=all_model_ids)
+    resolve_all_gameplay_features(model_ids=all_model_ids)
+    resolve_all_reward_types(model_ids=all_model_ids)
+    resolve_all_tags(model_ids=all_model_ids)
     _status("Themes, features, reward types, tags resolved")
 
-    # 14. Bulk-resolve model abbreviations.
-    resolve_all_model_abbreviations(all_models)
+    resolve_all_model_abbreviations(model_ids=all_model_ids)
     _status("Abbreviations resolved")
 
     return len(all_models)
@@ -296,10 +328,20 @@ def _apply_resolution(
     field_defaults: dict[str, Any],
     fk_info: FKInfo,
     sfl_map: dict | None = None,
+    preserve_when_unclaimed: set[str] | None = None,
 ) -> None:
     """Apply claim winners to a MachineModel instance in memory."""
-    # Reset all claim-controlled fields to defaults.
+    # Reset claim-controlled fields to defaults — preserved fields keep
+    # their existing value unless a winning claim explicitly sets them.
+    _preserve = preserve_when_unclaimed or set()
+    winner_attrs = {
+        claim_fields[c.field_name]
+        for c in winners.values()
+        if c.field_name in claim_fields
+    }
     for attr, default in field_defaults.items():
+        if attr in _preserve and attr not in winner_attrs:
+            continue
         setattr(pm, attr, default)
 
     # Fresh extra_data dict (never shared between models).
@@ -307,7 +349,7 @@ def _apply_resolution(
 
     # Apply winners.
     for claim_key, claim in winners.items():
-        if claim.field_name in RELATIONSHIP_NAMESPACES:
+        if claim.field_name in get_relationship_namespaces():
             continue
         if claim.field_name in claim_fields:
             attr = claim_fields[claim.field_name]
@@ -336,28 +378,3 @@ def _apply_resolution(
                 )
 
     pm.extra_data = extra_data
-
-
-def _resolve_opdb_conflicts(all_models: list[MachineModel]) -> None:
-    """Clear opdb_id on models that would cause UNIQUE constraint violations.
-
-    First model encountered (by queryset order) wins ownership.
-    """
-    seen_opdb_ids: dict[str, MachineModel] = {}
-    for pm in all_models:
-        if not pm.opdb_id:
-            continue
-        if pm.opdb_id in seen_opdb_ids:
-            owner = seen_opdb_ids[pm.opdb_id]
-            logger.warning(
-                "Cannot resolve opdb_id=%s onto '%s' (pk=%s): "
-                "already owned by '%s' (pk=%s)",
-                pm.opdb_id,
-                pm.name,
-                pm.pk,
-                owner.name,
-                owner.pk,
-            )
-            pm.opdb_id = None
-        else:
-            seen_opdb_ids[pm.opdb_id] = pm

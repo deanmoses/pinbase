@@ -56,7 +56,7 @@ class TestModelsAPI:
 
     def test_list_models_ordering_nulls_last(self, client, machine_model, db):
         """Models with no year sort after models with a year."""
-        MachineModel.objects.create(name="Unknown Year Game")
+        MachineModel.objects.create(name="Unknown Year Game", slug="unknown-year-game")
         resp = client.get("/api/models/?ordering=-year")
         data = resp.json()
         names = [m["name"] for m in data["items"]]
@@ -64,8 +64,8 @@ class TestModelsAPI:
 
     def test_list_models_ordering_stable(self, client, db):
         """Models with the same year are sorted by name for stability."""
-        MachineModel.objects.create(name="Zeta", year=2000)
-        MachineModel.objects.create(name="Alpha", year=2000)
+        MachineModel.objects.create(name="Zeta", slug="zeta", year=2000)
+        MachineModel.objects.create(name="Alpha", slug="alpha", year=2000)
         resp = client.get("/api/models/?ordering=-year")
         data = resp.json()
         names = [m["name"] for m in data["items"]]
@@ -74,6 +74,7 @@ class TestModelsAPI:
     def test_list_models_excludes_variants(self, client, machine_model):
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
+            slug="medieval-madness-le",
             variant_of=machine_model,
         )
         resp = client.get("/api/models/")
@@ -84,6 +85,7 @@ class TestModelsAPI:
     def test_all_models_includes_variants(self, client, machine_model):
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
+            slug="medieval-madness-le",
             variant_of=machine_model,
         )
         resp = client.get("/api/models/all/")
@@ -94,6 +96,7 @@ class TestModelsAPI:
     def test_list_models_thumbnail(self, client, db):
         MachineModel.objects.create(
             name="With Image",
+            slug="with-image",
             extra_data={"opdb.images": SAMPLE_IMAGES},
         )
         resp = client.get("/api/models/")
@@ -123,6 +126,7 @@ class TestModelsAPI:
     def test_get_model_detail_images(self, client, db):
         pm = MachineModel.objects.create(
             name="With Image",
+            slug="with-image",
             extra_data={"opdb.images": SAMPLE_IMAGES},
         )
         resp = client.get(f"/api/models/{pm.slug}")
@@ -139,6 +143,7 @@ class TestModelsAPI:
     def test_get_model_detail_variant_features(self, client, db):
         pm = MachineModel.objects.create(
             name="With Features",
+            slug="with-features",
             extra_data={"opdb.variant_features": ["Castle attack", "Gold trim"]},
         )
         resp = client.get(f"/api/models/{pm.slug}")
@@ -148,6 +153,7 @@ class TestModelsAPI:
     def test_get_model_detail_variants(self, client, machine_model):
         MachineModel.objects.create(
             name="Medieval Madness (LE)",
+            slug="medieval-madness-le",
             variant_of=machine_model,
             extra_data={"opdb.variant_features": ["Gold trim"]},
         )
@@ -158,7 +164,9 @@ class TestModelsAPI:
         assert data["variants"][0]["variant_features"] == ["Gold trim"]
 
     def test_get_model_detail_title(self, client, machine_model, db):
-        title = Title.objects.create(name="Medieval Madness", opdb_id="G5pe4")
+        title = Title.objects.create(
+            name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"
+        )
         machine_model.title = title
         machine_model.save()
         resp = client.get(f"/api/models/{machine_model.slug}")

@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Now
 
 
 class UserProfile(models.Model):
@@ -14,7 +15,7 @@ class UserProfile(models.Model):
         default=10000,
         help_text="Claim priority for conflict resolution. Higher beats lower.",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_default=Now())
 
     class Meta:
         verbose_name = "User Profile"

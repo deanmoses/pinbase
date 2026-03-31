@@ -22,7 +22,12 @@ def _mpu_strings(db):
 
 @pytest.fixture
 def _setup_ipdb_first(
-    db, _mpu_strings, ipdb_locations, ipdb_narrative_features, credit_roles
+    db,
+    _mpu_strings,
+    ingest_taxonomy,
+    ipdb_locations,
+    ipdb_narrative_features,
+    credit_roles,
 ):
     """Seed IPDB data so OPDB can match by ipdb_id."""
     call_command(
@@ -187,39 +192,6 @@ class TestIngestOpdbAliases:
         assert MachineModel.objects.count() == 6
 
 
-@pytest.mark.django_db
-class TestIngestOpdbChangelog:
-    def test_changelog_moves_opdb_id(self, db):
-        MachineModel.objects.create(name="Stale Machine", opdb_id="GSTALE-MOld1")
-        call_command(
-            "ingest_opdb",
-            opdb=f"{FIXTURES}/opdb_sample.json",
-            changelog=f"{FIXTURES}/opdb_changelog_sample.json",
-        )
-        pm = MachineModel.objects.get(name="Stale Machine")
-        assert pm.opdb_id == "GFRESH-MNew1"
-
-    def test_changelog_does_not_delete(self, db):
-        MachineModel.objects.create(name="Dead Machine", opdb_id="GDEAD-MDel1")
-        call_command(
-            "ingest_opdb",
-            opdb=f"{FIXTURES}/opdb_sample.json",
-            changelog=f"{FIXTURES}/opdb_changelog_sample.json",
-        )
-        assert MachineModel.objects.filter(name="Dead Machine").exists()
-
-    def test_changelog_no_overwrite_existing(self, db):
-        MachineModel.objects.create(name="Stale Machine", opdb_id="GSTALE-MOld1")
-        MachineModel.objects.create(name="New Machine", opdb_id="GFRESH-MNew1")
-        call_command(
-            "ingest_opdb",
-            opdb=f"{FIXTURES}/opdb_sample.json",
-            changelog=f"{FIXTURES}/opdb_changelog_sample.json",
-        )
-        stale = MachineModel.objects.get(name="Stale Machine")
-        assert stale.opdb_id == "GSTALE-MOld1"
-
-
 def _opdb_dump(machines=None, aliases=None):
     data = []
     for m in machines or []:
@@ -252,7 +224,9 @@ class TestOpdbAbortsMissingOpdbId:
 class TestOpdbConflictBranches:
     def test_matched_model_keeps_existing_opdb_id(self):
         """Models matched by opdb_id keep their existing opdb_id."""
-        MachineModel.objects.create(name="Test Game", opdb_id="GOLD-M1")
+        MachineModel.objects.create(
+            name="Test Game", slug="test-game", opdb_id="GOLD-M1"
+        )
         path = _opdb_dump(machines=[{"opdb_id": "GOLD-M1", "name": "Test Game"}])
         call_command("ingest_opdb", opdb=path)
         pm = MachineModel.objects.get(opdb_id="GOLD-M1")
@@ -325,68 +299,3 @@ class TestOpdbFKClaimGuards:
                 f"{pm.slug} (opdb_id={pm.opdb_id}) has {fk_field} set "
                 f"but no active OPDB claim"
             )
-
-
-@pytest.mark.django_db
-class TestOpdbStaleRelationshipCleanup:
-    """Stale variant_of and title claims from prior OPDB runs are deactivated."""
-
-    def test_stale_variant_of_deactivated(self):
-        """Pre-existing OPDB variant_of claims are cleaned up."""
-        source, _ = Source.objects.get_or_create(
-            slug="opdb",
-            defaults={"name": "OPDB", "source_type": "database", "priority": 200},
-        )
-        pm = MachineModel.objects.create(
-            name="Old Variant", opdb_id="GSTALE-MVar", slug="old-variant"
-        )
-        from django.contrib.contenttypes.models import ContentType
-
-        ct_id = ContentType.objects.get_for_model(MachineModel).pk
-        Claim.objects.create(
-            content_type_id=ct_id,
-            object_id=pm.pk,
-            source=source,
-            field_name="variant_of",
-            value="some-parent",
-            is_active=True,
-        )
-        assert Claim.objects.filter(
-            source=source, field_name="variant_of", is_active=True
-        ).exists()
-
-        call_command("ingest_opdb", opdb=f"{FIXTURES}/opdb_sample.json")
-
-        assert not Claim.objects.filter(
-            source=source, field_name="variant_of", is_active=True
-        ).exists()
-
-    def test_stale_title_deactivated(self):
-        """Pre-existing OPDB title claims are cleaned up."""
-        source, _ = Source.objects.get_or_create(
-            slug="opdb",
-            defaults={"name": "OPDB", "source_type": "database", "priority": 200},
-        )
-        pm = MachineModel.objects.create(
-            name="Old Titled", opdb_id="GSTALE-MTit", slug="old-titled"
-        )
-        from django.contrib.contenttypes.models import ContentType
-
-        ct_id = ContentType.objects.get_for_model(MachineModel).pk
-        Claim.objects.create(
-            content_type_id=ct_id,
-            object_id=pm.pk,
-            source=source,
-            field_name="title",
-            value="some-title",
-            is_active=True,
-        )
-        assert Claim.objects.filter(
-            source=source, field_name="title", is_active=True
-        ).exists()
-
-        call_command("ingest_opdb", opdb=f"{FIXTURES}/opdb_sample.json")
-
-        assert not Claim.objects.filter(
-            source=source, field_name="title", is_active=True
-        ).exists()

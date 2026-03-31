@@ -6,15 +6,18 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.validators import validate_no_mojibake
-
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    EntityStatusMixin,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    field_not_blank,
+    slug_not_blank,
+    status_valid,
 )
+from apps.core.validators import validate_no_mojibake
 
 __all__ = [
     "TechnologyGeneration",
@@ -25,12 +28,16 @@ __all__ = [
     "GameFormat",
     "RewardType",
     "RewardTypeAlias",
+    "MachineModelRewardType",
     "Tag",
+    "MachineModelTag",
     "CreditRole",
 ]
 
 
-class TechnologyGeneration(Linkable, TimeStampedModel):
+class TechnologyGeneration(
+    EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """A major technological era: Pure Mechanical, Electromechanical, Solid State.
 
     Name and display_order are claim-controlled; description is direct editorial.
@@ -41,7 +48,6 @@ class TechnologyGeneration(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -49,27 +55,23 @@ class TechnologyGeneration(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "techgen")
-        super().save(*args, **kwargs)
 
-
-class TechnologySubgeneration(Linkable, TimeStampedModel):
+class TechnologySubgeneration(
+    EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """A subdivision within a TechnologyGeneration.
 
     e.g., Solid State → Discrete Logic, Integrated (MPU), PC-Based.
     """
 
     link_url_pattern = "/technology-subgenerations/{slug}"
-    claims_exempt = frozenset({"technology_generation"})
 
     name = models.CharField(max_length=200, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
     technology_generation = models.ForeignKey(
@@ -82,17 +84,13 @@ class TechnologySubgeneration(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "techsubgen")
-        super().save(*args, **kwargs)
 
-
-class DisplayType(Linkable, TimeStampedModel):
+class DisplayType(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A display technology category: Score Reels, DMD, LCD, etc.
 
     Replaces the old DisplayType enum.
@@ -103,7 +101,6 @@ class DisplayType(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -111,27 +108,21 @@ class DisplayType(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "displaytype")
-        super().save(*args, **kwargs)
 
-
-class DisplaySubtype(Linkable, TimeStampedModel):
+class DisplaySubtype(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A subdivision within a DisplayType.
 
     e.g., LCD → Standard LCD, HD LCD.
     """
 
     link_url_pattern = "/display-subtypes/{slug}"
-    claims_exempt = frozenset({"display_type"})
 
     name = models.CharField(max_length=200, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
     display_type = models.ForeignKey(
@@ -144,17 +135,13 @@ class DisplaySubtype(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "displaysubtype")
-        super().save(*args, **kwargs)
 
-
-class Cabinet(Linkable, TimeStampedModel):
+class Cabinet(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """Physical cabinet form factor: Floor, Tabletop, Countertop, Cocktail."""
 
     link_url_pattern = "/cabinets/{slug}"
@@ -162,7 +149,6 @@ class Cabinet(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -170,17 +156,13 @@ class Cabinet(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "cabinet")
-        super().save(*args, **kwargs)
 
-
-class GameFormat(Linkable, TimeStampedModel):
+class GameFormat(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """Game format: Pinball, Bagatelle, Shuffle Alley, Pitch-and-Bat."""
 
     link_url_pattern = "/game-formats/{slug}"
@@ -188,7 +170,6 @@ class GameFormat(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -196,17 +177,13 @@ class GameFormat(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "gameformat")
-        super().save(*args, **kwargs)
 
-
-class RewardType(Linkable, TimeStampedModel):
+class RewardType(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A pinball reward mechanism: replay, add-a-ball, free-play, etc.
 
     Reward types are the payoff mechanic for achieving a goal, distinct from
@@ -218,7 +195,6 @@ class RewardType(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -226,14 +202,29 @@ class RewardType(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order", "name"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "rewardtype")
-        super().save(*args, **kwargs)
+
+class MachineModelRewardType(TimeStampedModel):
+    """Through model for MachineModel ↔ RewardType (materialized from relationship claims)."""
+
+    machinemodel = models.ForeignKey("MachineModel", on_delete=models.CASCADE)
+    rewardtype = models.ForeignKey(RewardType, on_delete=models.PROTECT)
+
+    class Meta:
+        db_table = "catalog_machinemodel_reward_types"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["machinemodel", "rewardtype"],
+                name="catalog_machinemodelrewardtype_unique_pair",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.machinemodel} → {self.rewardtype}"
 
 
 class RewardTypeAlias(AliasBase):
@@ -245,6 +236,7 @@ class RewardTypeAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_reward_type_alias_lower",
@@ -252,7 +244,7 @@ class RewardTypeAlias(AliasBase):
         ]
 
 
-class Tag(Linkable, TimeStampedModel):
+class Tag(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A classification tag: Home Use, Prototype, Widebody, Remake, etc.
 
     Linked to MachineModel via M2M relationship claims.
@@ -263,7 +255,6 @@ class Tag(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -271,17 +262,32 @@ class Tag(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "tag")
-        super().save(*args, **kwargs)
+
+class MachineModelTag(TimeStampedModel):
+    """Through model for MachineModel ↔ Tag (materialized from relationship claims)."""
+
+    machinemodel = models.ForeignKey("MachineModel", on_delete=models.CASCADE)
+    tag = models.ForeignKey(Tag, on_delete=models.PROTECT)
+
+    class Meta:
+        db_table = "catalog_machinemodel_tags"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["machinemodel", "tag"],
+                name="catalog_machinemodeltag_unique_pair",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.machinemodel} → {self.tag}"
 
 
-class CreditRole(Linkable, TimeStampedModel):
+class CreditRole(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A credit role category: Design, Art, Software, etc."""
 
     link_url_pattern = "/credit-roles/{slug}"
@@ -289,7 +295,6 @@ class CreditRole(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -297,11 +302,7 @@ class CreditRole(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["display_order"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "creditrole")
-        super().save(*args, **kwargs)

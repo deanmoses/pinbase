@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ChangeSet, Claim, Source, SourceFieldLicense
+from .models import ChangeSet, Claim, IngestRun, Source, SourceFieldLicense
 
 
 class SourceFieldLicenseInline(admin.TabularInline):
@@ -25,6 +25,38 @@ class SourceAdmin(admin.ModelAdmin):
     inlines = [SourceFieldLicenseInline]
 
 
+@admin.register(IngestRun)
+class IngestRunAdmin(admin.ModelAdmin):
+    """Read-only inspection view. IngestRun records are created by the apply layer."""
+
+    list_display = ("pk", "source", "status", "started_at", "finished_at")
+    list_filter = ("source", "status")
+    readonly_fields = (
+        "source",
+        "status",
+        "started_at",
+        "finished_at",
+        "input_fingerprint",
+        "records_parsed",
+        "records_matched",
+        "records_created",
+        "claims_asserted",
+        "claims_retracted",
+        "claims_rejected",
+        "warnings",
+        "errors",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(ChangeSet)
 class ChangeSetAdmin(admin.ModelAdmin):
     list_display = ("pk", "user", "note_truncated", "created_at")
@@ -40,6 +72,8 @@ class ChangeSetAdmin(admin.ModelAdmin):
 
 @admin.register(Claim)
 class ClaimAdmin(admin.ModelAdmin):
+    """Read-only inspection view. Claims must not be created or edited in admin."""
+
     list_display = (
         "subject",
         "field_name",
@@ -59,19 +93,11 @@ class ClaimAdmin(admin.ModelAdmin):
             return s[:80] + "..."
         return s
 
-    def save_model(self, request, obj, form, change):
-        """Route creates through assert_claim to preserve the superseding invariant."""
-        if not change:
-            created = Claim.objects.assert_claim(
-                obj.subject,
-                obj.field_name,
-                obj.value,
-                obj.citation,
-                source=obj.source,
-                user=obj.user,
-                claim_key=obj.claim_key,
-                license=obj.license,
-            )
-            obj.pk = created.pk
-        else:
-            super().save_model(request, obj, form, change)
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

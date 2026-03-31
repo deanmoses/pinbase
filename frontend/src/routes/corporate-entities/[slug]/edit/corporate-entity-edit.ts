@@ -10,6 +10,7 @@ export type CorporateEntityEditView = {
 };
 
 export type CorporateEntityFormFields = {
+	slug: string;
 	name: string;
 	description: string;
 	year_start: string | number;
@@ -32,6 +33,7 @@ export function corporateEntityToFormFields(
 	entity: CorporateEntityEditView
 ): CorporateEntityFormFields {
 	return {
+		slug: entity.slug,
 		name: entity.name,
 		description: entity.description?.text ?? '',
 		year_start: entity.year_start ?? '',

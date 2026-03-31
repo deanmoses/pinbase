@@ -15,6 +15,7 @@ export type TitleEditView = {
 };
 
 export type TitleEditFormState = {
+	slug: string;
 	name: string;
 	description: string;
 	franchiseSlug: string;
@@ -47,6 +48,7 @@ export function parseAbbreviations(text: string): string[] {
 
 export function titleToFormState(title: TitleEditView): TitleEditFormState {
 	return {
+		slug: title.slug,
 		name: title.name,
 		description: title.description?.text ?? '',
 		franchiseSlug: title.franchise?.slug ?? '',
@@ -62,6 +64,7 @@ function buildChangedTitleFields(
 	const changed: Record<string, unknown> = {};
 
 	if (form.name !== original.name) changed.name = form.name === '' ? null : form.name;
+	if (form.slug !== original.slug) changed.slug = form.slug === '' ? null : form.slug;
 	if (form.description !== original.description) {
 		changed.description = form.description === '' ? null : form.description;
 	}

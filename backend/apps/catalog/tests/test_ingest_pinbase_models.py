@@ -24,6 +24,7 @@ def model_with_opdb_name(db, opdb_source):
     """A MachineModel with an OPDB name claim containing an abbreviation."""
     mm = MachineModel.objects.create(
         name="Foo (LE)",
+        slug="foo-le",
         opdb_id="Gtest-Mtest",
     )
     Claim.objects.bulk_assert_claims(
@@ -49,6 +50,7 @@ def model_with_opdb_name_simple(db, opdb_source):
 
     mm = MachineModel.objects.create(
         name="Foo (LE)",
+        slug="foo-le",
         opdb_id="Gtest-Mtest",
     )
     ct = ContentType.objects.get_for_model(MachineModel)
@@ -75,6 +77,7 @@ def _write_models_json(entries):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("ingest_taxonomy")
 class TestIngestPinbaseModels:
     def test_creates_name_claim(self, model_with_opdb_name_simple):
         mm = model_with_opdb_name_simple
@@ -193,10 +196,15 @@ class TestIngestPinbaseModels:
         )
         export_dir = _write_models_json(
             [
-                {"slug": "parent-model", "opdb_id": "Gtest-Mparent"},
+                {
+                    "slug": "parent-model",
+                    "opdb_id": "Gtest-Mparent",
+                    "name": "Parent Model",
+                },
                 {
                     "slug": "child-model",
                     "opdb_id": "Gtest-Mchild",
+                    "name": "Child Model",
                     "variant_of": "parent-model",
                 },
             ]
@@ -210,7 +218,9 @@ class TestIngestPinbaseModels:
 
     def test_variant_of_overrides_ingest(self, db):
         """variant_of from pinbase overrides a wrong variant_of from ingest_opdb."""
-        MachineModel.objects.create(name="Wrong Parent", opdb_id="Gtest-Mwrong")
+        MachineModel.objects.create(
+            name="Wrong Parent", slug="wrong-parent", opdb_id="Gtest-Mwrong"
+        )
         right_parent = MachineModel.objects.create(
             name="Right Parent", opdb_id="Gtest-Mright", slug="right-parent"
         )
@@ -222,10 +232,15 @@ class TestIngestPinbaseModels:
         )
         export_dir = _write_models_json(
             [
-                {"slug": "right-parent", "opdb_id": "Gtest-Mright"},
+                {
+                    "slug": "right-parent",
+                    "opdb_id": "Gtest-Mright",
+                    "name": "Right Parent",
+                },
                 {
                     "slug": "child-model",
                     "opdb_id": "Gtest-Mchild",
+                    "name": "Child",
                     "variant_of": "right-parent",
                 },
             ]
@@ -252,10 +267,15 @@ class TestIngestPinbaseModels:
         # models.json says B is the real parent, A is the variant.
         export_dir = _write_models_json(
             [
-                {"slug": "model-b-le", "opdb_id": "Gtest-Mb"},
+                {
+                    "slug": "model-b-le",
+                    "opdb_id": "Gtest-Mb",
+                    "name": "Model B (LE)",
+                },
                 {
                     "slug": "model-a-ce",
                     "opdb_id": "Gtest-Ma",
+                    "name": "Model A (CE)",
                     "variant_of": "model-b-le",
                 },
             ]
@@ -361,6 +381,7 @@ class TestIngestPinbaseModels:
                 {
                     "slug": "test-model",
                     "opdb_id": "Gtest-Mtest",
+                    "name": "Test Model",
                     "title_slug": "test-title",
                 },
             ]

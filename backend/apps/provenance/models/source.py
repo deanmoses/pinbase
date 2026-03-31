@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from apps.core.models import TimeStampedModel, unique_slug
+from apps.core.models import TimeStampedModel, field_not_blank, unique_slug
 
 
 class Source(TimeStampedModel):
@@ -12,6 +12,7 @@ class Source(TimeStampedModel):
 
     class SourceType(models.TextChoices):
         DATABASE = "database", "Database"
+        WIKI = "wiki", "Wiki"
         BOOK = "book", "Book"
         EDITORIAL = "editorial", "Editorial"
         OTHER = "other", "Other"
@@ -33,7 +34,7 @@ class Source(TimeStampedModel):
     )
     default_license = models.ForeignKey(
         "core.License",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="sources",
@@ -42,6 +43,21 @@ class Source(TimeStampedModel):
 
     class Meta:
         ordering = ["-priority", "name"]
+        constraints = [
+            field_not_blank("name"),
+            models.CheckConstraint(
+                condition=models.Q(
+                    source_type__in=[
+                        "database",
+                        "wiki",
+                        "book",
+                        "editorial",
+                        "other",
+                    ]
+                ),
+                name="provenance_source_source_type_valid",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -68,12 +84,18 @@ class SourceFieldLicense(models.Model):
     field_name = models.CharField(max_length=255)
     license = models.ForeignKey(
         "core.License",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="+",
     )
 
     class Meta:
-        unique_together = [("source", "field_name")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "field_name"],
+                name="provenance_sourcefieldlicense_unique_source_field",
+            ),
+            field_not_blank("field_name"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.source.name}: {self.field_name} → {self.license.short_name}"

@@ -23,17 +23,21 @@ def other_source(db):
 
 @pytest.fixture
 def manufacturer(db):
-    return Manufacturer.objects.create(name="Williams")
+    return Manufacturer.objects.create(name="Williams", slug="williams")
 
 
 @pytest.fixture
 def pm1(db):
-    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+    return MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
 
 
 @pytest.fixture
 def pm2(db):
-    return MachineModel.objects.create(name="Monster Bash", year=1998)
+    return MachineModel.objects.create(
+        name="Monster Bash", slug="monster-bash", year=1998
+    )
 
 
 @pytest.fixture
@@ -253,15 +257,20 @@ class TestBulkAssertClaimsSourceSet:
 class TestBulkAssertClaimsSweep:
     """sweep_field + authoritative_scope deactivate stale claims."""
 
-    def test_sweep_deactivates_stale_claim(self, source, ct_id, pm1):
+    def test_sweep_deactivates_stale_claim(self, source, ct_id, pm1, credit_targets):
         """A claim no longer in the pending set is swept (deactivated)."""
         from apps.catalog.claims import build_relationship_claim
 
+        pat_pk = credit_targets["persons"]["pat-lawlor"].pk
+        john_pk = credit_targets["persons"]["john-youssi"].pk
+        design_pk = credit_targets["roles"]["design"].pk
+        art_pk = credit_targets["roles"]["art"].pk
+
         key1, val1 = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+            "credit", {"person": pat_pk, "role": design_pk}
         )
         key2, val2 = build_relationship_claim(
-            "credit", {"person_slug": "john-youssi", "role": "art"}
+            "credit", {"person": john_pk, "role": art_pk}
         )
         pending1 = [
             Claim(
@@ -311,12 +320,17 @@ class TestBulkAssertClaimsSweep:
         remaining = Claim.objects.get(source=source, is_active=True)
         assert remaining.claim_key == key1
 
-    def test_sweep_with_zero_pending_deactivates_all(self, source, ct_id, pm1):
+    def test_sweep_with_zero_pending_deactivates_all(
+        self, source, ct_id, pm1, credit_targets
+    ):
         """authoritative_scope ensures stale claims are swept even when pending is empty."""
         from apps.catalog.claims import build_relationship_claim
 
+        pat_pk = credit_targets["persons"]["pat-lawlor"].pk
+        design_pk = credit_targets["roles"]["design"].pk
+
         key, val = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+            "credit", {"person": pat_pk, "role": design_pk}
         )
         Claim.objects.bulk_assert_claims(
             source,
@@ -346,16 +360,21 @@ class TestBulkAssertClaimsSweep:
         assert stats["swept"] == 1
         assert Claim.objects.filter(source=source, is_active=True).count() == 0
 
-    def test_sweep_does_not_touch_other_field_names(self, source, ct_id, pm1):
+    def test_sweep_does_not_touch_other_field_names(
+        self, source, ct_id, pm1, credit_targets
+    ):
         """Sweep only affects claims matching the sweep_field."""
         from apps.catalog.claims import build_relationship_claim
+
+        pat_pk = credit_targets["persons"]["pat-lawlor"].pk
+        design_pk = credit_targets["roles"]["design"].pk
 
         # A scalar claim.
         Claim.objects.assert_claim(pm1, "name", "Medieval Madness", source=source)
 
         # A credit claim.
         key, val = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+            "credit", {"person": pat_pk, "role": design_pk}
         )
         Claim.objects.bulk_assert_claims(
             source,
@@ -393,12 +412,17 @@ class TestBulkAssertClaimsSweep:
             == 0
         )
 
-    def test_sweep_scoped_to_authoritative_models(self, source, ct_id, pm1, pm2):
+    def test_sweep_scoped_to_authoritative_models(
+        self, source, ct_id, pm1, pm2, credit_targets
+    ):
         """Sweep only affects entities in the authoritative scope."""
         from apps.catalog.claims import build_relationship_claim
 
+        pat_pk = credit_targets["persons"]["pat-lawlor"].pk
+        design_pk = credit_targets["roles"]["design"].pk
+
         key, val = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+            "credit", {"person": pat_pk, "role": design_pk}
         )
         # Create credit claims on both machines.
         for pm in (pm1, pm2):

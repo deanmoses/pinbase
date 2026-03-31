@@ -13,7 +13,6 @@ from apps.catalog.api.edit_claims import (
     get_field_constraints,
     normalize_credit_inputs,
     normalize_gameplay_feature_inputs,
-    normalize_slug_set_inputs,
     plan_scalar_field_claims,
     validate_scalar_fields,
 )
@@ -101,7 +100,7 @@ class TestGetFieldConstraints:
         assert result["year"] == {"min": 1800, "max": 2100, "step": 1}
         assert result["month"] == {"min": 1, "max": 12, "step": 1}
         assert result["flipper_count"] == {"min": 0, "max": 20, "step": 1}
-        assert result["player_count"] == {"min": 1, "max": 8, "step": 1}
+        assert result["player_count"] == {"min": 1, "max": 20, "step": 1}
         assert result["ipdb_rating"] == {"min": 0, "max": 10, "step": 0.01}
         assert result["ipdb_id"] == {"min": 1, "step": 1}
 
@@ -168,23 +167,21 @@ class TestNormalizeGameplayFeatureInputs:
 class TestBuildGameplayFeatureClaimSpecs:
     def test_builds_add_and_remove_specs(self):
         specs = build_gameplay_feature_claim_specs(
-            current={"loops": None},
-            desired={"ramps": 2},
+            current={10: None},
+            desired={20: 2},
         )
         by_key = {spec.claim_key: spec for spec in specs}
         assert set(by_key) == {
-            "gameplay_feature|gameplay_feature:loops",
-            "gameplay_feature|gameplay_feature:ramps",
+            "gameplay_feature|gameplay_feature:10",
+            "gameplay_feature|gameplay_feature:20",
         }
-        assert by_key["gameplay_feature|gameplay_feature:ramps"].value["count"] == 2
-        assert (
-            by_key["gameplay_feature|gameplay_feature:loops"].value["exists"] is False
-        )
+        assert by_key["gameplay_feature|gameplay_feature:20"].value["count"] == 2
+        assert by_key["gameplay_feature|gameplay_feature:10"].value["exists"] is False
 
     def test_skips_unchanged_specs(self):
         specs = build_gameplay_feature_claim_specs(
-            current={"ramps": 2},
-            desired={"ramps": 2},
+            current={20: 2},
+            desired={20: 2},
         )
         assert specs == []
 
@@ -227,63 +224,43 @@ class TestNormalizeCreditInputs:
 class TestBuildCreditClaimSpecs:
     def test_builds_add_and_remove_specs(self):
         specs = build_credit_claim_specs(
-            current={("greg-freres", "art")},
-            desired={("pat-lawlor", "design")},
+            current={(100, 200)},
+            desired={(101, 201)},
         )
         by_key = {spec.claim_key: spec for spec in specs}
         assert set(by_key) == {
-            "credit|person:greg-freres|role:art",
-            "credit|person:pat-lawlor|role:design",
+            "credit|person:100|role:200",
+            "credit|person:101|role:201",
         }
-        assert by_key["credit|person:greg-freres|role:art"].value["exists"] is False
+        assert by_key["credit|person:100|role:200"].value["exists"] is False
 
     def test_skips_unchanged_specs(self):
         specs = build_credit_claim_specs(
-            current={("pat-lawlor", "design")},
-            desired={("pat-lawlor", "design")},
+            current={(101, 201)},
+            desired={(101, 201)},
         )
         assert specs == []
-
-
-class TestNormalizeSlugSetInputs:
-    def test_rejects_unknown_slug(self):
-        with pytest.raises(HttpError, match="Unknown theme slugs"):
-            normalize_slug_set_inputs(
-                {"medieval", "fantasy"},
-                available_slugs={"medieval"},
-                error_label="theme",
-            )
-
-    def test_accepts_known_slugs(self):
-        desired = normalize_slug_set_inputs(
-            {"medieval", "fantasy"},
-            available_slugs={"medieval", "fantasy"},
-            error_label="theme",
-        )
-        assert desired == {"medieval", "fantasy"}
 
 
 class TestBuildM2MClaimSpecs:
     def test_builds_add_and_remove_specs(self):
         specs = build_m2m_claim_specs(
-            current={"medieval"},
-            desired={"fantasy"},
+            current={1},
+            desired={2},
             claim_field_name="theme",
-            slug_key="theme_slug",
         )
         by_key = {spec.claim_key: spec for spec in specs}
         assert set(by_key) == {
-            "theme|theme:fantasy",
-            "theme|theme:medieval",
+            "theme|theme:2",
+            "theme|theme:1",
         }
-        assert by_key["theme|theme:medieval"].value["exists"] is False
+        assert by_key["theme|theme:1"].value["exists"] is False
 
     def test_skips_unchanged_specs(self):
         specs = build_m2m_claim_specs(
-            current={"medieval"},
-            desired={"medieval"},
+            current={1},
+            desired={1},
             claim_field_name="theme",
-            slug_key="theme_slug",
         )
         assert specs == []
 

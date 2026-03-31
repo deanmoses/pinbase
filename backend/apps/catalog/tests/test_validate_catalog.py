@@ -4,6 +4,7 @@ import json
 
 import pytest
 from django.core.management import call_command
+from django.db import connection
 
 from apps.catalog.models import (
     CreditRole,
@@ -15,6 +16,23 @@ from apps.catalog.models import (
     Title,
 )
 from apps.provenance.models import Claim, Source
+
+
+def _create_with_empty_name(model_class, **kwargs):
+    """Create a model row with name='' using raw SQL to bypass CHECK constraints.
+
+    The validate_catalog command is supposed to detect these bad rows, so the
+    tests must be able to create them even though the DB now forbids it via ORM.
+    """
+    obj = model_class(**kwargs, name="PLACEHOLDER")
+    obj.save()
+    table = model_class._meta.db_table
+    with connection.cursor() as cur:
+        cur.execute("PRAGMA ignore_check_constraints = ON")
+        cur.execute(f"UPDATE {table} SET name = '' WHERE id = %s", [obj.pk])
+        cur.execute("PRAGMA ignore_check_constraints = OFF")
+    obj.refresh_from_db()
+    return obj
 
 
 @pytest.fixture(autouse=True)
@@ -76,21 +94,21 @@ class TestValidateCatalogClean:
 
 class TestNamelessEntities:
     def test_nameless_model_is_error(self, db, capsys):
-        MachineModel.objects.create(name="", slug="empty-name")
+        _create_with_empty_name(MachineModel, slug="empty-name")
         with pytest.raises(SystemExit, match="1"):
             call_command("validate_catalog")
         captured = capsys.readouterr()
         assert "have no name" in captured.out
 
     def test_nameless_title_is_error(self, db, capsys):
-        Title.objects.create(name="", slug="empty-title", opdb_id="G0000")
+        _create_with_empty_name(Title, slug="empty-title", opdb_id="G0000")
         with pytest.raises(SystemExit, match="1"):
             call_command("validate_catalog")
         captured = capsys.readouterr()
         assert "title(s) have no name" in captured.out
 
     def test_nameless_person_is_error(self, db, capsys):
-        Person.objects.create(name="", slug="empty-person")
+        _create_with_empty_name(Person, slug="empty-person")
         with pytest.raises(SystemExit, match="1"):
             call_command("validate_catalog")
         captured = capsys.readouterr()
@@ -135,34 +153,34 @@ class TestUnresolvedFKClaims:
 
 class TestUnresolvedCreditClaims:
     def test_missing_person_in_credit_claim(self, db, ipdb, capsys):
-        CreditRole.objects.create(name="Design", slug="design")
+        role = CreditRole.objects.create(name="Design", slug="design")
         pm = MachineModel.objects.create(name="Test", slug="test-model")
         from apps.catalog.claims import build_relationship_claim
 
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": "ghost-person", "role": "design"}
+            "credit", {"person": 99999, "role": role.pk}
         )
         Claim.objects.assert_claim(
             pm, "credit", value, source=ipdb, claim_key=claim_key
         )
         call_command("validate_catalog")
         captured = capsys.readouterr()
-        assert "missing person slugs" in captured.out
+        assert "missing person PKs" in captured.out
 
     def test_missing_role_in_credit_claim(self, db, ipdb, capsys):
-        Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
+        person = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
         pm = MachineModel.objects.create(name="Test", slug="test-model")
         from apps.catalog.claims import build_relationship_claim
 
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "ghost-role"}
+            "credit", {"person": person.pk, "role": 99999}
         )
         Claim.objects.assert_claim(
             pm, "credit", value, source=ipdb, claim_key=claim_key
         )
         call_command("validate_catalog")
         captured = capsys.readouterr()
-        assert "missing role slugs" in captured.out
+        assert "missing role PKs" in captured.out
 
 
 class TestUncuratedThemes:

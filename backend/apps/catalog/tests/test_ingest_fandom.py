@@ -30,12 +30,16 @@ MANUFACTURERS_SAMPLE = f"{FIXTURES}/fandom_manufacturers_sample.json"
 @pytest.fixture
 def _seed_db(db, credit_roles):
     """Pre-seed the DB with machines and persons for matching."""
-    addams = MachineModel.objects.create(name="The Addams Family", year=1992)
-    medieval = MachineModel.objects.create(name="Medieval Madness", year=1997)
+    addams = MachineModel.objects.create(
+        name="The Addams Family", slug="the-addams-family", year=1992
+    )
+    medieval = MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
 
-    pat = Person.objects.create(name="Pat Lawlor")
-    john_y = Person.objects.create(name="John Youssi")
-    brian = Person.objects.create(name="Brian Eddy")
+    pat = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
+    john_y = Person.objects.create(name="John Youssi", slug="john-youssi")
+    brian = Person.objects.create(name="Brian Eddy", slug="brian-eddy")
 
     # Greg Freres is in the fixture for Medieval Madness but NOT in the DB.
 
@@ -287,8 +291,10 @@ class TestParseGamePages:
 @pytest.fixture
 def _seed_persons_db(db, credit_roles):
     """Seed DB for person ingestion tests."""
-    addams = MachineModel.objects.create(name="The Addams Family", year=1992)
-    pat = Person.objects.create(name="Pat Lawlor")
+    addams = MachineModel.objects.create(
+        name="The Addams Family", slug="the-addams-family", year=1992
+    )
+    pat = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
     role = CreditRole.objects.get(slug="design")
     Credit.objects.create(model=addams, person=pat, role=role)
     return {"addams": addams, "pat": pat}
@@ -374,7 +380,9 @@ class TestIngestFandomPersons:
 @pytest.fixture
 def _seed_manufacturers_db(db):
     """Seed DB for manufacturer ingestion tests."""
-    williams = Manufacturer.objects.create(name="Williams Electronics")
+    williams = Manufacturer.objects.create(
+        name="Williams Electronics", slug="williams-electronics"
+    )
     return {"williams": williams}
 
 

@@ -39,7 +39,7 @@ def source_b():
 class TestIsEnabledResolveSingle:
     def test_disabled_source_excluded_from_resolution(self, source_a):
         """Claims from a disabled source should not participate in resolution."""
-        mfr = Manufacturer.objects.create(name="", slug="test-mfr")
+        mfr = Manufacturer.objects.create(name="Test Mfr", slug="test-mfr")
         Claim.objects.assert_claim(mfr, "name", "From Disabled", source=source_a)
 
         source_a.is_enabled = False
@@ -47,11 +47,11 @@ class TestIsEnabledResolveSingle:
 
         resolve_entity(mfr)
         mfr.refresh_from_db()
-        assert mfr.name == ""
+        assert mfr.name == "Test Mfr"
 
     def test_disabled_source_fallback_to_enabled(self, source_a, source_b):
         """When the higher-priority source is disabled, the lower-priority one wins."""
-        mfr = Manufacturer.objects.create(name="", slug="test-mfr")
+        mfr = Manufacturer.objects.create(name="Test Mfr", slug="test-mfr")
         Claim.objects.assert_claim(mfr, "name", "Low Priority", source=source_a)
         Claim.objects.assert_claim(mfr, "name", "High Priority", source=source_b)
 
@@ -71,10 +71,12 @@ class TestIsEnabledResolveSingle:
 
 @pytest.mark.django_db
 class TestIsEnabledResolveBulk:
-    def test_disabled_source_excluded_from_bulk_resolution(self, source_a):
+    def test_disabled_source_excluded_from_bulk_resolution(self, source_a, source_b):
         """Bulk resolution should skip claims from disabled sources."""
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1")
-        Claim.objects.assert_claim(t, "name", "From Disabled", source=source_a)
+        t = Title.objects.create(opdb_id="G1", name="Test Title", slug="t1")
+        # Name claim from source_b (stays enabled) so name satisfies constraint.
+        Claim.objects.assert_claim(t, "name", "Test Title", source=source_b)
+        Claim.objects.assert_claim(t, "description", "From Disabled", source=source_a)
 
         source_a.is_enabled = False
         source_a.save()
@@ -82,11 +84,11 @@ class TestIsEnabledResolveBulk:
         _resolve_bulk(Title, get_claim_fields(Title))
 
         t.refresh_from_db()
-        assert t.name == ""
+        assert t.description == ""  # Disabled source's claim excluded.
 
     def test_bulk_fallback_when_winner_disabled(self, source_a, source_b):
         """Bulk resolution falls back to enabled source when winner is disabled."""
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1")
+        t = Title.objects.create(opdb_id="G1", name="Test Title", slug="t1")
         Claim.objects.assert_claim(t, "name", "Low Priority", source=source_a)
         Claim.objects.assert_claim(t, "name", "High Priority", source=source_b)
 
@@ -108,7 +110,7 @@ class TestIsEnabledUserClaims:
         User = get_user_model()
         user = User.objects.create_user(username="testuser", password="test")
 
-        mfr = Manufacturer.objects.create(name="", slug="test-mfr")
+        mfr = Manufacturer.objects.create(name="Test Mfr", slug="test-mfr")
         Claim.objects.assert_claim(mfr, "name", "User Claim", user=user)
 
         # Disable source_a (irrelevant — the claim is user-owned, not source-owned).
@@ -127,7 +129,7 @@ class TestIsEnabledRelationshipResolution:
         theme = Theme.objects.create(name="Medieval", slug="medieval")
         pm = MachineModel.objects.create(name="Test", slug="test-pm")
 
-        claim_key, value = build_relationship_claim("theme", {"theme_slug": "medieval"})
+        claim_key, value = build_relationship_claim("theme", {"theme": theme.pk})
         Claim.objects.assert_claim(
             pm,
             "theme",
@@ -154,7 +156,7 @@ class TestIsEnabledRelationshipResolution:
         pm = MachineModel.objects.create(name="Test", slug="test-pm")
 
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": "pat-lawlor", "role": "design"}
+            "credit", {"person": person.pk, "role": role.pk}
         )
         Claim.objects.assert_claim(
             pm,
@@ -165,14 +167,14 @@ class TestIsEnabledRelationshipResolution:
         )
 
         # With source enabled, credit should resolve.
-        resolve_all_credits([pm])
+        resolve_all_credits(model_ids={pm.pk})
         assert pm.credits.filter(person=person, role=role).exists()
 
         # Disable source; credit should be removed.
         source_a.is_enabled = False
         source_a.save()
 
-        resolve_all_credits([pm])
+        resolve_all_credits(model_ids={pm.pk})
         assert not pm.credits.filter(person=person, role=role).exists()
 
 
@@ -182,7 +184,7 @@ class TestIsEnabledActivityPrefetch:
         """_claims_prefetch() should not include claims from disabled sources."""
         from apps.catalog.api.helpers import _claims_prefetch
 
-        mfr = Manufacturer.objects.create(name="", slug="test-mfr")
+        mfr = Manufacturer.objects.create(name="Test Mfr", slug="test-mfr")
         Claim.objects.assert_claim(mfr, "name", "From A", source=source_a)
         Claim.objects.assert_claim(mfr, "description", "From B", source=source_b)
 

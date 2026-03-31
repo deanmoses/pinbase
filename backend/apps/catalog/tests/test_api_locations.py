@@ -33,7 +33,7 @@ def _make_location(location_path, name, location_type, parent=None, divisions=No
 
 def _make_mfr_at(name, slug, location):
     """Create a Manufacturer + CorporateEntity linked to the given Location."""
-    mfr = Manufacturer.objects.create(name=name)
+    mfr = Manufacturer.objects.create(name=name, slug=slug)
     entity = CorporateEntity.objects.create(name=name, slug=slug, manufacturer=mfr)
     CorporateEntityLocation.objects.create(corporate_entity=entity, location=location)
     return mfr

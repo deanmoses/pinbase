@@ -6,6 +6,8 @@ from typing import Optional
 
 from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
+
+from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -94,7 +96,11 @@ def list_all_franchises(request):
     """Return every franchise with title count (no pagination)."""
     from ..models import Franchise
 
-    qs = Franchise.objects.annotate(title_count=Count("titles")).order_by("name")
+    qs = (
+        Franchise.objects.active()
+        .annotate(title_count=Count("titles", filter=active_status_q("titles")))
+        .order_by("name")
+    )
     return [
         {
             "name": f.name,
@@ -108,19 +114,25 @@ def list_all_franchises(request):
 def _franchise_titles_qs():
     from ..models import MachineModel, Title
 
-    return Title.objects.annotate(
-        machine_count=Count(
-            "machine_models",
-            filter=Q(machine_models__variant_of__isnull=True),
+    return (
+        Title.objects.active()
+        .annotate(
+            machine_count=Count(
+                "machine_models",
+                filter=Q(machine_models__variant_of__isnull=True)
+                & active_status_q("machine_models"),
+            )
         )
-    ).prefetch_related(
-        "abbreviations",
-        Prefetch(
-            "machine_models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
-            .select_related("corporate_entity__manufacturer")
-            .order_by("year", "name"),
-        ),
+        .prefetch_related(
+            "abbreviations",
+            Prefetch(
+                "machine_models",
+                queryset=MachineModel.objects.active()
+                .filter(variant_of__isnull=True)
+                .select_related("corporate_entity__manufacturer")
+                .order_by("year", "name"),
+            ),
+        )
     )
 
 
@@ -130,7 +142,7 @@ def get_franchise(request, slug: str):
     from ..models import Franchise
 
     franchise = get_object_or_404(
-        Franchise.objects.prefetch_related(
+        Franchise.objects.active().prefetch_related(
             Prefetch("titles", queryset=_franchise_titles_qs()), _claims_prefetch()
         ),
         slug=slug,
@@ -157,13 +169,13 @@ def patch_franchise_claims(request, slug: str, data: ClaimPatchSchema):
     from ..models import Franchise
     from .edit_claims import plan_scalar_field_claims
 
-    franchise = get_object_or_404(Franchise, slug=slug)
-    specs = plan_scalar_field_claims(Franchise, data.fields)
+    franchise = get_object_or_404(Franchise.objects.active(), slug=slug)
+    specs = plan_scalar_field_claims(Franchise, data.fields, entity=franchise)
 
     execute_claims(franchise, specs, user=request.user)
 
     franchise = get_object_or_404(
-        Franchise.objects.prefetch_related(
+        Franchise.objects.active().prefetch_related(
             Prefetch("titles", queryset=_franchise_titles_qs()), _claims_prefetch()
         ),
         slug=franchise.slug,

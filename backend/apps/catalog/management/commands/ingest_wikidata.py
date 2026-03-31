@@ -29,7 +29,7 @@ from apps.catalog.ingestion.wikidata_sparql import (
     parse_wikidata_date,
 )
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
-from apps.catalog.models import MachineModel, Person
+from apps.catalog.models import CreditRole, MachineModel, Person
 from apps.catalog.resolve import (
     resolve_all_credits,
     resolve_all_entities,
@@ -154,6 +154,9 @@ class Command(BaseCommand):
             m.name.lower(): m for m in MachineModel.objects.all()
         }
         ct_machine = ContentType.objects.get_for_model(MachineModel).pk
+        role_slug_to_pk: dict[str, int] = dict(
+            CreditRole.objects.values_list("slug", "pk")
+        )
         credit_claims: list[Claim] = []
         unmatched_machines: set[str] = set()
         matched_machine_ids: set[int] = set()
@@ -165,9 +168,19 @@ class Command(BaseCommand):
                     unmatched_machines.add(credit.work_label)
                     continue
                 matched_machine_ids.add(machine.pk)
+                role_slug = credit.role.strip().lower()
+                role_pk = role_slug_to_pk.get(role_slug)
+                if role_pk is None:
+                    logger.warning(
+                        "Unknown CreditRole slug %r for %s on %s — skipping",
+                        role_slug,
+                        person.name,
+                        machine.name,
+                    )
+                    continue
                 claim_key, value = build_relationship_claim(
                     "credit",
-                    {"person_slug": person.slug, "role": credit.role.strip().lower()},
+                    {"person": person.pk, "role": role_pk},
                 )
                 credit_claims.append(
                     Claim(
@@ -194,7 +207,7 @@ class Command(BaseCommand):
                 f"{credit_stats['swept']} swept"
             )
             # Resolve credit claims into materialized Credit rows.
-            resolve_all_credits([], model_ids=matched_machine_ids)
+            resolve_all_credits(model_ids=matched_machine_ids)
         else:
             self.stdout.write("  Credit claims: 0 (no matches)")
         if unmatched_machines:
@@ -243,6 +256,7 @@ def _collect_person_claims(
                 )
             )
 
+    add("wikidata_id", wp.qid)
     add("name", wp.name)
 
     if wp.description:

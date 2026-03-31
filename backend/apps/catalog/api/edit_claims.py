@@ -25,7 +25,9 @@ class ClaimSpec:
     claim_key: str = ""
 
 
-def plan_scalar_field_claims(model_class, fields: dict) -> list[ClaimSpec]:
+def plan_scalar_field_claims(
+    model_class, fields: dict, *, entity=None
+) -> list[ClaimSpec]:
     """Validate scalar fields and reject empty/no-op field payloads.
 
     Shared by PATCH endpoints that only accept scalar ``fields`` payloads.
@@ -33,7 +35,7 @@ def plan_scalar_field_claims(model_class, fields: dict) -> list[ClaimSpec]:
     if not fields:
         raise HttpError(422, "No changes provided.")
 
-    specs = validate_scalar_fields(model_class, fields)
+    specs = validate_scalar_fields(model_class, fields, entity=entity)
     if not specs:
         raise HttpError(422, "No changes provided.")
     return specs
@@ -87,7 +89,9 @@ def get_field_constraints(model_class) -> dict[str, dict]:
     return constraints
 
 
-def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
+def validate_scalar_fields(
+    model_class, fields: dict, *, entity=None
+) -> list[ClaimSpec]:
     """Validate scalar fields and return ClaimSpecs.
 
     Scalar fields are assertion-based: a spec is created for every field in
@@ -97,8 +101,8 @@ def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
 
     Raises HttpError 422 on unknown fields or invalid markdown.
     """
-    from apps.core.markdown_links import prepare_markdown_claim_value
     from apps.core.models import get_claim_fields
+    from apps.provenance.validation import validate_claim_value
 
     editable = set(get_claim_fields(model_class))
     unknown = set(fields.keys()) - editable
@@ -116,24 +120,15 @@ def validate_scalar_fields(model_class, fields: dict) -> list[ClaimSpec]:
                 raise HttpError(422, f"Field '{field_name}' cannot be cleared.")
             value = ""
         try:
-            value = prepare_markdown_claim_value(field_name, value, model_class)
+            value = validate_claim_value(field_name, value, model_class)
         except ValidationError as exc:
             raise HttpError(422, "; ".join(exc.messages)) from exc
-        # Run all Django field validators (range, URL format, etc.)
-        if value != "" and field.validators:
-            try:
-                typed = field.to_python(value)
-            except (ValueError, ValidationError) as exc:
-                if isinstance(exc, ValidationError):
-                    raise HttpError(422, "; ".join(exc.messages)) from exc
-                raise HttpError(
-                    422, f"Invalid value for '{field_name}': {exc}"
-                ) from exc
-            for validator in field.validators:
-                try:
-                    validator(typed)
-                except ValidationError as exc:
-                    raise HttpError(422, "; ".join(exc.messages)) from exc
+        if getattr(field, "unique", False) and value != "":
+            conflict_qs = model_class.objects.filter(**{field_name: value})
+            if entity is not None and getattr(entity, "pk", None) is not None:
+                conflict_qs = conflict_qs.exclude(pk=entity.pk)
+            if conflict_qs.exists():
+                raise HttpError(422, f"Field '{field_name}' must be unique.")
         specs.append(ClaimSpec(field_name=field_name, value=value))
     return specs
 
@@ -157,12 +152,11 @@ def plan_parent_claims(
     if entity.slug in desired_slugs:
         raise HttpError(422, f"A {model_class.__name__} cannot be its own parent.")
 
-    existing = set(
-        model_class.objects.filter(slug__in=desired_slugs).values_list(
-            "slug", flat=True
-        )
+    # Resolve desired slugs → PKs (also validates existence).
+    slug_to_pk = dict(
+        model_class.objects.filter(slug__in=desired_slugs).values_list("slug", "pk")
     )
-    missing = desired_slugs - existing
+    missing = desired_slugs - slug_to_pk.keys()
     if missing:
         raise HttpError(422, f"Unknown parent slugs: {sorted(missing)}")
 
@@ -192,19 +186,20 @@ def plan_parent_claims(
                 visited.add(current)
                 stack.extend(parent_map.get(current, set()))
 
-    # Diff against current M2M state
-    current_slugs = set(entity.parents.values_list("slug", flat=True))
+    # Diff against current M2M state (by PK).
+    desired_pks = set(slug_to_pk.values())
+    current_pks = set(entity.parents.values_list("pk", flat=True))
     specs: list[ClaimSpec] = []
-    for parent_slug in desired_slugs - current_slugs:
+    for parent_pk in desired_pks - current_pks:
         claim_key, value = build_relationship_claim(
-            claim_field_name, {"parent_slug": parent_slug}
+            claim_field_name, {"parent": parent_pk}
         )
         specs.append(
             ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
         )
-    for parent_slug in current_slugs - desired_slugs:
+    for parent_pk in current_pks - desired_pks:
         claim_key, value = build_relationship_claim(
-            claim_field_name, {"parent_slug": parent_slug}, exists=False
+            claim_field_name, {"parent": parent_pk}, exists=False
         )
         specs.append(
             ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
@@ -268,73 +263,58 @@ def plan_m2m_claims(
     *,
     target_model,
     claim_field_name: str,
-    slug_key: str,
     m2m_attr: str,
 ) -> list[ClaimSpec]:
     """Validate and diff a simple slug-set M2M relationship.
 
-    Works for any MachineModel M2M that is resolved by slug (themes, tags,
-    reward_types).  Unlike ``plan_parent_claims``, no hierarchy or cycle
-    checks are needed.
+    Works for any MachineModel M2M that is resolved by PK (themes, tags,
+    reward_types).  The API receives slugs; this function resolves them to
+    PKs before building claims.  Unlike ``plan_parent_claims``, no hierarchy
+    or cycle checks are needed.
 
     Raises HttpError 422 on unknown slugs.
     """
     if desired_slugs:
-        existing = set(
+        slug_to_pk = dict(
             target_model.objects.filter(slug__in=desired_slugs).values_list(
-                "slug", flat=True
+                "slug", "pk"
             )
         )
-        desired = normalize_slug_set_inputs(
-            desired_slugs,
-            available_slugs=existing,
-            error_label=claim_field_name,
-        )
-    else:
-        desired = normalize_slug_set_inputs(desired_slugs, error_label=claim_field_name)
-
-    current_slugs = {obj.slug for obj in getattr(entity, m2m_attr).all()}
-    return build_m2m_claim_specs(
-        current=current_slugs,
-        desired=desired,
-        claim_field_name=claim_field_name,
-        slug_key=slug_key,
-    )
-
-
-def normalize_slug_set_inputs(
-    desired_slugs: set[str],
-    *,
-    available_slugs: set[str] | None = None,
-    error_label: str,
-) -> set[str]:
-    """Validate a slug-set relationship input against optional available slugs."""
-    if available_slugs is not None:
-        missing = desired_slugs - available_slugs
+        missing = desired_slugs - slug_to_pk.keys()
         if missing:
-            raise HttpError(422, f"Unknown {error_label} slugs: {sorted(missing)}")
-    return desired_slugs
+            raise HttpError(422, f"Unknown {claim_field_name} slugs: {sorted(missing)}")
+        desired_pks = set(slug_to_pk.values())
+    else:
+        desired_pks = set()
+
+    current_pks = set(getattr(entity, m2m_attr).values_list("pk", flat=True))
+    return build_m2m_claim_specs(
+        current=current_pks,
+        desired=desired_pks,
+        claim_field_name=claim_field_name,
+    )
 
 
 def build_m2m_claim_specs(
     *,
-    current: set[str],
-    desired: set[str],
+    current: set[int],
+    desired: set[int],
     claim_field_name: str,
-    slug_key: str,
 ) -> list[ClaimSpec]:
-    """Build diff-based ClaimSpecs for simple slug-set M2M relationships."""
+    """Build diff-based ClaimSpecs for simple PK-set M2M relationships."""
     from apps.catalog.claims import build_relationship_claim
 
     specs: list[ClaimSpec] = []
-    for slug in desired - current:
-        claim_key, value = build_relationship_claim(claim_field_name, {slug_key: slug})
+    for pk in desired - current:
+        claim_key, value = build_relationship_claim(
+            claim_field_name, {claim_field_name: pk}
+        )
         specs.append(
             ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
         )
-    for slug in current - desired:
+    for pk in current - desired:
         claim_key, value = build_relationship_claim(
-            claim_field_name, {slug_key: slug}, exists=False
+            claim_field_name, {claim_field_name: pk}, exists=False
         )
         specs.append(
             ClaimSpec(field_name=claim_field_name, value=value, claim_key=claim_key)
@@ -370,17 +350,17 @@ def normalize_gameplay_feature_inputs(
 
 
 def build_gameplay_feature_claim_specs(
-    current: dict[str, int | None],
-    desired: dict[str, int | None],
+    current: dict[int, int | None],
+    desired: dict[int, int | None],
 ) -> list[ClaimSpec]:
     """Build diff-based ClaimSpecs for gameplay feature relationship changes."""
     from apps.catalog.claims import build_relationship_claim
 
     specs: list[ClaimSpec] = []
-    for slug, count in desired.items():
-        if slug not in current or current[slug] != count:
+    for pk, count in desired.items():
+        if pk not in current or current[pk] != count:
             claim_key, value = build_relationship_claim(
-                "gameplay_feature", {"gameplay_feature_slug": slug}
+                "gameplay_feature", {"gameplay_feature": pk}
             )
             value["count"] = count
             specs.append(
@@ -390,9 +370,9 @@ def build_gameplay_feature_claim_specs(
                     claim_key=claim_key,
                 )
             )
-    for slug in current.keys() - desired.keys():
+    for pk in current.keys() - desired.keys():
         claim_key, value = build_relationship_claim(
-            "gameplay_feature", {"gameplay_feature_slug": slug}, exists=False
+            "gameplay_feature", {"gameplay_feature": pk}, exists=False
         )
         specs.append(
             ClaimSpec(
@@ -433,12 +413,22 @@ def plan_gameplay_feature_claims(
     else:
         desired = normalize_gameplay_feature_inputs(raw_desired)
 
-    # Current state from prefetched through-table.
-    current: dict[str, int | None] = {}
-    for row in entity.machinemodelgameplayfeature_set.all():
-        current[row.gameplayfeature.slug] = row.count
+    # Resolve slugs → PKs.
+    slug_to_pk = dict(
+        GameplayFeature.objects.filter(slug__in=desired.keys()).values_list(
+            "slug", "pk"
+        )
+    )
+    desired_by_pk: dict[int, int | None] = {
+        slug_to_pk[slug]: count for slug, count in desired.items()
+    }
 
-    return build_gameplay_feature_claim_specs(current, desired)
+    # Current state from prefetched through-table (by PK).
+    current_by_pk: dict[int, int | None] = {}
+    for row in entity.machinemodelgameplayfeature_set.all():
+        current_by_pk[row.gameplayfeature_id] = row.count
+
+    return build_gameplay_feature_claim_specs(current_by_pk, desired_by_pk)
 
 
 def plan_abbreviation_claims(
@@ -515,12 +505,30 @@ def plan_credit_claims(
     else:
         desired = normalize_credit_inputs(raw_desired)
 
-    # Current state from prefetched credits.
-    current: set[tuple[str, str]] = set()
-    for credit in entity.credits.all():
-        current.add((credit.person.slug, credit.role.slug))
+    # Resolve slugs → PKs for claim building.
+    if desired:
+        person_slug_to_pk = dict(
+            Person.objects.filter(slug__in={p for p, _ in desired}).values_list(
+                "slug", "pk"
+            )
+        )
+        role_slug_to_pk = dict(
+            CreditRole.objects.filter(slug__in={r for _, r in desired}).values_list(
+                "slug", "pk"
+            )
+        )
+        desired_pks: set[tuple[int, int]] = {
+            (person_slug_to_pk[p], role_slug_to_pk[r]) for p, r in desired
+        }
+    else:
+        desired_pks = set()
 
-    return build_credit_claim_specs(current, desired)
+    # Current state from prefetched credits (by PK).
+    current_pks: set[tuple[int, int]] = set()
+    for credit in entity.credits.all():
+        current_pks.add((credit.person_id, credit.role_id))
+
+    return build_credit_claim_specs(current_pks, desired_pks)
 
 
 def normalize_credit_inputs(
@@ -558,21 +566,21 @@ def normalize_credit_inputs(
 
 
 def build_credit_claim_specs(
-    current: set[tuple[str, str]],
-    desired: set[tuple[str, str]],
+    current: set[tuple[int, int]],
+    desired: set[tuple[int, int]],
 ) -> list[ClaimSpec]:
     """Build diff-based ClaimSpecs for credit relationship changes."""
     from apps.catalog.claims import build_relationship_claim
 
     specs: list[ClaimSpec] = []
-    for person_slug, role in desired - current:
+    for person_pk, role_pk in desired - current:
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": person_slug, "role": role}
+            "credit", {"person": person_pk, "role": role_pk}
         )
         specs.append(ClaimSpec(field_name="credit", value=value, claim_key=claim_key))
-    for person_slug, role in current - desired:
+    for person_pk, role_pk in current - desired:
         claim_key, value = build_relationship_claim(
-            "credit", {"person_slug": person_slug, "role": role}, exists=False
+            "credit", {"person": person_pk, "role": role_pk}, exists=False
         )
         specs.append(ClaimSpec(field_name="credit", value=value, claim_key=claim_key))
     return specs
@@ -637,6 +645,8 @@ def execute_claims(
             for resolver in resolvers or []:
                 resolver()
             resolve_fn(entity)
+    except ValidationError as exc:
+        raise HttpError(422, "; ".join(exc.messages)) from exc
     except IntegrityError as exc:
         raise HttpError(422, f"Unique constraint violation: {exc}") from exc
 

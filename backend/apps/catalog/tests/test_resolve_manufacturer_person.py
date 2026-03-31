@@ -21,12 +21,12 @@ def editorial(db):
 
 @pytest.fixture
 def mfr(db):
-    return Manufacturer.objects.create(name="Placeholder Mfr")
+    return Manufacturer.objects.create(name="Placeholder Mfr", slug="placeholder-mfr")
 
 
 @pytest.fixture
 def person(db):
-    return Person.objects.create(name="Placeholder Person")
+    return Person.objects.create(name="Placeholder Person", slug="placeholder-person")
 
 
 class TestResolveManufacturer:
@@ -91,6 +91,7 @@ class TestResolvePerson:
         assert resolved.description == "Designer of TAF."
 
     def test_higher_priority_wins(self, person, ipdb, editorial):
+        Claim.objects.assert_claim(person, "name", "Pat Lawlor", source=ipdb)
         Claim.objects.assert_claim(person, "description", "Short bio.", source=ipdb)
         Claim.objects.assert_claim(
             person, "description", "Better bio.", source=editorial
@@ -99,11 +100,13 @@ class TestResolvePerson:
         resolved = resolve_entity(person)
         assert resolved.description == "Better bio."
 
-    def test_no_claims_resets_to_defaults(self, person):
+    def test_no_claims_resets_to_defaults(self, person, ipdb):
         """Claims are the sole source of truth: a field with no active claim is blanked."""
         person.description = "Something"
         person.save()
 
+        # Name claim required to satisfy the non-blank constraint.
+        Claim.objects.assert_claim(person, "name", "Placeholder Person", source=ipdb)
         resolved = resolve_entity(person)
         assert resolved.description == ""
 

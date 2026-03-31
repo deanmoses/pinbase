@@ -44,6 +44,7 @@ const titleWithVariants = {
 describe('titleToFormState', () => {
 	it('loads current title values into editable form state', () => {
 		expect(titleToFormState(multiModelTitle)).toEqual({
+			slug: 'medieval-madness',
 			name: 'Medieval Madness',
 			description: 'Castle bashers.',
 			franchiseSlug: 'castle-games',
@@ -56,6 +57,7 @@ describe('buildTitlePatchBody', () => {
 	it('builds the expected PATCH payload for fields, abbreviations, and note', () => {
 		const body = buildTitlePatchBody(
 			{
+				slug: 'medieval-madness-remastered',
 				name: 'Medieval Madness Remastered',
 				description: 'Updated title copy',
 				franchiseSlug: '',
@@ -67,6 +69,7 @@ describe('buildTitlePatchBody', () => {
 
 		expect(body).toEqual({
 			fields: {
+				slug: 'medieval-madness-remastered',
 				name: 'Medieval Madness Remastered',
 				description: 'Updated title copy',
 				franchise: null

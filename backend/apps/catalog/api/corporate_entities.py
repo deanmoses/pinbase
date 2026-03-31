@@ -6,6 +6,8 @@ from typing import Optional
 
 from django.db.models import Count, F, Prefetch, Q
 from django.shortcuts import get_object_or_404
+
+from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -71,21 +73,26 @@ class CorporateEntityDetailSchema(Schema):
 def _detail_qs():
     from ..models import CorporateEntity, CorporateEntityLocation, MachineModel
 
-    return CorporateEntity.objects.select_related("manufacturer").prefetch_related(
-        "aliases",
-        Prefetch(
-            "locations",
-            queryset=CorporateEntityLocation.objects.select_related(
-                "location__parent__parent__parent"
+    return (
+        CorporateEntity.objects.active()
+        .select_related("manufacturer")
+        .prefetch_related(
+            "aliases",
+            Prefetch(
+                "locations",
+                queryset=CorporateEntityLocation.objects.select_related(
+                    "location__parent__parent__parent"
+                ),
             ),
-        ),
-        Prefetch(
-            "models",
-            queryset=MachineModel.objects.filter(variant_of__isnull=True)
-            .select_related("technology_generation", "title")
-            .order_by(F("year").desc(nulls_last=True), "name"),
-        ),
-        _claims_prefetch(),
+            Prefetch(
+                "models",
+                queryset=MachineModel.objects.active()
+                .filter(variant_of__isnull=True)
+                .select_related("technology_generation", "title")
+                .order_by(F("year").desc(nulls_last=True), "name"),
+            ),
+            _claims_prefetch(),
+        )
     )
 
 
@@ -119,11 +126,12 @@ def list_corporate_entities(request):
     from ..models import CorporateEntity, CorporateEntityLocation
 
     qs = (
-        CorporateEntity.objects.select_related("manufacturer")
+        CorporateEntity.objects.active()
+        .select_related("manufacturer")
         .annotate(
             model_count=Count(
                 "models",
-                filter=Q(models__variant_of__isnull=True),
+                filter=Q(models__variant_of__isnull=True) & active_status_q("models"),
             )
         )
         .prefetch_related(
@@ -176,9 +184,9 @@ def patch_corporate_entity_claims(
     if not data.fields and data.aliases is None:
         raise HttpError(422, "No changes provided.")
 
-    ce = get_object_or_404(CorporateEntity, slug=slug)
+    ce = get_object_or_404(CorporateEntity.objects.active(), slug=slug)
 
-    specs = validate_scalar_fields(CorporateEntity, data.fields)
+    specs = validate_scalar_fields(CorporateEntity, data.fields, entity=ce)
 
     resolvers = []
     if data.aliases is not None:

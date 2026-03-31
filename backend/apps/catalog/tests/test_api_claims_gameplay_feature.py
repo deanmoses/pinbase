@@ -65,7 +65,7 @@ class TestPatchGameplayFeatureValidation:
 
     def test_unknown_field_returns_422(self, client, user, feature):
         client.force_login(user)
-        resp = _patch(client, feature.slug, {"fields": {"slug": "bad"}})
+        resp = _patch(client, feature.slug, {"fields": {"nonexistent_field": "bad"}})
         assert resp.status_code == 422
 
     def test_nonexistent_slug_returns_404(self, client, user):

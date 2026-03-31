@@ -21,8 +21,12 @@ def low_priority_source(db):
 
 
 @pytest.fixture
-def pm(db):
-    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+def pm(db, _bootstrap_source):
+    pm = MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
+    Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=_bootstrap_source)
+    return pm
 
 
 @pytest.mark.django_db
@@ -112,9 +116,38 @@ class TestPatchClaimsPersistence:
         assert pm.year == 2001
         assert pm.name == "Updated Name"
 
+    def test_slug_can_be_changed(self, client, user, pm):
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"slug": "medieval-madness-remastered"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "medieval-madness-remastered"
+
+        pm.refresh_from_db()
+        assert pm.slug == "medieval-madness-remastered"
+        assert client.get(f"/api/models/{pm.slug}").status_code == 200
+        assert client.get("/api/models/medieval-madness").status_code == 404
+
+    def test_duplicate_slug_returns_422(self, client, user, pm):
+        MachineModel.objects.create(name="Other Game", slug="other-game")
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"fields": {"slug": "other-game"}}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
+
     def test_user_claim_beats_lower_priority_source(
         self, client, user, pm, low_priority_source
     ):
+        Claim.objects.assert_claim(
+            pm, "name", "Medieval Madness", source=low_priority_source
+        )
         Claim.objects.assert_claim(pm, "year", 1997, source=low_priority_source)
         resolve_model(pm)
         pm.refresh_from_db()
@@ -140,6 +173,9 @@ class TestUserClaimResolution:
     def test_user_claim_wins_over_lower_priority_source(
         self, user, pm, low_priority_source
     ):
+        Claim.objects.assert_claim(
+            pm, "name", "Medieval Madness", source=low_priority_source
+        )
         Claim.objects.assert_claim(pm, "year", 1990, source=low_priority_source)
         Claim.objects.assert_claim(pm, "year", 2000, user=user)  # priority 10000 > 10
 
@@ -150,6 +186,7 @@ class TestUserClaimResolution:
         high_source = Source.objects.create(
             name="HighPri", source_type="editorial", priority=50000
         )
+        Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=high_source)
         Claim.objects.assert_claim(pm, "year", 1990, source=high_source)
         Claim.objects.assert_claim(
             pm, "year", 2000, user=user

@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
@@ -55,6 +57,7 @@ from apps.catalog.resolve import (
     resolve_all_gameplay_features,
     resolve_all_location_aliases,
     resolve_all_reward_types,
+    resolve_all_series_titles,
     resolve_all_tags,
     resolve_all_themes,
     resolve_all_title_abbreviations,
@@ -251,18 +254,27 @@ class Command(BaseCommand):
             )
             self._ai_desc_sources[model_class] = src
 
-        self._ingest_locations()
-        self._ingest_taxonomy()
-        self._ingest_themes()
-        self._ingest_gameplay_features()
-        self._sync_reward_type_aliases()
-        self._ingest_manufacturers()
-        self._ingest_corporate_entities()
-        self._ingest_systems()
-        self._ingest_people()
-        self._ingest_series()
-        self._ingest_titles()
-        self._ingest_models()
+        # Description claims contain wikilinks like [[manufacturer:williams]]
+        # that are converted to [[manufacturer:id:42]] during validation.
+        # Defer them until all entities exist so the lookups succeed.
+        self._deferred_desc_claims: list[tuple[type, Claim]] = []
+
+        for phase in [
+            self._ingest_locations,
+            self._ingest_taxonomy,
+            self._ingest_themes,
+            self._ingest_gameplay_features,
+            self._sync_reward_type_aliases,
+            self._ingest_manufacturers,
+            self._ingest_corporate_entities,
+            self._ingest_systems,
+            self._ingest_people,
+            self._ingest_series,
+            self._ingest_titles,
+            self._ingest_models,
+            self._flush_deferred_descriptions,
+        ]:
+            self._run_timed(phase)
 
         self.stdout.write(self.style.SUCCESS("Pinbase ingestion complete."))
 
@@ -270,17 +282,26 @@ class Command(BaseCommand):
     # Helpers
     # ------------------------------------------------------------------
 
+    def _run_timed(self, phase):
+        """Run a phase function and print elapsed time."""
+        start = time.monotonic()
+        phase()
+        elapsed = time.monotonic() - start
+        if elapsed >= 1:
+            self.stdout.write(f"  ({elapsed:.0f}s)")
+
     def _assert_claims_split_descriptions(
         self,
         model_class: type,
         pending_claims: list[Claim],
         **kwargs,
     ) -> dict[str, int]:
-        """Assert claims, routing description claims to the AI description source.
+        """Assert claims, deferring description claims for later.
 
-        Non-description claims go to self.pinbase_source.
-        Description claims go to the per-entity AI description source.
-        Returns combined stats from both bulk_assert_claims calls.
+        Non-description claims go to self.pinbase_source immediately.
+        Description claims are stashed in ``_deferred_desc_claims`` and
+        flushed at the end of the pipeline (after all entities exist)
+        so that wikilink validation can resolve cross-references.
         """
         desc_claims = [c for c in pending_claims if c.field_name == "description"]
         other_claims = [c for c in pending_claims if c.field_name != "description"]
@@ -301,14 +322,38 @@ class Command(BaseCommand):
                 stats[k] += s[k]
 
         if desc_claims:
+            self._deferred_desc_claims.extend((model_class, c) for c in desc_claims)
+
+        return stats
+
+    def _flush_deferred_descriptions(self):
+        """Assert all deferred description claims now that every entity exists."""
+        if not self._deferred_desc_claims:
+            return
+
+        # Group by model class so each batch goes to the right AI source.
+        by_model: dict[type, list[Claim]] = {}
+        for model_class, claim in self._deferred_desc_claims:
+            by_model.setdefault(model_class, []).append(claim)
+
+        total_created = 0
+        total_unchanged = 0
+        for model_class, claims in by_model.items():
             ai_source = self._ai_desc_sources.get(model_class)
             if ai_source is None:
                 ai_source = self.pinbase_source
-            s = Claim.objects.bulk_assert_claims(ai_source, desc_claims)
-            for k in stats:
-                stats[k] += s[k]
+            s = Claim.objects.bulk_assert_claims(ai_source, claims)
+            total_created += s["created"]
+            total_unchanged += s["unchanged"]
 
-        return stats
+            # Re-resolve affected entities so descriptions land on the objects.
+            obj_ids = {c.object_id for c in claims}
+            resolve_all_entities(model_class, object_ids=obj_ids)
+
+        self.stdout.write(
+            f"  Deferred descriptions: {total_created} created, "
+            f"{total_unchanged} unchanged"
+        )
 
     def _assert_alias_claims(
         self,
@@ -412,20 +457,13 @@ class Command(BaseCommand):
 
         for obj, entry in zip(objs, entries_sorted):
             pending_claims.append(
-                Claim(
-                    content_type_id=ct.pk,
-                    object_id=obj.pk,
-                    field_name="name",
-                    value=entry["name"],
-                )
+                Claim.for_object(obj, field_name="slug", value=entry["slug"])
             )
             pending_claims.append(
-                Claim(
-                    content_type_id=ct.pk,
-                    object_id=obj.pk,
-                    field_name="location_type",
-                    value=entry["type"],
-                )
+                Claim.for_object(obj, field_name="name", value=entry["name"])
+            )
+            pending_claims.append(
+                Claim.for_object(obj, field_name="location_type", value=entry["type"])
             )
             if entry.get("code"):
                 pending_claims.append(
@@ -495,8 +533,6 @@ class Command(BaseCommand):
             if not data:
                 continue
 
-            ct = ContentType.objects.get_for_model(model_class)
-
             # Resolve parent FK lookup if needed.
             parent_lookup = {}
             if parent_config:
@@ -557,30 +593,29 @@ class Command(BaseCommand):
             pending_claims: list[Claim] = []
             for obj, entry in zip(objs, entries_used):
                 pending_claims.append(
-                    Claim(
-                        content_type_id=ct.pk,
-                        object_id=obj.pk,
-                        field_name="name",
-                        value=obj.name,
-                    )
+                    Claim.for_object(obj, field_name="slug", value=obj.slug)
+                )
+                pending_claims.append(
+                    Claim.for_object(obj, field_name="name", value=obj.name)
                 )
                 if has_display_order:
                     pending_claims.append(
-                        Claim(
-                            content_type_id=ct.pk,
-                            object_id=obj.pk,
-                            field_name="display_order",
-                            value=obj.display_order,
+                        Claim.for_object(
+                            obj, field_name="display_order", value=obj.display_order
+                        )
+                    )
+                if parent_config:
+                    fk_field, _, json_fk_key = parent_config
+                    pending_claims.append(
+                        Claim.for_object(
+                            obj, field_name=fk_field, value=entry[json_fk_key]
                         )
                     )
                 description = entry.get("description", "")
                 if description:
                     pending_claims.append(
-                        Claim(
-                            content_type_id=ct.pk,
-                            object_id=obj.pk,
-                            field_name="description",
-                            value=description,
+                        Claim.for_object(
+                            obj, field_name="description", value=description
                         )
                     )
 
@@ -620,6 +655,9 @@ class Command(BaseCommand):
         # --- Entity claims ---
         pending_claims: list[Claim] = []
         for obj, entry in zip(objs, entries):
+            pending_claims.append(
+                Claim.for_object(obj, field_name="slug", value=obj.slug)
+            )
             pending_claims.append(
                 Claim(
                     content_type_id=ct.pk,
@@ -666,7 +704,7 @@ class Command(BaseCommand):
                     )
                     continue
                 claim_key, value = build_relationship_claim(
-                    "theme_parent", {"parent_slug": parent.slug}
+                    "theme_parent", {"parent": parent.pk}
                 )
                 parent_claims.append(
                     Claim(
@@ -736,6 +774,9 @@ class Command(BaseCommand):
         pending_claims: list[Claim] = []
         for obj, entry in zip(objs, entries):
             pending_claims.append(
+                Claim.for_object(obj, field_name="slug", value=obj.slug)
+            )
+            pending_claims.append(
                 Claim(
                     content_type_id=ct.pk,
                     object_id=obj.pk,
@@ -778,7 +819,8 @@ class Command(BaseCommand):
                         f"(referenced by {entry['slug']!r})"
                     )
                 claim_key, value = build_relationship_claim(
-                    "gameplay_feature_parent", {"parent_slug": parent_slug}
+                    "gameplay_feature_parent",
+                    {"parent": features_by_slug[parent_slug].pk},
                 )
                 parent_claims.append(
                     Claim(
@@ -859,7 +901,6 @@ class Command(BaseCommand):
             return
 
         source = self.editorial_source
-        ct_id = ContentType.objects.get_for_model(Manufacturer).pk
         existing_slugs = set(Manufacturer.objects.values_list("slug", flat=True))
 
         objs = [
@@ -886,22 +927,23 @@ class Command(BaseCommand):
         pending_claims: list[Claim] = []
         for obj, entry in zip(objs, entries):
             pending_claims.append(
-                Claim(
-                    content_type_id=ct_id,
-                    object_id=obj.pk,
-                    field_name="name",
-                    value=obj.name,
-                )
+                Claim.for_object(obj, field_name="slug", value=obj.slug)
             )
+            pending_claims.append(
+                Claim.for_object(obj, field_name="name", value=obj.name)
+            )
+            if obj.opdb_manufacturer_id is not None:
+                pending_claims.append(
+                    Claim.for_object(
+                        obj,
+                        field_name="opdb_manufacturer_id",
+                        value=obj.opdb_manufacturer_id,
+                    )
+                )
             description = entry.get("description", "")
             if description:
                 pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=obj.pk,
-                        field_name="description",
-                        value=description,
-                    )
+                    Claim.for_object(obj, field_name="description", value=description)
                 )
 
         if pending_claims:
@@ -1001,30 +1043,31 @@ class Command(BaseCommand):
         pending_claims: list[Claim] = []
         for obj in objs:
             pending_claims.append(
-                Claim(
-                    content_type_id=ct_id,
-                    object_id=obj.pk,
-                    field_name="name",
-                    value=obj.name,
+                Claim.for_object(obj, field_name="slug", value=obj.slug)
+            )
+            pending_claims.append(
+                Claim.for_object(obj, field_name="name", value=obj.name)
+            )
+            pending_claims.append(
+                Claim.for_object(
+                    obj, field_name="manufacturer", value=obj.manufacturer.slug
                 )
             )
+            if obj.ipdb_manufacturer_id is not None:
+                pending_claims.append(
+                    Claim.for_object(
+                        obj,
+                        field_name="ipdb_manufacturer_id",
+                        value=obj.ipdb_manufacturer_id,
+                    )
+                )
             if obj.year_start is not None:
                 pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=obj.pk,
-                        field_name="year_start",
-                        value=obj.year_start,
-                    )
+                    Claim.for_object(obj, field_name="year_start", value=obj.year_start)
                 )
             if obj.year_end is not None:
                 pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=obj.pk,
-                        field_name="year_end",
-                        value=obj.year_end,
-                    )
+                    Claim.for_object(obj, field_name="year_end", value=obj.year_end)
                 )
 
         if pending_claims:
@@ -1067,7 +1110,7 @@ class Command(BaseCommand):
             hq_path = _resolve_ce_location_path(entry, loc_by_path)
             if hq_path:
                 claim_key, value = build_relationship_claim(
-                    "location", {"location_path": hq_path}
+                    "location", {"location": loc_by_path[hq_path].pk}
                 )
                 location_claims.append(
                     Claim(
@@ -1104,7 +1147,6 @@ class Command(BaseCommand):
         if not entries:
             return
 
-        ct_id = ContentType.objects.get_for_model(System).pk
         mfr_by_slug = {m.slug: m for m in Manufacturer.objects.all()}
         subgen_by_slug = {t.slug: t for t in TechnologySubgeneration.objects.all()}
         existing_slugs = set(System.objects.values_list("slug", flat=True))
@@ -1146,17 +1188,29 @@ class Command(BaseCommand):
 
         pending_claims: list[Claim] = []
         for obj, entry in zip(objs, entries):
+            pending_claims.append(
+                Claim.for_object(obj, field_name="slug", value=obj.slug)
+            )
             for field in ("name", "description"):
                 value = entry.get(field, "")
                 if value:
                     pending_claims.append(
-                        Claim(
-                            content_type_id=ct_id,
-                            object_id=obj.pk,
-                            field_name=field,
-                            value=value,
-                        )
+                        Claim.for_object(obj, field_name=field, value=value)
                     )
+            mfr_slug = entry.get("manufacturer_slug")
+            if mfr_slug:
+                pending_claims.append(
+                    Claim.for_object(obj, field_name="manufacturer", value=mfr_slug)
+                )
+            subgen_slug = entry.get("technology_subgeneration_slug")
+            if subgen_slug:
+                pending_claims.append(
+                    Claim.for_object(
+                        obj,
+                        field_name="technology_subgeneration",
+                        value=subgen_slug,
+                    )
+                )
 
         if pending_claims:
             stats = self._assert_claims_split_descriptions(System, pending_claims)
@@ -1233,6 +1287,9 @@ class Command(BaseCommand):
             person = persons_by_slug.get(entry["slug"])
             if not person:
                 continue
+            pending_claims.append(
+                Claim.for_object(person, field_name="slug", value=person.slug)
+            )
             for field in ("name", "description"):
                 value = entry.get(field, "")
                 if value:
@@ -1304,6 +1361,9 @@ class Command(BaseCommand):
         # Assert claims.
         pending_claims: list[Claim] = []
         for obj, entry in zip(objs, series_entries):
+            pending_claims.append(
+                Claim.for_object(obj, field_name="slug", value=obj.slug)
+            )
             for field in ("name", "description"):
                 value = entry.get(field, "")
                 if value:
@@ -1367,8 +1427,10 @@ class Command(BaseCommand):
         if not entries:
             return
 
-        ct_id = ContentType.objects.get_for_model(Title).pk
+        with transaction.atomic():
+            self._ingest_titles_body(entries)
 
+    def _ingest_titles_body(self, entries):
         titles_by_opdb_id = {t.opdb_id: t for t in Title.objects.all()}
         titles_by_slug = {t.slug: t for t in Title.objects.all()}
         existing_slugs: set[str] = set(Title.objects.values_list("slug", flat=True))
@@ -1406,12 +1468,11 @@ class Command(BaseCommand):
         titles_by_opdb_id = {t.opdb_id: t for t in Title.objects.all()}
         titles_by_slug = {t.slug: t for t in Title.objects.all()}
 
-        membership_set = slug_set = skipped = 0
-        pending_claims: list[Claim] = []
+        # Pass 2 (collect): find each title, detect transforms — no claim building yet.
+        collected: list[tuple[Title, dict]] = []
         pending_slugs: dict[int, str] = {}
         pending_fandom_updates: list[Title] = []
-        series_memberships: dict[Series, list[Title]] = defaultdict(list)
-        touched_ids: set[int] = set()
+        skipped = 0
 
         for entry in entries:
             opdb_group_id = entry.get("opdb_group_id")
@@ -1426,103 +1487,23 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            # Slug override (direct write, not claim-controlled).
+            # Slug override — direct write, not yet claim-controlled (see A1).
             if slug and title.slug != slug:
                 pending_slugs[title.pk] = slug
 
-            # Fandom page ID (direct write, batched below).
+            # Fandom page ID — direct write, not yet claim-controlled (see A1).
             fandom_page_id = entry.get("fandom_page_id")
             if fandom_page_id and title.fandom_page_id != fandom_page_id:
                 title.fandom_page_id = fandom_page_id
                 pending_fandom_updates.append(title)
 
-            # Name claim.
-            name = entry.get("name")
-            if name:
-                touched_ids.add(title.pk)
-                pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=title.pk,
-                        field_name="name",
-                        value=name,
-                    )
-                )
+            collected.append((title, entry))
 
-            # Description claim.
-            description = entry.get("description")
-            if description:
-                touched_ids.add(title.pk)
-                pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=title.pk,
-                        field_name="description",
-                        value=description,
-                    )
-                )
-
-            # Franchise claim.
-            franchise_slug = entry.get("franchise_slug")
-            if franchise_slug:
-                franchise = franchises_by_slug.get(franchise_slug)
-                if franchise is None:
-                    logger.warning(
-                        "Franchise slug %r not found — skipping", franchise_slug
-                    )
-                else:
-                    touched_ids.add(title.pk)
-                    pending_claims.append(
-                        Claim(
-                            content_type_id=ct_id,
-                            object_id=title.pk,
-                            field_name="franchise",
-                            value=franchise_slug,
-                        )
-                    )
-
-            # Abbreviation claims.
-            for abbr in entry.get("abbreviations", []):
-                claim_key, value = build_relationship_claim(
-                    "abbreviation", {"value": abbr}
-                )
-                touched_ids.add(title.pk)
-                pending_claims.append(
-                    Claim(
-                        content_type_id=ct_id,
-                        object_id=title.pk,
-                        field_name="abbreviation",
-                        claim_key=claim_key,
-                        value=value,
-                    )
-                )
-
-            # Series membership (M2M, not claim-controlled).
-            series_slug = entry.get("series_slug")
-            if series_slug:
-                series = series_by_slug.get(series_slug)
-                if series is None:
-                    logger.warning("Series slug %r not found — skipping", series_slug)
-                else:
-                    series_memberships[series].append(title)
-                    membership_set += 1
-
-        # Assert claims.
-        claim_stats: dict = {}
-        if pending_claims:
-            claim_stats = self._assert_claims_split_descriptions(Title, pending_claims)
-
-        # Resolve touched titles.
-        if touched_ids:
-            resolve_all_entities(
-                Title,
-                object_ids=touched_ids,
-            )
-            resolve_all_title_abbreviations(
-                list(Title.objects.all()), title_ids=touched_ids
-            )
-
-        # Two-pass slug rename.
+        # Apply slug renames before building claims so claim values always
+        # reference the final post-rename slug.  safe_slugs contains only
+        # renames that were actually applied (conflicts are skipped).
+        slug_set = 0
+        safe_slugs: dict[int, str] = {}
         if pending_slugs:
             pks_being_renamed = set(pending_slugs.keys())
             desired_slugs = set(pending_slugs.values())
@@ -1555,9 +1536,124 @@ class Command(BaseCommand):
         if pending_fandom_updates:
             Title.objects.bulk_update(pending_fandom_updates, ["fandom_page_id"])
 
-        # Batch M2M adds per series.
-        for series, titles in series_memberships.items():
-            series.titles.add(*titles)
+        # Pass 3 (assert): build and assert all claims against stable post-rename state.
+        membership_set = 0
+        pending_claims: list[Claim] = []
+        series_title_claims: dict[int, list[Claim]] = defaultdict(list)
+        touched_ids: set[int] = set()
+
+        for title, entry in collected:
+            # final_slug is the slug that now exists in the DB for this title.
+            final_slug = safe_slugs.get(title.pk, title.slug)
+
+            touched_ids.add(title.pk)
+            pending_claims.append(
+                Claim.for_object(title, field_name="slug", value=final_slug)
+            )
+
+            opdb_id = entry.get("opdb_group_id")
+            if opdb_id:
+                pending_claims.append(
+                    Claim.for_object(title, field_name="opdb_id", value=opdb_id)
+                )
+
+            fandom_page_id = entry.get("fandom_page_id")
+            if fandom_page_id:
+                touched_ids.add(title.pk)
+                pending_claims.append(
+                    Claim.for_object(
+                        title, field_name="fandom_page_id", value=fandom_page_id
+                    )
+                )
+
+            name = entry.get("name")
+            if name:
+                touched_ids.add(title.pk)
+                pending_claims.append(
+                    Claim.for_object(title, field_name="name", value=name)
+                )
+
+            description = entry.get("description")
+            if description:
+                touched_ids.add(title.pk)
+                pending_claims.append(
+                    Claim.for_object(title, field_name="description", value=description)
+                )
+
+            franchise_slug = entry.get("franchise_slug")
+            if franchise_slug:
+                franchise = franchises_by_slug.get(franchise_slug)
+                if franchise is None:
+                    logger.warning(
+                        "Franchise slug %r not found — skipping", franchise_slug
+                    )
+                else:
+                    touched_ids.add(title.pk)
+                    pending_claims.append(
+                        Claim.for_object(
+                            title, field_name="franchise", value=franchise_slug
+                        )
+                    )
+
+            for abbr in entry.get("abbreviations", []):
+                claim_key, value = build_relationship_claim(
+                    "abbreviation", {"value": abbr}
+                )
+                touched_ids.add(title.pk)
+                pending_claims.append(
+                    Claim.for_object(
+                        title,
+                        field_name="abbreviation",
+                        claim_key=claim_key,
+                        value=value,
+                    )
+                )
+
+            series_slug = entry.get("series_slug")
+            if series_slug:
+                series = series_by_slug.get(series_slug)
+                if series is None:
+                    logger.warning("Series slug %r not found — skipping", series_slug)
+                else:
+                    claim_key, value = build_relationship_claim(
+                        "series_title", {"title": title.pk}
+                    )
+                    series_title_claims[series.pk].append(
+                        Claim.for_object(
+                            series,
+                            field_name="series_title",
+                            claim_key=claim_key,
+                            value=value,
+                        )
+                    )
+                    membership_set += 1
+
+        # Assert title claims.
+        claim_stats: dict = {}
+        if pending_claims:
+            claim_stats = self._assert_claims_split_descriptions(Title, pending_claims)
+
+        # Resolve touched titles.
+        if touched_ids:
+            resolve_all_entities(Title, object_ids=touched_ids)
+            resolve_all_title_abbreviations(model_ids=touched_ids)
+
+        # Assert series_title claims and resolve.
+        # Scope covers ALL series in the DB (series_by_slug is fetched from
+        # Series.objects.all()), not just those referenced in this file.  This
+        # is intentional: a series with no titles in the current export must
+        # still have its previous claims swept so stale memberships are retracted.
+        all_series_pks = {s.pk for s in series_by_slug.values()}
+        if all_series_pks:
+            all_series_claims = [c for cs in series_title_claims.values() for c in cs]
+            scope = make_authoritative_scope(Series, all_series_pks)
+            Claim.objects.bulk_assert_claims(
+                self.pinbase_source,
+                all_series_claims,
+                sweep_field="series_title",
+                authoritative_scope=scope,
+            )
+            resolve_all_series_titles(model_ids=all_series_pks)
 
         self.stdout.write(
             f"  Titles: {titles_created} created, {membership_set} series memberships, "
@@ -1717,6 +1813,14 @@ class Command(BaseCommand):
                 + "\n".join(f"  {s}" for s in bad_reward_type_slugs)
             )
 
+        # Build slug→PK lookup dicts for relationship claims.
+        person_slug_to_pk = dict(Person.objects.values_list("slug", "pk"))
+        role_slug_to_pk = dict(CreditRole.objects.values_list("slug", "pk"))
+        tag_slug_to_pk = dict(Tag.objects.values_list("slug", "pk"))
+        theme_slug_to_pk = dict(Theme.objects.values_list("slug", "pk"))
+        feature_slug_to_pk = dict(GameplayFeature.objects.values_list("slug", "pk"))
+        rt_slug_to_pk = dict(RewardType.objects.values_list("slug", "pk"))
+
         # Pass 2: assert scalar + relationship claims.
         pending_claims: list[Claim] = []
         credit_claims: list[Claim] = []
@@ -1736,6 +1840,10 @@ class Command(BaseCommand):
             matched += 1
             matched_pks.add(mm.pk)
 
+            pending_claims.append(
+                Claim.for_object(mm, field_name="slug", value=mm.slug)
+            )
+
             for claim_field, json_key in self.MODEL_CLAIM_FIELDS.items():
                 value = entry.get(json_key)
                 if value is not None and value != "":
@@ -1752,9 +1860,11 @@ class Command(BaseCommand):
             for ref in entry.get("credit_refs") or []:
                 person_slug = ref.get("person_slug")
                 role = _normalize_credit_role(ref.get("role", ""))
-                if person_slug and role:
+                person_pk = person_slug_to_pk.get(person_slug) if person_slug else None
+                role_pk = role_slug_to_pk.get(role) if role else None
+                if person_pk and role_pk:
                     claim_key, value = build_relationship_claim(
-                        "credit", {"person_slug": person_slug, "role": role}
+                        "credit", {"person": person_pk, "role": role_pk}
                     )
                     credit_claims.append(
                         Claim(
@@ -1768,9 +1878,10 @@ class Command(BaseCommand):
 
             # Tag relationship claims.
             for tag_slug in entry.get("tag_slugs") or []:
-                claim_key, value = build_relationship_claim(
-                    "tag", {"tag_slug": tag_slug}
-                )
+                tag_pk = tag_slug_to_pk.get(tag_slug)
+                if tag_pk is None:
+                    continue
+                claim_key, value = build_relationship_claim("tag", {"tag": tag_pk})
                 tag_claims.append(
                     Claim(
                         content_type_id=ct_id,
@@ -1783,8 +1894,11 @@ class Command(BaseCommand):
 
             # Theme relationship claims.
             for theme_slug in entry.get("theme_slugs") or []:
+                theme_pk = theme_slug_to_pk.get(theme_slug)
+                if theme_pk is None:
+                    continue
                 claim_key, value = build_relationship_claim(
-                    "theme", {"theme_slug": theme_slug}
+                    "theme", {"theme": theme_pk}
                 )
                 theme_claims.append(
                     Claim(
@@ -1798,8 +1912,12 @@ class Command(BaseCommand):
 
             # GameplayFeature relationship claims.
             for feature_slug in entry.get("gameplay_feature_slugs") or []:
+                feature_pk = feature_slug_to_pk.get(feature_slug)
+                if feature_pk is None:
+                    continue
                 claim_key, value = build_relationship_claim(
-                    "gameplay_feature", {"gameplay_feature_slug": feature_slug}
+                    "gameplay_feature",
+                    {"gameplay_feature": feature_pk},
                 )
                 gameplay_feature_claims.append(
                     Claim(
@@ -1813,8 +1931,11 @@ class Command(BaseCommand):
 
             # RewardType relationship claims.
             for rt_slug in entry.get("reward_type_slugs") or []:
+                rt_pk = rt_slug_to_pk.get(rt_slug)
+                if rt_pk is None:
+                    continue
                 claim_key, value = build_relationship_claim(
-                    "reward_type", {"reward_type_slug": rt_slug}
+                    "reward_type", {"reward_type": rt_pk}
                 )
                 reward_type_claims.append(
                     Claim(
@@ -1851,7 +1972,7 @@ class Command(BaseCommand):
                 f"{credit_stats['unchanged']} unchanged, "
                 f"{credit_stats['swept']} swept"
             )
-            resolve_all_credits([], model_ids=matched_pks)
+            resolve_all_credits(model_ids=matched_pks)
 
         if tag_claims or matched_pks:
             tag_stats = Claim.objects.bulk_assert_claims(
@@ -1862,7 +1983,7 @@ class Command(BaseCommand):
                 f"{tag_stats['unchanged']} unchanged, "
                 f"{tag_stats['swept']} swept"
             )
-            resolve_all_tags([], model_ids=matched_pks)
+            resolve_all_tags(model_ids=matched_pks)
 
         if theme_claims or matched_pks:
             theme_stats = Claim.objects.bulk_assert_claims(
@@ -1873,7 +1994,7 @@ class Command(BaseCommand):
                 f"{theme_stats['unchanged']} unchanged, "
                 f"{theme_stats['swept']} swept"
             )
-            resolve_all_themes([], model_ids=matched_pks)
+            resolve_all_themes(model_ids=matched_pks)
 
         if gameplay_feature_claims or matched_pks:
             gf_stats = Claim.objects.bulk_assert_claims(
@@ -1887,7 +2008,7 @@ class Command(BaseCommand):
                 f"{gf_stats['unchanged']} unchanged, "
                 f"{gf_stats['swept']} swept"
             )
-            resolve_all_gameplay_features([], model_ids=matched_pks)
+            resolve_all_gameplay_features(model_ids=matched_pks)
 
         if reward_type_claims or matched_pks:
             rt_stats = Claim.objects.bulk_assert_claims(
@@ -1901,4 +2022,4 @@ class Command(BaseCommand):
                 f"{rt_stats['unchanged']} unchanged, "
                 f"{rt_stats['swept']} swept"
             )
-            resolve_all_reward_types([], model_ids=matched_pks)
+            resolve_all_reward_types(model_ids=matched_pks)

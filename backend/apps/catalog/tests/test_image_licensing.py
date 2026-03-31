@@ -11,13 +11,25 @@ from apps.provenance.models import Claim, Source, SourceFieldLicense
 
 
 @pytest.fixture
-def cc_by_sa():
-    return License.objects.get(slug="cc-by-sa-4-0")
+def cc_by_sa(db):
+    return License.objects.create(
+        name="CC BY-SA 4.0",
+        slug="cc-by-sa-4-0",
+        short_name="CC BY-SA",
+        permissiveness_rank=50,
+        allows_display=True,
+    )
 
 
 @pytest.fixture
-def not_allowed():
-    return License.objects.get(slug="not-allowed")
+def not_allowed(db):
+    return License.objects.create(
+        name="Not Allowed",
+        slug="not-allowed",
+        short_name="Not Allowed",
+        permissiveness_rank=0,
+        allows_display=False,
+    )
 
 
 @pytest.fixture
@@ -46,7 +58,7 @@ def ipdb(not_allowed):
 class TestEffectiveLicenseResolution:
     def test_claim_license_overrides_all(self, opdb, cc_by_sa):
         """Per-claim license takes precedence over source defaults."""
-        title = Title.objects.create(name="", slug="t1")
+        title = Title.objects.create(name="Test Title", slug="t1")
         claim = Claim.objects.assert_claim(title, "description", "text", source=opdb)
         claim.license = cc_by_sa
         claim.save()
@@ -62,7 +74,7 @@ class TestEffectiveLicenseResolution:
         SourceFieldLicense.objects.create(
             source=opdb, field_name="description", license=cc_by_sa
         )
-        title = Title.objects.create(name="", slug="t1")
+        title = Title.objects.create(name="Test Title", slug="t1")
         claim = Claim.objects.assert_claim(title, "description", "text", source=opdb)
         claim.source = opdb
 
@@ -74,7 +86,7 @@ class TestEffectiveLicenseResolution:
 
     def test_source_default_license_fallback(self, ipdb, not_allowed):
         """Falls back to source.default_license when no overrides exist."""
-        title = Title.objects.create(name="", slug="t1")
+        title = Title.objects.create(name="Test Title", slug="t1")
         claim = Claim.objects.assert_claim(title, "description", "text", source=ipdb)
         claim.source = ipdb
 
@@ -83,7 +95,7 @@ class TestEffectiveLicenseResolution:
 
     def test_all_null_returns_none(self, opdb):
         """Returns None when no license is set anywhere."""
-        title = Title.objects.create(name="", slug="t1")
+        title = Title.objects.create(name="Test Title", slug="t1")
         claim = Claim.objects.assert_claim(title, "description", "text", source=opdb)
         claim.source = opdb
 
@@ -99,6 +111,7 @@ class TestImageLicenseDenormalization:
         opdb.save()
 
         pm = MachineModel.objects.create(name="Test", slug="test-pm")
+        Claim.objects.assert_claim(pm, "name", "Test", source=opdb)
         Claim.objects.assert_claim(
             pm,
             "opdb.images",
@@ -115,11 +128,12 @@ class TestImageLicenseDenormalization:
         pm.refresh_from_db()
 
         assert pm.extra_data.get("opdb.images.__license_slug") == "cc-by-sa-4-0"
-        assert pm.extra_data.get("opdb.images.__permissiveness_rank") == 85
+        assert pm.extra_data.get("opdb.images.__permissiveness_rank") == 50
 
     def test_null_license_stores_null_rank(self, opdb):
         """Null license should store null rank in extra_data."""
         pm = MachineModel.objects.create(name="Test", slug="test-pm")
+        Claim.objects.assert_claim(pm, "name", "Test", source=opdb)
         Claim.objects.assert_claim(
             pm,
             "opdb.images",

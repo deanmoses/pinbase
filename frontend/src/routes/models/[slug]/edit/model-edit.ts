@@ -43,6 +43,7 @@ const ALL_FK_FIELDS = [...TAXONOMY_FK_FIELDS, ...HIERARCHY_FK_FIELDS];
 // ---------------------------------------------------------------------------
 
 export type ModelEditView = {
+	slug: string;
 	name: string;
 	description?: { text: string } | null;
 	year?: number | null;
@@ -80,6 +81,7 @@ export type ModelEditView = {
 };
 
 export type ModelFormFields = {
+	slug: string;
 	name: string;
 	description: string;
 	year: string | number;
@@ -143,6 +145,7 @@ export type ModelPatchBody = {
 
 export function modelToFormFields(m: ModelEditView): ModelFormFields {
 	const fields: Record<string, unknown> = {
+		slug: m.slug,
 		name: m.name,
 		description: m.description?.text ?? '',
 		year: m.year ?? '',

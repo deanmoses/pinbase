@@ -13,7 +13,7 @@ from apps.catalog.models import (
     Manufacturer,
     Title,
 )
-from apps.provenance.models import ChangeSet
+from apps.provenance.models import ChangeSet, Claim
 
 User = get_user_model()
 
@@ -24,30 +24,40 @@ def user(db):
 
 
 @pytest.fixture
-def mfr(db):
-    return Manufacturer.objects.create(name="Gottlieb")
+def mfr(db, _bootstrap_source):
+    m = Manufacturer.objects.create(name="Gottlieb", slug="gottlieb")
+    Claim.objects.assert_claim(m, "name", "Gottlieb", source=_bootstrap_source)
+    return m
 
 
 @pytest.fixture
-def entity(db, mfr):
-    return CorporateEntity.objects.create(
+def entity(db, mfr, _bootstrap_source):
+    ce = CorporateEntity.objects.create(
         name="D. Gottlieb & Company",
         slug="d-gottlieb-company",
         manufacturer=mfr,
         year_start=1927,
         year_end=1983,
     )
+    Claim.objects.assert_claim(
+        ce, "name", "D. Gottlieb & Company", source=_bootstrap_source
+    )
+    return ce
 
 
 @pytest.fixture
-def other_entity(db, mfr):
-    return CorporateEntity.objects.create(
+def other_entity(db, mfr, _bootstrap_source):
+    ce = CorporateEntity.objects.create(
         name="Mylstar Electronics",
         slug="mylstar-electronics",
         manufacturer=mfr,
         year_start=1983,
         year_end=1984,
     )
+    Claim.objects.assert_claim(
+        ce, "name", "Mylstar Electronics", source=_bootstrap_source
+    )
+    return ce
 
 
 def _patch(client, slug, body):
@@ -81,14 +91,21 @@ class TestListCorporateEntities:
         assert data[0]["manufacturer"]["slug"] == "gottlieb"
 
     def test_list_includes_model_count(self, client, entity):
-        MachineModel.objects.create(name="Ace High", corporate_entity=entity, year=1957)
+        MachineModel.objects.create(
+            name="Ace High", slug="ace-high", corporate_entity=entity, year=1957
+        )
         resp = client.get("/api/corporate-entities/")
         assert resp.json()[0]["model_count"] == 1
 
     def test_list_excludes_variants_from_count(self, client, entity):
-        base = MachineModel.objects.create(name="Ace High", corporate_entity=entity)
+        base = MachineModel.objects.create(
+            name="Ace High", slug="ace-high", corporate_entity=entity
+        )
         MachineModel.objects.create(
-            name="Ace High LE", corporate_entity=entity, variant_of=base
+            name="Ace High LE",
+            slug="ace-high-le",
+            corporate_entity=entity,
+            variant_of=base,
         )
         resp = client.get("/api/corporate-entities/")
         assert resp.json()[0]["model_count"] == 1
@@ -116,9 +133,13 @@ class TestGetCorporateEntity:
         assert "Gottlieb Co" in resp.json()["aliases"]
 
     def test_detail_includes_titles(self, client, entity):
-        title = Title.objects.create(name="Ace High")
+        title = Title.objects.create(name="Ace High", slug="ace-high")
         MachineModel.objects.create(
-            name="Ace High", corporate_entity=entity, title=title, year=1957
+            name="Ace High",
+            slug="ace-high",
+            corporate_entity=entity,
+            title=title,
+            year=1957,
         )
         resp = client.get(f"/api/corporate-entities/{entity.slug}")
         titles = resp.json()["titles"]
@@ -146,6 +167,33 @@ class TestPatchCorporateEntityScalars:
         resp = _patch(client, entity.slug, {"fields": {"description": "Updated"}})
         assert resp.status_code == 200
         assert resp.json()["description"]["text"] == "Updated"
+
+    def test_slug_can_be_changed(self, client, user, entity):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            entity.slug,
+            {"fields": {"slug": "gottlieb-company"}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slug"] == "gottlieb-company"
+
+        entity.refresh_from_db()
+        assert entity.slug == "gottlieb-company"
+        assert client.get(f"/api/corporate-entities/{entity.slug}").status_code == 200
+        assert (
+            client.get("/api/corporate-entities/d-gottlieb-company").status_code == 404
+        )
+
+    def test_duplicate_slug_returns_422(self, client, user, entity, other_entity):
+        client.force_login(user)
+        resp = _patch(
+            client,
+            entity.slug,
+            {"fields": {"slug": other_entity.slug}},
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.json()["detail"].lower()
 
     def test_edit_years(self, client, user, entity):
         client.force_login(user)

@@ -15,7 +15,7 @@ from apps.catalog.models import (
     Tag,
     Theme,
 )
-from apps.provenance.models import ChangeSet
+from apps.provenance.models import ChangeSet, Claim
 
 User = get_user_model()
 
@@ -26,8 +26,12 @@ def user(db):
 
 
 @pytest.fixture
-def pm(db):
-    return MachineModel.objects.create(name="Medieval Madness", year=1997)
+def pm(db, _bootstrap_source):
+    pm = MachineModel.objects.create(
+        name="Medieval Madness", slug="medieval-madness", year=1997
+    )
+    Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=_bootstrap_source)
+    return pm
 
 
 @pytest.fixture

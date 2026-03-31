@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import client from '$lib/api/client';
+	import { diffScalarFields } from '$lib/edit-helpers';
+	import { getEditRedirectHref } from '$lib/edit-routes';
 	import EditFormShell from '$lib/components/form/EditFormShell.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
 	import TextAreaField from '$lib/components/form/TextAreaField.svelte';
@@ -11,6 +13,7 @@
 
 	function toFormFields(f: typeof franchise) {
 		return {
+			slug: f.slug,
 			name: f.name,
 			description: f.description?.text ?? ''
 		};
@@ -23,14 +26,7 @@
 	let saveError = $state('');
 
 	function getChangedFields(): Record<string, unknown> {
-		const original = toFormFields(franchise);
-		const changed: Record<string, unknown> = {};
-		for (const key of Object.keys(editFields) as (keyof typeof editFields)[]) {
-			if (String(editFields[key]) !== String(original[key])) {
-				changed[key] = editFields[key] === '' ? null : editFields[key];
-			}
-		}
-		return changed;
+		return diffScalarFields(editFields, toFormFields(franchise));
 	}
 
 	async function saveChanges() {
@@ -46,7 +42,12 @@
 		});
 
 		if (updated) {
+			const redirectHref = getEditRedirectHref('franchises', franchise.slug, updated.slug);
 			editFields = toFormFields(updated);
+			if (redirectHref) {
+				await goto(redirectHref, { replaceState: true });
+				return;
+			}
 			await invalidateAll();
 			saveStatus = 'saved';
 			setTimeout(() => (saveStatus = 'idle'), 3000);
@@ -59,5 +60,6 @@
 
 <EditFormShell {saveStatus} {saveError} onsave={saveChanges}>
 	<TextField label="Name" bind:value={editFields.name} />
+	<TextField label="Slug" bind:value={editFields.slug} />
 	<TextAreaField label="Description" bind:value={editFields.description} />
 </EditFormShell>

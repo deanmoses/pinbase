@@ -73,7 +73,11 @@ class TestMojibakeClaimsApiIntegration:
     def pm(self):
         from apps.catalog.models import MachineModel
 
-        return MachineModel.objects.create(name="Medieval Madness", year=1997)
+        return MachineModel.objects.create(
+            name="Medieval Madness",
+            slug="medieval-madness",
+            year=1997,
+        )
 
     def test_rejects_mojibake_name_via_claims_api(self, client, user, pm):
         client.force_login(user)
@@ -110,7 +114,11 @@ class TestMojibakeBulkAssertClaims:
     def pm(self):
         from apps.catalog.models import MachineModel
 
-        return MachineModel.objects.create(name="Medieval Madness", year=1997)
+        return MachineModel.objects.create(
+            name="Medieval Madness",
+            slug="medieval-madness",
+            year=1997,
+        )
 
     def test_rejects_mojibake_name_claim(self, source, pm):
         from apps.provenance.models import Claim
@@ -124,8 +132,10 @@ class TestMojibakeBulkAssertClaims:
                 value="MediÃ©val Madness",
             ),
         ]
-        with pytest.raises(ValidationError, match="mojibake"):
-            Claim.objects.bulk_assert_claims(source, pending)
+        # Batch validation logs and skips mojibake claims instead of raising.
+        result = Claim.objects.bulk_assert_claims(source, pending)
+        assert result["validation_rejected"] == 1
+        assert result["created"] == 0
 
     def test_allows_valid_accented_name_claim(self, source, pm):
         from apps.provenance.models import Claim
@@ -147,7 +157,7 @@ class TestMojibakeBulkAssertClaims:
         names are legitimate lookup values."""
         from apps.catalog.models import Manufacturer
 
-        mfr = Manufacturer.objects.create(name="Williams")
+        mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         ct_id = ContentType.objects.get_for_model(mfr).pk
 
         from apps.provenance.models import Claim

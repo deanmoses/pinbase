@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Now
 
 
 class ChangeSet(models.Model):
@@ -15,28 +16,49 @@ class ChangeSet(models.Model):
     snapshot.
 
     All claims in a ChangeSet must share the same actor (same user or same
-    source). This invariant is enforced by the code that creates ChangeSets,
-    not by database constraints.
+    source). A CheckConstraint enforces that exactly one of user or
+    ingest_run is set; same-actor consistency within those groups is
+    enforced by assert_claim().
     """
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="changesets",
         null=True,
         blank=True,
-        help_text="The user who made this edit. Null for future source-level changesets.",
+        help_text="The user who made this edit. Null for source-level changesets.",
+    )
+    ingest_run = models.ForeignKey(
+        "provenance.IngestRun",
+        on_delete=models.PROTECT,
+        related_name="changesets",
+        null=True,
+        blank=True,
+        help_text="The ingest run that produced this changeset. Null for user edits.",
     )
     note = models.TextField(
         blank=True,
         default="",
         help_text="Optional free-text note explaining the edit.",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_default=Now())
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(user__isnull=False, ingest_run__isnull=True)
+                    | models.Q(user__isnull=True, ingest_run__isnull=False)
+                ),
+                name="provenance_changeset_user_xor_ingest_run",
+            ),
+        ]
 
     def __str__(self) -> str:
-        actor = self.user.username if self.user else "system"
+        if self.user_id:
+            actor = self.user.username
+        else:
+            actor = f"ingest:{self.ingest_run.source.name}"
         return f"ChangeSet #{self.pk} by {actor}"

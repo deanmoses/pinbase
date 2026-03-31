@@ -3,11 +3,20 @@
 import pytest
 from django.contrib.contenttypes.models import ContentType
 
-from apps.catalog.models import Franchise, Manufacturer, System, Tag, Title
+from apps.catalog.models import (
+    Franchise,
+    Manufacturer,
+    MachineModel,
+    System,
+    Tag,
+    Title,
+)
 from apps.catalog.resolve import (
     _resolve_bulk,
     _resolve_single,
     resolve_entity,
+    resolve_machine_models,
+    resolve_model,
 )
 from apps.core.models import RecordReference, get_claim_fields
 from apps.provenance.models import Claim, Source
@@ -30,8 +39,8 @@ def editorial():
 @pytest.mark.django_db
 class TestResolveBulkTitle:
     def test_resolves_multiple_titles(self, opdb):
-        t1 = Title.objects.create(opdb_id="G1", name="", slug="t1")
-        t2 = Title.objects.create(opdb_id="G2", name="", slug="t2")
+        t1 = Title.objects.create(opdb_id="G1", name="Title One", slug="t1")
+        t2 = Title.objects.create(opdb_id="G2", name="Title Two", slug="t2")
 
         Claim.objects.assert_claim(t1, "name", "Godzilla", source=opdb)
         Claim.objects.assert_claim(t2, "name", "Blackout", source=opdb)
@@ -44,7 +53,7 @@ class TestResolveBulkTitle:
         assert t2.name == "Blackout"
 
     def test_winner_by_priority(self, opdb, editorial):
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1")
+        t = Title.objects.create(opdb_id="G1", name="Placeholder", slug="t1")
 
         Claim.objects.assert_claim(t, "name", "Low Priority", source=opdb)
         Claim.objects.assert_claim(t, "name", "High Priority", source=editorial)
@@ -55,20 +64,24 @@ class TestResolveBulkTitle:
         assert t.name == "High Priority"
 
     def test_no_claims_resets_to_default(self, opdb):
-        t = Title.objects.create(opdb_id="G1", name="Stale Name", slug="t1")
+        t = Title.objects.create(
+            opdb_id="G1", name="Stale Name", slug="t1", description="Stale desc"
+        )
 
-        # No claims — resolution should blank the name.
+        # Name claim to satisfy the NOT-blank constraint; no description claim.
+        Claim.objects.assert_claim(t, "name", "Stale Name", source=opdb)
         _resolve_bulk(Title, get_claim_fields(Title))
 
         t.refresh_from_db()
-        assert t.name == ""
+        assert t.description == ""  # Non-constrained field resets to default.
 
     def test_fk_resolves_franchise(self, opdb):
         from apps.catalog.resolve import resolve_all_entities
 
         franchise = Franchise.objects.create(name="Godzilla", slug="godzilla")
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1")
+        t = Title.objects.create(opdb_id="G1", name="Placeholder", slug="t1")
 
+        Claim.objects.assert_claim(t, "name", "Godzilla", source=opdb)
         Claim.objects.assert_claim(t, "franchise", "godzilla", source=opdb)
 
         resolve_all_entities(Title)
@@ -80,9 +93,12 @@ class TestResolveBulkTitle:
         from apps.catalog.resolve import resolve_all_entities
 
         franchise = Franchise.objects.create(name="Godzilla", slug="godzilla")
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1", franchise=franchise)
+        t = Title.objects.create(
+            opdb_id="G1", name="Placeholder", slug="t1", franchise=franchise
+        )
 
-        # No franchise claim — should reset to None.
+        # Name claim but no franchise claim — franchise should reset to None.
+        Claim.objects.assert_claim(t, "name", "Godzilla", source=opdb)
         resolve_all_entities(Title)
 
         t.refresh_from_db()
@@ -90,7 +106,7 @@ class TestResolveBulkTitle:
 
     def test_object_ids_scoping(self, opdb):
         t1 = Title.objects.create(opdb_id="G1", name="Untouched", slug="t1")
-        t2 = Title.objects.create(opdb_id="G2", name="", slug="t2")
+        t2 = Title.objects.create(opdb_id="G2", name="Placeholder", slug="t2")
 
         Claim.objects.assert_claim(t2, "name", "Resolved", source=opdb)
 
@@ -103,7 +119,7 @@ class TestResolveBulkTitle:
         assert t2.name == "Resolved"
 
     def test_updated_at_is_set(self, opdb):
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1")
+        t = Title.objects.create(opdb_id="G1", name="Placeholder", slug="t1")
         old_updated_at = t.updated_at
 
         Claim.objects.assert_claim(t, "name", "New Name", source=opdb)
@@ -140,7 +156,7 @@ class TestResolveBulkManufacturer:
 class TestResolveBulkMarkdownReferences:
     def test_bulk_resolve_syncs_record_references(self, opdb):
         """_resolve_bulk populates RecordReference for markdown link fields."""
-        mfr = Manufacturer.objects.create(name="", slug="williams")
+        mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         system = System.objects.create(name="WPC-95", slug="wpc-95", manufacturer=mfr)
 
         Claim.objects.assert_claim(mfr, "name", "Williams", source=opdb)
@@ -162,7 +178,7 @@ class TestResolveBulkMarkdownReferences:
 
     def test_bulk_resolve_cleans_stale_references(self, opdb):
         """_resolve_bulk removes RecordReference when markdown links are removed."""
-        mfr = Manufacturer.objects.create(name="", slug="williams")
+        mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         system = System.objects.create(name="WPC-95", slug="wpc-95", manufacturer=mfr)
 
         # First resolve with a link
@@ -270,26 +286,114 @@ class TestResolveBulkUniqueFieldSafety:
 
 
 @pytest.mark.django_db
+class TestPreserveNotNullFK:
+    """Non-nullable FK fields must not be reset when no claim exists."""
+
+    @pytest.fixture
+    def subgen_fields(self):
+        """Claim fields including technology_generation (NOT NULL FK).
+
+        Uses explicit field dict rather than get_claim_fields() so these
+        tests verify resolver behavior independent of claims_exempt state.
+        """
+        from apps.catalog.models.taxonomy import TechnologySubgeneration
+
+        fields = get_claim_fields(TechnologySubgeneration)
+        fields["technology_generation"] = "technology_generation"
+        return fields
+
+    def test_bulk_preserves_notnull_fk_without_claim(self, opdb, subgen_fields):
+        from apps.catalog.models.taxonomy import (
+            TechnologyGeneration,
+            TechnologySubgeneration,
+        )
+
+        gen = TechnologyGeneration.objects.create(
+            name="Solid State", slug="solid-state"
+        )
+        subgen = TechnologySubgeneration.objects.create(
+            name="Discrete Logic", slug="discrete-logic", technology_generation=gen
+        )
+
+        # Name claim but no technology_generation claim.
+        Claim.objects.assert_claim(subgen, "name", "Discrete Logic", source=opdb)
+
+        _resolve_bulk(
+            TechnologySubgeneration,
+            subgen_fields,
+            object_ids={subgen.pk},
+        )
+
+        subgen.refresh_from_db()
+        assert subgen.name == "Discrete Logic"
+        assert subgen.technology_generation == gen  # Preserved, not crashed.
+
+    def test_single_preserves_notnull_fk_without_claim(self, opdb, subgen_fields):
+        from apps.catalog.models.taxonomy import (
+            TechnologyGeneration,
+            TechnologySubgeneration,
+        )
+
+        gen = TechnologyGeneration.objects.create(
+            name="Solid State", slug="solid-state"
+        )
+        subgen = TechnologySubgeneration.objects.create(
+            name="Discrete Logic", slug="discrete-logic", technology_generation=gen
+        )
+
+        Claim.objects.assert_claim(subgen, "name", "Discrete Logic", source=opdb)
+
+        _resolve_single(subgen, subgen_fields)
+        subgen.save()
+
+        subgen.refresh_from_db()
+        assert subgen.technology_generation == gen  # Preserved.
+
+    def test_notnull_fk_overwritten_when_claim_exists(self, opdb, subgen_fields):
+        from apps.catalog.models.taxonomy import (
+            TechnologyGeneration,
+            TechnologySubgeneration,
+        )
+
+        gen1 = TechnologyGeneration.objects.create(
+            name="Solid State", slug="solid-state"
+        )
+        gen2 = TechnologyGeneration.objects.create(name="Electromechanical", slug="em")
+        subgen = TechnologySubgeneration.objects.create(
+            name="Discrete Logic", slug="discrete-logic", technology_generation=gen1
+        )
+
+        Claim.objects.assert_claim(subgen, "name", "Discrete Logic", source=opdb)
+        Claim.objects.assert_claim(subgen, "technology_generation", "em", source=opdb)
+
+        _resolve_bulk(
+            TechnologySubgeneration,
+            subgen_fields,
+            object_ids={subgen.pk},
+        )
+
+        subgen.refresh_from_db()
+        assert subgen.technology_generation == gen2  # Overwritten by claim.
+
+
+@pytest.mark.django_db
 class TestResolveBulkTaxonomy:
-    def test_malformed_int_claim_uses_default(self, opdb):
-        """Non-parseable integer on a non-null field should fall back to 0, not None."""
-        tag = Tag.objects.create(name="", slug="test-tag")
+    def test_malformed_int_claim_rejected_at_boundary(self, opdb):
+        """Invalid integer values are now rejected by assert_claim validation."""
+        from django.core.exceptions import ValidationError
+
+        tag = Tag.objects.create(name="Test Tag", slug="test-tag")
 
         Claim.objects.assert_claim(tag, "name", "Test Tag", source=opdb)
-        Claim.objects.assert_claim(tag, "display_order", "abc", source=opdb)
-
-        _resolve_bulk(Tag, get_claim_fields(Tag), object_ids={tag.pk})
-
-        tag.refresh_from_db()
-        assert tag.name == "Test Tag"
-        assert tag.display_order == 0  # default, not None
+        with pytest.raises(ValidationError, match="must be an integer"):
+            Claim.objects.assert_claim(tag, "display_order", "abc", source=opdb)
 
 
 @pytest.mark.django_db
 class TestResolveTitle:
     def test_single_object_wrapper(self, opdb):
         franchise = Franchise.objects.create(name="Godzilla", slug="godzilla")
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1")
+        t = Title.objects.create(opdb_id="G1", name="Placeholder", slug="t1")
 
         Claim.objects.assert_claim(t, "name", "Godzilla", source=opdb)
         Claim.objects.assert_claim(t, "description", "A monster game.", source=opdb)
@@ -303,10 +407,140 @@ class TestResolveTitle:
 
     def test_resets_franchise_when_no_claim(self, opdb):
         franchise = Franchise.objects.create(name="Godzilla", slug="godzilla")
-        t = Title.objects.create(opdb_id="G1", name="", slug="t1", franchise=franchise)
+        t = Title.objects.create(
+            opdb_id="G1", name="Placeholder", slug="t1", franchise=franchise
+        )
 
         # Only a name claim, no franchise.
         Claim.objects.assert_claim(t, "name", "Godzilla", source=opdb)
         result = resolve_entity(t)
 
         assert result.franchise is None
+
+
+@pytest.mark.django_db
+class TestSlugConflictDetection:
+    """Slug conflict detection reverts losers to pre-resolution slugs."""
+
+    @pytest.fixture
+    def title_fields_with_slug(self):
+        """Claim fields including slug (still exempt until Phase 2)."""
+        fields = get_claim_fields(Title)
+        fields["slug"] = "slug"
+        return fields
+
+    def test_bulk_slug_conflict_reverts_loser(self, opdb, title_fields_with_slug):
+        t1 = Title.objects.create(name="First", slug="target-slug")
+        t2 = Title.objects.create(name="Second", slug="original-slug")
+
+        Claim.objects.assert_claim(t1, "name", "First", source=opdb)
+        Claim.objects.assert_claim(t1, "slug", "target-slug", source=opdb)
+        Claim.objects.assert_claim(t2, "name", "Second", source=opdb)
+        # t2 claims the same slug as t1.
+        Claim.objects.assert_claim(t2, "slug", "target-slug", source=opdb)
+
+        _resolve_bulk(Title, title_fields_with_slug)
+
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t1.slug == "target-slug"  # First wins.
+        assert t2.slug == "original-slug"  # Reverted to pre-resolution slug.
+
+    def test_preserver_wins_over_changer(self, opdb, title_fields_with_slug):
+        """When A claims B's existing slug and B has no slug claim, B keeps it."""
+        t1 = Title.objects.create(name="Changer", slug="alpha")
+        t2 = Title.objects.create(name="Preserver", slug="beta")
+
+        Claim.objects.assert_claim(t1, "name", "Changer", source=opdb)
+        # t1 claims t2's slug — t1 is the changer.
+        Claim.objects.assert_claim(t1, "slug", "beta", source=opdb)
+        Claim.objects.assert_claim(t2, "name", "Preserver", source=opdb)
+        # t2 has no slug claim — preserved by preserve_when_unclaimed.
+
+        _resolve_bulk(Title, title_fields_with_slug)
+
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t2.slug == "beta"  # Preserver wins — it had this slug all along.
+        assert t1.slug == "alpha"  # Changer reverts to its original slug.
+
+    def test_no_conflict_when_slugs_differ(self, opdb, title_fields_with_slug):
+        t1 = Title.objects.create(name="First", slug="slug-a")
+        t2 = Title.objects.create(name="Second", slug="slug-b")
+
+        Claim.objects.assert_claim(t1, "name", "First", source=opdb)
+        Claim.objects.assert_claim(t1, "slug", "slug-a", source=opdb)
+        Claim.objects.assert_claim(t2, "name", "Second", source=opdb)
+        Claim.objects.assert_claim(t2, "slug", "slug-b", source=opdb)
+
+        _resolve_bulk(Title, title_fields_with_slug)
+
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t1.slug == "slug-a"
+        assert t2.slug == "slug-b"
+
+    def test_single_object_slug_conflict_reverts(self, opdb):
+        # t1 owns "taken-slug" in the DB.
+        Title.objects.create(name="Owner", slug="taken-slug")
+        t2 = Title.objects.create(name="Challenger", slug="original-slug")
+
+        Claim.objects.assert_claim(t2, "name", "Challenger", source=opdb)
+        Claim.objects.assert_claim(t2, "slug", "taken-slug", source=opdb)
+
+        # Use explicit fields so slug is included (still exempt until Phase 2).
+        fields = get_claim_fields(Title)
+        fields["slug"] = "slug"
+        _resolve_single(t2, fields)
+
+        # resolve_entity would save — we test the in-memory state.
+        # Slug should NOT be "taken-slug" because that conflicts.
+        # resolve_entity handles this; _resolve_single doesn't check DB.
+        # So test via resolve_entity instead.
+        t2 = Title.objects.get(pk=t2.pk)  # re-fetch clean
+        Claim.objects.assert_claim(t2, "name", "Challenger", source=opdb)
+        Claim.objects.assert_claim(t2, "slug", "taken-slug", source=opdb)
+
+        # resolve_entity checks DB for slug conflict and reverts.
+        result = resolve_entity(t2)
+        assert result.slug == "original-slug"  # Reverted.
+
+
+@pytest.mark.django_db
+class TestApplyResolutionPreserve:
+    """_apply_resolution preserves UNIQUE fields when no claim exists."""
+
+    def test_preserves_slug_without_claim(self, opdb):
+        mm = MachineModel.objects.create(name="Test", slug="test-slug")
+        Claim.objects.assert_claim(mm, "name", "Test Model", source=opdb)
+        # No slug claim — slug should be preserved after resolution.
+
+        resolve_model(mm)
+
+        mm.refresh_from_db()
+        assert mm.slug == "test-slug"  # Preserved.
+        assert mm.name == "Test Model"  # Resolved from claim.
+
+    def test_preserves_opdb_id_without_claim(self, opdb):
+        mm = MachineModel.objects.create(name="Test", slug="test-slug", opdb_id="O123")
+        Claim.objects.assert_claim(mm, "name", "Test Model", source=opdb)
+        # No opdb_id claim.
+
+        resolve_model(mm)
+
+        mm.refresh_from_db()
+        assert mm.opdb_id == "O123"  # Preserved.
+
+    def test_bulk_preserves_slug_without_claim(self, opdb):
+        mm1 = MachineModel.objects.create(name="A", slug="a-slug")
+        mm2 = MachineModel.objects.create(name="B", slug="b-slug")
+        Claim.objects.assert_claim(mm1, "name", "Model A", source=opdb)
+        Claim.objects.assert_claim(mm2, "name", "Model B", source=opdb)
+        # No slug claims — both should preserve their slugs.
+
+        resolve_machine_models()
+
+        mm1.refresh_from_db()
+        mm2.refresh_from_db()
+        assert mm1.slug == "a-slug"
+        assert mm2.slug == "b-slug"

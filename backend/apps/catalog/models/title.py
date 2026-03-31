@@ -3,15 +3,28 @@
 from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
+from django.core.validators import MinValueValidator
 from django.db import models
 
-from apps.core.models import Linkable, MarkdownField, TimeStampedModel, unique_slug
+from apps.core.models import (
+    EntityStatusMixin,
+    LinkableModel,
+    MarkdownField,
+    SluggedModel,
+    TimeStampedModel,
+    field_not_blank,
+    nullable_id_not_empty,
+    slug_not_blank,
+    status_valid,
+)
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["Title", "TitleAbbreviation"]
 
+EXTERNAL_ID_MIN = 1
 
-class Title(Linkable, TimeStampedModel):
+
+class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """The canonical identity of a pinball game, independent of edition or variant.
 
     OPDB calls this a "group" in its JSON, but we use "Title" as it is the
@@ -22,14 +35,6 @@ class Title(Linkable, TimeStampedModel):
     """
 
     link_url_pattern = "/titles/{slug}"
-    claims_exempt = frozenset(
-        {
-            "opdb_id",
-            "fandom_page_id",
-            "needs_review",
-            "needs_review_notes",
-        }
-    )
 
     opdb_id = models.CharField(
         max_length=50,
@@ -38,13 +43,14 @@ class Title(Linkable, TimeStampedModel):
         blank=True,
         verbose_name="OPDB group ID",
         help_text='OPDB group ID (e.g., "G5pe4"). Null for titles without an OPDB group.',
+        validators=[validate_no_mojibake],
     )
     name = models.CharField(max_length=300, validators=[validate_no_mojibake])
-    slug = models.SlugField(max_length=300, unique=True, blank=True)
+    slug = models.SlugField(max_length=300, unique=True)
     description = MarkdownField(blank=True)
     franchise = models.ForeignKey(
         "Franchise",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="titles",
         null=True,
         blank=True,
@@ -54,6 +60,7 @@ class Title(Linkable, TimeStampedModel):
         null=True,
         blank=True,
         help_text="Fandom wiki page ID for deep-linking.",
+        validators=[MinValueValidator(EXTERNAL_ID_MIN)],
     )
     needs_review = models.BooleanField(
         default=False,
@@ -62,6 +69,7 @@ class Title(Linkable, TimeStampedModel):
     needs_review_notes = models.TextField(
         blank=True,
         help_text="Context for reviewers about why this title needs attention.",
+        validators=[validate_no_mojibake],
     )
 
     # Reverse access to provenance claims for this title.
@@ -69,14 +77,20 @@ class Title(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            slug_not_blank(),
+            status_valid(),
+            field_not_blank("name"),
+            nullable_id_not_empty("opdb_id"),
+            models.CheckConstraint(
+                condition=models.Q(fandom_page_id__isnull=True)
+                | models.Q(fandom_page_id__gte=EXTERNAL_ID_MIN),
+                name="catalog_title_fandom_page_id_min",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "title")
-        super().save(*args, **kwargs)
 
 
 class TitleAbbreviation(TimeStampedModel):
@@ -93,7 +107,13 @@ class TitleAbbreviation(TimeStampedModel):
 
     class Meta:
         ordering = ["value"]
-        unique_together = [("title", "value")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["title", "value"],
+                name="catalog_titleabbreviation_unique_title_value",
+            ),
+            field_not_blank("value"),
+        ]
 
     def __str__(self) -> str:
         return self.value

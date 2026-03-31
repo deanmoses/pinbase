@@ -5,6 +5,7 @@ from apps.catalog.models import (
     CorporateEntity,
     CorporateEntityLocation,
     CreditRole,
+    DisplayType,
     GameplayFeature,
     Location,
     MachineModel,
@@ -13,7 +14,7 @@ from apps.catalog.models import (
     TechnologyGeneration,
     Theme,
 )
-from apps.provenance.models import Source
+from apps.provenance.models import Claim, Source
 
 SAMPLE_IMAGES = [
     {
@@ -34,18 +35,34 @@ def client():
 
 
 @pytest.fixture
+def _bootstrap_source(db):
+    """Low-priority source for seeding name claims in shared fixtures.
+
+    Priority 1 ensures bootstrap claims never outrank real source or user
+    claims in tests that set up competing claims.
+    """
+    return Source.objects.create(
+        name="Bootstrap", slug="bootstrap", source_type="editorial", priority=1
+    )
+
+
+@pytest.fixture
 def source(db):
     return Source.objects.create(name="IPDB", source_type="database", priority=10)
 
 
 @pytest.fixture
-def manufacturer(db):
-    return Manufacturer.objects.create(name="Williams")
+def manufacturer(db, _bootstrap_source):
+    mfr = Manufacturer.objects.create(name="Williams", slug="williams")
+    Claim.objects.assert_claim(mfr, "name", "Williams", source=_bootstrap_source)
+    return mfr
 
 
 @pytest.fixture
-def stern(db):
-    return Manufacturer.objects.create(name="Stern")
+def stern(db, _bootstrap_source):
+    mfr = Manufacturer.objects.create(name="Stern", slug="stern")
+    Claim.objects.assert_claim(mfr, "name", "Stern", source=_bootstrap_source)
+    return mfr
 
 
 _CREDIT_ROLES = [
@@ -74,8 +91,10 @@ def credit_roles(db):
 
 
 @pytest.fixture
-def person(db):
-    return Person.objects.create(name="Pat Lawlor")
+def person(db, _bootstrap_source):
+    p = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
+    Claim.objects.assert_claim(p, "name", "Pat Lawlor", source=_bootstrap_source)
+    return p
 
 
 @pytest.fixture
@@ -83,32 +102,79 @@ def solid_state(db):
     return TechnologyGeneration.objects.create(name="Solid State", slug="solid-state")
 
 
+_TECHNOLOGY_GENERATIONS = [
+    ("solid-state", "Solid State"),
+    ("electromechanical", "Electromechanical"),
+    ("pure-mechanical", "Pure Mechanical"),
+]
+
+_DISPLAY_TYPES = [
+    ("dot-matrix", "Dot Matrix"),
+    ("lcd", "LCD"),
+    ("score-reels", "Score Reels"),
+    ("alphanumeric", "Alphanumeric"),
+    ("backglass-lights", "Backglass Lights"),
+    ("cga", "CGA"),
+]
+
+
 @pytest.fixture
-def williams_entity(db, manufacturer):
-    return CorporateEntity.objects.create(
+def ingest_taxonomy(db):
+    """Seed TechnologyGeneration and DisplayType rows needed by ingest tests.
+
+    FK claims for technology_generation and display_type are validated at the
+    claim boundary — the target rows must exist or the claims are rejected.
+    """
+    TechnologyGeneration.objects.bulk_create(
+        [TechnologyGeneration(slug=s, name=n) for s, n in _TECHNOLOGY_GENERATIONS],
+        update_conflicts=True,
+        unique_fields=["slug"],
+        update_fields=["name"],
+    )
+    DisplayType.objects.bulk_create(
+        [DisplayType(slug=s, name=n) for s, n in _DISPLAY_TYPES],
+        update_conflicts=True,
+        unique_fields=["slug"],
+        update_fields=["name"],
+    )
+
+
+@pytest.fixture
+def williams_entity(db, manufacturer, _bootstrap_source):
+    ce = CorporateEntity.objects.create(
         name="Williams Electronics",
         slug="williams-electronics",
         manufacturer=manufacturer,
     )
+    Claim.objects.assert_claim(
+        ce, "name", "Williams Electronics", source=_bootstrap_source
+    )
+    return ce
 
 
 @pytest.fixture
-def stern_entity(db, stern):
-    return CorporateEntity.objects.create(
+def stern_entity(db, stern, _bootstrap_source):
+    ce = CorporateEntity.objects.create(
         name="Stern Pinball, Inc.",
         slug="stern-pinball-inc",
         manufacturer=stern,
     )
+    Claim.objects.assert_claim(
+        ce, "name", "Stern Pinball, Inc.", source=_bootstrap_source
+    )
+    return ce
 
 
 @pytest.fixture
-def machine_model(db, williams_entity, solid_state):
+def machine_model(db, williams_entity, solid_state, _bootstrap_source):
     pm = MachineModel.objects.create(
         name="Medieval Madness",
+        slug="medieval-madness",
         corporate_entity=williams_entity,
         year=1997,
         technology_generation=solid_state,
     )
+    Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=_bootstrap_source)
     t = Theme.objects.create(name="Medieval", slug="medieval")
     pm.themes.add(t)
     return pm
@@ -189,10 +255,13 @@ def ipdb_narrative_features(db):
 
 
 @pytest.fixture
-def another_model(db, stern_entity, solid_state):
-    return MachineModel.objects.create(
+def another_model(db, stern_entity, solid_state, _bootstrap_source):
+    pm = MachineModel.objects.create(
         name="The Mandalorian",
+        slug="the-mandalorian",
         corporate_entity=stern_entity,
         year=2021,
         technology_generation=solid_state,
     )
+    Claim.objects.assert_claim(pm, "name", "The Mandalorian", source=_bootstrap_source)
+    return pm

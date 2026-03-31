@@ -6,20 +6,23 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
-from apps.core.validators import validate_no_mojibake
-
 from apps.core.models import (
     AliasBase,
-    Linkable,
+    EntityStatusMixin,
+    LinkableModel,
     MarkdownField,
+    SluggedModel,
     TimeStampedModel,
-    unique_slug,
+    field_not_blank,
+    slug_not_blank,
+    status_valid,
 )
+from apps.core.validators import validate_no_mojibake
 
-__all__ = ["Theme", "ThemeAlias"]
+__all__ = ["Theme", "ThemeAlias", "MachineModelTheme"]
 
 
-class Theme(Linkable, TimeStampedModel):
+class Theme(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
 
     Supports a DAG hierarchy via the ``parents`` M2M (structural, not
@@ -32,7 +35,6 @@ class Theme(Linkable, TimeStampedModel):
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = MarkdownField(blank=True)
     parents = models.ManyToManyField(
         "self",
@@ -46,14 +48,29 @@ class Theme(Linkable, TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = unique_slug(self, self.name, "theme")
-        super().save(*args, **kwargs)
+
+class MachineModelTheme(TimeStampedModel):
+    """Through model for MachineModel ↔ Theme (materialized from relationship claims)."""
+
+    machinemodel = models.ForeignKey("MachineModel", on_delete=models.CASCADE)
+    theme = models.ForeignKey(Theme, on_delete=models.PROTECT)
+
+    class Meta:
+        db_table = "catalog_machinemodel_themes"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["machinemodel", "theme"],
+                name="catalog_machinemodeltheme_unique_pair",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.machinemodel} → {self.theme}"
 
 
 class ThemeAlias(AliasBase):
@@ -63,6 +80,7 @@ class ThemeAlias(AliasBase):
 
     class Meta(AliasBase.Meta):
         constraints = [
+            field_not_blank("value"),
             models.UniqueConstraint(
                 Lower("value"),
                 name="catalog_unique_theme_alias_lower",
