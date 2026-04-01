@@ -160,7 +160,7 @@ Follow-up category sets (guesses, not commitments):
 - `Title`: `logo`, `hero`, `other`
 - Other entity types as needed.
 
-Implementation: a simple `MEDIA_CATEGORIES` dict mapping entity model classes to lists of allowed category strings. Validated at claim assertion time — reject unknown categories immediately, don't let them into the claims table.
+Implementation: a `MEDIA_CATEGORIES` class variable on the `MediaSupported` mixin (in `core/models.py`). Each model sets its own list of allowed category strings (e.g. `MEDIA_CATEGORIES = ["backglass", "playfield", "cabinet", "other"]`). The upload endpoint reads `model_class.MEDIA_CATEGORIES` directly — no separate registry. Validated at upload time (Phase 3) and at claim assertion time (Phase 4) — reject unknown categories immediately, don't let them into the claims table.
 
 ## Upload Flow (Images)
 
@@ -170,12 +170,12 @@ Upload and attach happen in a single request. The user is always uploading _to_ 
 
 ### Flow
 
-1. **Client** POSTs multipart form to `POST /api/media/upload/` with one image file, target entity (content_type + object_id), category, and is_primary flag. When the user selects multiple files, the frontend sends one request per file concurrently.
+1. **Client** POSTs multipart form to `POST /api/media/upload/` with one image file, target entity (`entity_type` + `slug`, e.g. `"machine-model"` + `"eight-ball"`), category, and is_primary flag. When the user selects multiple files, the frontend sends one request per file concurrently.
 2. **Backend** validates the file (type, size, decodability) and the attachment metadata (valid entity, valid category for entity type).
 3. **Backend** processes the image synchronously: generates `thumb` and `display` renditions using Pillow (EXIF transpose, LANCZOS resize, WebP output).
-4. **Backend** uploads all three files (original, thumb, display) to R2 via django-storages.
-5. **Backend** creates `MediaAsset` (status=`ready`) + 3 `MediaRendition` rows + media attachment claim in a single database transaction.
-6. **Resolution** materializes `EntityMedia`.
+4. **Backend** uploads all three files (original, thumb, display) to storage via django-storages.
+5. **Backend** creates `MediaAsset` (status=`ready`) + 3 `MediaRendition` rows in a single database transaction. (Phase 3 stops here; Phase 4 adds claim creation inside this transaction.)
+6. **Resolution** materializes `EntityMedia` (Phase 4).
 7. **Backend** returns the asset UUID, rendition URLs, and attachment metadata.
 
 Steps 1-7 are one synchronous HTTP request. No task queue, no polling, no "pending" state for images.
@@ -281,7 +281,7 @@ Using django-storages with R2's S3-compatible API also gives us:
 
 ### Key Generation
 
-Storage keys are derived by a `build_storage_key()` utility function (built in Phase 3, not on the model) from the asset UUID and rendition type. The storage backend (R2, MinIO, filesystem) stores the file at whatever key Pinbase provides — it has no say in naming. The storage prefix and rendition-to-filename mapping live in the media app's storage module, not on the ORM model.
+Storage keys are derived by a `build_storage_key()` utility function (built in Phase 3, not on the model) from the asset UUID and rendition type. The storage backend stores the file at whatever key Pinbase provides — it has no say in naming. The storage prefix and rendition-to-filename mapping live in the media app's storage module, not on the ORM model.
 
 Format: `catalog-media/{asset_uuid}/{rendition_segment}`
 
@@ -312,7 +312,7 @@ Future video rendition types (follow-up):
 
 - Storage keys are computed at runtime by `build_storage_key()` — nothing stored in the database.
 - Public URL = `settings.MEDIA_PUBLIC_BASE_URL + build_storage_key(...)`.
-- Today: `MEDIA_PUBLIC_BASE_URL` points at the R2 bucket's public origin.
+- Today: `MEDIA_PUBLIC_BASE_URL` points at the storage provider's public origin.
 - Later: point a custom domain (e.g. `media.pinbase.app`) through Cloudflare DNS, which automatically enables the CDN. Change one env var, no database rewrite.
 
 ### Local Development
@@ -471,39 +471,25 @@ Types for media API responses come from the existing OpenAPI-generated `schema.d
 ### Settings
 
 ```python
-# Storage — Cloudflare R2 via S3-compatible API
-STORAGES = {
-    "default": {
+# Storage — S3-compatible file storage provider
+MEDIA_PUBLIC_BASE_URL = os.environ.get("MEDIA_PUBLIC_BASE_URL", "/media/")
+
+if os.environ.get("MEDIA_STORAGE_BUCKET"):
+    # Production: S3-compatible provider (Cloudflare R2, AWS S3, Backblaze B2, etc.)
+    STORAGES["default"] = {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-    },
-    "staticfiles": {
-        # existing WhiteNoise config
-    },
-}
-
-# Cloudflare R2 (S3-compatible)
-AWS_STORAGE_BUCKET_NAME = env("R2_BUCKET_NAME")
-AWS_S3_REGION_NAME = "auto"  # R2 always uses "auto"
-AWS_S3_ENDPOINT_URL = env("R2_ENDPOINT_URL")  # https://<account_id>.r2.cloudflarestorage.com
-AWS_ACCESS_KEY_ID = env("R2_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY")
-
-# Media URL generation
-MEDIA_PUBLIC_BASE_URL = env("MEDIA_PUBLIC_BASE_URL")
-# Production: "https://media.pinbase.app/" (custom domain via Cloudflare CDN)
-# Or R2 public bucket URL until custom domain is set up
-```
-
-For local development with MinIO or filesystem:
-
-```python
-STORAGES = {
-    "default": {
+    }
+    AWS_STORAGE_BUCKET_NAME = os.environ["MEDIA_STORAGE_BUCKET"]
+    AWS_S3_REGION_NAME = os.environ.get("MEDIA_STORAGE_REGION", "auto")
+    AWS_S3_ENDPOINT_URL = os.environ["MEDIA_STORAGE_ENDPOINT"]
+    AWS_ACCESS_KEY_ID = os.environ["MEDIA_STORAGE_ACCESS_KEY"]
+    AWS_SECRET_ACCESS_KEY = os.environ["MEDIA_STORAGE_SECRET_KEY"]
+else:
+    # Local dev: filesystem storage
+    STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-}
-MEDIA_ROOT = BASE_DIR / "media"
-MEDIA_PUBLIC_BASE_URL = "/media/"
+    }
+    MEDIA_ROOT = BASE_DIR / "media"
 ```
 
 ## Implementation Phases
@@ -534,29 +520,35 @@ Pure library code in `backend/apps/media/processing.py` and `constants.py`. Thin
 - `check_codec_support()` returns a dict of codec availability (`heic`, `heif`, `avif`). Phase 3's upload endpoint should call this for pre-flight checks on codec-dependent extensions.
 - pillow-heif is registered in `MediaConfig.ready()` along with an AVIF availability check. Both log warnings at startup if unavailable.
 
-### Phase 3: R2 Storage Config + Upload API + Tests
+### Phase 3: Storage Config + Upload API + Tests — DONE
 
-- django-storages + Cloudflare R2 configuration.
-- `POST /api/media/upload/` endpoint: validates file, processes image, writes to R2, creates MediaAsset + MediaRendition rows + media attachment claim in one request.
-- **Codec pre-flight check**: Before calling `validate_image()`, the upload endpoint checks `check_codec_support()` (from Phase 2's `processing.py`) against the file extension. If the extension requires an unavailable codec (`.heic`/`.heif` without pillow-heif, `.avif` without AVIF codec), return a specific 400 error ("HEIC format is not supported") instead of a generic decode failure.
-- **Storage key extension for converted originals**: When `process_original()` converts the format (e.g., BMP → JPEG), `build_storage_key()` must use `ProcessedImage.format_ext` for the original rendition's stored filename, not the user's `original_filename` extension. The `original_filename` on `MediaAsset` stays as the user's upload name (for display/audit), but the storage path reflects the actual stored format.
-- Rate limiting.
-- Upload API tests: valid/invalid files, storage key verification, rate limit enforcement, atomicity, codec-unavailable error messages.
+Storage infrastructure in `backend/apps/media/storage.py`, upload endpoint in `backend/apps/media/api.py`, S3-compatible storage config in `backend/config/settings.py`. Things later phases should know:
 
-### Phase 4: Claims Namespace + Resolver + Tests
+- The upload endpoint accepts `entity_type` (kebab-case, e.g. `"machine-model"`) + `slug`, not Django ContentType PKs. Entity type resolution strips hyphens and looks up via `ContentType.objects.get(model=...)` — no registry or map. Any model inheriting `MediaSupported` is automatically a valid target.
+- Category validation reads `model_class.MEDIA_CATEGORIES` (a `ClassVar[list[str]]` on the `MediaSupported` mixin in `core/models.py`). Each model declares its own allowed categories. No central registry — adding media categories to a new entity means setting `MEDIA_CATEGORIES` on its class.
+- The endpoint creates `MediaAsset` + 3 `MediaRendition` rows but does **not** create `EntityMedia` or claims. Validated attachment metadata (`entity_type`, `slug`, `category`, `is_primary`) is echoed in the response. Phase 4 adds claim creation inside the upload endpoint's existing DB transaction.
+- `MediaAsset.mime_type` and `MediaAsset.byte_size` both describe the stored original (after format conversion), not the raw upload. For a BMP upload converted to JPEG, `mime_type` = `"image/jpeg"` and `byte_size` = the JPEG size. The raw upload filename is preserved in `MediaAsset.original_filename`.
+- `build_storage_key()` derives paths from `asset.uuid` + `rendition_type`. It verifies the storage backend used the exact key requested (detects silent renames by S3Boto3Storage). Storage keys use sanitized ASCII filenames — the user's original filename is preserved on the asset, not in the storage path.
+- Storage config uses provider-neutral env vars (`MEDIA_STORAGE_BUCKET`, `MEDIA_STORAGE_ENDPOINT`, etc.). Falls back to `FileSystemStorage` when no bucket is configured. Tests use `InMemoryStorage`.
+- Local dev `FileSystemStorage` writes to `MEDIA_ROOT` but Django doesn't serve those files — no media URL route exists yet. Phase 5 adds `static(MEDIA_URL, ...)` URL wiring.
+- Rate limiting is best-effort (file-based cache, per user ID, `MAX_UPLOADS_PER_HOUR`). Only successful uploads consume quota — failed validation doesn't count. Not atomic under concurrent requests; acceptable for an abuse-prevention guardrail.
+
+### Phase 4: Claims Namespace + Resolver + Wire Into Upload + Tests
 
 - `media_attachment` claim namespace registration in `catalog/claims.py`.
 - Resolver support for media attachment claims in `catalog/resolve/`.
 - Primary constraint enforcement in resolution.
-- Machine-model image category registry (`backglass`, `playfield`, `cabinet`, `other`).
+- **Wire claim assertion into the upload endpoint**: Phase 3's `upload_media()` already validates attachment metadata and has `(ct, entity)` in scope from `_resolve_entity()` — Phase 4 can use these directly for claim assertion without re-querying. Add claim creation inside the existing `transaction.atomic()` block so that upload-and-attach is a single atomic request. This restores the guarantee from the Upload Flow section: "creates MediaAsset + MediaRendition rows + media attachment claim in a single database transaction."
+- Resolution materializes `EntityMedia` from the claim.
 - The EntityMedia materialization path must validate `MediaSupported` before creating rows (either call `clean()` or check `issubclass(content_type.model_class(), MediaSupported)` directly). `clean()` does not fire on `objects.create()`, so this must be explicit in the resolution code.
-- Tests: claim assertion, resolution, primary enforcement, category validation, `MediaSupported` enforcement on the materialization path.
+- Tests: claim assertion, resolution, primary enforcement, category validation, `MediaSupported` enforcement on the materialization path, end-to-end upload-creates-claim-creates-EntityMedia.
 
 ### Phase 5: API Response Changes + Tests
 
 - Uploaded-first fallback in entity detail/list APIs (source priority, not a license bypass).
 - Rendition URLs in API responses.
 - Uploaded images go through the same Constance license threshold as everything else.
+- Add local dev media serving: `static(MEDIA_URL, ...)` URL wiring so `FileSystemStorage` files are accessible during development.
 - Tests: uploaded-first fallback, external fallback with license filtering.
 
 ### Phase 6: Frontend Components

@@ -41,6 +41,8 @@ class MachineModel(
     winning claim per field (highest priority source, most recent if tied).
     """
 
+    MEDIA_CATEGORIES = ["backglass", "playfield", "cabinet", "other"]
+
     link_url_pattern = "/models/{slug}"
     link_sort_order = 20
 

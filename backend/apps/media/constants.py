@@ -50,3 +50,6 @@ MAX_IMAGE_DIMENSION = 20000  # prevent memory bombs during processing
 # Upload limits.
 MAX_IMAGE_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 MAX_UPLOADS_PER_HOUR = 60
+
+# Storage key prefix for uploaded media.
+STORAGE_PREFIX = "media"

@@ -47,7 +47,7 @@ Define range bounds and enum values as module-level constants. Reference them fr
 
 ### Storage keys
 
-Store relative paths, never full URLs. The storage prefix (e.g., `catalog-media/`) is enforced in application code, not DB constraints, so the storage location stays configurable without schema changes.
+Store relative paths, never full URLs. The storage prefix (e.g., `media/`) is enforced in application code, not DB constraints, so the storage location stays configurable without schema changes.
 
 ### No regex in CHECK constraints
 

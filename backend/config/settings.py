@@ -110,6 +110,29 @@ STORAGES = {
     },
 }
 
+# ── Media storage (S3-compatible file storage provider) ───────────
+MEDIA_PUBLIC_BASE_URL = os.environ.get("MEDIA_PUBLIC_BASE_URL", "/media/")
+
+if os.environ.get("MEDIA_STORAGE_BUCKET"):
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    }
+    AWS_STORAGE_BUCKET_NAME = os.environ["MEDIA_STORAGE_BUCKET"]
+    AWS_S3_REGION_NAME = os.environ.get("MEDIA_STORAGE_REGION", "auto")
+    AWS_S3_ENDPOINT_URL = os.environ["MEDIA_STORAGE_ENDPOINT"]
+    AWS_ACCESS_KEY_ID = os.environ["MEDIA_STORAGE_ACCESS_KEY"]
+    AWS_SECRET_ACCESS_KEY = os.environ["MEDIA_STORAGE_SECRET_KEY"]
+else:
+    STORAGES["default"] = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    }
+    MEDIA_ROOT = BASE_DIR / "media"
+
+# Allow large image uploads (20MB) to reach our view for proper error
+# messages. FILE_UPLOAD_MAX_MEMORY_SIZE stays at default (2.5MB) — larger
+# files spill to disk temp files, which is fine.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024  # 25 MB
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── Frontend static build (SvelteKit) ──────────────────────────────

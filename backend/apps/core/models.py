@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -335,7 +337,13 @@ class MediaSupported(models.Model):
     Any model that inherits this mixin can have EntityMedia rows pointing
     at it via GenericFK. EntityMedia.clean() rejects content types that
     are not MediaSupported.
+
+    Subclasses should set ``MEDIA_CATEGORIES`` to the list of allowed
+    category strings for that entity type (e.g. ``["backglass", "playfield"]``).
+    An empty list means the entity supports media but has no category vocabulary.
     """
+
+    MEDIA_CATEGORIES: ClassVar[list[str]] = []
 
     class Meta:
         abstract = True
