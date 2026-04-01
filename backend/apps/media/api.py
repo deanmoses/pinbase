@@ -14,7 +14,10 @@ from ninja import File, Form, Router, Schema, UploadedFile
 from ninja.errors import HttpError
 from ninja.security import django_auth
 
+from apps.catalog.claims import build_media_attachment_claim
+from apps.catalog.resolve import resolve_media_attachments
 from apps.core.models import MediaSupported
+from apps.provenance.models import Claim
 from apps.media.constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     MAX_IMAGE_FILE_SIZE,
@@ -122,23 +125,6 @@ def _resolve_entity(entity_type: str, slug: str):
     return ct, entity
 
 
-def _validate_category(
-    entity_type: str, model_class: type, category: str | None
-) -> None:
-    """Validate category against the model's MEDIA_CATEGORIES."""
-    if category is None:
-        return
-    allowed = model_class.MEDIA_CATEGORIES
-    if not allowed:
-        raise HttpError(400, f"No media categories defined for {entity_type}.")
-    if category not in allowed:
-        raise HttpError(
-            400,
-            f"Invalid category '{category}' for {entity_type}. "
-            f"Allowed: {', '.join(allowed)}.",
-        )
-
-
 def _sanitize_stem(stem: str) -> str:
     """Sanitize a filename stem to safe ASCII characters.
 
@@ -200,7 +186,17 @@ def upload_media(
 
     # --- Resolve entity and validate category ---
     ct, entity = _resolve_entity(entity_type, slug)
-    _validate_category(entity_type, ct.model_class(), category)
+    try:
+        # Validate category early (asset_pk=0 is a placeholder — only category
+        # validation runs here; the real claim is built after asset creation).
+        build_media_attachment_claim(
+            entity,
+            0,
+            category=category,
+            is_primary=is_primary,
+        )
+    except ValueError as exc:
+        raise HttpError(400, str(exc))
 
     # --- Validate image ---
     try:
@@ -270,6 +266,25 @@ def upload_media(
                     width=processed.width,
                     height=processed.height,
                 )
+
+            # Assert media attachment claim and resolve.
+            claim_key, claim_value = build_media_attachment_claim(
+                entity,
+                asset.pk,
+                category=category,
+                is_primary=is_primary,
+            )
+            Claim.objects.assert_claim(
+                entity,
+                "media_attachment",
+                claim_value,
+                user=request.user,
+                claim_key=claim_key,
+            )
+            resolve_media_attachments(
+                content_type_id=ct.id,
+                entity_ids={entity.pk},
+            )
     except Exception:
         logger.exception("DB transaction failed, cleaning up storage keys")
         delete_from_storage(uploaded_keys)

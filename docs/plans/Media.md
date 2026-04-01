@@ -349,12 +349,12 @@ APIs return media metadata plus public URLs for ready renditions:
 
 ### Fallback Policy
 
-Uploaded media goes through the same license/display-threshold system as everything else — no special bypass. At upload time, the upload endpoint sets a `License` on the media attachment claim (a new "User upload" license type with `allows_display=True` and a high `permissiveness_rank`). At display time, the existing Constance threshold filters all media uniformly. Uploaded images pass because they have a permissive license claim, not because they're special-cased.
+Uploaded media from `EntityMedia` is always displayed — no license gating. Licensing for user-generated content is deferred until the legal picture is clearer; claims are created with `license=None`. A future UGC license can be added without migration (see Follow-Up 5).
 
-1. Prefer uploaded media from `EntityMedia` over third-party references (source priority, not a license bypass).
-2. If no uploaded media exists for the needed slot, fall back to third-party referenced media from `extra_data` (`opdb.images`, `ipdb.image_urls`). The existing Constance display threshold applies uniformly to both.
+1. Prefer uploaded media from `EntityMedia` (always shown).
+2. If no uploaded media exists for the needed slot, fall back to third-party referenced media from `extra_data` (`opdb.images`, `ipdb.image_urls`). The existing Constance display threshold applies to third-party media only.
 
-The existing `_extract_image_urls()` helper in `catalog/api/helpers.py` handles the fallback and license filtering. Uploaded images participate in the same filtering — they just happen to have license claims that meet the threshold.
+The existing `_extract_image_urls()` helper in `catalog/api/helpers.py` handles the fallback. Phase 5 adds an `if EntityMedia` check before falling through to the license-filtered third-party path.
 
 ### Ordering
 
@@ -533,21 +533,21 @@ Storage infrastructure in `backend/apps/media/storage.py`, upload endpoint in `b
 - Local dev `FileSystemStorage` writes to `MEDIA_ROOT` but Django doesn't serve those files — no media URL route exists yet. Phase 5 adds `static(MEDIA_URL, ...)` URL wiring.
 - Rate limiting is best-effort (file-based cache, per user ID, `MAX_UPLOADS_PER_HOUR`). Only successful uploads consume quota — failed validation doesn't count. Not atomic under concurrent requests; acceptable for an abuse-prevention guardrail.
 
-### Phase 4: Claims Namespace + Resolver + Wire Into Upload + Tests
+### Phase 4: Claims Namespace + Resolver + Wire Into Upload + Tests — DONE
 
-- `media_attachment` claim namespace registration in `catalog/claims.py`.
-- Resolver support for media attachment claims in `catalog/resolve/`.
-- Primary constraint enforcement in resolution.
-- **Wire claim assertion into the upload endpoint**: Phase 3's `upload_media()` already validates attachment metadata and has `(ct, entity)` in scope from `_resolve_entity()` — Phase 4 can use these directly for claim assertion without re-querying. Add claim creation inside the existing `transaction.atomic()` block so that upload-and-attach is a single atomic request. This restores the guarantee from the Upload Flow section: "creates MediaAsset + MediaRendition rows + media attachment claim in a single database transaction."
-- Resolution materializes `EntityMedia` from the claim.
-- The EntityMedia materialization path must validate `MediaSupported` before creating rows (either call `clean()` or check `issubclass(content_type.model_class(), MediaSupported)` directly). `clean()` does not fire on `objects.create()`, so this must be explicit in the resolution code.
-- Tests: claim assertion, resolution, primary enforcement, category validation, `MediaSupported` enforcement on the materialization path, end-to-end upload-creates-claim-creates-EntityMedia.
+`media_attachment` claim namespace in `catalog/claims.py`, generic resolver in `catalog/resolve/_media.py`, wired into upload endpoint, `resolve_model()`, and `resolve_machine_models()`. Things later phases should know:
+
+- Category validation lives in `build_media_attachment_claim()` in `catalog/claims.py`. Phase 3's `_validate_category()` was deleted — the helper is now the single validation point. It raises `ValueError`; the upload endpoint catches and converts to `HttpError(400)`.
+- No license on claims or `EntityMedia` — deferred until the legal picture for user-generated content is clearer. Claims are created with `license=None`. Phase 5 should always display uploaded media from `EntityMedia` regardless of the Constance license threshold.
+- The resolver is generic across entity types (operates on ContentType, not hardcoded to MachineModel). Adding media to a new entity type requires only inheriting `MediaSupported` and setting `MEDIA_CATEGORIES` — no resolver changes.
+- The resolver is integrated into `resolve_model()` (single-entity, after other relationships) and `resolve_machine_models()` (bulk orchestration). Any code path that calls `resolve_model()` automatically resolves media.
+- Primary enforcement: within each `(entity, category)` group, highest priority wins; ties broken by most recent `created_at` (last-upload-wins when all claims are same priority).
+- **Known race**: Concurrent uploads targeting the same `(entity, category)` with `is_primary=True` can both try to create a primary `EntityMedia` row. The second to commit hits the partial unique index and gets a 500. Narrow (requires two simultaneous primary uploads to the same slot), retryable, not worth fixing for the initial PR. If it becomes a real problem, add `SELECT FOR UPDATE` on the target entity's `EntityMedia` rows before resolving.
 
 ### Phase 5: API Response Changes + Tests
 
-- Uploaded-first fallback in entity detail/list APIs (source priority, not a license bypass).
+- Uploaded-first fallback in entity detail/list APIs: if `EntityMedia` rows exist for the entity, use those (always displayed, no license gating). Fall back to third-party referenced media from `extra_data` only when no uploaded media exists for the needed slot. Third-party media continues through the existing Constance license threshold.
 - Rendition URLs in API responses.
-- Uploaded images go through the same Constance license threshold as everything else.
 - Add local dev media serving: `static(MEDIA_URL, ...)` URL wiring so `FileSystemStorage` files are accessible during development.
 - Tests: uploaded-first fallback, external fallback with license filtering.
 
@@ -569,7 +569,12 @@ Storage infrastructure in `backend/apps/media/storage.py`, upload endpoint in `b
 
 ## Follow-Up Work
 
-### Follow-Up 1: Video Support
+### Follow-Up: Other Entity Types
+
+- Manufacturer, CorporateEntity, Person, Title, Series, Franchise, System, Location media UIs.
+- Entity-specific category registries.
+
+### Follow-Up: Video Support
 
 Schema additions (migration required):
 
@@ -586,29 +591,24 @@ Infrastructure:
 - `VideoPlayer.svelte` component with transcode state handling (adapted from flipfix's video player patterns).
 - HLS adaptive streaming only if demand justifies operational cost.
 
-### Follow-Up 2: Other Entity Types
-
-- Manufacturer, CorporateEntity, Person, Title, Series, Franchise, System, Location media UIs.
-- Entity-specific category registries.
-
-### Follow-Up 3: External Reference Cleanup
+### Follow-Up: External Reference Cleanup
 
 - Normalize third-party media reference shapes across OPDB/IPDB/Fandom/Wikidata.
 - Centralize "uploaded first, external fallback second" media selection in one helper.
 
-### Follow-Up 4: CDN Cutover
+### Follow-Up: CDN Cutover
 
 - Point a custom domain (e.g. `media.pinbase.app`) through Cloudflare DNS — this automatically enables Cloudflare's CDN in front of R2 (free tier, zero additional cost).
 - Switch `MEDIA_PUBLIC_BASE_URL` to the custom domain.
 - Configure cache headers and optional purge hooks.
 
-### Follow-Up 5: User Roles and Permissions
+### Follow-Up: User Roles and Permissions
 
 - Design a cross-cutting user-role/permission model that applies to all claim types (not just media).
 - Topics: tiered permissions, who can retract whose claims, moderation workflows, promotion paths.
 - This is a broader product decision that should be considered as a whole rather than decided piecemeal per feature.
 
-### Follow-Up 6 (Far Future): Dedupe
+### Follow-Up: Dedupe
 
 - Add `sha256` field to `MediaAsset`.
 - Compute hash on upload, check for existing asset.

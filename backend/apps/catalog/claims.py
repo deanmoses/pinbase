@@ -54,6 +54,7 @@ def _build_entity_ref_targets() -> dict[str, list[RefKey]]:
         Theme,
         Title,
     )
+    from apps.media.models import MediaAsset
 
     return {
         "credit": [RefKey("person", Person), RefKey("role", CreditRole)],
@@ -65,6 +66,7 @@ def _build_entity_ref_targets() -> dict[str, list[RefKey]]:
         "theme_parent": [RefKey("parent", Theme)],
         "gameplay_feature_parent": [RefKey("parent", GameplayFeature)],
         "series_title": [RefKey("title", Title)],
+        "media_attachment": [RefKey("media_asset", MediaAsset)],
     }
 
 
@@ -179,6 +181,47 @@ def build_relationship_claim(
 
     claim_key = make_claim_key(field_name, **identity_parts)
     value = {**identity, "exists": exists}
+    return claim_key, value
+
+
+def build_media_attachment_claim(
+    entity: models.Model,
+    asset_pk: int,
+    *,
+    category: str | None = None,
+    is_primary: bool = False,
+    exists: bool = True,
+) -> tuple[str, dict]:
+    """Return ``(claim_key, value)`` for a ``media_attachment`` claim.
+
+    Validates *category* against the entity's ``MEDIA_CATEGORIES`` before
+    building the claim.  Raises ``ValueError`` for invalid categories.
+    All code paths that create ``media_attachment`` claims should use this
+    helper so that category validation happens exactly once.
+    """
+    from apps.core.models import MediaSupported
+
+    model_class = type(entity)
+    if not issubclass(model_class, MediaSupported):
+        raise ValueError(f"{model_class.__name__} does not support media attachments.")
+
+    allowed = model_class.MEDIA_CATEGORIES
+    if category is not None:
+        if not allowed:
+            raise ValueError(f"No media categories defined for {model_class.__name__}.")
+        if category not in allowed:
+            raise ValueError(
+                f"Invalid category {category!r} for {model_class.__name__}. "
+                f"Allowed: {', '.join(allowed)}."
+            )
+
+    claim_key, value = build_relationship_claim(
+        "media_attachment",
+        {"media_asset": asset_pk},
+        exists=exists,
+    )
+    value["category"] = category
+    value["is_primary"] = is_primary
     return claim_key, value
 
 

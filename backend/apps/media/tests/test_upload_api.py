@@ -239,12 +239,33 @@ class TestUploadHappyPath:
         assert attachment["category"] == "backglass"
         assert attachment["is_primary"] is True
 
-    def test_no_entity_media_created(self, client, machine_model):
-        """Phase 3: no EntityMedia or claims created — deferred to Phase 4."""
-        from apps.media.models import EntityMedia
+    def test_upload_creates_entity_media(self, client, machine_model):
+        """Upload creates claim + EntityMedia with correct attachment metadata."""
+        from django.contrib.contenttypes.models import ContentType
 
-        _post_upload(client, machine_model)
-        assert EntityMedia.objects.count() == 0
+        from apps.media.models import EntityMedia
+        from apps.provenance.models import Claim
+
+        resp = _post_upload(client, machine_model)
+        assert resp.status_code == 200
+
+        # EntityMedia materialized
+        em = EntityMedia.objects.get()
+        ct = ContentType.objects.get_for_model(type(machine_model))
+        assert em.content_type == ct
+        assert em.object_id == machine_model.pk
+        assert em.category == "backglass"
+        assert em.is_primary is True
+
+        # Claim created
+        claim = Claim.objects.get(
+            content_type=ct,
+            object_id=machine_model.pk,
+            field_name="media_attachment",
+            is_active=True,
+        )
+        assert claim.value["media_asset"] == em.asset_id
+        assert claim.user is not None
 
 
 # ---------------------------------------------------------------------------

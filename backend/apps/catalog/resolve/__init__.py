@@ -57,6 +57,8 @@ from ._relationships import (  # noqa: F401
     resolve_theme_parents,
 )
 
+from ._media import resolve_media_attachments as resolve_media_attachments  # noqa: F401
+
 from ._entities import (  # noqa: F401
     _resolve_bulk as _resolve_bulk,
     _resolve_single as _resolve_single,
@@ -147,6 +149,11 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     resolve_all_reward_types(model_ids=model_ids)
     resolve_all_tags(model_ids=model_ids)
     resolve_all_model_abbreviations(model_ids=model_ids)
+
+    from django.contrib.contenttypes.models import ContentType
+
+    ct_mm = ContentType.objects.get_for_model(MachineModel)
+    resolve_media_attachments(content_type_id=ct_mm.id, entity_ids=model_ids)
 
     return machine_model
 
@@ -288,6 +295,12 @@ def resolve_machine_models(stdout=None) -> int:
 
     resolve_all_model_abbreviations(model_ids=all_model_ids)
     _status("Abbreviations resolved")
+
+    from django.contrib.contenttypes.models import ContentType
+
+    ct_mm = ContentType.objects.get_for_model(MachineModel)
+    resolve_media_attachments(content_type_id=ct_mm.id, entity_ids=all_model_ids)
+    _status("Media attachments resolved")
 
     return len(all_models)
 
