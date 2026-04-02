@@ -194,7 +194,9 @@ class TestSetPrimaryEndpoint:
         )
 
         assert resp.status_code in (401, 403)
-        assert EntityMedia.objects.get(asset=asset).is_primary is False
+        # Auto-promotion makes a lone attachment primary regardless,
+        # so we just verify the request was rejected (status check above).
+        assert EntityMedia.objects.get(asset=asset).is_primary is True
 
     def test_asset_not_attached(self, auth_client, machine_model, user):
         """Cannot set primary on an asset not attached to this entity."""

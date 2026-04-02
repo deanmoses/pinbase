@@ -54,9 +54,14 @@ export function createUploadManager() {
 			});
 		}
 
+		const startIdx = files.length;
 		files = [...files, ...entries];
 
-		const pending = entries.filter((e) => e.status === 'pending');
+		// IMPORTANT: reference the proxy-wrapped entries from `files`, not the
+		// original `entries` array.  Mutations through `files[i]` go through
+		// Svelte's $state proxy and trigger reactivity; mutations through the
+		// original objects do not.
+		const pending = files.slice(startIdx).filter((e) => e.status === 'pending');
 		if (pending.length === 0) return;
 
 		isUploading = true;

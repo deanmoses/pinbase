@@ -77,6 +77,10 @@ def resolve_media_attachments(
     primary_candidates: dict[
         tuple[int, int, str | None], list[tuple[int, int, object]]
     ] = defaultdict(list)
+    # For auto-promotion: all attachments per (entity, category) with timestamps
+    all_attachments: dict[tuple[int, int, str | None], list[tuple[int, object]]] = (
+        defaultdict(list)
+    )
 
     for entity_key, claims_list in winners_by_entity.items():
         ct_id, obj_id = entity_key
@@ -124,6 +128,9 @@ def resolve_media_attachments(
             is_primary = bool(val.get("is_primary", False))
             desired[asset_pk] = (category, is_primary)
 
+            all_attachments[(ct_id, obj_id, category)].append(
+                (asset_pk, claim.created_at)
+            )
             if is_primary:
                 primary_candidates[(ct_id, obj_id, category)].append(
                     (asset_pk, claim.effective_priority, claim.created_at)
@@ -152,6 +159,29 @@ def resolve_media_attachments(
             if asset_pk != winner_asset_pk:
                 old_cat, _old_primary = desired[asset_pk]
                 desired[asset_pk] = (old_cat, False)
+
+    # -- Auto-promotion ----------------------------------------------------
+    # If no attachment in a (entity, category) group is primary, promote the
+    # oldest (first uploaded) so there's always a primary per category.
+
+    for group_key, attachments in all_attachments.items():
+        ct_id, obj_id, category = group_key
+        entity_key = (ct_id, obj_id)
+        desired = desired_by_entity.get(entity_key)
+        if desired is None:
+            continue
+
+        has_primary = any(
+            primary for asset_pk, (cat, primary) in desired.items() if cat == category
+        )
+        if has_primary:
+            continue
+
+        # Oldest first
+        attachments.sort(key=lambda a: a[1])
+        winner_asset_pk = attachments[0][0]
+        old_cat, _ = desired[winner_asset_pk]
+        desired[winner_asset_pk] = (old_cat, True)
 
     # -- Fetch existing EntityMedia rows ------------------------------------
 

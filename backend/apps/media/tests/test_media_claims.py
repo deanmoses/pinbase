@@ -265,37 +265,127 @@ class TestResolutionHappyPath:
         em = EntityMedia.objects.get()
         assert em.category == "playfield"
 
-    def test_update_is_primary(self, machine_model, asset, user):
-        claim_key, value = build_media_attachment_claim(
+    def test_update_is_primary(self, machine_model, asset, asset2, user):
+        """Explicit is_primary=True on a non-primary attachment promotes it."""
+        # Upload two images — first becomes auto-primary
+        key1, val1 = build_media_attachment_claim(
             machine_model, asset.pk, category="backglass", is_primary=False
         )
         Claim.objects.assert_claim(
-            machine_model,
-            "media_attachment",
-            value,
-            user=user,
-            claim_key=claim_key,
+            machine_model, "media_attachment", val1, user=user, claim_key=key1
         )
-        _resolve_media(machine_model)
-        assert EntityMedia.objects.get().is_primary is False
-
-        _key, new_value = build_media_attachment_claim(
-            machine_model, asset.pk, category="backglass", is_primary=True
+        key2, val2 = build_media_attachment_claim(
+            machine_model, asset2.pk, category="backglass", is_primary=False
         )
         Claim.objects.assert_claim(
-            machine_model,
-            "media_attachment",
-            new_value,
-            user=user,
-            claim_key=claim_key,
+            machine_model, "media_attachment", val2, user=user, claim_key=key2
         )
         _resolve_media(machine_model)
-        assert EntityMedia.objects.get().is_primary is True
+        assert EntityMedia.objects.get(asset=asset).is_primary is True
+        assert EntityMedia.objects.get(asset=asset2).is_primary is False
+
+        # Explicitly promote asset2
+        _key, new_value = build_media_attachment_claim(
+            machine_model, asset2.pk, category="backglass", is_primary=True
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", new_value, user=user, claim_key=key2
+        )
+        _resolve_media(machine_model)
+        assert EntityMedia.objects.get(asset=asset2).is_primary is True
 
 
 # ---------------------------------------------------------------------------
 # Primary enforcement
 # ---------------------------------------------------------------------------
+
+
+class TestPrimaryAutoPromotion:
+    """When no claim in a (entity, category) group sets is_primary=True,
+    the resolver auto-promotes the oldest (first uploaded) attachment."""
+
+    def test_single_upload_becomes_primary(self, machine_model, asset, user):
+        key, val = build_media_attachment_claim(
+            machine_model, asset.pk, category="backglass", is_primary=False
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val, user=user, claim_key=key
+        )
+        _resolve_media(machine_model)
+
+        em = EntityMedia.objects.get()
+        assert em.is_primary is True
+
+    def test_first_uploaded_stays_primary(self, machine_model, asset, asset2, user):
+        """Two uploads without explicit primary — oldest becomes primary."""
+        key1, val1 = build_media_attachment_claim(
+            machine_model, asset.pk, category="backglass", is_primary=False
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val1, user=user, claim_key=key1
+        )
+
+        key2, val2 = build_media_attachment_claim(
+            machine_model, asset2.pk, category="backglass", is_primary=False
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val2, user=user, claim_key=key2
+        )
+
+        _resolve_media(machine_model)
+
+        em1 = EntityMedia.objects.get(asset=asset)
+        em2 = EntityMedia.objects.get(asset=asset2)
+        assert em1.is_primary is True  # oldest
+        assert em2.is_primary is False
+
+    def test_explicit_primary_not_overridden(self, machine_model, asset, asset2, user):
+        """If someone explicitly sets primary, auto-promotion does not interfere."""
+        key1, val1 = build_media_attachment_claim(
+            machine_model, asset.pk, category="backglass", is_primary=False
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val1, user=user, claim_key=key1
+        )
+
+        key2, val2 = build_media_attachment_claim(
+            machine_model, asset2.pk, category="backglass", is_primary=True
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val2, user=user, claim_key=key2
+        )
+
+        _resolve_media(machine_model)
+
+        em1 = EntityMedia.objects.get(asset=asset)
+        em2 = EntityMedia.objects.get(asset=asset2)
+        assert em1.is_primary is False
+        assert em2.is_primary is True  # explicit wins
+
+    def test_different_categories_each_get_primary(
+        self, machine_model, asset, asset2, user
+    ):
+        """Each category independently gets an auto-promoted primary."""
+        key1, val1 = build_media_attachment_claim(
+            machine_model, asset.pk, category="backglass", is_primary=False
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val1, user=user, claim_key=key1
+        )
+
+        key2, val2 = build_media_attachment_claim(
+            machine_model, asset2.pk, category="playfield", is_primary=False
+        )
+        Claim.objects.assert_claim(
+            machine_model, "media_attachment", val2, user=user, claim_key=key2
+        )
+
+        _resolve_media(machine_model)
+
+        em1 = EntityMedia.objects.get(asset=asset)
+        em2 = EntityMedia.objects.get(asset=asset2)
+        assert em1.is_primary is True
+        assert em2.is_primary is True
 
 
 class TestPrimaryEnforcement:
