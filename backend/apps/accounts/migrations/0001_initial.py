@@ -27,6 +27,17 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "workos_user_id",
+                    models.CharField(
+                        blank=True,
+                        default=None,
+                        help_text="WorkOS user ID (e.g. user_01ABC...). Null until first SSO login, then auto-linked by email.",
+                        max_length=64,
+                        null=True,
+                        unique=True,
+                    ),
+                ),
+                (
                     "priority",
                     models.PositiveSmallIntegerField(
                         default=10000,

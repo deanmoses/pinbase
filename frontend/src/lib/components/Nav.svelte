@@ -91,7 +91,7 @@
 					<button class="auth-link" onclick={handleLogout}>Sign out</button>
 				{:else}
 					<a
-						href={resolveHref(`/login?next=${encodeURIComponent(page.url.pathname)}`)}
+						href={`/api/auth/login/?next=${encodeURIComponent(page.url.pathname)}`}
 						class="auth-link">Sign in</a
 					>
 				{/if}

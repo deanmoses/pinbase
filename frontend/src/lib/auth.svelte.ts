@@ -27,20 +27,14 @@ function createAuthStore() {
 		if (data) set(data);
 	}
 
-	async function login(username: string, password: string): Promise<string | null> {
-		const { data, error } = await client.POST('/api/auth/login/', {
-			body: { username, password }
-		});
-		if (data) {
-			set(data);
-			return null;
-		}
-		return (error as { detail?: string })?.detail ?? 'Login failed.';
-	}
-
 	async function logout() {
 		const { data } = await client.POST('/api/auth/logout/');
-		if (data) set(data);
+		if (data) {
+			set({ is_authenticated: false });
+			if (data.logout_url) {
+				window.location.href = data.logout_url;
+			}
+		}
 	}
 
 	return {
@@ -57,7 +51,6 @@ function createAuthStore() {
 			return loaded;
 		},
 		load,
-		login,
 		logout
 	};
 }

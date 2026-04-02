@@ -11,6 +11,14 @@ class UserProfile(models.Model):
         on_delete=models.CASCADE,
         related_name="profile",
     )
+    workos_user_id = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        default=None,
+        unique=True,
+        help_text="WorkOS user ID (e.g. user_01ABC...). Null until first SSO login, then auto-linked by email.",
+    )
     priority = models.PositiveSmallIntegerField(
         default=10000,
         help_text="Claim priority for conflict resolution. Higher beats lower.",

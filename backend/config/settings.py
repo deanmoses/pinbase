@@ -187,6 +187,22 @@ LOGGING = {
     },
 }
 
+# ── WorkOS AuthKit ────────────────────────────────────────────────
+WORKOS_API_KEY = os.environ.get("WORKOS_API_KEY", "")
+WORKOS_CLIENT_ID = os.environ.get("WORKOS_CLIENT_ID", "")
+WORKOS_REDIRECT_URI = os.environ.get(
+    "WORKOS_REDIRECT_URI", "http://localhost:8000/api/auth/callback/"
+)
+
+AUTHENTICATION_BACKENDS = [
+    "apps.accounts.backends.WorkOSBackend",
+    "django.contrib.auth.backends.ModelBackend",  # Django admin password login
+]
+
+# ── Sessions ─────────────────────────────────────────────────────
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 90  # 90 days
+SESSION_SAVE_EVERY_REQUEST = True  # sliding window — reset expiry on each request
+
 # CSRF — allow JS to read the cookie for X-CSRFToken header
 CSRF_COOKIE_HTTPONLY = False
 CSRF_TRUSTED_ORIGINS = [

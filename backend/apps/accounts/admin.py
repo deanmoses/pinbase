@@ -8,7 +8,8 @@ from .models import UserProfile
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     extra = 0
-    fields = ("priority",)
+    fields = ("priority", "workos_user_id")
+    readonly_fields = ("workos_user_id",)
 
 
 class UserAdmin(BaseUserAdmin):
