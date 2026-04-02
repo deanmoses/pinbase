@@ -44,6 +44,8 @@ However, this does not solve the session-lifetime problem. Auth0's public nonpro
 
 WorkOS AuthKit is a third-party hosted auth platform with hosted login/signup flows, password auth, social login, MFA, email verification, user management, and a branded authentication UI. Free tier covers up to 1 million MAU.
 
+At the currently expected scale, cost is not a meaningful factor. If we have roughly 20 monthly active users in month 1, 100 in month 2, and 500 by month 6, the monthly WorkOS AuthKit charge still appears to be $0 unless we opt into paid add-ons like custom domains.
+
 WorkOS sends auth emails itself by default (from `workos-mail.com`), which eliminates the need for a separate email provider — unless we want a custom sending domain.
 
 WorkOS exposes standard OIDC/OAuth2 endpoints, so we can integrate with any OIDC library (`mozilla-django-oidc`, `authlib`, etc.) — not locked into their SDK.

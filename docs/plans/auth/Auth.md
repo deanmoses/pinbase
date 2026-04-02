@@ -226,6 +226,8 @@ WorkOS also remains strong on the other important requirements:
 - Email/password, social login, email verification, forgot password, MFA, and account linking on the free tier
 - Built-in auth email sending, so we do not need a separate email provider for v1 unless we want a custom sending domain
 
+On current pricing, the expected monthly cost is still effectively zero at our projected scale. Even if Pinbase grows from 20 users in month 1 to 100 users in month 2 and 500 users by month 6, that is still far below WorkOS AuthKit's free-tier limit of 1 million monthly active users.
+
 The main downside is branding: custom auth and email domains cost $99/mo. At this point, I would rather give up custom domains than long-lived sessions, so that tradeoff appears acceptable.
 
 So the current direction is:
