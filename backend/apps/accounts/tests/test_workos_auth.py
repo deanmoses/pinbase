@@ -29,26 +29,15 @@ def _make_workos_user(
     )
 
 
-def _make_auth_response(workos_user=None, sid="sess_01XYZ"):
+def _make_auth_response(workos_user=None):
     """Build a fake WorkOS authenticate_with_code response."""
     if workos_user is None:
         workos_user = _make_workos_user()
 
-    # Build a minimal JWT with a sid claim (header.payload.signature)
-    import base64
-    import json
-
-    payload = (
-        base64.urlsafe_b64encode(json.dumps({"sid": sid}).encode())
-        .rstrip(b"=")
-        .decode()
-    )
-    fake_jwt = f"header.{payload}.signature"
-
     return SimpleNamespace(
         user=workos_user,
-        access_token=fake_jwt,
-        refresh_token="rt_fake",
+        access_token="fake",
+        refresh_token="fake",
     )
 
 
@@ -57,7 +46,7 @@ def _workos_settings(settings):
     """Ensure WorkOS settings are populated for all tests in this module."""
     settings.WORKOS_API_KEY = "sk_test_fake"  # pragma: allowlist secret
     settings.WORKOS_CLIENT_ID = "client_fake"
-    settings.WORKOS_REDIRECT_URI = "http://localhost:8000/api/auth/callback/"
+    settings.WORKOS_REDIRECT_URI = "http://localhost:5173/api/auth/callback/"
 
 
 def _start_login(client: Client, next_url: str = "/") -> tuple[str, str]:
@@ -124,9 +113,9 @@ class TestAuthLogin:
 
 @pytest.mark.django_db
 class TestAuthCallback:
-    def _do_callback(self, client, *, workos_user=None, sid="sess_01XYZ"):
+    def _do_callback(self, client, *, workos_user=None):
         """Run the full login→callback flow with mocked WorkOS."""
-        auth_response = _make_auth_response(workos_user=workos_user, sid=sid)
+        auth_response = _make_auth_response(workos_user=workos_user)
 
         with patch("apps.accounts.api.get_workos_client") as mock:
             mock_client = mock.return_value
@@ -164,6 +153,21 @@ class TestAuthCallback:
         assert existing.profile.workos_user_id == "user_01ABC"
         # No new user should have been created
         assert User.objects.filter(email="alice@example.com").count() == 1
+
+    def test_callback_linking_preserves_superuser_flags(self, client):
+        """Linking a WorkOS login to an existing superuser must not reset is_staff/is_superuser."""
+        existing = User.objects.create_superuser(
+            username="moses", email="alice@example.com"
+        )
+        assert existing.is_staff is True
+        assert existing.is_superuser is True
+
+        self._do_callback(client)
+
+        existing.refresh_from_db()
+        assert existing.profile.workos_user_id == "user_01ABC"
+        assert existing.is_staff is True, "is_staff was reset during linking"
+        assert existing.is_superuser is True, "is_superuser was reset during linking"
 
     def test_callback_refuses_link_unverified_email(self, client):
         existing = User.objects.create_user(username="alice", email="alice@example.com")
@@ -220,10 +224,6 @@ class TestAuthCallback:
         resp = client.get("/api/auth/callback/?code=fake&state=bogus")
         assert resp.status_code == 400
 
-    def test_callback_stores_workos_session_id(self, client):
-        self._do_callback(client, sid="sess_test_123")
-        assert client.session.get("workos_session_id") == "sess_test_123"
-
     def test_callback_handles_code_exchange_failure(self, client):
         with patch("apps.accounts.api.get_workos_client") as mock:
             mock_client = mock.return_value
@@ -242,70 +242,19 @@ class TestAuthCallback:
         assert b"please try again" in resp.content.lower()
 
 
-def _set_session_value(client, key, value):
-    """Persist a value into the test client's server-side session.
-
-    Django's test client returns a *new* SessionStore each time you
-    access ``client.session``, so you must save through the store
-    retrieved from the session key in the cookie.
-    """
-    from django.contrib.sessions.backends.db import SessionStore
-
-    session_key = client.cookies["sessionid"].value
-    s = SessionStore(session_key=session_key)
-    s[key] = value
-    s.save()
-
-
 @pytest.mark.django_db
 class TestAuthLogout:
-    def test_logout_returns_workos_logout_url(self, client):
-        user = User.objects.create_user(username="alice")
-        client.force_login(user)
-        _set_session_value(client, "workos_session_id", "sess_abc")
-
-        with patch("apps.accounts.api.get_workos_client") as mock:
-            mock.return_value.user_management.get_logout_url.return_value = (
-                "https://auth.workos.com/logout?sid=sess_abc"
-            )
-            resp = client.post("/api/auth/logout/")
-
-        data = resp.json()
-        assert data["is_authenticated"] is False
-        assert "workos.com/logout" in data["logout_url"]
-
-    def test_logout_without_workos_session(self, client):
+    def test_logout_clears_session(self, client):
         user = User.objects.create_user(username="alice")
         client.force_login(user)
 
         resp = client.post("/api/auth/logout/")
         data = resp.json()
         assert data["is_authenticated"] is False
-        assert data["logout_url"] == ""
 
-    def test_logout_multi_device(self, client):
-        """Two browser sessions for the same user get independent logout URLs."""
-        user = User.objects.create_user(username="alice")
-
-        # Browser A
-        client_a = Client()
-        client_a.force_login(user)
-        _set_session_value(client_a, "workos_session_id", "sess_A")
-
-        # Browser B
-        client_b = Client()
-        client_b.force_login(user)
-        _set_session_value(client_b, "workos_session_id", "sess_B")
-
-        with patch("apps.accounts.api.get_workos_client") as mock:
-            mock.return_value.user_management.get_logout_url.side_effect = (
-                lambda session_id: f"https://auth.workos.com/logout?sid={session_id}"
-            )
-            resp_a = client_a.post("/api/auth/logout/")
-            resp_b = client_b.post("/api/auth/logout/")
-
-        assert "sess_A" in resp_a.json()["logout_url"]
-        assert "sess_B" in resp_b.json()["logout_url"]
+        # Verify session is actually cleared
+        resp = client.get("/api/auth/me/")
+        assert resp.json()["is_authenticated"] is False
 
 
 @pytest.mark.django_db

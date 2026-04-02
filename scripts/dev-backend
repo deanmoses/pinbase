@@ -1,6 +1,14 @@
 #!/usr/bin/env sh
 set -e
-cd "$(dirname "$0")/../backend"
+cd "$(dirname "$0")/.."
 
+# Load .env if present (exports vars for Django's os.environ.get)
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+cd backend
 pkill -f "manage.py runserver" 2>/dev/null || true
 uv run python manage.py runserver 127.0.0.1:8000

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
 import secrets
 from typing import Optional
@@ -33,27 +31,11 @@ class AuthStatusSchema(Schema):
     username: Optional[str] = None
 
 
-class LogoutResponseSchema(Schema):
-    is_authenticated: bool = False
-    logout_url: str = ""
-
-
 class ErrorSchema(Schema):
     detail: str
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
-
-
-def _extract_session_id(access_token: str) -> str:
-    """Extract the ``sid`` claim from a WorkOS access token JWT."""
-    try:
-        payload = access_token.split(".")[1]
-        payload += "=" * (4 - len(payload) % 4)
-        claims = json.loads(base64.urlsafe_b64decode(payload))
-        return claims.get("sid", "")
-    except IndexError, ValueError, json.JSONDecodeError:
-        return ""
 
 
 def _generate_username(email: str) -> str:
@@ -148,7 +130,6 @@ def auth_login(request):
         authorization_url = client.user_management.get_authorization_url(
             provider="authkit",
             redirect_uri=settings.WORKOS_REDIRECT_URI,
-            client_id=settings.WORKOS_CLIENT_ID,
             state=state,
         )
     except Exception:
@@ -176,7 +157,6 @@ def auth_callback(request):
         client = get_workos_client()
         auth_response = client.user_management.authenticate_with_code(
             code=code,
-            client_id=settings.WORKOS_CLIENT_ID,
         )
     except Exception:
         log.exception("WorkOS code exchange failed")
@@ -185,30 +165,12 @@ def auth_callback(request):
         )
 
     user = get_or_create_django_user(auth_response.user)
-
-    # Store WorkOS session ID in the Django session (per-browser, not per-user)
-    sid = _extract_session_id(auth_response.access_token)
-    if sid:
-        request.session["workos_session_id"] = sid
-
     login(request, user, backend="apps.accounts.backends.WorkOSBackend")
     return HttpResponseRedirect(next_url)
 
 
-@auth_router.post("/logout/", response=LogoutResponseSchema)
+@auth_router.post("/logout/", response=AuthStatusSchema)
 def auth_logout(request):
-    """End the current session and return the WorkOS logout URL if available."""
-    workos_session_id = request.session.get("workos_session_id", "")
+    """End the current session."""
     logout(request)
-
-    logout_url = ""
-    if workos_session_id and settings.WORKOS_API_KEY and settings.WORKOS_CLIENT_ID:
-        try:
-            client = get_workos_client()
-            logout_url = client.user_management.get_logout_url(
-                session_id=workos_session_id,
-            )
-        except Exception:
-            log.exception("Failed to generate WorkOS logout URL")
-
-    return {"is_authenticated": False, "logout_url": logout_url}
+    return {"is_authenticated": False}

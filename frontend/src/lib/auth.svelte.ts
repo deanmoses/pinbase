@@ -29,12 +29,7 @@ function createAuthStore() {
 
 	async function logout() {
 		const { data } = await client.POST('/api/auth/logout/');
-		if (data) {
-			set({ is_authenticated: false });
-			if (data.logout_url) {
-				window.location.href = data.logout_url;
-			}
-		}
+		if (data) set({ is_authenticated: false });
 	}
 
 	return {

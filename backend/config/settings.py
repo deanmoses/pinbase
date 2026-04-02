@@ -191,7 +191,7 @@ LOGGING = {
 WORKOS_API_KEY = os.environ.get("WORKOS_API_KEY", "")
 WORKOS_CLIENT_ID = os.environ.get("WORKOS_CLIENT_ID", "")
 WORKOS_REDIRECT_URI = os.environ.get(
-    "WORKOS_REDIRECT_URI", "http://localhost:8000/api/auth/callback/"
+    "WORKOS_REDIRECT_URI", "http://localhost:5173/api/auth/callback/"
 )
 
 AUTHENTICATION_BACKENDS = [
