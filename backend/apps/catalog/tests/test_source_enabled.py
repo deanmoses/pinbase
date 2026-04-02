@@ -108,7 +108,7 @@ class TestIsEnabledUserClaims:
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
-        user = User.objects.create_user(username="testuser", password="test")
+        user = User.objects.create_user(username="testuser")
 
         mfr = Manufacturer.objects.create(name="Test Mfr", slug="test-mfr")
         Claim.objects.assert_claim(mfr, "name", "User Claim", user=user)

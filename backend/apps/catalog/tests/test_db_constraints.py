@@ -274,7 +274,7 @@ class TestProvenanceConstraints:
         from apps.provenance.models import ChangeSet
 
         User = get_user_model()
-        user = User.objects.create_user(username="tester", password="test")
+        user = User.objects.create_user(username="tester")
         source = Source.objects.create(name="Test", source_type="database")
         mfr = Manufacturer.objects.create(name="Test", slug="test-mfr")
         claim = Claim.objects.assert_claim(mfr, "name", "Test", source=source)
@@ -353,7 +353,7 @@ class TestValidateCheckConstraints:
         from django.test import Client
 
         User = get_user_model()
-        user = User.objects.create_user(username="editor", password="pw")
+        user = User.objects.create_user(username="editor")
         from apps.accounts.models import UserProfile
 
         UserProfile.objects.get_or_create(user=user, defaults={"priority": 10000})

@@ -27,10 +27,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(
-        "editor",
-        password="testpass",  # pragma: allowlist secret
-    )
+    return User.objects.create_user("editor")
 
 
 @pytest.fixture

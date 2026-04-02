@@ -11,7 +11,7 @@ User = get_user_model()
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(username="editor", password="testpass")  # pragma: allowlist secret  # fmt: skip
+    return User.objects.create_user(username="editor")
 
 
 @pytest.fixture

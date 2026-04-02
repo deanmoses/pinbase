@@ -11,7 +11,7 @@ User = get_user_model()
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(username="editor", password="testpass")  # pragma: allowlist secret  # fmt: skip
+    return User.objects.create_user(username="editor")
 
 
 @pytest.fixture
@@ -124,7 +124,7 @@ class TestEditHistoryMultipleFields:
 class TestEditHistoryMultiUser:
     def test_old_value_scoped_to_same_user(self, client, user, pm, db):
         """User B editing after User A should not show User A's value as old."""
-        user_b = User.objects.create_user(username="other", password="testpass")  # pragma: allowlist secret  # fmt: skip
+        user_b = User.objects.create_user(username="other")
 
         client.force_login(user)
         client.patch(

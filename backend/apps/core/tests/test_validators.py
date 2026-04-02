@@ -67,7 +67,7 @@ class TestMojibakeClaimsApiIntegration:
     def user(self):
         from django.contrib.auth import get_user_model
 
-        return get_user_model().objects.create_user(username="editor", password="testpass")  # pragma: allowlist secret  # fmt: skip
+        return get_user_model().objects.create_user(username="editor")
 
     @pytest.fixture
     def pm(self):

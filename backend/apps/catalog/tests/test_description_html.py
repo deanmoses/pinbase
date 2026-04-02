@@ -192,7 +192,7 @@ class TestApiPatchConversion:
         from django.test import Client
 
         User = get_user_model()
-        user = User.objects.create_user(username="testuser", password="testpass")
+        user = User.objects.create_user(username="testuser")
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         system = System.objects.create(name="WPC-95", slug="wpc-95", manufacturer=mfr)
 

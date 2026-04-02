@@ -72,10 +72,7 @@ def _media_settings(settings):
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(
-        "uploader",
-        password="testpass",  # pragma: allowlist secret
-    )
+    return User.objects.create_user("uploader")
 
 
 @pytest.fixture
