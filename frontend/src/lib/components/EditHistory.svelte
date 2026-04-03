@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { components } from '$lib/api/schema';
+	import UserBadge from './UserBadge.svelte';
 
 	type ChangeSet = components['schemas']['ChangeSetSchema'];
 
@@ -30,7 +31,7 @@
 			{#each changesets as cs (cs.id)}
 				<li class="changeset">
 					<div class="changeset-header">
-						<span class="user-badge">@{cs.user_display}</span>
+						<UserBadge username={cs.user_display} />
 						<time datetime={cs.created_at}>{formatDate(cs.created_at)}</time>
 					</div>
 					{#if cs.note}
@@ -86,19 +87,6 @@
 		align-items: center;
 		gap: var(--size-2);
 		margin-bottom: var(--size-2);
-	}
-
-	.user-badge {
-		display: inline-block;
-		padding: 1px var(--size-2);
-		font-size: var(--font-size-00, 0.7rem);
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		border-radius: var(--radius-1);
-		background-color: var(--color-surface);
-		border: 1px solid var(--color-border-soft);
-		color: var(--color-text-muted);
 	}
 
 	time {
