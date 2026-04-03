@@ -56,7 +56,7 @@
 		<div class="actions">
 			{#if !asset.is_primary}
 				<button class="action-btn" onclick={handleSetPrimary} title="Set as primary">
-					&#9734; Primary
+					&#9734; Make Primary
 				</button>
 			{/if}
 			<button class="action-btn action-btn--danger" onclick={handleDelete} title="Remove">
