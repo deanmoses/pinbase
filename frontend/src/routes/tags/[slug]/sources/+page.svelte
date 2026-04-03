@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<EntityProvenance sources={data.profile.activity} />
+<EntityProvenance sources={data.profile.sources} />

@@ -16,7 +16,7 @@ from ninja.security import django_auth
 from ..cache import PEOPLE_ALL_KEY
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -70,7 +70,7 @@ class PersonDetailSchema(Schema):
     photo_url: str | None = None
     titles: list[PersonTitleSchema]
     uploaded_media: list[UploadedMediaSchema] = []
-    activity: list[ClaimSchema]
+    sources: list[ClaimSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ def _serialize_person_detail(person) -> dict:
         "uploaded_media": _serialize_uploaded_media(
             getattr(person, "all_media", None) or []
         ),
-        "activity": _build_activity(getattr(person, "active_claims", [])),
+        "sources": _build_sources(getattr(person, "active_claims", [])),
     }
 
 

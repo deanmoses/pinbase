@@ -15,7 +15,7 @@ from ninja.security import django_auth
 
 from .edit_claims import execute_claims
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -53,7 +53,7 @@ class SeriesDetailSchema(Schema):
     description: RichTextSchema = RichTextSchema()
     titles: list[TitleRefSchema]
     credits: list[CreditSchema] = []
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ def _serialize_series_detail(series) -> dict:
             }
             for c in series.credits.all()
         ],
-        "activity": _build_activity(getattr(series, "active_claims", [])),
+        "sources": _build_sources(getattr(series, "active_claims", [])),
     }
 
 

@@ -126,14 +126,13 @@ class TestPatchGameplayFeaturePersistence:
         assert inactive.count() == 1
         assert active.first().value == "Second"
 
-    def test_response_includes_activity(self, client, user, feature):
+    def test_response_includes_sources(self, client, user, feature):
         client.force_login(user)
         resp = _patch(client, feature.slug, {"fields": {"description": "Updated"}})
         data = resp.json()
-        assert "activity" in data
+        assert "sources" in data
         assert any(
-            c["field_name"] == "description" and c["is_winner"]
-            for c in data["activity"]
+            c["field_name"] == "description" and c["is_winner"] for c in data["sources"]
         )
 
 
@@ -173,7 +172,7 @@ class TestPatchGameplayFeatureChangeSet:
         cs = ChangeSet.objects.first()
         assert cs.note == "Corrected from IPDB listing"
 
-    def test_changeset_note_in_activity_response(self, client, user, feature):
+    def test_changeset_note_in_sources_response(self, client, user, feature):
         client.force_login(user)
         resp = _patch(
             client,
@@ -185,7 +184,7 @@ class TestPatchGameplayFeatureChangeSet:
         )
         data = resp.json()
         desc_claim = next(
-            c for c in data["activity"] if c["field_name"] == "description"
+            c for c in data["sources"] if c["field_name"] == "description"
         )
         assert desc_claim["changeset_note"] == "My edit note"
 

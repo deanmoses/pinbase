@@ -10,7 +10,7 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from .edit_claims import execute_claims, plan_scalar_field_claims
-from .helpers import _build_activity, _build_rich_text, _claims_prefetch
+from .helpers import _build_rich_text, _build_sources, _claims_prefetch
 from .schemas import ClaimPatchSchema, ClaimSchema, RichTextSchema, TitleMachineSchema
 
 
@@ -27,7 +27,7 @@ def _serialize_taxonomy(obj) -> dict:
         "description": _build_rich_text(
             obj, "description", getattr(obj, "active_claims", [])
         ),
-        "activity": _build_activity(getattr(obj, "active_claims", [])),
+        "sources": _build_sources(getattr(obj, "active_claims", [])),
     }
 
 
@@ -56,7 +56,7 @@ class TaxonomySchema(Schema):
     slug: str
     display_order: int
     description: RichTextSchema = RichTextSchema()
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------

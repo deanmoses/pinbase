@@ -16,7 +16,7 @@ from ninja.security import django_auth
 from ..cache import MODELS_ALL_KEY
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -129,7 +129,7 @@ class MachineModelDetailSchema(Schema):
     abbreviations: list[str] = []
     extra_data: dict
     credits: list[CreditSchema]
-    activity: list[ClaimSchema]
+    sources: list[ClaimSchema]
     thumbnail_url: Optional[str] = None
     hero_image_url: Optional[str] = None
     image_attribution: Optional[AttributionSchema] = None
@@ -304,9 +304,9 @@ def _serialize_model_detail(pm) -> dict:
         for c in pm.credits.all()
     ]
 
-    activity_claims = getattr(pm, "active_claims", None)
-    if activity_claims is None:
-        activity_claims = list(
+    active_claims = getattr(pm, "active_claims", None)
+    if active_claims is None:
+        active_claims = list(
             pm.claims.filter(is_active=True)
             .exclude(source__is_enabled=False)
             .select_related("source", "user")
@@ -320,7 +320,7 @@ def _serialize_model_detail(pm) -> dict:
             )
             .order_by("claim_key", "-effective_priority", "-created_at")
         )
-    activity = _build_activity(activity_claims)
+    sources = _build_sources(active_claims)
 
     all_media = getattr(pm, "all_media", None) or []
     primary_media = [em for em in all_media if em.is_primary]
@@ -331,7 +331,7 @@ def _serialize_model_detail(pm) -> dict:
         pm.extra_data or {}, primary_media or None
     )
     uploaded_media = _serialize_uploaded_media(all_media)
-    description = _build_rich_text(pm, "description", activity_claims)
+    description = _build_rich_text(pm, "description", active_claims)
     variant_features = _extract_variant_features(pm.extra_data or {})
 
     variants = [
@@ -419,7 +419,7 @@ def _serialize_model_detail(pm) -> dict:
         "abbreviations": [a.value for a in pm.abbreviations.all()],
         "extra_data": pm.extra_data or {},
         "credits": credits,
-        "activity": activity,
+        "sources": sources,
         "thumbnail_url": thumbnail_url,
         "hero_image_url": hero_image_url,
         "image_attribution": image_attribution,

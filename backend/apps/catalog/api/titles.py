@@ -21,7 +21,7 @@ from .edit_claims import (
     plan_abbreviation_claims,
 )
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -111,7 +111,7 @@ class TitleDetailSchema(Schema):
     credits: list[CreditSchema] = []
     agreed_specs: AgreedSpecsSchema = AgreedSpecsSchema()
     model_detail: Optional[MachineModelDetailSchema] = None
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 class TitleClaimPatchSchema(Schema):
@@ -432,7 +432,7 @@ def _serialize_title_detail(title) -> dict:
         "credits": credits,
         "agreed_specs": agreed_specs,
         "model_detail": model_detail,
-        "activity": _build_activity(getattr(title, "active_claims", [])),
+        "sources": _build_sources(getattr(title, "active_claims", [])),
     }
 
 

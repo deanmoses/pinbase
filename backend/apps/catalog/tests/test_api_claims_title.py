@@ -89,7 +89,7 @@ class TestPatchTitleClaims:
         resp = _patch(client, title.slug, {"fields": {}})
         assert resp.status_code == 422
 
-    def test_scalar_edit_updates_title_and_returns_activity(
+    def test_scalar_edit_updates_title_and_returns_sources(
         self, client, user, title, franchise
     ):
         client.force_login(user)
@@ -111,7 +111,7 @@ class TestPatchTitleClaims:
         assert data["franchise"]["slug"] == franchise.slug
         assert any(
             claim["field_name"] == "description" and claim["is_winner"]
-            for claim in data["activity"]
+            for claim in data["sources"]
         )
 
         title.refresh_from_db()
@@ -228,7 +228,7 @@ class TestPatchTitleClaims:
             "abbreviation",
         }
 
-    def test_changeset_note_is_returned_in_activity(self, client, user, title):
+    def test_changeset_note_is_returned_in_sources(self, client, user, title):
         client.force_login(user)
         resp = _patch(
             client,
@@ -242,5 +242,5 @@ class TestPatchTitleClaims:
         assert resp.status_code == 200
         assert any(
             claim["changeset_note"] == "Editorial cleanup"
-            for claim in resp.json()["activity"]
+            for claim in resp.json()["sources"]
         )

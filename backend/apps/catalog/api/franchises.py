@@ -15,7 +15,7 @@ from ninja.security import django_auth
 
 from .edit_claims import execute_claims
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -50,7 +50,7 @@ class FranchiseDetailSchema(Schema):
     slug: str
     description: RichTextSchema = RichTextSchema()
     titles: list[TitleRefSchema]
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ def get_franchise(request, slug: str):
             franchise, "description", getattr(franchise, "active_claims", [])
         ),
         "titles": [_serialize_title_list(t) for t in franchise.titles.all()],
-        "activity": _build_activity(getattr(franchise, "active_claims", [])),
+        "sources": _build_sources(getattr(franchise, "active_claims", [])),
     }
 
 
@@ -187,7 +187,7 @@ def patch_franchise_claims(request, slug: str, data: ClaimPatchSchema):
             franchise, "description", getattr(franchise, "active_claims", [])
         ),
         "titles": [_serialize_title_list(t) for t in franchise.titles.all()],
-        "activity": _build_activity(getattr(franchise, "active_claims", [])),
+        "sources": _build_sources(getattr(franchise, "active_claims", [])),
     }
 
 
