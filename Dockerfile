@@ -19,6 +19,11 @@ RUN pnpm build
 # ── Stage 2: Django application ────────────────────────────────────
 FROM python:3.14-slim AS base
 
+# Image codec libraries (AVIF support for Pillow)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libavif-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
