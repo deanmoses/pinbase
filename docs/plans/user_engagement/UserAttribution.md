@@ -1,6 +1,18 @@
-# UGC Photo Attribution
+# User Attribution
 
-## Problem Statement
+How Pinbase credits contributors — on articles, on photos, and on profiles.
+
+## Article Attribution
+
+Wikipedia deliberately does not show author credit on articles. There's no byline. Attribution is buried in the edit history tab, where you'd have to scroll through potentially thousands of edits to see who wrote what. Wikipedia's explicit policy is "no one owns an article," and suppressing visible credit reinforces that norm. This works at Wikipedia's scale because the mission and community are strong enough to sustain contribution without personal recognition.
+
+Pinbase is not Wikipedia. At Pinbase's scale — dozens of contributors, not hundreds of thousands — recognition is personal rather than statistical. A contributor who writes a definitive history of the System 11 platform should see evidence of that contribution without digging through an edit log. One approach worth exploring: a "Contributors to this article" line on the article itself, listing the people who've meaningfully edited it. This makes contribution visible without implying single authorship, and it's compatible with the open wiki model — anyone can still edit, and their name joins the list.
+
+The details of how this works (how many names to show, what threshold of contribution earns a listing, how to handle minor edits vs. substantial ones) are design problems to work through. The principle is: contribution to an article should be visible on the article.
+
+## Photo Attribution
+
+### Problem Statement
 
 Pinbase now accepts user-uploaded photos. When a user uploads a photo of a pinball machine, we know internally who uploaded it — but we haven't decided what to show publicly.
 

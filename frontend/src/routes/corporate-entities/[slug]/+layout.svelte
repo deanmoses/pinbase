@@ -25,11 +25,11 @@
 
 	let isDetail = $derived(
 		!page.url.pathname.endsWith('/edit') &&
-			!page.url.pathname.endsWith('/activity') &&
+			!page.url.pathname.endsWith('/sources') &&
 			!page.url.pathname.endsWith('/edit-history')
 	);
 	let isEdit = $derived(page.url.pathname.endsWith('/edit'));
-	let isActivity = $derived(page.url.pathname.endsWith('/activity'));
+	let isSources = $derived(page.url.pathname.endsWith('/sources'));
 	let isEditHistory = $derived(page.url.pathname.endsWith('/edit-history'));
 </script>
 
@@ -63,9 +63,7 @@
 				{#if auth.isAuthenticated}
 					<Tab active={isEdit} href={resolve(`/corporate-entities/${slug}/edit`)}>Edit</Tab>
 				{/if}
-				<Tab active={isActivity} href={resolve(`/corporate-entities/${slug}/activity`)}
-					>Activity</Tab
-				>
+				<Tab active={isSources} href={resolve(`/corporate-entities/${slug}/sources`)}>Sources</Tab>
 				<Tab active={isEditHistory} href={resolve(`/corporate-entities/${slug}/edit-history`)}
 					>Edit History</Tab
 				>

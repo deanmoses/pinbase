@@ -15,7 +15,7 @@ from ninja.security import django_auth
 
 from .edit_claims import execute_claims
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -54,7 +54,7 @@ class SystemDetailSchema(Schema):
     manufacturer: Optional[Ref] = None
     titles: list[RelatedTitleSchema]
     sibling_systems: list[SiblingSystemSchema] = []
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ def _serialize_system_detail(system) -> dict:
         ),
         "titles": list(titles.values()),
         "sibling_systems": sibling_systems,
-        "activity": _build_activity(getattr(system, "active_claims", [])),
+        "sources": _build_sources(getattr(system, "active_claims", [])),
     }
 
 

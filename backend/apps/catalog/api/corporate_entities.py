@@ -16,7 +16,7 @@ from ninja.security import django_auth
 
 from .edit_claims import execute_claims, plan_alias_claims, validate_scalar_fields
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -62,7 +62,7 @@ class CorporateEntityDetailSchema(Schema):
     aliases: list[str] = []
     locations: list[CorporateEntityLocationSchema] = []
     titles: list[RelatedTitleSchema]
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ def _serialize_detail(ce) -> dict:
         "aliases": [a.value for a in ce.aliases.all()],
         "locations": _serialize_locations(ce),
         "titles": _collect_titles(ce.models.all()),
-        "activity": _build_activity(getattr(ce, "active_claims", [])),
+        "sources": _build_sources(getattr(ce, "active_claims", [])),
     }
 
 

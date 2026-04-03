@@ -102,7 +102,7 @@ export function buildTitlePatchBody(
 
 export function buildModelBoundary(title: TitleEditView): {
 	modelLinks: Array<{ slug: string; name: string }>;
-	singleModelActions: { editHref: string; activityHref: string } | null;
+	singleModelActions: { editHref: string; sourcesHref: string } | null;
 } {
 	const singleModelSlug = title.model_detail?.slug ?? null;
 	const modelLinks = singleModelSlug
@@ -123,7 +123,7 @@ export function buildModelBoundary(title: TitleEditView): {
 		singleModelActions: singleModelSlug
 			? {
 					editHref: `/models/${singleModelSlug}/edit`,
-					activityHref: `/models/${singleModelSlug}/activity`
+					sourcesHref: `/models/${singleModelSlug}/sources`
 				}
 			: null
 	};

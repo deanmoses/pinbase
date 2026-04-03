@@ -85,12 +85,12 @@ describe('buildTitlePatchBody', () => {
 });
 
 describe('buildModelBoundary', () => {
-	it('shows direct model edit and activity links for single-model titles', () => {
+	it('shows direct model edit and sources links for single-model titles', () => {
 		expect(buildModelBoundary(singleModelTitle)).toEqual({
 			modelLinks: [],
 			singleModelActions: {
 				editHref: '/models/attack-from-mars/edit',
-				activityHref: '/models/attack-from-mars/activity'
+				sourcesHref: '/models/attack-from-mars/sources'
 			}
 		});
 	});

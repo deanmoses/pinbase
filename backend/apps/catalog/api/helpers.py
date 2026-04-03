@@ -5,19 +5,19 @@ from __future__ import annotations
 from django.db.models import Case, F, IntegerField, Prefetch, Value, When
 
 
-def _build_activity(active_claims) -> list[dict]:
-    """Serialize pre-fetched active claims into the activity list format.
+def _build_sources(active_claims) -> list[dict]:
+    """Serialize pre-fetched active claims into the sources list format.
 
     Claims should be ordered by claim_key, -priority, -created_at. The first
     claim seen per claim_key is marked as the winner.
     """
     winners: set[str] = set()
-    activity: list[dict] = []
+    sources: list[dict] = []
     for claim in active_claims:
         is_winner = claim.claim_key not in winners
         if is_winner:
             winners.add(claim.claim_key)
-        activity.append(
+        sources.append(
             {
                 "source_name": claim.source.name if claim.source else None,
                 "source_slug": claim.source.slug if claim.source else None,
@@ -30,8 +30,8 @@ def _build_activity(active_claims) -> list[dict]:
                 "changeset_note": claim.changeset.note if claim.changeset else None,
             }
         )
-    activity.sort(key=lambda c: c["created_at"], reverse=True)
-    return activity
+    sources.sort(key=lambda c: c["created_at"], reverse=True)
+    return sources
 
 
 def _build_edit_history(entity) -> list[dict]:

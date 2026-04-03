@@ -17,7 +17,7 @@ from .edit_claims import (
     validate_scalar_fields,
 )
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -51,7 +51,7 @@ class ThemeDetailSchema(Schema):
     parents: list[ThemeSchema] = []
     children: list[ThemeSchema] = []
     machines: list[TitleMachineSchema]
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def _serialize_detail(theme) -> dict:
             {"name": t.name, "slug": t.slug} for t in theme.children.order_by("name")
         ],
         "machines": [_serialize_title_machine(pm) for pm in theme.machine_models.all()],
-        "activity": _build_activity(getattr(theme, "active_claims", [])),
+        "sources": _build_sources(getattr(theme, "active_claims", [])),
     }
 
 

@@ -17,7 +17,7 @@ from .edit_claims import (
     validate_scalar_fields,
 )
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -53,7 +53,7 @@ class GameplayFeatureDetailSchema(Schema):
     parents: list[GameplayFeatureSchema] = []
     children: list[GameplayFeatureSchema] = []
     uploaded_media: list[UploadedMediaSchema] = []
-    activity: list[ClaimSchema] = []
+    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ def _serialize_detail(feature) -> dict:
         "uploaded_media": _serialize_uploaded_media(
             getattr(feature, "all_media", None) or []
         ),
-        "activity": _build_activity(getattr(feature, "active_claims", [])),
+        "sources": _build_sources(getattr(feature, "active_claims", [])),
     }
 
 

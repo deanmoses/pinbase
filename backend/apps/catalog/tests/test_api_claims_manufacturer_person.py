@@ -185,7 +185,7 @@ class TestPatchManufacturerClaimsPersistence:
         assert resp.status_code == 200
         assert resp.json()["description"]["text"] == "User Name"
 
-    def test_response_includes_activity(self, client, user, mfr):
+    def test_response_includes_sources(self, client, user, mfr):
         client.force_login(user)
         resp = client.patch(
             f"/api/manufacturers/{mfr.slug}/claims/",
@@ -193,10 +193,9 @@ class TestPatchManufacturerClaimsPersistence:
             content_type="application/json",
         )
         data = resp.json()
-        assert "activity" in data
+        assert "sources" in data
         assert any(
-            c["field_name"] == "description" and c["is_winner"]
-            for c in data["activity"]
+            c["field_name"] == "description" and c["is_winner"] for c in data["sources"]
         )
 
 
@@ -281,7 +280,7 @@ class TestPatchPersonClaimsPersistence:
         assert resp.status_code == 422
         assert "unique" in resp.json()["detail"].lower()
 
-    def test_response_includes_activity(self, client, user, person):
+    def test_response_includes_sources(self, client, user, person):
         client.force_login(user)
         resp = client.patch(
             f"/api/people/{person.slug}/claims/",
@@ -289,8 +288,7 @@ class TestPatchPersonClaimsPersistence:
             content_type="application/json",
         )
         data = resp.json()
-        assert "activity" in data
+        assert "sources" in data
         assert any(
-            c["field_name"] == "description" and c["is_winner"]
-            for c in data["activity"]
+            c["field_name"] == "description" and c["is_winner"] for c in data["sources"]
         )

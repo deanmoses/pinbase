@@ -81,7 +81,7 @@
 			</p>
 			<div class="merged-actions">
 				<a href={resolveHref(boundary.singleModelActions.editHref)}>Edit model facts</a>
-				<a href={resolveHref(boundary.singleModelActions.activityHref)}>Model activity</a>
+				<a href={resolveHref(boundary.singleModelActions.sourcesHref)}>Model sources</a>
 			</div>
 		</section>
 	{/if}

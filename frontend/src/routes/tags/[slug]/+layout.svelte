@@ -18,10 +18,10 @@
 	});
 
 	let isDetail = $derived(
-		!page.url.pathname.endsWith('/edit') && !page.url.pathname.endsWith('/activity')
+		!page.url.pathname.endsWith('/edit') && !page.url.pathname.endsWith('/sources')
 	);
 	let isEdit = $derived(page.url.pathname.endsWith('/edit'));
-	let isActivity = $derived(page.url.pathname.endsWith('/activity'));
+	let isSources = $derived(page.url.pathname.endsWith('/sources'));
 </script>
 
 <svelte:head>
@@ -46,7 +46,7 @@
 		{#if auth.isAuthenticated}
 			<Tab active={isEdit} href={resolve(`/tags/${slug}/edit`)}>Edit</Tab>
 		{/if}
-		<Tab active={isActivity} href={resolve(`/tags/${slug}/activity`)}>Activity</Tab>
+		<Tab active={isSources} href={resolve(`/tags/${slug}/sources`)}>Sources</Tab>
 	</TabNav>
 
 	{@render children()}

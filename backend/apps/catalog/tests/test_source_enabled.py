@@ -179,7 +179,7 @@ class TestIsEnabledRelationshipResolution:
 
 
 @pytest.mark.django_db
-class TestIsEnabledActivityPrefetch:
+class TestIsEnabledSourcesPrefetch:
     def test_claims_prefetch_excludes_disabled_source(self, source_a, source_b):
         """_claims_prefetch() should not include claims from disabled sources."""
         from apps.catalog.api.helpers import _claims_prefetch

@@ -30,12 +30,12 @@
 	);
 	let isDetail = $derived(
 		!page.url.pathname.endsWith('/edit') &&
-			!page.url.pathname.endsWith('/activity') &&
+			!page.url.pathname.endsWith('/sources') &&
 			!page.url.pathname.endsWith('/edit-history') &&
 			!isMedia
 	);
 	let isEdit = $derived(page.url.pathname.endsWith('/edit'));
-	let isActivity = $derived(page.url.pathname.endsWith('/activity'));
+	let isSources = $derived(page.url.pathname.endsWith('/sources'));
 	let isEditHistory = $derived(page.url.pathname.endsWith('/edit-history'));
 
 	let parentLink = $derived(
@@ -92,7 +92,7 @@
 				{#if auth.isAuthenticated}
 					<Tab active={isEdit} href={resolve(`/models/${slug}/edit`)}>Edit</Tab>
 				{/if}
-				<Tab active={isActivity} href={resolve(`/models/${slug}/activity`)}>Activity</Tab>
+				<Tab active={isSources} href={resolve(`/models/${slug}/sources`)}>Sources</Tab>
 				<Tab active={isEditHistory} href={resolve(`/models/${slug}/edit-history`)}>Edit History</Tab
 				>
 			</TabNav>

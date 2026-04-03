@@ -186,7 +186,7 @@
 			</p>
 			<div class="merged-actions">
 				<a href={resolveHref(`/titles/${model.title.slug}/edit`)}>Edit title facts</a>
-				<a href={resolveHref(`/titles/${model.title.slug}/activity`)}>Title activity</a>
+				<a href={resolveHref(`/titles/${model.title.slug}/sources`)}>Title sources</a>
 			</div>
 		</section>
 	{/if}

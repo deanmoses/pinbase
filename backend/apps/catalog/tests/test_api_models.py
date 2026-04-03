@@ -118,7 +118,7 @@ class TestModelsAPI:
         assert data["name"] == "Medieval Madness"
         assert len(data["credits"]) == 1
         assert data["credits"][0]["person"]["name"] == "Pat Lawlor"
-        year_claims = [c for c in data["activity"] if c["field_name"] == "year"]
+        year_claims = [c for c in data["sources"] if c["field_name"] == "year"]
         assert len(year_claims) == 1
         assert year_claims[0]["source_name"] == "IPDB"
         assert year_claims[0]["is_winner"] is True

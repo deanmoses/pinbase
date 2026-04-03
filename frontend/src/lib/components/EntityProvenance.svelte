@@ -4,11 +4,11 @@
 	type Claim = components['schemas']['ClaimSchema'];
 	type FieldGroup = { field: string; claims: Claim[] };
 
-	let { activity }: { activity: Claim[] } = $props();
+	let { sources }: { sources: Claim[] } = $props();
 
-	let activityGroups = $derived.by(() => {
+	let sourceGroups = $derived.by(() => {
 		const byField: Record<string, Claim[]> = {};
-		for (const claim of activity) {
+		for (const claim of sources) {
 			(byField[claim.field_name] ??= []).push(claim);
 		}
 
@@ -52,23 +52,23 @@
 	{/if}
 {/snippet}
 
-{#if activity.length > 0}
-	{@const { conflicts, agreed, single } = activityGroups}
+{#if sources.length > 0}
+	{@const { conflicts, agreed, single } = sourceGroups}
 	{@const contributorNames = [
 		...new Set(
-			activity
+			sources
 				.map((c) => c.source_name ?? (c.user_display ? `@${c.user_display}` : null))
 				.filter(Boolean)
 		)
 	]}
-	<section class="activity">
+	<section class="sources">
 		<h2>Sources</h2>
-		<p class="activity-summary">
+		<p class="sources-summary">
 			{contributorNames.join(' and ')} contributed to this record.
 		</p>
 
 		{#if conflicts.length > 0}
-			<details class="activity-group" open>
+			<details class="sources-group" open>
 				<summary>
 					<h3>
 						Conflicts resolved ({conflicts.length} field{conflicts.length === 1 ? '' : 's'})
@@ -92,7 +92,7 @@
 		{/if}
 
 		{#if agreed.length > 0}
-			<details class="activity-group">
+			<details class="sources-group">
 				<summary>
 					<h3>Sources agree ({agreed.length} field{agreed.length === 1 ? '' : 's'})</h3>
 				</summary>
@@ -115,7 +115,7 @@
 		{/if}
 
 		{#if single.length > 0}
-			<details class="activity-group">
+			<details class="sources-group">
 				<summary>
 					<h3>Single source ({single.length} field{single.length === 1 ? '' : 's'})</h3>
 				</summary>
@@ -135,7 +135,7 @@
 		{/if}
 	</section>
 {:else}
-	<p class="no-activity">No source data recorded yet.</p>
+	<p class="no-sources">No source data recorded yet.</p>
 {/if}
 
 <style>
@@ -146,29 +146,29 @@
 		margin-bottom: var(--size-3);
 	}
 
-	.activity-summary {
+	.sources-summary {
 		font-size: var(--font-size-1);
 		color: var(--color-text-muted);
 		margin-bottom: var(--size-4);
 	}
 
-	.activity-group {
+	.sources-group {
 		margin-bottom: var(--size-4);
 	}
 
-	.activity-group h3 {
+	.sources-group h3 {
 		font-size: var(--font-size-1);
 		font-weight: 600;
 		color: var(--color-text-primary);
 		margin-bottom: var(--size-2);
 	}
 
-	.activity-group summary {
+	.sources-group summary {
 		cursor: pointer;
 		list-style: revert;
 	}
 
-	.activity-group summary h3 {
+	.sources-group summary h3 {
 		display: inline;
 	}
 
@@ -245,7 +245,7 @@
 		color: var(--color-text-muted);
 	}
 
-	.no-activity {
+	.no-sources {
 		font-size: var(--font-size-1);
 		color: var(--color-text-muted);
 	}

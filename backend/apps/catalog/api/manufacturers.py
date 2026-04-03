@@ -19,7 +19,7 @@ from apps.core.models import active_status_q
 from ..cache import MANUFACTURERS_ALL_KEY
 from .constants import DEFAULT_PAGE_SIZE
 from .helpers import (
-    _build_activity,
+    _build_sources,
     _build_edit_history,
     _build_rich_text,
     _claims_prefetch,
@@ -110,7 +110,7 @@ class ManufacturerDetailSchema(Schema):
     systems: list[SystemSchema]
     persons: list[ManufacturerPersonSchema] = []
     uploaded_media: list[UploadedMediaSchema] = []
-    activity: list[ClaimSchema]
+    sources: list[ClaimSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
         "uploaded_media": _serialize_uploaded_media(
             getattr(mfr, "all_media", None) or []
         ),
-        "activity": _build_activity(getattr(mfr, "active_claims", [])),
+        "sources": _build_sources(getattr(mfr, "active_claims", [])),
     }
 
 
