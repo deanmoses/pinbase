@@ -1,6 +1,6 @@
 """API endpoints for the provenance app.
 
-Routers: sources, review, recent_changes.
+Routers: sources, review, recent_changes, edit_history.
 Wired into the main NinjaAPI instance in config/api.py.
 """
 
@@ -17,8 +17,26 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
+from ninja.responses import Status
 
-from apps.catalog.api.schemas import FieldChangeSchema
+
+class FieldChangeSchema(Schema):
+    """A single field change within a ChangeSet (old → new)."""
+
+    field_name: str
+    claim_key: str
+    old_value: Optional[object] = None
+    new_value: object
+
+
+class ChangeSetSchema(Schema):
+    """A grouped edit session with per-field diffs."""
+
+    id: int
+    user_display: Optional[str] = None
+    note: str
+    created_at: str
+    changes: list[FieldChangeSchema]
 
 
 class SourceSchema(Schema):
@@ -327,7 +345,7 @@ def recent_change_detail(request, changeset_id: int):
     retracted = list(cs.retracted_claims.all())
     first = next(iter(claims), None) or next(iter(retracted), None)
     if not first:
-        return 404, {"detail": "Changeset has no claims."}
+        return Status(404, {"detail": "Changeset has no claims."})
 
     ct_id = first.content_type_id
     obj_id = first.object_id
@@ -336,7 +354,7 @@ def recent_change_detail(request, changeset_id: int):
     meta_map = batch_resolve_entities([{"content_type_id": ct_id, "object_id": obj_id}])
     meta = meta_map.get((ct_id, obj_id))
     if not meta:
-        return 404, {"detail": "Entity no longer exists."}
+        return Status(404, {"detail": "Entity no longer exists."})
 
     # Build diffs: fetch all claims for this entity with matching claim_keys.
     claim_keys = {c.claim_key for c in claims}
@@ -398,3 +416,28 @@ def recent_change_detail(request, changeset_id: int):
         "changes": changes,
         "retractions": retractions,
     }
+
+
+# ── Edit History (generic, per-entity) ───────────────────────────
+
+edit_history_router = Router(tags=["edit-history"])
+
+
+@edit_history_router.get(
+    "/{entity_type}/{slug}/",
+    response={200: list[ChangeSetSchema], 404: dict},
+)
+@decorate_view(cache_control(no_cache=True))
+def get_edit_history(request, entity_type: str, slug: str):
+    """Return changeset-grouped edit history for any catalog entity."""
+    from .history import build_edit_history
+
+    try:
+        ct = ContentType.objects.get(app_label="catalog", model=entity_type)
+    except ContentType.DoesNotExist:
+        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
+    model_class = ct.model_class()
+    if not model_class or not hasattr(model_class, "link_url_pattern"):
+        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
+    entity = get_object_or_404(model_class, slug=slug)
+    return build_edit_history(entity)
