@@ -88,7 +88,7 @@
 
 			{#if auth.loaded}
 				{#if auth.isAuthenticated}
-					<span class="auth-user">{auth.username}</span>
+					<a href={resolveHref(`/users/${auth.username}`)} class="auth-user">{auth.username}</a>
 					<button class="auth-link" onclick={handleLogout}>Sign out</button>
 				{:else}
 					<a
@@ -275,6 +275,12 @@
 	.auth-user {
 		font-size: var(--font-size-2);
 		color: var(--header-ink-muted);
+		text-decoration: none;
+		transition: color 0.15s var(--ease-2);
+	}
+
+	.auth-user:hover {
+		color: var(--header-ink);
 	}
 
 	.auth-link {

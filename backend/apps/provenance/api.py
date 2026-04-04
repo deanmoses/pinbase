@@ -18,6 +18,7 @@ from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.responses import Status
+from ninja.security import django_auth
 
 
 class FieldChangeSchema(Schema):
@@ -27,6 +28,11 @@ class FieldChangeSchema(Schema):
     claim_key: str
     old_value: Optional[object] = None
     new_value: object
+    claim_id: Optional[int] = None
+    claim_user_id: Optional[int] = None
+    is_active: Optional[bool] = None
+    is_winning: Optional[bool] = None
+    is_retracted: Optional[bool] = None
 
 
 class ChangeSetSchema(Schema):
@@ -37,6 +43,7 @@ class ChangeSetSchema(Schema):
     note: str
     created_at: str
     changes: list[FieldChangeSchema]
+    retractions: list["RetractionSchema"] = []
 
 
 class SourceSchema(Schema):
@@ -178,6 +185,7 @@ class RecentChangesListSchema(Schema):
 
 
 class RetractionSchema(Schema):
+    claim_id: int
     field_name: str
     claim_key: str
     old_value: object
@@ -396,6 +404,7 @@ def recent_change_detail(request, changeset_id: int):
 
     retractions = [
         {
+            "claim_id": c.pk,
             "field_name": c.field_name,
             "claim_key": c.claim_key,
             "old_value": c.value,
@@ -420,7 +429,29 @@ def recent_change_detail(request, changeset_id: int):
 
 # ── Edit History (generic, per-entity) ───────────────────────────
 
+
+class RevertClaimSchema(Schema):
+    claim_id: int
+    note: str
+
+
 edit_history_router = Router(tags=["edit-history"])
+
+
+def _resolve_catalog_entity(entity_type: str, slug: str):
+    """Look up a catalog entity by content-type name and slug.
+
+    Returns the entity instance, or a ``Status(404, ...)`` response if the
+    entity type is unknown or the slug doesn't exist.
+    """
+    try:
+        ct = ContentType.objects.get(app_label="catalog", model=entity_type)
+    except ContentType.DoesNotExist:
+        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
+    model_class = ct.model_class()
+    if not model_class or not hasattr(model_class, "link_url_pattern"):
+        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
+    return get_object_or_404(model_class, slug=slug)
 
 
 @edit_history_router.get(
@@ -432,12 +463,29 @@ def get_edit_history(request, entity_type: str, slug: str):
     """Return changeset-grouped edit history for any catalog entity."""
     from .history import build_edit_history
 
-    try:
-        ct = ContentType.objects.get(app_label="catalog", model=entity_type)
-    except ContentType.DoesNotExist:
-        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
-    model_class = ct.model_class()
-    if not model_class or not hasattr(model_class, "link_url_pattern"):
-        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
-    entity = get_object_or_404(model_class, slug=slug)
+    entity = _resolve_catalog_entity(entity_type, slug)
+    if isinstance(entity, Status):
+        return entity
     return build_edit_history(entity)
+
+
+@edit_history_router.post(
+    "/{entity_type}/{slug}/revert/",
+    auth=django_auth,
+    response={200: dict, 403: dict, 404: dict, 422: dict},
+    tags=["private"],
+)
+def revert_claim(request, entity_type: str, slug: str, data: RevertClaimSchema):
+    """Revert (deactivate) a single user claim and re-resolve the entity."""
+    from .revert import RevertError, execute_revert
+
+    entity = _resolve_catalog_entity(entity_type, slug)
+    if isinstance(entity, Status):
+        return entity
+    try:
+        execute_revert(
+            entity, claim_id=data.claim_id, user=request.user, note=data.note
+        )
+    except RevertError as exc:
+        return Status(exc.status_code, {"detail": str(exc)})
+    return {"ok": True}

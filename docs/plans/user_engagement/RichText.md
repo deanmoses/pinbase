@@ -72,4 +72,3 @@ No external study directly answers the question for Pinbase, because the answer 
 
 - **Technical comfort.** Do these contributors use Markdown regularly, or is it foreign? If the former, keyboard shortcuts may be sufficient. If the latter, even a toolbar is a meaningful improvement.
 - **Where the drop-off is.** Are people failing to start contributions, or starting and producing poorly-formatted content? The editor choice addresses the second problem, not the first.
-- **What else the engineering time could buy.** Watchlists, recent changes feed, better photo upload, talk pages — features from the UserEngagement plan that might move the engagement needle more than editor polish.

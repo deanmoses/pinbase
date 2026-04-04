@@ -66,6 +66,8 @@ from ._entities import (  # noqa: F401
     resolve_entity as resolve_entity,
 )
 
+from ._dispatch import resolve_after_mutation as resolve_after_mutation  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 

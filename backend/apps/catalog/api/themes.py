@@ -135,7 +135,6 @@ def get_theme(request, slug: str):
 def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     from ..models import Theme
-    from ..resolve._relationships import resolve_theme_aliases, resolve_theme_parents
 
     if not data.fields and data.parents is None and data.aliases is None:
         raise HttpError(422, "No changes provided.")
@@ -144,32 +143,29 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
 
     specs = validate_scalar_fields(Theme, data.fields, entity=theme)
 
-    resolvers = []
     if data.parents is not None:
-        parent_specs = plan_parent_claims(
-            theme,
-            set(data.parents),
-            model_class=Theme,
-            claim_field_name="theme_parent",
+        specs.extend(
+            plan_parent_claims(
+                theme,
+                set(data.parents),
+                model_class=Theme,
+                claim_field_name="theme_parent",
+            )
         )
-        specs.extend(parent_specs)
-        if parent_specs:
-            resolvers.append(resolve_theme_parents)
 
     if data.aliases is not None:
-        alias_specs = plan_alias_claims(
-            theme,
-            data.aliases,
-            claim_field_name="theme_alias",
+        specs.extend(
+            plan_alias_claims(
+                theme,
+                data.aliases,
+                claim_field_name="theme_alias",
+            )
         )
-        specs.extend(alias_specs)
-        if alias_specs:
-            resolvers.append(resolve_theme_aliases)
 
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(theme, specs, user=request.user, note=data.note, resolvers=resolvers)
+    execute_claims(theme, specs, user=request.user, note=data.note)
 
     theme = get_object_or_404(_detail_qs(), slug=theme.slug)
     return _serialize_detail(theme)
