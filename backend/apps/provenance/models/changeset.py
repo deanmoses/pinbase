@@ -12,8 +12,8 @@ class ChangeSet(models.Model):
 
     A ChangeSet is a thin grouping record, not a snapshot of entity state.
     Truth is always derived from claim resolution (highest priority wins).
-    Reverting a ChangeSet means creating inverse claims, not restoring a
-    snapshot.
+    Reverting a claim means deactivating it and re-resolving — the
+    resolution machinery picks the correct winner from whatever remains.
 
     All claims in a ChangeSet must share the same actor (same user or same
     source). A CheckConstraint enforces that exactly one of user or

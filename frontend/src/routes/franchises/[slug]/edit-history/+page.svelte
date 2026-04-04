@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<EditHistory changesets={data.changesets} />
+<EditHistory changesets={data.changesets} entityType={data.entityType} entitySlug={data.slug} />

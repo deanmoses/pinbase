@@ -9,5 +9,5 @@ export const load: PageLoad = async ({ params }) => {
 
 	if (!data) error(500, 'Failed to load edit history');
 
-	return { changesets: data };
+	return { changesets: data, entityType: 'manufacturer', slug: params.slug };
 };

@@ -303,7 +303,7 @@ class Claim(models.Model):
         related_name="retracted_claims",
         null=True,
         blank=True,
-        help_text="The changeset that deactivated this claim (full_sync retraction).",
+        help_text="The changeset that deactivated this claim (user revert or full_sync retraction).",
     )
     value = models.JSONField()
     citation = models.TextField(blank=True, default="", db_default="")
