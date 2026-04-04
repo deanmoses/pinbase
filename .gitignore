@@ -21,6 +21,7 @@ frontend/.svelte-kit/
 
 # Generated API types
 frontend/src/lib/api/schema.d.ts
+frontend/src/lib/api/catalog-meta.ts
 
 # Generated OpenAPI schema file
 backend/openapi.json
