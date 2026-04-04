@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from apps.provenance.models import Claim
 
 from ._helpers import _annotate_priority
+from .._alias_registry import discover_alias_types
 
 from ..models import (
     CorporateEntity,
@@ -755,19 +756,14 @@ def _resolve_aliases(
 
 
 # ---------------------------------------------------------------------------
-# Alias registry — drives resolve_all_aliases()
+# Alias registry — drives resolve_all_aliases() and dispatch
 # ---------------------------------------------------------------------------
-# Each tuple: (parent_model, claim_field_name)
-
-ALIAS_TYPES: list[tuple[type, str]] = [
-    (Theme, "theme_alias"),
-    (Manufacturer, "manufacturer_alias"),
-    (Person, "person_alias"),
-    (GameplayFeature, "gameplay_feature_alias"),
-    (RewardType, "reward_type_alias"),
-    (CorporateEntity, "corporate_entity_alias"),
-    (Location, "location_alias"),
-]
+# Auto-discovered from AliasBase subclasses.  Safe to compute at module level
+# because this module already imports Django models at the top, so the app
+# registry is guaranteed to be ready.  ``ALIAS_TYPES`` is kept as a public
+# binding (same shape as before) so that existing callers — including the
+# test suite — continue to work.
+ALIAS_TYPES: list[tuple[type, str]] = list(discover_alias_types())
 
 
 def resolve_theme_aliases() -> None:
@@ -795,8 +791,8 @@ def resolve_corporate_entity_aliases() -> None:
 
 
 def resolve_all_aliases() -> None:
-    """Resolve all alias types from the registry."""
-    for parent_model, claim_field in ALIAS_TYPES:
+    """Resolve all alias types from the auto-discovered registry."""
+    for parent_model, claim_field in discover_alias_types():
         _resolve_aliases(parent_model, claim_field)
 
 
@@ -916,11 +912,16 @@ def resolve_all_location_aliases() -> None:
 # ------------------------------------------------------------------
 
 
-def resolve_all_corporate_entity_locations() -> dict[str, int]:
+def resolve_all_corporate_entity_locations(
+    *,
+    entity_ids: set[int] | None = None,
+) -> dict[str, int]:
     """Sync CorporateEntityLocation rows from active 'location' claims on CorporateEntity.
 
-    Loads ALL existing CorporateEntityLocation rows so that CEs whose claims
-    were all deactivated also have their stale rows removed.
+    When *entity_ids* is ``None`` (the default), processes ALL CorporateEntity
+    rows so that CEs whose claims were all deactivated also have their stale
+    rows removed.  When scoped to a set of entity PKs, only those CEs are
+    considered.
     """
     from collections import defaultdict
 
@@ -929,11 +930,13 @@ def resolve_all_corporate_entity_locations() -> dict[str, int]:
     ce_ct = ContentType.objects.get_for_model(CorporateEntity)
     valid_loc_pks = set(Location.objects.values_list("pk", flat=True))
 
-    active_claims = (
-        Claim.objects.filter(content_type=ce_ct, field_name="location", is_active=True)
-        .exclude(source__is_enabled=False)
-        .values("object_id", "value")
-    )
+    claims_qs = Claim.objects.filter(
+        content_type=ce_ct, field_name="location", is_active=True
+    ).exclude(source__is_enabled=False)
+    if entity_ids is not None:
+        claims_qs = claims_qs.filter(object_id__in=entity_ids)
+
+    active_claims = claims_qs.values("object_id", "value")
 
     desired: dict[int, set[int]] = defaultdict(set)
     for row in active_claims:
@@ -943,10 +946,12 @@ def resolve_all_corporate_entity_locations() -> dict[str, int]:
 
     created = deleted = 0
 
-    # Load ALL existing rows so stale rows for CEs with no active claims are cleaned up.
-    all_existing = CorporateEntityLocation.objects.all()
+    existing_qs = CorporateEntityLocation.objects.all()
+    if entity_ids is not None:
+        existing_qs = existing_qs.filter(corporate_entity_id__in=entity_ids)
+
     current: dict[int, dict[int, CorporateEntityLocation]] = defaultdict(dict)
-    for cel in all_existing:
+    for cel in existing_qs:
         current[cel.corporate_entity_id][cel.location_id] = cel
 
     # Create missing rows.

@@ -562,7 +562,6 @@ def get_title(request, slug: str):
 def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     """Assert title-owned claims and return the refreshed title detail."""
     from ..models import Title
-    from ..resolve._relationships import resolve_all_title_abbreviations
     from .edit_claims import plan_scalar_field_claims
 
     if not data.fields and data.abbreviations is None:
@@ -577,19 +576,13 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
         else []
     )
 
-    resolvers = []
     if data.abbreviations is not None:
-        abbreviation_specs = plan_abbreviation_claims(title, data.abbreviations)
-        specs.extend(abbreviation_specs)
-        if abbreviation_specs:
-            resolvers.append(
-                lambda: resolve_all_title_abbreviations(model_ids={title.pk})
-            )
+        specs.extend(plan_abbreviation_claims(title, data.abbreviations))
 
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(title, specs, user=request.user, note=data.note, resolvers=resolvers)
+    execute_claims(title, specs, user=request.user, note=data.note)
 
     title = get_object_or_404(_detail_qs(), slug=title.slug)
     return _serialize_title_detail(title)

@@ -168,10 +168,6 @@ def get_gameplay_feature(request, slug: str):
 def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     from ..models import GameplayFeature
-    from ..resolve._relationships import (
-        resolve_gameplay_feature_aliases,
-        resolve_gameplay_feature_parents,
-    )
 
     if not data.fields and data.parents is None and data.aliases is None:
         raise HttpError(422, "No changes provided.")
@@ -180,34 +176,29 @@ def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchS
 
     specs = validate_scalar_fields(GameplayFeature, data.fields, entity=feature)
 
-    resolvers = []
     if data.parents is not None:
-        parent_specs = plan_parent_claims(
-            feature,
-            set(data.parents),
-            model_class=GameplayFeature,
-            claim_field_name="gameplay_feature_parent",
+        specs.extend(
+            plan_parent_claims(
+                feature,
+                set(data.parents),
+                model_class=GameplayFeature,
+                claim_field_name="gameplay_feature_parent",
+            )
         )
-        specs.extend(parent_specs)
-        if parent_specs:
-            resolvers.append(resolve_gameplay_feature_parents)
 
     if data.aliases is not None:
-        alias_specs = plan_alias_claims(
-            feature,
-            data.aliases,
-            claim_field_name="gameplay_feature_alias",
+        specs.extend(
+            plan_alias_claims(
+                feature,
+                data.aliases,
+                claim_field_name="gameplay_feature_alias",
+            )
         )
-        specs.extend(alias_specs)
-        if alias_specs:
-            resolvers.append(resolve_gameplay_feature_aliases)
 
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(
-        feature, specs, user=request.user, note=data.note, resolvers=resolvers
-    )
+    execute_claims(feature, specs, user=request.user, note=data.note)
 
     feature = get_object_or_404(_detail_qs(), slug=feature.slug)
     return _serialize_detail(feature)

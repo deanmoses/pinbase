@@ -7,13 +7,10 @@ build a list of ClaimSpecs, then execute them atomically in a ChangeSet.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from ninja.errors import HttpError
-
-from ..cache import invalidate_all
 
 
 @dataclass(frozen=True)
@@ -609,26 +606,18 @@ def execute_claims(
     *,
     user,
     note: str = "",
-    resolvers: list[Callable] | None = None,
-    resolve_fn: Callable | None = None,
 ) -> None:
     """Create a ChangeSet + claims atomically, resolve, and invalidate cache.
 
-    ``resolvers`` is an optional list of callables to run inside the
-    transaction before the entity resolver — e.g., relationship resolvers
-    like ``resolve_gameplay_feature_parents``.
-
-    ``resolve_fn`` overrides the default ``resolve_entity`` — used by
-    MachineModel which needs ``resolve_model`` instead.
+    Resolution is handled by :func:`resolve_after_mutation` which routes
+    to the correct resolver(s) based on entity type and the claim field
+    names in *specs*.
 
     Raises HttpError 422 on IntegrityError (unique constraint violations).
     """
     from apps.provenance.models import ChangeSet, Claim
 
-    if resolve_fn is None:
-        from ..resolve import resolve_entity
-
-        resolve_fn = resolve_entity
+    from ..resolve import resolve_after_mutation
 
     try:
         with transaction.atomic():
@@ -642,12 +631,9 @@ def execute_claims(
                     claim_key=spec.claim_key,
                     changeset=cs,
                 )
-            for resolver in resolvers or []:
-                resolver()
-            resolve_fn(entity)
+            field_names = list({s.field_name for s in specs})
+            resolve_after_mutation(entity, field_names=field_names)
     except ValidationError as exc:
         raise HttpError(422, "; ".join(exc.messages)) from exc
     except IntegrityError as exc:
         raise HttpError(422, f"Unique constraint violation: {exc}") from exc
-
-    invalidate_all()

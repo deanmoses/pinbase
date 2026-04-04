@@ -81,19 +81,23 @@ def _get_entity_ref_targets() -> dict[str, list[RefKey]]:
     return _entity_ref_targets
 
 
-LITERAL_SCHEMAS: dict[str, LiteralKey] = {
-    "abbreviation": LiteralKey("value", "value"),
-    "theme_alias": LiteralKey("alias_value", "alias"),
-    "manufacturer_alias": LiteralKey("alias_value", "alias"),
-    "person_alias": LiteralKey("alias_value", "alias"),
-    "gameplay_feature_alias": LiteralKey("alias_value", "alias"),
-    "reward_type_alias": LiteralKey("alias_value", "alias"),
-    "corporate_entity_alias": LiteralKey("alias_value", "alias"),
-    "location_alias": LiteralKey("alias_value", "alias"),
-}
+_literal_schemas: dict[str, LiteralKey] | None = None
 
-# Eagerly computable — literal namespace names are string constants.
-_LITERAL_NAMESPACES = frozenset(LITERAL_SCHEMAS)
+
+def _get_literal_schemas() -> dict[str, LiteralKey]:
+    """Return literal namespace schemas, auto-discovering alias types.
+
+    Lazy — safe to call at any time; caches after first call.
+    Follows the same pattern as ``_get_entity_ref_targets()``.
+    """
+    global _literal_schemas  # noqa: PLW0603
+    if _literal_schemas is None:
+        from ._alias_registry import discover_alias_types
+
+        _literal_schemas = {"abbreviation": LiteralKey("value", "value")}
+        for _model, claim_field in discover_alias_types():
+            _literal_schemas[claim_field] = LiteralKey("alias_value", "alias")
+    return _literal_schemas
 
 
 _relationship_namespaces: frozenset[str] | None = None
@@ -106,8 +110,8 @@ def get_relationship_namespaces() -> frozenset[str]:
     """
     global _relationship_namespaces  # noqa: PLW0603
     if _relationship_namespaces is None:
-        _relationship_namespaces = (
-            frozenset(_get_entity_ref_targets()) | _LITERAL_NAMESPACES
+        _relationship_namespaces = frozenset(_get_entity_ref_targets()) | frozenset(
+            _get_literal_schemas()
         )
     return _relationship_namespaces
 
@@ -141,7 +145,7 @@ def get_all_namespace_keys() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     for ns, ref_keys in _get_entity_ref_targets().items():
         result[ns] = [rk.name for rk in ref_keys]
-    for ns, lit in LITERAL_SCHEMAS.items():
+    for ns, lit in _get_literal_schemas().items():
         result[ns] = [lit.value_key]
     return result
 
@@ -169,7 +173,7 @@ def build_relationship_claim(
                 raise ValueError(f"Missing required key {key!r} for {field_name!r}")
         identity_parts = {k: identity[k] for k in expected}
     else:
-        literal = LITERAL_SCHEMAS.get(field_name)
+        literal = _get_literal_schemas().get(field_name)
         if literal is None:
             raise ValueError(f"Unknown relationship namespace: {field_name!r}")
         # Literal namespace: map value_key → identity_key.

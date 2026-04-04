@@ -177,7 +177,6 @@ def patch_corporate_entity_claims(
 ):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     from ..models import CorporateEntity
-    from ..resolve._relationships import resolve_corporate_entity_aliases
 
     if not data.fields and data.aliases is None:
         raise HttpError(422, "No changes provided.")
@@ -186,21 +185,19 @@ def patch_corporate_entity_claims(
 
     specs = validate_scalar_fields(CorporateEntity, data.fields, entity=ce)
 
-    resolvers = []
     if data.aliases is not None:
-        alias_specs = plan_alias_claims(
-            ce,
-            data.aliases,
-            claim_field_name="corporate_entity_alias",
+        specs.extend(
+            plan_alias_claims(
+                ce,
+                data.aliases,
+                claim_field_name="corporate_entity_alias",
+            )
         )
-        specs.extend(alias_specs)
-        if alias_specs:
-            resolvers.append(resolve_corporate_entity_aliases)
 
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(ce, specs, user=request.user, note=data.note, resolvers=resolvers)
+    execute_claims(ce, specs, user=request.user, note=data.note)
 
     ce = get_object_or_404(_detail_qs(), slug=ce.slug)
     return _serialize_detail(ce)
