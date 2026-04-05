@@ -4,7 +4,7 @@
 	import { pageTitle } from '$lib/constants';
 	import { formatYearRange } from '$lib/utils';
 	import { auth } from '$lib/auth.svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import AttributionLine from '$lib/components/AttributionLine.svelte';
 	import LocationLink from '$lib/components/LocationLink.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
@@ -38,16 +38,15 @@
 </svelte:head>
 
 <article>
-	<header>
-		<Breadcrumb
-			crumbs={[
-				{ label: 'Manufacturers', href: '/manufacturers' },
-				{ label: ce.manufacturer.name, href: `/manufacturers/${ce.manufacturer.slug}` }
-			]}
-			current={ce.name}
-		/>
-		<h1>{ce.name}</h1>
-	</header>
+	<PageHeader
+		title={ce.name}
+		breadcrumbs={[
+			{ label: 'Manufacturers', href: '/manufacturers' },
+			{ label: ce.manufacturer.name, href: `/manufacturers/${ce.manufacturer.slug}` }
+		]}
+		--page-header-mb="var(--size-5)"
+		--page-header-title-mb="var(--size-2)"
+	/>
 
 	<TwoColumnLayout>
 		{#snippet main()}
@@ -103,17 +102,6 @@
 </article>
 
 <style>
-	header {
-		margin-bottom: var(--size-5);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-2);
-	}
-
 	.description {
 		margin-bottom: var(--size-5);
 	}

@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import AttributionLine from '$lib/components/AttributionLine.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import SidebarList from '$lib/components/SidebarList.svelte';
@@ -36,10 +36,7 @@
 </svelte:head>
 
 <article>
-	<header>
-		<Breadcrumb crumbs={[{ label: 'Themes', href: '/themes' }]} current={theme.name} />
-		<h1>{theme.name}</h1>
-	</header>
+	<PageHeader title={theme.name} breadcrumbs={[{ label: 'Themes', href: '/themes' }]} />
 
 	<TwoColumnLayout>
 		{#snippet main()}
@@ -98,17 +95,6 @@
 <style>
 	article {
 		max-width: 64rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-4);
 	}
 
 	.description {

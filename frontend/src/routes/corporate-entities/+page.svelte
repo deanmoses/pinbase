@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import client from '$lib/api/client';
 	import { createAsyncLoader } from '$lib/async-loader.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { pageTitle } from '$lib/constants';
 	import { formatYearRange } from '$lib/utils';
 
@@ -16,9 +17,7 @@
 </svelte:head>
 
 <article>
-	<header>
-		<h1>Corporate Entities</h1>
-	</header>
+	<PageHeader title="Corporate Entities" />
 
 	{#if entities.loading}
 		<p class="status">Loading...</p>
@@ -51,16 +50,6 @@
 <style>
 	article {
 		max-width: 56rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
 	}
 
 	.entity-list {

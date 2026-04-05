@@ -1,5 +1,6 @@
 <script lang="ts" generics="T extends { slug: string; name: string }">
 	import type { Snippet } from 'svelte';
+	import PageHeader from './PageHeader.svelte';
 	import { resolveHref } from '$lib/utils';
 	import { pageTitle } from '$lib/constants';
 
@@ -37,14 +38,13 @@
 </svelte:head>
 
 <article>
-	<header>
-		<h1>{title}</h1>
+	<PageHeader {title} --page-header-title-mb="0">
 		{#if headerSnippet}
 			{@render headerSnippet()}
 		{:else if subtitle}
 			<p class="subtitle">{subtitle}</p>
 		{/if}
-	</header>
+	</PageHeader>
 
 	{#if loading}
 		<p class="status">Loading...</p>
@@ -72,16 +72,6 @@
 <style>
 	article {
 		max-width: 48rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
 	}
 
 	.subtitle {

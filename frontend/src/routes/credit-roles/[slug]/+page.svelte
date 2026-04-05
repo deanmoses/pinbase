@@ -1,6 +1,7 @@
 <script lang="ts">
 	import AttributionLine from '$lib/components/AttributionLine.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let { data } = $props();
@@ -12,28 +13,16 @@
 </svelte:head>
 
 <article>
-	<header>
-		<h1>{profile.name}</h1>
+	<PageHeader title={profile.name}>
 		{#if profile.description?.html}
 			<Markdown html={profile.description.html} />
 			<AttributionLine attribution={profile.description.attribution} />
 		{/if}
-	</header>
+	</PageHeader>
 </article>
 
 <style>
 	article {
 		max-width: 64rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-4);
 	}
 </style>

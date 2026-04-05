@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import type { Crumb } from '$lib/components/Breadcrumb.svelte';
 	import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 	import CardGrid from '$lib/components/grid/CardGrid.svelte';
 	import SkeletonCard from '$lib/components/cards/SkeletonCard.svelte';
@@ -21,7 +22,7 @@
 		error: boolean;
 		heading: string;
 		subtitle: string;
-		crumbs: { label: string; href: string }[];
+		crumbs: Crumb[];
 		manufacturers: {
 			name: string;
 			slug: string;
@@ -34,27 +35,34 @@
 
 <article>
 	{#if loading}
-		<header>
-			<Breadcrumb {crumbs} current="Loading..." />
-			<h1>Loading...</h1>
-		</header>
+		<PageHeader
+			title="Loading..."
+			breadcrumbs={crumbs}
+			--page-header-mb="var(--size-5)"
+			--page-header-title-mb="var(--size-2)"
+		/>
 		<CardGrid>
 			{#each SKELETON_INDICES as i (i)}
 				<SkeletonCard />
 			{/each}
 		</CardGrid>
 	{:else if error}
-		<header>
-			<Breadcrumb {crumbs} current="Error" />
-			<h1>Not found</h1>
-		</header>
+		<PageHeader
+			title="Not found"
+			breadcrumbs={crumbs}
+			--page-header-mb="var(--size-5)"
+			--page-header-title-mb="var(--size-2)"
+		/>
 		<p class="status error">Failed to load location.</p>
 	{:else}
-		<header>
-			<Breadcrumb {crumbs} current={heading} />
-			<h1>{heading}</h1>
+		<PageHeader
+			title={heading}
+			breadcrumbs={crumbs}
+			--page-header-mb="var(--size-5)"
+			--page-header-title-mb="var(--size-2)"
+		>
 			<p class="subtitle">{subtitle}</p>
-		</header>
+		</PageHeader>
 
 		<TwoColumnLayout>
 			{#snippet main()}
@@ -69,17 +77,6 @@
 </article>
 
 <style>
-	header {
-		margin-bottom: var(--size-5);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-2);
-	}
-
 	.subtitle {
 		font-size: var(--font-size-2);
 		color: var(--color-text-muted);

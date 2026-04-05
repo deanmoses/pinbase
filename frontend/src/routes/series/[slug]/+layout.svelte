@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import AttributionLine from '$lib/components/AttributionLine.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import TabNav from '$lib/components/TabNav.svelte';
@@ -32,10 +32,7 @@
 </svelte:head>
 
 <article>
-	<header>
-		<Breadcrumb crumbs={[{ label: 'Series', href: '/series' }]} current={series.name} />
-		<h1>{series.name}</h1>
-	</header>
+	<PageHeader title={series.name} breadcrumbs={[{ label: 'Series', href: '/series' }]} />
 
 	{#if series.description?.html}
 		<div class="description">
@@ -59,17 +56,6 @@
 <style>
 	article {
 		max-width: 64rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-4);
 	}
 
 	.description {

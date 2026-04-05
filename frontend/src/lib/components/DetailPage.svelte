@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import PageHeader from './PageHeader.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let {
@@ -18,12 +19,11 @@
 </svelte:head>
 
 <article class="detail">
-	<header>
-		<h1>{title}</h1>
+	<PageHeader {title} --page-header-title-mb="0">
 		{#if subtitle}
 			{@render subtitle()}
 		{/if}
-	</header>
+	</PageHeader>
 
 	{@render children()}
 </article>
@@ -31,16 +31,6 @@
 <style>
 	.detail {
 		max-width: 64rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
 	}
 
 	.detail :global(h2) {

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import type { Crumb } from './Breadcrumb.svelte';
 	import AttributionLine from './AttributionLine.svelte';
-	import Breadcrumb from './Breadcrumb.svelte';
 	import Markdown from './Markdown.svelte';
+	import PageHeader from './PageHeader.svelte';
 	import { pageTitle } from '$lib/constants';
 
 	let {
@@ -13,7 +14,7 @@
 	}: {
 		name: string;
 		description?: { text?: string; html?: string; attribution?: object | null } | null;
-		breadcrumbs?: { label: string; href: string }[] | null;
+		breadcrumbs?: Crumb[] | null;
 		children: Snippet;
 	} = $props();
 </script>
@@ -23,16 +24,12 @@
 </svelte:head>
 
 <article>
-	<header>
-		{#if breadcrumbs}
-			<Breadcrumb crumbs={breadcrumbs} current={name} />
-		{/if}
-		<h1>{name}</h1>
+	<PageHeader title={name} {breadcrumbs}>
 		{#if description?.html}
 			<Markdown html={description.html} />
 			<AttributionLine attribution={description.attribution} />
 		{/if}
-	</header>
+	</PageHeader>
 
 	{@render children()}
 </article>
@@ -40,16 +37,5 @@
 <style>
 	article {
 		max-width: 64rem;
-	}
-
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-4);
 	}
 </style>

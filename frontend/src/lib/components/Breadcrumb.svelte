@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolveHref } from '$lib/utils';
 
-	type Crumb = { label: string; href: string };
+	export type Crumb = { label: string; href: string };
 
 	let { crumbs, current }: { crumbs: Crumb[]; current: string } = $props();
 </script>

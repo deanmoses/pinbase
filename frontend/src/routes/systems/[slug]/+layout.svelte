@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { pageTitle } from '$lib/constants';
 	import { auth } from '$lib/auth.svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import AttributionLine from '$lib/components/AttributionLine.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import SidebarList from '$lib/components/SidebarList.svelte';
@@ -36,10 +36,11 @@
 </svelte:head>
 
 <article>
-	<header>
-		<Breadcrumb crumbs={[{ label: 'Systems', href: '/systems' }]} current={system.name} />
-		<h1>{system.name}</h1>
-	</header>
+	<PageHeader
+		title={system.name}
+		breadcrumbs={[{ label: 'Systems', href: '/systems' }]}
+		--page-header-title-mb="var(--size-2)"
+	/>
 
 	<TwoColumnLayout>
 		{#snippet main()}
@@ -89,17 +90,6 @@
 </article>
 
 <style>
-	header {
-		margin-bottom: var(--size-6);
-	}
-
-	h1 {
-		font-size: var(--font-size-7);
-		font-weight: 700;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-2);
-	}
-
 	.description {
 		margin-bottom: var(--size-6);
 	}
