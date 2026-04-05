@@ -700,62 +700,155 @@ def list_recent_models(request):
 @decorate_view(cache_control(no_cache=True))
 def list_all_models(request):
     """Return every model (including variants) with minimal fields (no pagination)."""
+    from collections import defaultdict
+
     from django.core.cache import cache
 
-    from ..models import Credit, MachineModel
+    from ..models import (
+        Credit,
+        CorporateEntity,
+        CorporateEntityLocation,
+        MachineModel,
+        ModelAbbreviation,
+    )
+
+    from apps.core.licensing import get_minimum_display_rank
 
     result = cache.get(MODELS_ALL_KEY)
     if result is not None:
         return result
-    qs = (
+
+    min_rank = get_minimum_display_rank()
+
+    # --- Main query: values_list avoids ORM object hydration for 6.8k rows ---
+    rows = list(
         MachineModel.objects.active()
-        .select_related(
-            "corporate_entity__manufacturer",
-            "technology_generation",
-            "technology_subgeneration",
-            "display_type",
-            "title",
-            "system",
-            "display_subtype",
-            "cabinet",
-            "game_format",
-        )
-        .prefetch_related(
-            "themes",
-            "tags",
-            "gameplay_features",
-            "variants",
-            "abbreviations",
-            "corporate_entity__manufacturer__entities__locations__location",
-            Prefetch(
-                "credits",
-                queryset=Credit.objects.filter(model__isnull=False).select_related(
-                    "person", "role"
-                ),
-            ),
+        .values_list(
+            "id",
+            "name",
+            "slug",
+            "year",
+            "extra_data",
+            "corporate_entity__manufacturer__id",
+            "corporate_entity__manufacturer__name",
+            "technology_generation__name",
+            "display_type__name",
+            "display_subtype__name",
+            "title__slug",
+            "system__name",
+            "cabinet__name",
+            "game_format__name",
         )
         .order_by("name")
     )
+    model_ids = {r[0] for r in rows}
+
+    # --- Bulk M2M queries for search_text ---
+    model_themes: dict[int, list[str]] = defaultdict(list)
+    for mid, name in MachineModel.themes.through.objects.filter(
+        machinemodel_id__in=model_ids
+    ).values_list("machinemodel_id", "theme__name"):
+        model_themes[mid].append(name)
+
+    model_tags: dict[int, list[str]] = defaultdict(list)
+    for mid, name in MachineModel.tags.through.objects.filter(
+        machinemodel_id__in=model_ids
+    ).values_list("machinemodel_id", "tag__name"):
+        model_tags[mid].append(name)
+
+    model_gf: dict[int, list[str]] = defaultdict(list)
+    for mid, name in MachineModel.gameplay_features.through.objects.filter(
+        machinemodel_id__in=model_ids
+    ).values_list("machinemodel_id", "gameplayfeature__name"):
+        model_gf[mid].append(name)
+
+    model_credits: dict[int, list[str]] = defaultdict(list)
+    for mid, name in Credit.objects.filter(model_id__in=model_ids).values_list(
+        "model_id", "person__name"
+    ):
+        model_credits[mid].append(name)
+
+    model_abbrevs: dict[int, list[str]] = defaultdict(list)
+    for mid, value in ModelAbbreviation.objects.filter(
+        machine_model_id__in=model_ids
+    ).values_list("machine_model_id", "value"):
+        model_abbrevs[mid].append(value)
+
+    # --- Bulk manufacturer search text (entity names, aliases, locations) ---
+    # Build manufacturer_id → search parts map
+    mfr_search_parts: dict[int, list[str]] = defaultdict(list)
+
+    # Entity names
+    for mfr_id, ename in CorporateEntity.objects.active().values_list(
+        "manufacturer_id", "name"
+    ):
+        if mfr_id:
+            mfr_search_parts[mfr_id].append(ename)
+
+    # Entity aliases
+    from ..models import CorporateEntityAlias
+
+    for mfr_id, aval in CorporateEntityAlias.objects.filter(
+        corporate_entity__manufacturer__isnull=False
+    ).values_list("corporate_entity__manufacturer_id", "value"):
+        mfr_search_parts[mfr_id].append(aval)
+
+    # Location names (walk hierarchy via pre-fetched chain)
+    for mfr_id, loc_name, p1, p2, p3, p4 in (
+        CorporateEntityLocation.objects.filter(
+            corporate_entity__manufacturer__isnull=False
+        )
+        .select_related("location__parent__parent__parent__parent")
+        .values_list(
+            "corporate_entity__manufacturer_id",
+            "location__name",
+            "location__parent__name",
+            "location__parent__parent__name",
+            "location__parent__parent__parent__name",
+            "location__parent__parent__parent__parent__name",
+        )
+    ):
+        for n in (loc_name, p1, p2, p3, p4):
+            if n:
+                mfr_search_parts[mfr_id].append(n)
+
+    # --- Assembly ---
+    # Row indices: 0=id, 1=name, 2=slug, 3=year, 4=extra_data,
+    # 5=mfr_id, 6=mfr_name, 7=tech_gen_name, 8=display_type_name,
+    # 9=display_subtype_name, 10=title_slug, 11=system_name,
+    # 12=cabinet_name, 13=game_format_name
     result = []
-    for pm in qs:
-        thumbnail_url, _ = _extract_image_urls(pm.extra_data or {})
+    for r in rows:
+        mid = r[0]
+        extra_data = r[4]
+        thumbnail_url, _ = _extract_image_urls(extra_data or {}, min_rank=min_rank)
+
+        # Build search_text from bulk maps
+        parts: list[str] = []
+        mfr_id, mfr_name = r[5], r[6]
+        if mfr_name:
+            parts.append(mfr_name)
+            parts.extend(mfr_search_parts.get(mfr_id, []))
+        for name in (r[11], r[7], r[8], r[9], r[12], r[13]):
+            if name:
+                parts.append(name)
+        parts.extend(model_themes.get(mid, []))
+        parts.extend(model_tags.get(mid, []))
+        parts.extend(model_gf.get(mid, []))
+        parts.extend(model_credits.get(mid, []))
+        parts.extend(model_abbrevs.get(mid, []))
+
         result.append(
             {
-                "name": pm.name,
-                "slug": pm.slug,
-                "year": pm.year,
-                "manufacturer_name": (
-                    pm.corporate_entity.manufacturer.name
-                    if pm.corporate_entity and pm.corporate_entity.manufacturer
-                    else None
-                ),
-                "technology_generation_name": (
-                    pm.technology_generation.name if pm.technology_generation else None
-                ),
+                "name": r[1],
+                "slug": r[2],
+                "year": r[3],
+                "manufacturer_name": mfr_name,
+                "technology_generation_name": r[7],
                 "thumbnail_url": thumbnail_url,
-                "abbreviations": [a.value for a in pm.abbreviations.all()],
-                "search_text": _build_search_text(pm),
-                "title_slug": pm.title.slug if pm.title else None,
+                "abbreviations": model_abbrevs.get(mid, []),
+                "search_text": " | ".join(parts) if parts else None,
+                "title_slug": r[10],
             }
         )
     cache.set(MODELS_ALL_KEY, result, timeout=None)

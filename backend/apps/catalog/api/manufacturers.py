@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from django.core.cache import cache
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, Max, Min, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -263,80 +263,185 @@ def list_manufacturers(request):
 @decorate_view(cache_control(no_cache=True))
 def list_all_manufacturers(request):
     """Return every manufacturer with model count and thumbnail (no pagination)."""
+    from collections import defaultdict
+
+    from apps.core.licensing import get_minimum_display_rank
+
     result = cache.get(MANUFACTURERS_ALL_KEY)
     if result is not None:
         return result
 
+    min_rank = get_minimum_display_rank()
+
     from ..models import (
         CorporateEntity,
+        CorporateEntityAlias,
         CorporateEntityLocation,
+        Credit,
         MachineModel,
         Manufacturer,
     )
 
-    qs = (
+    # --- Main query with annotations ---
+    manufacturers = list(
         Manufacturer.objects.active()
         .annotate(
             model_count=Count(
                 "entities__models",
                 filter=Q(entities__models__variant_of__isnull=True)
                 & active_status_q("entities__models"),
-            )
-        )
-        .prefetch_related(
-            Prefetch(
-                "entities",
-                queryset=CorporateEntity.objects.active().prefetch_related(
-                    Prefetch(
-                        "locations",
-                        queryset=CorporateEntityLocation.objects.select_related(
-                            "location__parent__parent__parent__parent"
-                        ),
-                    ),
-                    "aliases",
-                    Prefetch(
-                        "models",
-                        queryset=MachineModel.objects.active()
-                        .filter(variant_of__isnull=True)
-                        .select_related("technology_generation")
-                        .prefetch_related("credits__person")
-                        .order_by(F("year").desc(nulls_last=True)),
-                    ),
-                ),
+            ),
+            year_min=Min(
+                "entities__models__year",
+                filter=Q(entities__models__variant_of__isnull=True)
+                & active_status_q("entities__models"),
+            ),
+            year_max=Max(
+                "entities__models__year",
+                filter=Q(entities__models__variant_of__isnull=True)
+                & active_status_q("entities__models"),
             ),
         )
         .order_by("-model_count")
     )
 
+    # --- Batch thumbnail: newest model with extra_data per manufacturer ---
+    mfr_thumb_model: dict[int, int] = {}
+    for mfr_id, model_id in (
+        MachineModel.objects.active()
+        .filter(
+            variant_of__isnull=True,
+            extra_data__isnull=False,
+            corporate_entity__manufacturer__isnull=False,
+        )
+        .order_by(F("year").desc(nulls_last=True), "name")
+        .values_list("corporate_entity__manufacturer_id", "id")
+    ):
+        if mfr_id not in mfr_thumb_model:
+            mfr_thumb_model[mfr_id] = model_id
+    thumb_models = {
+        m.id: m
+        for m in MachineModel.objects.filter(id__in=mfr_thumb_model.values()).only(
+            "id", "extra_data"
+        )
+    }
+
+    # --- Bulk search text + facet data per manufacturer ---
+    mfr_ids = {m.id for m in manufacturers}
+
+    # Entity names per manufacturer
+    mfr_entity_names: dict[int, list[str]] = defaultdict(list)
+    mfr_entity_ids: dict[int, list[int]] = defaultdict(list)
+    for eid, mfr_id, ename in CorporateEntity.objects.active().values_list(
+        "id", "manufacturer_id", "name"
+    ):
+        if mfr_id in mfr_ids:
+            mfr_entity_names[mfr_id].append(ename)
+            mfr_entity_ids[mfr_id].append(eid)
+
+    all_entity_ids = {eid for eids in mfr_entity_ids.values() for eid in eids}
+
+    # Aliases per entity → grouped by manufacturer
+    entity_to_mfr: dict[int, int] = {}
+    for mfr_id, eids in mfr_entity_ids.items():
+        for eid in eids:
+            entity_to_mfr[eid] = mfr_id
+
+    mfr_alias_names: dict[int, list[str]] = defaultdict(list)
+    for eid, aval in CorporateEntityAlias.objects.filter(
+        corporate_entity_id__in=all_entity_ids
+    ).values_list("corporate_entity_id", "value"):
+        mid = entity_to_mfr.get(eid)
+        if mid:
+            mfr_alias_names[mid].append(aval)
+
+    # Locations per manufacturer (with hierarchy)
+    mfr_location_names: dict[int, list[str]] = defaultdict(list)
+    mfr_location_refs: dict[int, dict[str, str]] = defaultdict(dict)
+    for eid, loc_path, loc_name, p1n, p1p, p2n, p2p, p3n, p3p, p4n, p4p in (
+        CorporateEntityLocation.objects.filter(corporate_entity_id__in=all_entity_ids)
+        .select_related("location__parent__parent__parent__parent")
+        .values_list(
+            "corporate_entity_id",
+            "location__location_path",
+            "location__name",
+            "location__parent__name",
+            "location__parent__location_path",
+            "location__parent__parent__name",
+            "location__parent__parent__location_path",
+            "location__parent__parent__parent__name",
+            "location__parent__parent__parent__location_path",
+            "location__parent__parent__parent__parent__name",
+            "location__parent__parent__parent__parent__location_path",
+        )
+    ):
+        mid = entity_to_mfr.get(eid)
+        if not mid:
+            continue
+        for name, path in (
+            (loc_name, loc_path),
+            (p1n, p1p),
+            (p2n, p2p),
+            (p3n, p3p),
+            (p4n, p4p),
+        ):
+            if name:
+                mfr_location_names[mid].append(name)
+            if path and name and path not in mfr_location_refs[mid]:
+                mfr_location_refs[mid][path] = name
+
+    # Tech generations per manufacturer (via models)
+    mfr_tech_gens: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    for mfr_id, tg_slug, tg_name in (
+        MachineModel.objects.active()
+        .filter(
+            variant_of__isnull=True,
+            technology_generation__isnull=False,
+            corporate_entity__manufacturer_id__in=mfr_ids,
+        )
+        .values_list(
+            "corporate_entity__manufacturer_id",
+            "technology_generation__slug",
+            "technology_generation__name",
+        )
+        .distinct()
+    ):
+        mfr_tech_gens[mfr_id].append((tg_slug, tg_name))
+
+    # Persons per manufacturer (via model credits)
+    mfr_persons: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    for mfr_id, p_slug, p_name in (
+        Credit.objects.filter(
+            model__variant_of__isnull=True,
+            model__corporate_entity__manufacturer_id__in=mfr_ids,
+        )
+        .values_list(
+            "model__corporate_entity__manufacturer_id",
+            "person__slug",
+            "person__name",
+        )
+        .distinct()
+    ):
+        mfr_persons[mfr_id].append((p_slug, p_name))
+
+    # --- Assembly ---
     result = []
-    for mfr in qs:
-        thumb = None
+    for mfr in manufacturers:
         search_parts: list[str] = []
-        tech_gen_pairs: list[tuple[str, str]] = []
-        person_pairs: list[tuple[str, str]] = []
+        search_parts.extend(mfr_entity_names.get(mfr.id, []))
+        search_parts.extend(mfr_alias_names.get(mfr.id, []))
+        search_parts.extend(mfr_location_names.get(mfr.id, []))
 
-        model_years: list[int] = []
+        thumb = None
+        tm_id = mfr_thumb_model.get(mfr.id)
+        tm = thumb_models.get(tm_id) if tm_id else None
+        if tm and tm.extra_data:
+            thumb, _ = _extract_image_urls(tm.extra_data, min_rank=min_rank)
 
-        for entity in mfr.entities.all():
-            search_parts.append(entity.name)
-            for alias in entity.aliases.all():
-                search_parts.append(alias.value)
-            for cel in entity.locations.all():
-                loc = cel.location
-                while loc is not None:
-                    if loc.name:
-                        search_parts.append(loc.name)
-                    loc = loc.parent
-            for model in entity.models.all():
-                if thumb is None and model.extra_data:
-                    thumb, _ = _extract_image_urls(model.extra_data)
-                if model.year is not None:
-                    model_years.append(model.year)
-                if model.technology_generation:
-                    tg = model.technology_generation
-                    tech_gen_pairs.append((tg.slug, tg.name))
-                for credit in model.credits.all():
-                    person_pairs.append((credit.person.slug, credit.person.name))
+        loc_refs_map = mfr_location_refs.get(mfr.id, {})
+        locations = [
+            {"slug": path, "name": name} for path, name in loc_refs_map.items()
+        ]
 
         result.append(
             {
@@ -344,12 +449,12 @@ def list_all_manufacturers(request):
                 "slug": mfr.slug,
                 "model_count": mfr.model_count,
                 "thumbnail_url": thumb,
-                "search_text": " | ".join(search_parts) if search_parts else None,
-                "locations": _build_location_refs(mfr.entities.all()),
-                "year_min": min(model_years) if model_years else None,
-                "year_max": max(model_years) if model_years else None,
-                "persons": _dedup_facet_refs(person_pairs),
-                "tech_generations": _dedup_facet_refs(tech_gen_pairs),
+                "search_text": (" | ".join(search_parts) if search_parts else None),
+                "locations": locations,
+                "year_min": mfr.year_min,
+                "year_max": mfr.year_max,
+                "persons": _dedup_facet_refs(mfr_persons.get(mfr.id, [])),
+                "tech_generations": _dedup_facet_refs(mfr_tech_gens.get(mfr.id, [])),
             }
         )
     cache.set(MANUFACTURERS_ALL_KEY, result, timeout=None)

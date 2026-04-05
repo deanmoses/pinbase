@@ -70,6 +70,8 @@ def _uploaded_image_urls(primary_media) -> tuple[str | None, str | None]:
 def _extract_image_urls(
     extra_data: dict,
     primary_media=None,
+    *,
+    min_rank: int | None = None,
 ) -> tuple[str | None, str | None]:
     """Return (thumbnail_url, hero_image_url).
 
@@ -77,6 +79,8 @@ def _extract_image_urls(
     images, those are used unconditionally (no license gating — Pinbase owns
     them).  Otherwise falls back to third-party images in *extra_data*,
     respecting the global Constance display threshold.
+
+    Pass *min_rank* to avoid repeated Constance DB lookups in tight loops.
     """
     # Uploaded media always wins — no license gating.
     thumb, hero = _uploaded_image_urls(primary_media)
@@ -85,7 +89,8 @@ def _extract_image_urls(
 
     from apps.core.licensing import UNKNOWN_LICENSE_RANK, get_minimum_display_rank
 
-    min_rank = get_minimum_display_rank()
+    if min_rank is None:
+        min_rank = get_minimum_display_rank()
 
     def _rank_ok(key: str) -> bool:
         rank = extra_data.get(f"{key}.__permissiveness_rank")

@@ -175,32 +175,50 @@ def list_people(request):
 @decorate_view(cache_control(no_cache=True))
 def list_all_people(request):
     """Return every person with credit count and thumbnail (no pagination)."""
+    from apps.core.licensing import get_minimum_display_rank
+
     result = cache.get(PEOPLE_ALL_KEY)
     if result is not None:
         return result
 
-    from ..models import Person
+    min_rank = get_minimum_display_rank()
+
+    from ..models import Credit, MachineModel, Person
 
     people = list(
         Person.objects.active()
         .annotate(credit_count=Count("credits"))
-        .prefetch_related("credits__model")
         .order_by("-credit_count")
     )
+
+    # Batch thumbnail: newest credited model with extra_data per person
+    person_thumb_model: dict[int, int] = {}
+    for person_id, model_id in (
+        Credit.objects.filter(
+            model__isnull=False,
+            model__extra_data__isnull=False,
+        )
+        .order_by(F("model__year").desc(nulls_last=True))
+        .values_list("person_id", "model_id")
+    ):
+        if person_id not in person_thumb_model:
+            person_thumb_model[person_id] = model_id
+    thumb_models = {
+        m.id: m
+        for m in MachineModel.objects.filter(
+            id__in=set(person_thumb_model.values())
+        ).only("id", "extra_data")
+    }
+
     result = []
     for p in people:
         thumb = None
-        # Thumbnail from most recent credited machine with image data.
-        for c in sorted(
-            (c for c in p.credits.all() if c.model is not None),
-            key=lambda c: c.model.year or 0,
-            reverse=True,
-        ):
-            if c.model.extra_data:
-                t, _ = _extract_image_urls(c.model.extra_data)
-                if t:
-                    thumb = t
-                    break
+        tm_id = person_thumb_model.get(p.id)
+        tm = thumb_models.get(tm_id) if tm_id else None
+        if tm and tm.extra_data:
+            t, _ = _extract_image_urls(tm.extra_data, min_rank=min_rank)
+            if t:
+                thumb = t
         result.append(
             {
                 "name": p.name,
