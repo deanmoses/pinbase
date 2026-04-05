@@ -19,6 +19,11 @@ ALLOWED_HOSTS = [
     for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if h.strip()
 ]
+# SSR and health-check traffic reaches Django on 127.0.0.1 inside the
+# container, so localhost must always be allowed regardless of the env var.
+for _host in ("localhost", "127.0.0.1"):
+    if _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
