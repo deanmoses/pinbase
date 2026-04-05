@@ -16,7 +16,7 @@
 </script>
 
 <form class="search-box" onsubmit={(e) => e.preventDefault()}>
-	<FaIcon icon={faMagnifyingGlass} />
+	<span class="search-icon"><FaIcon icon={faMagnifyingGlass} size="1rem" /></span>
 	<!-- svelte-ignore a11y_autofocus -->
 	<input type="search" {placeholder} aria-label={placeholder} bind:value {disabled} {autofocus} />
 </form>
@@ -28,15 +28,14 @@
 		margin: 0 auto var(--size-4);
 	}
 
-	.search-box :global(svg) {
+	.search-icon {
 		position: absolute;
 		left: var(--size-4);
 		top: 50%;
 		transform: translateY(-50%);
-		width: 1rem;
-		height: 1rem;
 		color: var(--color-text-muted);
 		pointer-events: none;
+		display: flex;
 	}
 
 	input[type='search'] {
