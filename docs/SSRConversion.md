@@ -78,6 +78,20 @@ export const load: LayoutServerLoad = async ({ fetch, url, params }) => {
 };
 ```
 
+## Non-Trivial `+page.ts` Loaders
+
+Some routes have a `+page.ts` that is just a dead comment stub (`// Data loaded in +layout.ts`). Delete these.
+
+Others have real logic — for example, the model detail page has a `+page.ts` that conditionally redirects single-model titles to the canonical title page. These need conversion to `+page.server.ts`, not deletion.
+
+A `+page.ts` can be converted to `+page.server.ts` when it:
+
+- uses only SvelteKit imports (`redirect`, `error`) and `parent()`
+- has no browser-only imports (`$lib/api/client`, `auth`, DOM APIs)
+- performs logic that benefits from running server-side (e.g. 301 redirects emit proper HTTP headers)
+
+If the `+page.ts` imports browser-only modules, it must stay as a universal load or be restructured. In practice this has not come up yet — all cases so far have converted cleanly.
+
 ## Child Route Audit
 
 This is the most common source of mistakes.
@@ -135,7 +149,7 @@ When the page endpoint replaces a resource detail endpoint (`GET /api/titles/{sl
 
 1. Delete the `@router.get("/{slug}", ...)` view function from the entity's router module.
 2. Check that the removal did not leave unused imports (e.g. `cache_control`, `decorate_view`). The list, all, and claims endpoints on the same router usually still need them, but verify.
-3. Grep for every test that GETs the old URL pattern. The search pattern is `client.get(.*"/api/{entity_plural}/` excluding `/claims/`, list (`/`), and `/all/` endpoints.
+3. Grep for every test that GETs the old URL pattern **across the entire `backend/` tree**. The search pattern is `client.get(.*"/api/{entity_plural}/` excluding `/claims/`, list (`/`), and `/all/` endpoints.
 4. Rewrite each test GET to use `/api/pages/{entity_singular}/{slug}`.
 5. Regenerate API types (`make api-gen`) so the old path is removed from `schema.d.ts`.
 6. If step 3 found tests to migrate, delete any page endpoint tests that now duplicate them. The migrated tests already cover the page endpoint with richer assertions (ordering, variant exclusion, nulls-last, etc.), so basic "returns 200" and "returns 404" tests written separately for the page endpoint are redundant.
@@ -146,7 +160,7 @@ When old tests exist, migrating them _is_ writing the backend page endpoint test
 ### What to watch out for
 
 - **Other routers on the same prefix are unaffected.** The list endpoint (`/`), the all endpoint (`/all/`), and the claims PATCH (`/{slug}/claims/`) stay on the entity router. Only the detail GET is removed.
-- **Tests are scattered.** Detail endpoint GETs appear not just in the entity's own test file but also in description, claims, and slug-rename tests. Grep broadly — restricting to one file will miss references.
+- **Tests are scattered across Django apps.** Detail endpoint GETs appear not just in the entity's own test file but in description, claims, slug-rename, and media tests — sometimes in entirely different Django apps (e.g. `apps/media/tests/` for model detail). Grep the full `backend/` tree, not just the entity's app directory.
 - **The claims PATCH returns the detail schema too.** It calls the same serializer directly, not via the detail endpoint, so removing the endpoint does not affect it.
 
 ## Common Gotchas
