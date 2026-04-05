@@ -4,7 +4,7 @@ These endpoints live under /api/pages/ and are tagged "private" so they
 stay out of the public API docs.  They return page-model responses shaped
 for specific SvelteKit SSR routes.
 
-Wired into the main NinjaAPI instance in config/api.py.
+Auto-discovered via the ``routers`` list convention in config/api.py.
 """
 
 from __future__ import annotations
