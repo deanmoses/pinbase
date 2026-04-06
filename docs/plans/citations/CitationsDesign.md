@@ -1,8 +1,6 @@
-# Citations: UX Design and Architecture
+# Citations - UX Design and Architecture
 
-Design decisions for how Pinbase handles citations. This is the design — UX, data model, key constraints — not an implementation plan.
-
-See [Citations.md](Citations.md) for the research and business case.
+Design decisions for how Pinbase handles citations. This is the design — big UX rocks, domain model, key constraints — not an implementation plan.
 
 ## Core Concept
 

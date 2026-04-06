@@ -1,6 +1,13 @@
-# Citation Granularity: Points vs. Ranges
+# Citation Granularity
 
-Should citations be point markers inserted at a position, or ranges that wrap specific text?
+At what granularity should citations reference large blocks of text, like the writeup of a manufacturer?
+
+Some options:
+
+- The entire Manufacturer description
+- Sections within the Manufacturer description (implies we have some sort of section structuring like Wikipedia)
+- A point marker inserted at a specific position within the text (this is how Wikipedia works)
+- A range that wraps a selection text
 
 ## The Case for Ranges
 
