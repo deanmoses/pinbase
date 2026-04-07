@@ -11,9 +11,19 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.errors import HttpError
 
+from django.db.models import Count, F, Prefetch
+
 from apps.core.models import active_status_q
+from apps.core.licensing import get_minimum_display_rank
 
 from ..cache import LOCATIONS_TREE_KEY
+from ..models import (
+    CorporateEntity,
+    CorporateEntityLocation,
+    Location,
+    MachineModel,
+    Manufacturer,
+)
 from .helpers import _extract_image_urls
 
 # ---------------------------------------------------------------------------
@@ -83,8 +93,6 @@ def _get_location_tree():
     result = cache.get(LOCATIONS_TREE_KEY)
     if result is not None:
         return result
-
-    from ..models import CorporateEntityLocation, Location
 
     # Load all locations with parent chains (up to 4 levels deep).
     all_locs = list(
@@ -157,10 +165,6 @@ def _ancestors_of(path: str, nodes: dict) -> list[dict]:
 
 def _get_manufacturers_for_pks(pks):
     """Return serialized manufacturer list for a set of PKs."""
-    from django.db.models import Count, F, Prefetch, Q
-
-    from ..models import CorporateEntity, MachineModel, Manufacturer
-
     qs = (
         Manufacturer.objects.active()
         .filter(pk__in=pks)
@@ -187,8 +191,6 @@ def _get_manufacturers_for_pks(pks):
         )
         .order_by("-model_count", "name")
     )
-
-    from apps.core.licensing import get_minimum_display_rank
 
     min_rank = get_minimum_display_rank()
     result = []

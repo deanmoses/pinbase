@@ -4,11 +4,22 @@ from __future__ import annotations
 
 from django.db.models import Prefetch
 
+from apps.core.licensing import (
+    UNKNOWN_LICENSE_RANK,
+    build_source_field_license_map,
+    get_minimum_display_rank,
+    resolve_effective_license,
+)
+from apps.core.markdown import render_markdown_fields
+from apps.core.markdown_links import convert_storage_to_authoring
+from apps.media.models import EntityMedia
+from apps.media.storage import build_public_url, build_storage_key
+
+from ..models import GameplayFeature
+
 
 def _media_prefetch():
     """Return a Prefetch for ready EntityMedia with assets."""
-    from apps.media.models import EntityMedia
-
     return Prefetch(
         "entity_media",
         queryset=EntityMedia.objects.filter(
@@ -20,8 +31,6 @@ def _media_prefetch():
 
 def _serialize_uploaded_media(all_media) -> list[dict]:
     """Serialize EntityMedia rows into the uploaded_media response list."""
-    from apps.media.storage import build_public_url, build_storage_key
-
     return [
         {
             "asset_uuid": str(em.asset.uuid),
@@ -47,8 +56,6 @@ def _uploaded_image_urls(primary_media) -> tuple[str | None, str | None]:
     Prefers ``backglass`` category, then falls back to any primary.
     Returns ``(None, None)`` when no uploaded media is available.
     """
-    from apps.media.storage import build_public_url, build_storage_key
-
     if not primary_media:
         return None, None
 
@@ -86,8 +93,6 @@ def _extract_image_urls(
     thumb, hero = _uploaded_image_urls(primary_media)
     if thumb or hero:
         return thumb, hero
-
-    from apps.core.licensing import UNKNOWN_LICENSE_RANK, get_minimum_display_rank
 
     if min_rank is None:
         min_rank = get_minimum_display_rank()
@@ -137,8 +142,6 @@ def _extract_image_attribution(extra_data: dict, primary_media=None) -> dict | N
     if primary_media:
         return None
 
-    from apps.core.licensing import UNKNOWN_LICENSE_RANK, get_minimum_display_rank
-
     min_rank = get_minimum_display_rank()
 
     for key in ("opdb.images", "ipdb.image_urls", "image_urls"):
@@ -162,11 +165,6 @@ def _extract_description_attribution(active_claims) -> dict | None:
     Expects active_claims to be ordered by claim_key, -priority, -created_at
     (the standard prefetch ordering).
     """
-    from apps.core.licensing import (
-        build_source_field_license_map,
-        resolve_effective_license,
-    )
-
     sfl_map = None
     for claim in active_claims:
         if claim.field_name == "description":
@@ -196,9 +194,6 @@ def _build_rich_text(obj, field_name: str, active_claims=None) -> dict:
     so edit forms show human-readable link references.  The ``html`` value
     is rendered from the storage format and is display-ready.
     """
-    from apps.core.markdown import render_markdown_fields
-    from apps.core.markdown_links import convert_storage_to_authoring
-
     raw_text = getattr(obj, field_name, "") or ""
     text = convert_storage_to_authoring(raw_text) if raw_text else raw_text
     html_fields = render_markdown_fields(obj)
@@ -217,8 +212,6 @@ def _build_rich_text(obj, field_name: str, active_claims=None) -> dict:
 
 def _collect_titles(models, *, include_manufacturer: bool = False) -> list[dict]:
     """Group models by title into a deduplicated title list."""
-    from apps.core.licensing import get_minimum_display_rank
-
     min_rank = get_minimum_display_rank()
     titles: dict[str, dict] = {}
     for m in models:
@@ -295,8 +288,6 @@ def _get_feature_descendant_slugs(slug: str) -> set[str]:
     then runs entirely in Python.  For a leaf feature this returns {slug}.
     For an unknown slug it still returns {slug} (the filter just won't match).
     """
-    from ..models import GameplayFeature
-
     features = list(
         GameplayFeature.objects.prefetch_related("children").only("pk", "slug")
     )
@@ -317,8 +308,6 @@ def _get_feature_descendant_slugs(slug: str) -> set[str]:
 def _serialize_title_machine(pm, *, min_rank: int | None = None) -> dict:
     """Serialize a MachineModel for use in title/theme/system machine lists."""
     if min_rank is None:
-        from apps.core.licensing import get_minimum_display_rank
-
         min_rank = get_minimum_display_rank()
 
     thumbnail_url, _ = _extract_image_urls(pm.extra_data or {}, min_rank=min_rank)

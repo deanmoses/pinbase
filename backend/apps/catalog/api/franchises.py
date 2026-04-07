@@ -13,7 +13,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
-from .edit_claims import execute_claims
+from .edit_claims import execute_claims, plan_scalar_field_claims
 from apps.provenance.helpers import build_sources, claims_prefetch
 
 from .helpers import (
@@ -21,6 +21,10 @@ from .helpers import (
     _extract_image_urls,
 )
 from .schemas import ClaimPatchSchema, ClaimSchema, RichTextSchema
+
+from apps.core.licensing import get_minimum_display_rank
+
+from ..models import Franchise, MachineModel, Title
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +99,6 @@ franchises_router = Router(tags=["franchises"])
 @decorate_view(cache_control(no_cache=True))
 def list_all_franchises(request):
     """Return every franchise with title count (no pagination)."""
-    from ..models import Franchise
-
     qs = (
         Franchise.objects.active()
         .annotate(title_count=Count("titles", filter=active_status_q("titles")))
@@ -113,8 +115,6 @@ def list_all_franchises(request):
 
 
 def _franchise_titles_qs():
-    from ..models import MachineModel, Title
-
     return (
         Title.objects.active()
         .annotate(
@@ -138,16 +138,12 @@ def _franchise_titles_qs():
 
 
 def _franchise_detail_qs():
-    from ..models import Franchise
-
     return Franchise.objects.active().prefetch_related(
         Prefetch("titles", queryset=_franchise_titles_qs()), claims_prefetch()
     )
 
 
 def _serialize_franchise_detail(franchise) -> dict:
-    from apps.core.licensing import get_minimum_display_rank
-
     min_rank = get_minimum_display_rank()
     return {
         "name": franchise.name,
@@ -170,9 +166,6 @@ def _serialize_franchise_detail(franchise) -> dict:
 )
 def patch_franchise_claims(request, slug: str, data: ClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
-    from ..models import Franchise
-    from .edit_claims import plan_scalar_field_claims
-
     franchise = get_object_or_404(Franchise.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(Franchise, data.fields, entity=franchise)
 

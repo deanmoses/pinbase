@@ -19,6 +19,7 @@ from .constants import DEFAULT_PAGE_SIZE
 from .edit_claims import (
     execute_claims,
     plan_abbreviation_claims,
+    plan_scalar_field_claims,
 )
 from apps.provenance.helpers import build_sources, claims_prefetch
 
@@ -36,7 +37,21 @@ from .schemas import (
     ThemeSchema,
     TitleMachineSchema,
 )
+import re
+from collections import defaultdict
+
+from django.db.models import Min, OuterRef, Subquery
+
+from apps.core.licensing import get_minimum_display_rank
+
 from ..cache import TITLES_ALL_KEY, get_cached_response, set_cached_response
+from ..models import (
+    Credit,
+    MachineModel,
+    MachineModelGameplayFeature,
+    Title,
+    TitleAbbreviation,
+)
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -224,13 +239,9 @@ def _serialize_title_list(title, *, min_rank: int | None = None) -> dict:
 
 def _build_review_links(title) -> list[dict]:
     """Build external/internal review links for a needs_review title."""
-    from ..models import Title
-
     links: list[dict] = []
 
     # Related titles by name match (only OPDB-backed ones).
-    import re
-
     base_name = re.sub(r"\s*\([^)]*\)\s*$", "", title.name).strip()
     related = (
         Title.objects.active()
@@ -357,8 +368,6 @@ def _compute_agreed_specs(models) -> dict:
 
 
 def _serialize_title_detail(title) -> dict:
-    from apps.core.licensing import get_minimum_display_rank
-
     min_rank = get_minimum_display_rank()
     model_objs = list(title.machine_models.all())
     machines = [_serialize_title_machine(pm, min_rank=min_rank) for pm in model_objs]
@@ -409,7 +418,7 @@ def _serialize_title_detail(title) -> dict:
     # For single-model titles with no variants, include full model detail inline.
     model_detail = None
     if len(machines) == 1 and not machines[0].get("variants"):
-        from .machine_models import _model_detail_qs, _serialize_model_detail
+        from .machine_models import _model_detail_qs, _serialize_model_detail  # noqa: E402 — avoid circular at module level
 
         pm = _model_detail_qs().get(slug=machines[0]["slug"])
         model_detail = _serialize_model_detail(pm)
@@ -442,8 +451,6 @@ def _serialize_title_detail(title) -> dict:
 
 
 def _title_models_prefetch():
-    from ..models import MachineModel, MachineModelGameplayFeature
-
     return Prefetch(
         "machine_models",
         queryset=MachineModel.objects.active()
@@ -476,8 +483,6 @@ def _title_models_prefetch():
 
 
 def _detail_qs():
-    from ..models import Title
-
     return (
         Title.objects.active()
         .select_related("franchise")
@@ -500,8 +505,6 @@ titles_router = Router(tags=["titles"])
 @titles_router.get("/", response=list[TitleListSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
 def list_titles(request, display: str = ""):
-    from ..models import Title
-
     qs = Title.objects.active().annotate(
         machine_count=Count(
             "machine_models",
@@ -516,8 +519,6 @@ def list_titles(request, display: str = ""):
         .prefetch_related(_title_models_prefetch(), "series", "abbreviations")
         .order_by("name")
     )
-    from apps.core.licensing import get_minimum_display_rank
-
     min_rank = get_minimum_display_rank()
     return [_serialize_title_list(t, min_rank=min_rank) for t in qs]
 
@@ -543,17 +544,9 @@ def list_all_titles(request):
     This reduces cold-cache rebuild from ~3.5s to ~0.5s locally
     (~30s to ~5s on production hardware).
     """
-    from collections import defaultdict
-
-    from django.db.models import Min, Subquery, OuterRef
-
-    from ..models import Credit, MachineModel, Title, TitleAbbreviation
-
     response = get_cached_response(TITLES_ALL_KEY)
     if response is not None:
         return response
-
-    from apps.core.licensing import get_minimum_display_rank
 
     # Cached once for the entire rebuild — avoids ~6k Constance DB lookups.
     min_rank = get_minimum_display_rank()
@@ -790,9 +783,6 @@ def list_all_titles(request):
 )
 def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     """Assert title-owned claims and return the refreshed title detail."""
-    from ..models import Title
-    from .edit_claims import plan_scalar_field_claims
-
     if not data.fields and data.abbreviations is None:
         raise HttpError(422, "No changes provided.")
 
