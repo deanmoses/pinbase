@@ -20,5 +20,6 @@ However, we're loath to follow the Wikipedia model because the bureaucracy aroun
   - [CitationGranularity.md](CitationGranularity.md): points versus ranges vs sections
   - [CitationDomainModel.md](CitationDomainModel.md): source vs instance vs access link
   - [CitationSourceTypes.md](CitationSourceTypes.md): how to think about different types of Citation Sources
+  - [CitationSourceSeeding.md](CitationSourceSeeding.md): pre-populating the system with relevant Citation Sources
 - Design
   - [CitationsDesign.md](CitationsDesign.md): the current design direction

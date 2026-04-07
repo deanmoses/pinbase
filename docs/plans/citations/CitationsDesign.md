@@ -69,9 +69,15 @@ A single Citation Source can be referenced by many Citation Instances across man
 
 Using shared Citation Sources — rather than having each citation site declare its own source independently — is actually a controversial decision. Wikipedia doesn't do this, though the Wikimedia community wishes it could. See [CitationSharing.md — Recommendation](CitationSharing.md#recommendation) for the full analysis of why Pinbase adopts shared sources and the tradeoffs involved.
 
+##### All Citation Sources are Shared
+
+There's no concept of local-only Citation Sources. If a user creates a one-off Citation Source, it shows up in the autocomplete for everyone.
+
+This will probably get annoying, seeing junk in autocomplete. Post v1, autocomplete could rank and filter in various ways TBD.
+
 #### Citation Source Types
 
-There are different types of Citation Sources. Here's a potential starter list; this has not yet been finalized, and would almost certainly grow as time goes on:
+There are different types of Citation Sources. Here's a potential starter list; we'll build one or two Citation types, see how it goes, and expand from there:
 
 | Type     | Additional fields      | Covers                                                                                     |
 | -------- | ---------------------- | ------------------------------------------------------------------------------------------ |
@@ -105,10 +111,6 @@ Citation Source is a single database table/model with a flat set of mostly-optio
 
 We could have chosen instead to use polymorphic models or a JSONField to capture the differences between types of Citation Sources, but after analysis of the likely Citation Sources, we concluded that they mostly share fields and that it's simpler to have one single table with optional fields.
 
-#### Periodical `volume` and `issue` are structured fields
-
-For periodical sources, `volume` and `issue` are structured fields, not part of the freeform title. The display layer assembles them into a formatted label (e.g., "Vol. 4, No. 15 — August 15, 1978") for autocomplete and read-side rendering.
-
 #### Citation Sources are Hierarchical
 
 Citation Sources are nested:
@@ -133,7 +135,7 @@ See [CitationDomainModel.md](CitationDomainModel.md) for worked examples includi
 
 Each Citation Source stores its own fields independently. Children do not inherit values from their parent chain.
 
-Inheritance adds a level of conceptual complexity that make the system hard to reason about -- both for people editing as well as AIs trying to build the code. We don't, for example, want to deal with the ambiguity of overriding inherited values.
+Inheritance would add a level of conceptual complexity that make the system hard to reason about -- both for people editing as well as AIs trying to build the code. We don't, for example, want to deal with the ambiguity of overriding inherited values.
 
 The create-child UI can pre-fill fields from the parent as a convenience, but the data model treats each record as self-contained.
 
@@ -196,13 +198,17 @@ These are different concepts:
 
 A page that is 90% ingested from IPDB has provenance (we know the data came from IPDB) but no citations (nobody has attached evidence for why the values are correct). Adding a citation would be someone finding the flyer or production record that confirms what IPDB says.
 
+## Citation Seeding
+
+We're going to pre-seed the Citation Source table with a whole bunch of Citation Sources, as described in [CitationSourceSeeding.md](CitationSourceSeeding.md).
+
 ## Contributor UX
 
 ### Citation Source search and creation
 
 The `[[` autocomplete should make finding an existing Citation Source feel as fast as typing inline:
 
-- **Typeahead** searching across title, author, and aliases — "Bueschel" and "Encyclopedia Pinball" should both find the same record.
+- **Typeahead** searching across name, author, and aliases — "Bueschel" and "Encyclopedia Pinball" should both find the same record.
 - **Recently used Citation Sources** surfaced first — if you're working through a book, you shouldn't search for it every paragraph.
 - **Quick-create** that doesn't interrupt the flow — if nothing matches, creating a new Citation Source should be a one-step expansion of the search panel, not a separate page.
 
@@ -252,6 +258,20 @@ Nothing. No references section appears. Uncited pages are normal, not incomplete
 ### Surfacing claim sources to readers
 
 Claim sources (IPDB, OPDB, user, etc.) are already visible to readers via the Sources tab on each entity page. Citations are a separate concept — they are external evidence supporting the data, not provenance for who entered it. Both are reader-facing.
+
+## Governance of Shared Citations
+
+Governance for shared Citation Sources will be lightweight in v1.
+
+- Anyone with at least one edit may edit any Citation Source and create a new one.
+- Editing a shared Citation Source does not require review.
+- Citation Source creates and edits appear in the global changes feed at /changes/. They can be filtered in or out of that view.
+- Editing a shared Citation Source propagates immediately to all Citation Instances that reference it. The Citation Instances themselves are unchanged; only the shared source metadata updates.
+- You cannot re-parent Citation Sources in v1.
+- You cannot merge duplicate Citation Sources in v1.
+- You can delete a Citation Source if there are no active Citation Instances (meaning Citation Instances actually referenced in the catalog data). This allows for deleting incorrect, empty, spammy, or accidentally created shared sources. I believe this is a hard delete. Any reason it shouldn't be?
+
+This is intentionally permissive. More governance will be added post v1. The v1 system will be a progressively wider soft-launch limited to friends of the museum, so we have scope to improve this gradually.
 
 ## Architecture
 

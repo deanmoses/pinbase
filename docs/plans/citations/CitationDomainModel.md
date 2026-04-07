@@ -283,7 +283,7 @@ Working through concrete fields to discover what's shared, what's type-specific,
 
 | Field     | Value                       |
 | --------- | --------------------------- |
-| title     | The Encyclopedia of Pinball |
+| name      | The Encyclopedia of Pinball |
 | type      | book                        |
 | author    | Richard Bueschel            |
 | publisher | Silverball Amusements       |
@@ -291,29 +291,27 @@ Working through concrete fields to discover what's shared, what's type-specific,
 
 **Child source (an edition):**
 
-| Field    | Value                         |
-| -------- | ----------------------------- |
-| title    | Edition 1                     |
-| type     | book                          |
-| year     | 1996                          |
-| format   | hardcover                     |
-| language | English                       |
-| parent   | → The Encyclopedia of Pinball |
+| Field    | Value                                   |
+| -------- | --------------------------------------- |
+| name     | The Encyclopedia of Pinball - Edition 1 |
+| type     | book                                    |
+| year     | 1996                                    |
+| format   | hardcover                               |
+| language | English                                 |
+| parent   | → The Encyclopedia of Pinball           |
 
 **Deeper child (a translation of an edition):**
 
-| Field    | Value              |
-| -------- | ------------------ |
-| title    | French translation |
-| type     | book               |
-| language | French             |
-| parent   | → Edition 2        |
+| Field    | Value                                                        |
+| -------- | ------------------------------------------------------------ |
+| name     | The Encyclopedia of Pinball - Edition 1 - French translation |
+| type     | book                                                         |
+| language | French                                                       |
+| parent   | → Edition 2                                                  |
 
 Observations:
 
-- **author and publisher live on the root**, not repeated on every child. A child inherits them from its parent chain.
 - **year, format, and language are differentiators** — they're the reason a child exists as a separate source.
-- **title on a child is relative to its parent.** The full display name is assembled by walking the parent chain: "The Encyclopedia of Pinball → Edition 2 → French translation → Kindle version."
 - **ISBN could go on the format-level child** (the specific hardcover or Kindle edition), since each format has its own ISBN.
 
 ### Manual: _The Addams Family_ documentation
@@ -392,7 +390,6 @@ Observations:
 
 - **No new fields needed.** A web article uses title, type, author, date, year, and parent — all fields we already have from books and magazines.
 - **URL is not a source field — it's an access link.** The article _is_ the source; the URL is how you get to it. If the site goes down and an archive.org copy exists, the source is unchanged — only the access links change.
-- **No volume/issue/pages.** Web articles don't have these. The fields are simply unused, which is fine — the model is sparse by design.
 - **The type could be `website` or `magazine`.** Pinball Magazine publishes both print and web. The type on the source distinguishes the form. A print issue and a web article from the same publication are siblings with different types under the same root.
 
 ### Magazine article: Roger C. Sharpe in _Play Meter_
@@ -413,10 +410,6 @@ Three levels: publication → issue → article.
 | ------ | ----------------------------- |
 | title  | 1978 August 15 - Vol 4 Num 15 |
 | type   | magazine                      |
-| date   | 1978-08-15                    |
-| year   | 1978                          |
-| volume | 4                             |
-| issue  | 15                            |
 | parent | → Play Meter                  |
 
 **Child source (the article):**
