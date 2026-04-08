@@ -46,13 +46,13 @@ describe('MediaGrid', () => {
 
 	it('opens the lightbox from the filtered media set', async () => {
 		const user = userEvent.setup();
-		const { container } = render(MediaGrid, {
+		render(MediaGrid, {
 			media: MEDIA_ITEMS,
 			categories: ['Cabinet', 'Backglass']
 		});
 
 		await user.click(screen.getByRole('button', { name: /backglass \(1\)/i }));
-		await user.click(container.querySelector('.media-card') as HTMLElement);
+		await user.click(screen.getByRole('button', { name: /open backglass image/i }));
 
 		expect(screen.getByText('1 / 1')).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
@@ -60,18 +60,18 @@ describe('MediaGrid', () => {
 
 	it('grows the visible batch when the sentinel intersects', async () => {
 		const media = Array.from({ length: 101 }, (_, index) => makeMedia(index + 1));
-		const { container } = render(MediaGrid, {
+		render(MediaGrid, {
 			media,
 			categories: ['Cabinet']
 		});
 
-		expect(container.querySelectorAll('.media-card')).toHaveLength(100);
+		expect(screen.getAllByRole('button', { name: /^open( .+)? image$/i })).toHaveLength(100);
 		expect(observers).toHaveLength(1);
 
 		observers[0].callback([{ isIntersecting: true }]);
 
 		await vi.waitFor(() => {
-			expect(container.querySelectorAll('.media-card')).toHaveLength(101);
+			expect(screen.getAllByRole('button', { name: /^open( .+)? image$/i })).toHaveLength(101);
 		});
 	});
 });

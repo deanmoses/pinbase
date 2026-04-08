@@ -41,7 +41,14 @@
 	}
 </script>
 
-<div class="media-card" role="button" tabindex="0" onclick={handleClick} onkeydown={handleKeydown}>
+<div
+	class="media-card"
+	role="button"
+	tabindex="0"
+	aria-label={asset.category ? `Open ${asset.category} image` : 'Open image'}
+	onclick={handleClick}
+	onkeydown={handleKeydown}
+>
 	<div class="thumb-wrapper">
 		<img src={asset.renditions.thumb} alt="" class="thumb" loading="lazy" />
 		{#if asset.category}

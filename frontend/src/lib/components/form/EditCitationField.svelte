@@ -33,9 +33,15 @@
 			return;
 		}
 
-		const { data } = await client.GET('/api/citation-instances/batch/', {
-			params: { query: { ids: String(citationId) } }
-		});
+		let data;
+		try {
+			({ data } = await client.GET('/api/citation-instances/batch/', {
+				params: { query: { ids: String(citationId) } }
+			}));
+		} catch {
+			citationError = 'Failed to load citation.';
+			return;
+		}
 		const selectedCitation = data?.[0];
 		if (!selectedCitation) {
 			citationError = 'Failed to load citation.';

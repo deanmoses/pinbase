@@ -9,7 +9,7 @@ async function selectFirstSearchableOption(
 ) {
 	const input = screen.getByRole('combobox', { name: label });
 	await user.click(input);
-	await user.keyboard('{ArrowDown}{Enter}');
+	await fireEvent.pointerDown(screen.getByRole('option', { name: /usa/i }));
 
 	return input;
 }
@@ -23,6 +23,7 @@ describe('ManufacturerFilterSidebar', () => {
 		const user = userEvent.setup();
 		renderSidebar();
 
+		// Exercise the real pointer-selection path used by SearchableSelect.
 		const locationInput = await selectFirstSearchableOption(user, /location/i);
 		expect(locationInput).toHaveValue('USA');
 

@@ -26,6 +26,10 @@ function renderAutocomplete() {
 	return { ...result, oncomplete, oncancel, onfocusreturn };
 }
 
+function resetSearchLinkTargetsMock() {
+	vi.mocked(searchLinkTargets).mockReset().mockResolvedValue({ results: SEARCH_RESULTS });
+}
+
 /** Wait for the fetchLinkTypes promise to resolve and populate the type picker. */
 async function waitForTypes() {
 	await vi.waitFor(() => {
@@ -80,8 +84,8 @@ async function openSearch() {
 
 describe('WikilinkAutocomplete', () => {
 	afterEach(() => {
-		// Reset to default mock — mockResolvedValueOnce overrides persist past mockClear
-		vi.mocked(searchLinkTargets).mockReset().mockResolvedValue({ results: SEARCH_RESULTS });
+		// Reset to default mock — mockResolvedValueOnce overrides persist until implementation reset.
+		resetSearchLinkTargetsMock();
 	});
 
 	// -----------------------------------------------------------------------
@@ -324,8 +328,9 @@ describe('WikilinkAutocomplete', () => {
 				expect(screen.getByRole('combobox', { name: /search title/i })).toBeInTheDocument();
 			});
 
-			// Clear initial call so we can count fresh
-			vi.mocked(searchLinkTargets).mockClear();
+			// Reset the mock fully so the debounce tests start from the default implementation
+			// without inheriting any one-off overrides.
+			resetSearchLinkTargetsMock();
 
 			return screen.getByRole('combobox', { name: /search title/i });
 		}

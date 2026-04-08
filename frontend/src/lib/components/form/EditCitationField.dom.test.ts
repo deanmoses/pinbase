@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +12,10 @@ const { GET, POST } = vi.hoisted(() => ({
 vi.mock('$lib/api/client', () => ({
 	default: { GET, POST }
 }));
+
+function getOpenCitationPickerButton() {
+	return screen.getByRole('button', { name: /add citation/i });
+}
 
 describe('EditCitationField', () => {
 	afterEach(() => {
@@ -67,13 +71,13 @@ describe('EditCitationField', () => {
 
 		render(EditCitationField, { showMixedEditWarning: true });
 
-		await user.click(screen.getByRole('button', { name: 'Add citation' }));
+		await user.click(getOpenCitationPickerButton());
 		await user.type(screen.getByRole('combobox', { name: /search sources/i }), 'flyer');
 
-		const sourceResult = await screen.findByText('Williams Flyer \u2014 1993');
-		await user.click(sourceResult);
+		const sourceResult = await screen.findByRole('option', { name: /williams flyer/i });
+		await fireEvent.pointerDown(sourceResult);
 		await user.type(screen.getByRole('textbox', { name: /citation locator/i }), 'p. 2');
-		await user.click(screen.getByRole('button', { name: 'Insert' }));
+		await fireEvent.pointerDown(screen.getByRole('button', { name: 'Insert' }));
 
 		expect(await screen.findByText('Williams Flyer, p. 2')).toBeInTheDocument();
 		expect(
@@ -94,6 +98,49 @@ describe('EditCitationField', () => {
 
 		expect(screen.getByText('Williams Flyer, p. 2')).toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: 'Remove citation' }));
+		expect(screen.queryByText('Williams Flyer, p. 2')).not.toBeInTheDocument();
+	});
+
+	it('shows an error when the selected citation cannot be loaded', async () => {
+		const user = userEvent.setup();
+		GET.mockImplementation(async (path: string) => {
+			if (path === '/api/citation-sources/search/') {
+				return {
+					data: [
+						{
+							id: 7,
+							name: 'Williams Flyer',
+							source_type: 'web',
+							author: '',
+							publisher: '',
+							year: 1993,
+							isbn: null
+						}
+					]
+				};
+			}
+			throw new Error('network failed');
+		});
+		POST.mockResolvedValue({
+			data: {
+				id: 42,
+				citation_source_id: 7,
+				citation_source_name: 'Williams Flyer',
+				claim_id: null,
+				locator: 'p. 2',
+				created_at: '2026-04-08T00:00:00Z'
+			}
+		});
+
+		render(EditCitationField);
+
+		await user.click(getOpenCitationPickerButton());
+		await user.type(screen.getByRole('combobox', { name: /search sources/i }), 'flyer');
+		await fireEvent.pointerDown(await screen.findByRole('option', { name: /williams flyer/i }));
+		await user.type(screen.getByRole('textbox', { name: /citation locator/i }), 'p. 2');
+		await fireEvent.pointerDown(screen.getByRole('button', { name: 'Insert' }));
+
+		expect(await screen.findByText('Failed to load citation.')).toBeInTheDocument();
 		expect(screen.queryByText('Williams Flyer, p. 2')).not.toBeInTheDocument();
 	});
 });

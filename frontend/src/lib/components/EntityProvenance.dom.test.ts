@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import EntityProvenance from './EntityProvenance.svelte';
 
@@ -22,6 +22,10 @@ function deferred<T>() {
 }
 
 describe('EntityProvenance', () => {
+	afterEach(() => {
+		GET.mockReset();
+	});
+
 	it('renders cited edit cards separately from provenance groups', async () => {
 		GET.mockResolvedValue({
 			data: [

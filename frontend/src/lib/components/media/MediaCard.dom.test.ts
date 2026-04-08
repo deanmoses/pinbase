@@ -1,4 +1,4 @@
-import { render } from '@testing-library/svelte';
+import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MediaCard from './MediaCard.svelte';
@@ -30,9 +30,9 @@ describe('MediaCard', () => {
 	it('opens the media when clicked or activated by keyboard', async () => {
 		const user = userEvent.setup();
 		const onclick = vi.fn();
-		const { container } = renderCard({ onclick, canEdit: false });
+		renderCard({ onclick, canEdit: false });
 
-		const card = container.querySelector('.media-card') as HTMLElement;
+		const card = screen.getByRole('button', { name: /open backglass image/i });
 		await user.click(card);
 		await user.keyboard('{Enter}');
 		await user.keyboard(' ');
@@ -47,7 +47,7 @@ describe('MediaCard', () => {
 		const onsetprimary = vi.fn();
 		renderCard({ onclick, onsetprimary });
 
-		await user.click(document.querySelector('.action-btn') as HTMLElement);
+		await user.click(screen.getByRole('button', { name: /make primary/i }));
 
 		expect(onsetprimary).toHaveBeenCalledWith('asset-1');
 		expect(onclick).not.toHaveBeenCalled();
@@ -60,7 +60,7 @@ describe('MediaCard', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		renderCard({ onclick, ondelete });
 
-		await user.click(document.querySelector('.action-btn--danger') as HTMLElement);
+		await user.click(screen.getByRole('button', { name: /remove/i }));
 
 		expect(window.confirm).toHaveBeenCalledWith('Remove this image from this machine?');
 		expect(ondelete).toHaveBeenCalledWith('asset-1');

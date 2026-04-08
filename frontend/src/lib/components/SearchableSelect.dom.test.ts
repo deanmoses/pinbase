@@ -69,6 +69,19 @@ describe('SearchableSelect', () => {
 		expect(screen.getByRole('button', { name: /clear selection/i })).toBeInTheDocument();
 	});
 
+	it('selects an option with pointer down to match the real interaction path', async () => {
+		const user = userEvent.setup();
+		renderSingle();
+
+		await user.click(getCombobox());
+
+		const option = screen.getByRole('option', { name: /stern pinball/i });
+		await fireEvent.pointerDown(option);
+
+		expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+		expect(getCombobox()).toHaveValue('Stern Pinball');
+	});
+
 	it('closes and resets the query on escape', async () => {
 		const user = userEvent.setup();
 		renderSingle();
