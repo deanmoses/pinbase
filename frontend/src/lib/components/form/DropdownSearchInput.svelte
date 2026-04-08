@@ -19,6 +19,7 @@
 		bind:this={inputRef}
 		type="text"
 		class="search-input"
+		aria-label={placeholder}
 		{placeholder}
 		{value}
 		{oninput}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy, tick } from 'svelte';
 	import { fetchLinkTypes, searchLinkTargets } from '$lib/api/link-types';
 	import type { LinkType, LinkTarget } from '$lib/api/link-types';
 	import { formatLinkText } from './wikilink-helpers';
@@ -34,7 +35,10 @@
 	let searchInputEl: HTMLInputElement | undefined = $state();
 	let debouncedSearch: ReturnType<typeof createDebouncedSearch<LinkTarget>> | null = null;
 
-	// Prefetch link types — cached at module level, so this is a no-op after first call
+	onDestroy(() => debouncedSearch?.cancel());
+
+	// Eagerly prefetch link types so they're ready before the user types [[.
+	// Cached at module level, so this is a no-op after first call.
 	fetchLinkTypes()
 		.then((types) => {
 			linkTypes = types;
@@ -58,15 +62,19 @@
 			// Create a fresh debounced search bound to this type
 			debouncedSearch = createDebouncedSearch<LinkTarget>(
 				async (q: string) => {
-					const response = await searchLinkTargets(lt.name, q);
-					return response.results;
+					try {
+						const response = await searchLinkTargets(lt.name, q);
+						return response.results;
+					} catch {
+						return [];
+					}
 				},
 				(results) => {
 					searchResults = results;
 				}
 			);
 			stage = 'search';
-			requestAnimationFrame(() => searchInputEl?.focus());
+			tick().then(() => searchInputEl?.focus());
 			debouncedSearch.search('');
 		}
 	}
@@ -169,7 +177,7 @@
 	}
 
 	function scrollActiveIntoView() {
-		requestAnimationFrame(() => {
+		tick().then(() => {
 			const el = searchInputEl?.closest('.wikilink-autocomplete');
 			el?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
 		});
@@ -208,7 +216,7 @@
 			onkeydown={handleSearchKeydown}
 			bind:inputRef={searchInputEl}
 		/>
-		<div class="results-list">
+		<div class="results-list" role="listbox">
 			{#each searchResults as target, i (target.ref)}
 				<DropdownItem
 					active={i === searchIndex}

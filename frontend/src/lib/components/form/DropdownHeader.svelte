@@ -14,6 +14,7 @@
 	{#if onback}
 		<button
 			class="back-btn"
+			aria-label="Back"
 			onpointerdown={(e) => {
 				e.preventDefault();
 				onback?.();

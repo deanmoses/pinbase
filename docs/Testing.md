@@ -72,24 +72,33 @@ Frontend tests should generally cover:
 
 Prefer testing logic in small TypeScript units where possible rather than over-relying on broad UI tests.
 
-### Documentation and Tests
+#### Frontend Test Tiers
 
-When a doc describes a strict engineering rule that affects implementation behavior, make sure the code and tests reflect it. Documentation alone is not enforcement.
+The frontend has two vitest **projects** (configured in `vitest.config.ts`) that run in different environments:
 
-Relevant supporting docs:
+| Project | Environment | File pattern    | What to test                                                |
+| ------- | ----------- | --------------- | ----------------------------------------------------------- |
+| `unit`  | Node        | `*.test.ts`     | Pure functions, SSR renders (`svelte/server`), data helpers |
+| `dom`   | jsdom       | `*.dom.test.ts` | Component interactions, event handling, DOM behavior        |
 
-- [Development.md](Development.md)
-- [DataModeling.md](DataModeling.md)
-- [Architecture.md](Architecture.md)
-- [AppBoundaries.md](AppBoundaries.md)
+Both run together via `pnpm test`. For focused iteration:
 
-## To Expand
+```bash
+pnpm test:unit        # unit tests only
+pnpm test:dom         # DOM tests only
+pnpm test:dom:watch   # DOM tests in watch mode
+```
 
-This doc is intentionally a skeleton. It will likely grow sections for:
+#### Creating a DOM Test
 
-- concrete command examples
-- test layout by area
-- fixtures and helper conventions
-- frontend testing patterns
-- integration vs unit guidance
-- coverage expectations, if the project wants them
+Name the file `*.dom.test.ts` next to the component. The `.dom.` suffix routes it to the jsdom project automatically. Use `@testing-library/svelte` for rendering and queries, `userEvent` for interactions. See `wikilink-autocomplete.dom.test.ts` for the canonical example.
+
+**Gotcha:** when calling exported component methods directly (e.g. `handleExternalKeydown`), wrap in `flushSync` from `svelte` — DOM updates from direct method calls are not automatically flushed.
+
+#### jsdom Polyfills
+
+The DOM project loads `src/tests/setup-dom.ts` which provides:
+
+- `@testing-library/jest-dom/vitest` — DOM matchers (`toBeInTheDocument()`, `toHaveTextContent()`, etc.)
+- `Element.prototype.scrollIntoView` — no-op (jsdom doesn't implement it)
+- `document.execCommand` — returns `false` (triggers manual text insertion fallbacks)
