@@ -8,7 +8,9 @@ Frontend tests use `vitest`.
 - component behavior where UI wiring matters
 - data-shape expectations against the API contract where appropriate
 
-Prefer testing logic in small TypeScript units where possible rather than over-relying on broad UI tests.
+Split pure logic out of Svelte components into plain TypeScript modules so it can be tested without a DOM environment. Those unit tests go in `*.test.ts` files (not `*.dom.test.ts`), which run in Node.
+
+Prefer TDD — write the test before the implementation — when it clarifies the problem or the interface. Skip it when the test would be awkward to write before the code exists (e.g. exploratory UI work).
 
 ## Test Tiers
 

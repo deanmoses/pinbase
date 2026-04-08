@@ -187,7 +187,13 @@ def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchS
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(feature, specs, user=request.user, note=data.note)
+    execute_claims(
+        feature,
+        specs,
+        user=request.user,
+        note=data.note,
+        citation=data.citation,
+    )
 
     feature = get_object_or_404(_detail_qs(), slug=feature.slug)
     return _serialize_detail(feature)

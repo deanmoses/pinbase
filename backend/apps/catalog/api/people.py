@@ -245,7 +245,9 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
 
     specs = plan_scalar_field_claims(Person, data.fields, entity=person)
 
-    execute_claims(person, specs, user=request.user)
+    execute_claims(
+        person, specs, user=request.user, note=data.note, citation=data.citation
+    )
 
     person = get_object_or_404(_person_qs(), slug=person.slug)
     return _serialize_person_detail(person)

@@ -1012,7 +1012,7 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(pm, specs, user=request.user, note=data.note)
+    execute_claims(pm, specs, user=request.user, note=data.note, citation=data.citation)
 
     pm = get_object_or_404(_model_detail_qs(), slug=pm.slug)
     return _serialize_model_detail(pm)

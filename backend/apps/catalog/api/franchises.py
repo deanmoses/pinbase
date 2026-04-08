@@ -137,7 +137,9 @@ def patch_franchise_claims(request, slug: str, data: ClaimPatchSchema):
     franchise = get_object_or_404(Franchise.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(Franchise, data.fields, entity=franchise)
 
-    execute_claims(franchise, specs, user=request.user)
+    execute_claims(
+        franchise, specs, user=request.user, note=data.note, citation=data.citation
+    )
 
     franchise = get_object_or_404(_franchise_detail_qs(), slug=franchise.slug)
     return _serialize_franchise_detail(franchise)

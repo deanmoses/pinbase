@@ -33,6 +33,7 @@ from .helpers import (
 from .machine_models import CreditSchema, MachineModelDetailSchema
 from .schemas import (
     ClaimSchema,
+    EditCitationInput,
     GameplayFeatureSchema,
     RichTextSchema,
     SeriesRefSchema,
@@ -133,6 +134,7 @@ class TitleClaimPatchSchema(Schema):
     fields: dict[str, Any] = {}
     abbreviations: list[str] | None = None
     note: str = ""
+    citation: EditCitationInput | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -774,7 +776,13 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(title, specs, user=request.user, note=data.note)
+    execute_claims(
+        title,
+        specs,
+        user=request.user,
+        note=data.note,
+        citation=data.citation,
+    )
 
     title = get_object_or_404(_detail_qs(), slug=title.slug)
     return _serialize_title_detail(title)

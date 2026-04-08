@@ -16,10 +16,11 @@ from ninja.errors import HttpError
 from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import CreditRole, GameplayFeature, Person
 from apps.core.models import get_claim_fields
-from apps.provenance.models import ChangeSet, Claim
+from apps.provenance.models import ChangeSet, CitationInstance, Claim
 from apps.provenance.validation import validate_claim_value
 
 from ..resolve import resolve_after_mutation
+from .schemas import EditCitationInput
 
 
 @dataclass(frozen=True)
@@ -591,6 +592,7 @@ def execute_claims(
     *,
     user,
     note: str = "",
+    citation: EditCitationInput | None = None,
 ) -> None:
     """Create a ChangeSet + claims atomically, resolve, and invalidate cache.
 
@@ -603,15 +605,35 @@ def execute_claims(
     try:
         with transaction.atomic():
             cs = ChangeSet.objects.create(user=user, note=note)
+            created_claims = []
             for spec in specs:
-                Claim.objects.assert_claim(
-                    entity,
-                    spec.field_name,
-                    spec.value,
-                    user=user,
-                    claim_key=spec.claim_key,
-                    changeset=cs,
+                created_claims.append(
+                    Claim.objects.assert_claim(
+                        entity,
+                        spec.field_name,
+                        spec.value,
+                        user=user,
+                        claim_key=spec.claim_key,
+                        changeset=cs,
+                    )
                 )
+            if citation is not None:
+                try:
+                    template = CitationInstance.objects.select_related(
+                        "citation_source"
+                    ).get(pk=citation.citation_instance_id)
+                except CitationInstance.DoesNotExist as exc:
+                    raise HttpError(422, "Unknown citation instance.") from exc
+
+                for claim in created_claims:
+                    instance = CitationInstance(
+                        citation_source=template.citation_source,
+                        claim=claim,
+                        locator=template.locator,
+                    )
+                    instance.full_clean()
+                    instance.save()
+
             field_names = list({s.field_name for s in specs})
             resolve_after_mutation(entity, field_names=field_names)
     except ValidationError as exc:

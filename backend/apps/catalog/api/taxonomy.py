@@ -56,7 +56,9 @@ def _patch_taxonomy(request, model_class, slug, data):
     obj = get_object_or_404(model_class.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(model_class, data.fields, entity=obj)
 
-    execute_claims(obj, specs, user=request.user)
+    execute_claims(
+        obj, specs, user=request.user, note=data.note, citation=data.citation
+    )
 
     obj = get_object_or_404(_taxonomy_detail_qs(model_class), slug=obj.slug)
     return _serialize_taxonomy(obj)
@@ -268,7 +270,9 @@ def patch_reward_type(request, slug: str, data: ClaimPatchSchema):
     obj = get_object_or_404(RewardType.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(RewardType, data.fields, entity=obj)
 
-    execute_claims(obj, specs, user=request.user)
+    execute_claims(
+        obj, specs, user=request.user, note=data.note, citation=data.citation
+    )
 
     rt = get_object_or_404(_reward_type_detail_qs(), slug=obj.slug)
     return _serialize_reward_type_detail(rt)

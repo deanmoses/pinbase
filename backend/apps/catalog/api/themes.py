@@ -160,7 +160,9 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(theme, specs, user=request.user, note=data.note)
+    execute_claims(
+        theme, specs, user=request.user, note=data.note, citation=data.citation
+    )
 
     theme = get_object_or_404(_detail_qs(), slug=theme.slug)
     return _serialize_detail(theme)

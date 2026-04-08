@@ -186,7 +186,7 @@ def patch_corporate_entity_claims(
     if not specs:
         raise HttpError(422, "No changes provided.")
 
-    execute_claims(ce, specs, user=request.user, note=data.note)
+    execute_claims(ce, specs, user=request.user, note=data.note, citation=data.citation)
 
     ce = get_object_or_404(_detail_qs(), slug=ce.slug)
     return _serialize_detail(ce)

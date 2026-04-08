@@ -185,7 +185,9 @@ def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
     system = get_object_or_404(System.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(System, data.fields, entity=system)
 
-    execute_claims(system, specs, user=request.user)
+    execute_claims(
+        system, specs, user=request.user, note=data.note, citation=data.citation
+    )
 
     system = get_object_or_404(_system_detail_qs(), slug=system.slug)
     return _serialize_system_detail(system)

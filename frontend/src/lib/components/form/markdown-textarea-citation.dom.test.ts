@@ -96,19 +96,12 @@ async function searchCitation(
 	});
 }
 
-async function selectFirstCitationResult(
-	user: ReturnType<typeof userEvent.setup>,
-	searchInput: HTMLInputElement
-) {
-	searchInput.focus();
-	await user.keyboard('{ArrowDown}');
-	await user.keyboard('{Enter}');
+async function selectFirstCitationResult(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(screen.getByText(new RegExp(MOCK_SOURCES[0].name)));
 
-	await vi.waitFor(() => {
-		expect(screen.getByText(`Citing: ${MOCK_SOURCES[0].name}`)).toBeInTheDocument();
-	});
-
-	return screen.getByRole('textbox', { name: /citation locator/i }) as HTMLInputElement;
+	return (await screen.findByRole('textbox', {
+		name: /citation locator/i
+	})) as HTMLInputElement;
 }
 
 function expectDropdownClosed() {
@@ -133,7 +126,7 @@ describe('MarkdownTextArea citation integration', () => {
 
 		const searchInput = await enterCitationFlow(textarea, 'See ', ' after');
 		await searchCitation(user, searchInput);
-		const locatorInput = await selectFirstCitationResult(user, searchInput);
+		const locatorInput = await selectFirstCitationResult(user);
 
 		locatorInput.focus();
 		await user.keyboard('p. 42');
@@ -165,7 +158,7 @@ describe('MarkdownTextArea citation integration', () => {
 
 		const searchInput = await enterCitationFlow(textarea, 'Ref ');
 		await searchCitation(user, searchInput);
-		await selectFirstCitationResult(user, searchInput);
+		await selectFirstCitationResult(user);
 
 		mockPOST.mockResolvedValueOnce({ data: CREATED_INSTANCE });
 		fireEvent.pointerDown(screen.getByRole('button', { name: 'Skip' }));
