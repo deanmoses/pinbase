@@ -124,6 +124,11 @@ BOOK_SOURCES: list[dict] = [
                         "label": "WorldCat",
                         "link_type": "catalog",
                     },
+                    {
+                        "url": "https://archive.org/details/pinball-roger-c.-sharpe-1977/Pinball%21%20%5BRoger%20C.%20Sharpe%5D%20%281977%29/",
+                        "label": "Internet Archive",
+                        "link_type": "catalog",
+                    },
                 ],
             },
         ],
@@ -158,6 +163,11 @@ BOOK_SOURCES: list[dict] = [
                     {
                         "url": "https://search.worldcat.org/isbn/9780887404313",
                         "label": "WorldCat",
+                        "link_type": "catalog",
+                    },
+                    {
+                        "url": "https://archive.org/details/pinballmachines0000eide",
+                        "label": "Internet Archive",
                         "link_type": "catalog",
                     },
                 ],
@@ -361,6 +371,11 @@ BOOK_SOURCES: list[dict] = [
                         "link_type": "catalog",
                     },
                     {
+                        "url": "https://archive.org/details/pinballcompendiu0002shal",
+                        "label": "Internet Archive",
+                        "link_type": "catalog",
+                    },
+                    {
                         "url": "https://schifferbooks.com/products/pinball-comp-1982-pres-2",
                         "label": "Publisher",
                         "link_type": "publisher",
@@ -465,6 +480,11 @@ BOOK_SOURCES: list[dict] = [
             {
                 "url": "https://search.worldcat.org/isbn/9780764321092",
                 "label": "WorldCat",
+                "link_type": "catalog",
+            },
+            {
+                "url": "https://archive.org/details/pinballsnapshots0000ross",
+                "label": "Internet Archive",
                 "link_type": "catalog",
             },
             {
@@ -586,6 +606,11 @@ BOOK_SOURCES: list[dict] = [
                 "link_type": "catalog",
             },
             {
+                "url": "https://archive.org/details/pinballcompendiu0000mich",
+                "label": "Internet Archive",
+                "link_type": "catalog",
+            },
+            {
                 "url": "https://schifferbooks.com/products/pinball-comp-1970-81",
                 "label": "Publisher",
                 "link_type": "publisher",
@@ -695,6 +720,11 @@ BOOK_SOURCES: list[dict] = [
             {
                 "url": "https://search.worldcat.org/isbn/9780916870140",
                 "label": "WorldCat",
+                "link_type": "catalog",
+            },
+            {
+                "url": "https://archive.org/details/tiltpinballbook00tolb",
+                "label": "Internet Archive",
                 "link_type": "catalog",
             },
         ],
