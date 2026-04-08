@@ -3,9 +3,6 @@
 	import WikilinkAutocomplete from './WikilinkAutocomplete.svelte';
 	import { fetchLinkTypes } from '$lib/api/link-types';
 	import { detectTrigger, spliceLink } from './wikilink-helpers';
-
-	// Prefetch link types on mount so the cache is warm by the time user types [[
-	fetchLinkTypes();
 	import {
 		toggleMarker,
 		wrapSelection,
@@ -16,6 +13,9 @@
 		applyResult
 	} from './markdown-shortcuts';
 	import type { EditResult } from './markdown-shortcuts';
+
+	// Prefetch link types on mount so the cache is warm by the time user types [[
+	fetchLinkTypes();
 
 	let {
 		label,
@@ -229,8 +229,8 @@
 				closeDropdown();
 			}
 		}
-		document.addEventListener('pointerdown', onPointerDown);
-		return () => document.removeEventListener('pointerdown', onPointerDown);
+		document.addEventListener('pointerdown', onPointerDown, true);
+		return () => document.removeEventListener('pointerdown', onPointerDown, true);
 	});
 
 	// Clicking the textarea itself closes the dropdown
@@ -284,10 +284,11 @@
 	{#if open}
 		<div
 			class="link-dropdown"
-			role="listbox"
+			role="presentation"
 			style:left="{dropdownLeft}px"
 			style:top="{dropdownTop}px"
 			bind:this={autocompleteEl}
+			onmousedown={(e) => e.preventDefault()}
 			onfocusout={handleAutocompleteFocusout}
 		>
 			<WikilinkAutocomplete
