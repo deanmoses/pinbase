@@ -368,6 +368,7 @@
 				bind:this={locatorInputEl}
 				type="text"
 				class="form-input"
+				aria-label="Citation locator"
 				placeholder="p. 42, Chapter 3, timestamp..."
 				bind:value={locator}
 				onkeydown={handleLocatorKeydown}

@@ -58,7 +58,7 @@ async function openLocator() {
 		expect(screen.getByText(/citing:/i)).toBeInTheDocument();
 	});
 
-	const locatorInput = screen.getByPlaceholderText(/p\. 42/i);
+	const locatorInput = screen.getByRole('textbox', { name: /citation locator/i });
 	return { ...ctx, locatorInput };
 }
 
@@ -448,7 +448,7 @@ describe('CitationAutocomplete', () => {
 				expect(screen.getByText(/citing:/i)).toBeInTheDocument();
 			});
 
-			const locatorInput = screen.getByPlaceholderText(/p\. 42/i);
+			const locatorInput = screen.getByRole('textbox', { name: /citation locator/i });
 			await user.click(locatorInput);
 			await user.keyboard('{Enter}');
 
