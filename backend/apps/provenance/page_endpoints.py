@@ -17,6 +17,7 @@ from typing import Optional
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from apps.core.entity_types import resolve_entity_type
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -119,7 +120,9 @@ def list_changes(
 
     if entity_type:
         try:
-            ct = ContentType.objects.get(app_label="catalog", model=entity_type)
+            ct = ContentType.objects.get(
+                app_label="catalog", model=resolve_entity_type(entity_type)
+            )
         except ContentType.DoesNotExist:
             return {"items": [], "next_cursor": None}
         qs = qs.filter(

@@ -70,7 +70,7 @@
 	let constraints = $state<FieldConstraints>({});
 
 	$effect(() => {
-		fetchFieldConstraints('machine-model').then((c) => {
+		fetchFieldConstraints('model').then((c) => {
 			constraints = c;
 		});
 	});

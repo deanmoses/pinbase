@@ -79,7 +79,7 @@ _discover_routers()
 # ---------------------------------------------------------------------------
 
 _ENTITY_MODEL_MAP = {
-    "machine-model": "MachineModel",
+    "model": "MachineModel",
     "person": "Person",
     "corporate-entity": "CorporateEntity",
     "manufacturer": "Manufacturer",

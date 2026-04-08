@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from apps.core.entity_types import resolve_entity_type
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -61,7 +62,7 @@ class ReviewClaimSchema(Schema):
     needs_review_notes: str
     created_at: str
     # Context about the subject (the entity this claim targets).
-    subject_type: str  # e.g. "machinemodel"
+    subject_type: str  # ContentType.model value, e.g. "manufacturer"
     subject_name: str
     subject_slug: Optional[str] = None
     # Title that this claim created (for group claims).
@@ -172,8 +173,9 @@ def _resolve_catalog_entity(entity_type: str, slug: str):
     Returns the entity instance, or a ``Status(404, ...)`` response if the
     entity type is unknown or the slug doesn't exist.
     """
+    ct_name = resolve_entity_type(entity_type)
     try:
-        ct = ContentType.objects.get(app_label="catalog", model=entity_type)
+        ct = ContentType.objects.get(app_label="catalog", model=ct_name)
     except ContentType.DoesNotExist:
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
     model_class = ct.model_class()
