@@ -58,6 +58,7 @@ class CitationSourceSearchSchema(Schema):
     is_abstract: bool = False
     skip_locator: bool = False
     child_input_mode: Optional[str] = None
+    identifier_key: str = ""
 
 
 class CitationSourceCreateSchema(Schema):
@@ -143,6 +144,7 @@ class CitationSourceDetailSchema(Schema):
     date_note: str
     isbn: Optional[str] = None
     description: str
+    identifier_key: str = ""
     skip_locator: bool = False
     parent: Optional[CitationSourceParentSchema] = None
     links: list[CitationSourceLinkSchema] = []
@@ -243,6 +245,7 @@ def _serialize_detail(source) -> dict:
         "date_note": source.date_note,
         "isbn": source.isbn,
         "description": source.description,
+        "identifier_key": source.identifier_key,
         "skip_locator": _skip_locator(source.source_type, source.parent_id),
         "parent": parent,
         "links": [
@@ -311,6 +314,7 @@ def search_citation_sources(request, q: str = ""):
             "child_input_mode": _child_input_mode(
                 s.source_type, s.parent_id, s.has_children
             ),
+            "identifier_key": s.identifier_key,
         }
         for s in qs
     ]
@@ -358,6 +362,38 @@ def create_citation_source(request, data: CitationSourceCreateSchema):
 
     source = get_object_or_404(_detail_qs(), pk=source.pk)
     return Status(201, _serialize_detail(source))
+
+
+@citation_sources_router.get(
+    "/{source_id}/children/",
+    response=list[CitationSourceChildSchema],
+    auth=django_auth,
+)
+def list_citation_source_children(request, source_id: int, q: str = ""):
+    """Filtered children of a source, searched by name or linked URL."""
+    parent = get_object_or_404(CitationSource, pk=source_id)
+    q = q.strip()
+    if not q:
+        return []
+    children = (
+        CitationSource.objects.filter(parent=parent)
+        .filter(Q(name__icontains=q) | Q(links__url__icontains=q))
+        .prefetch_related("links")
+        .distinct()
+        .order_by("name")[:20]
+    )
+    return [
+        {
+            "id": child.pk,
+            "name": child.name,
+            "source_type": child.source_type,
+            "year": child.year,
+            "isbn": child.isbn,
+            "skip_locator": _skip_locator(child.source_type, child.parent_id),
+            "urls": [link.url for link in child.links.all()],
+        }
+        for child in children
+    ]
 
 
 @citation_sources_router.get(

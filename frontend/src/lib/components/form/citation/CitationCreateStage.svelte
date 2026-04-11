@@ -8,13 +8,17 @@
 	let {
 		parentContext,
 		prefillName,
-		oncreated,
+		onsourcecreated,
 		oncancel,
 		onback
 	}: {
 		parentContext: ParentContext | null;
 		prefillName: string;
-		oncreated: (result: { sourceId: number; sourceName: string; skipLocator: boolean }) => void;
+		onsourcecreated: (result: {
+			sourceId: number;
+			sourceName: string;
+			skipLocator: boolean;
+		}) => void;
 		oncancel: () => void;
 		onback: () => void;
 	} = $props();
@@ -39,7 +43,9 @@
 	let showAuthorField = $derived(sourceType === 'book' || sourceType === 'magazine');
 
 	$effect(() => {
-		requestAnimationFrame(() => nameInputEl?.focus());
+		if (nameInputEl) {
+			nameInputEl.focus();
+		}
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -83,7 +89,7 @@
 			return;
 		}
 
-		oncreated({
+		onsourcecreated({
 			sourceId: data.id,
 			sourceName: data.name,
 			skipLocator: data.skip_locator

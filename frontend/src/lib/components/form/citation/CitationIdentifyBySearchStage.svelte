@@ -7,14 +7,18 @@
 
 	let {
 		parentContext,
-		onselectchild,
-		onstartcreate,
+		onsourceidentified,
+		onsourcecreatestarted,
 		oncancel,
 		onback
 	}: {
 		parentContext: ParentContext;
-		onselectchild: (child: { sourceId: number; sourceName: string; skipLocator: boolean }) => void;
-		onstartcreate: (prefillName: string) => void;
+		onsourceidentified: (child: {
+			sourceId: number;
+			sourceName: string;
+			skipLocator: boolean;
+		}) => void;
+		onsourcecreatestarted: (prefillName: string) => void;
 		oncancel: () => void;
 		onback: () => void;
 	} = $props();
@@ -34,6 +38,17 @@
 	// -----------------------------------------------------------------------
 	// Fetch children on mount
 	// -----------------------------------------------------------------------
+
+	$effect(() => {
+		if (searchInputEl) {
+			searchInputEl.focus();
+		}
+	});
+
+	$effect(() => {
+		if (activeIndex < 0 || !resultsListEl) return;
+		resultsListEl.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+	});
 
 	$effect(() => {
 		fetchChildren();
@@ -58,7 +73,6 @@
 			return b.year - a.year;
 		});
 		loading = false;
-		requestAnimationFrame(() => searchInputEl?.focus());
 	}
 
 	// -----------------------------------------------------------------------
@@ -119,7 +133,7 @@
 	// -----------------------------------------------------------------------
 
 	function selectChild(child: ChildSource) {
-		onselectchild({
+		onsourceidentified({
 			sourceId: child.id,
 			sourceName: child.name,
 			skipLocator: child.skip_locator
@@ -127,7 +141,7 @@
 	}
 
 	function startCreate() {
-		onstartcreate(filterQuery);
+		onsourcecreatestarted(filterQuery);
 	}
 
 	// -----------------------------------------------------------------------
@@ -148,12 +162,10 @@
 			case 'ArrowDown':
 				e.preventDefault();
 				activeIndex = Math.min(activeIndex + 1, totalItems - 1);
-				scrollActiveIntoView();
 				break;
 			case 'ArrowUp':
 				e.preventDefault();
 				activeIndex = Math.max(activeIndex - 1, -1);
-				scrollActiveIntoView();
 				break;
 			case 'Enter':
 				e.preventDefault();
@@ -181,12 +193,6 @@
 				}
 				break;
 		}
-	}
-
-	function scrollActiveIntoView() {
-		requestAnimationFrame(() => {
-			resultsListEl?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
-		});
 	}
 </script>
 

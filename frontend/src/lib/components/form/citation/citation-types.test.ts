@@ -29,6 +29,7 @@ function makeSource(overrides: Partial<CitationSourceResult> = {}): CitationSour
 		is_abstract: false,
 		skip_locator: false,
 		child_input_mode: null,
+		identifier_key: '',
 		...overrides
 	};
 }
@@ -339,7 +340,7 @@ describe('emptyDraft', () => {
 // ---------------------------------------------------------------------------
 
 describe('transition', () => {
-	describe('select_source', () => {
+	describe('source_selected', () => {
 		it('abstract source → identify stage with parentContext', () => {
 			const source = makeSource({
 				id: 10,
@@ -350,7 +351,7 @@ describe('transition', () => {
 				child_input_mode: 'search_children'
 			});
 			const state = searchState();
-			const next = transition(state, { type: 'select_source', source });
+			const next = transition(state, { type: 'source_selected', source });
 
 			expect(next.stage).toBe('identify');
 			if (next.stage === 'identify') {
@@ -369,19 +370,16 @@ describe('transition', () => {
 		});
 
 		it('abstract web source carries identifier_key through to parentContext', () => {
-			// identifier_key is not yet in the generated schema; simulate it arriving from the API
-			const source = {
-				...makeSource({
-					id: 20,
-					name: 'Internet Pinball Database',
-					source_type: 'web',
-					is_abstract: true,
-					child_input_mode: 'enter_identifier'
-				}),
+			const source = makeSource({
+				id: 20,
+				name: 'Internet Pinball Database',
+				source_type: 'web',
+				is_abstract: true,
+				child_input_mode: 'enter_identifier',
 				identifier_key: 'ipdb'
-			} as CitationSourceResult;
+			});
 			const state = searchState();
-			const next = transition(state, { type: 'select_source', source });
+			const next = transition(state, { type: 'source_selected', source });
 
 			expect(next.stage).toBe('identify');
 			if (next.stage === 'identify') {
@@ -392,7 +390,7 @@ describe('transition', () => {
 		it('non-abstract source → locator stage with draft updated', () => {
 			const source = makeSource({ id: 5, name: 'Concrete', skip_locator: false });
 			const state = searchState();
-			const next = transition(state, { type: 'select_source', source });
+			const next = transition(state, { type: 'source_selected', source });
 
 			expect(next.stage).toBe('locator');
 			expect(next.draft.sourceId).toBe(5);
@@ -403,44 +401,18 @@ describe('transition', () => {
 		it('non-abstract source with skip_locator → locator stage with skipLocator true', () => {
 			const source = makeSource({ id: 6, name: 'Web Child', skip_locator: true });
 			const state = searchState();
-			const next = transition(state, { type: 'select_source', source });
+			const next = transition(state, { type: 'source_selected', source });
 
 			expect(next.stage).toBe('locator');
 			expect(next.draft.skipLocator).toBe(true);
 		});
 	});
 
-	describe('select_source_with_id', () => {
-		it('→ identify stage with prefillIdentifier set', () => {
-			const source = makeSource({
-				id: 20,
-				name: 'IPDB',
-				source_type: 'web',
-				is_abstract: true,
-				child_input_mode: 'enter_identifier'
-			});
-			const state = searchState();
-			const next = transition(state, {
-				type: 'select_source_with_id',
-				source,
-				identifier: '4836'
-			});
-
-			expect(next.stage).toBe('identify');
-			if (next.stage === 'identify') {
-				expect(next.prefillIdentifier).toBe('4836');
-				expect(next.parent.id).toBe(20);
-				expect(next.draft.sourceId).toBe(20);
-				expect(next.draft.sourceName).toBe('IPDB');
-			}
-		});
-	});
-
-	describe('select_child', () => {
-		it('→ locator stage with draft updated to child', () => {
+	describe('source_identified', () => {
+		it('from identify → locator stage with draft updated to child', () => {
 			const state = identifyState(makeParent({ id: 10 }), { sourceId: 10, sourceName: 'Parent' });
 			const next = transition(state, {
-				type: 'select_child',
+				type: 'source_identified',
 				sourceId: 11,
 				sourceName: 'Child Edition',
 				skipLocator: false
@@ -452,10 +424,10 @@ describe('transition', () => {
 			expect(next.draft.skipLocator).toBe(false);
 		});
 
-		it('with skipLocator true → locator stage with skipLocator set', () => {
+		it('from identify with skipLocator true → locator stage with skipLocator set', () => {
 			const state = identifyState();
 			const next = transition(state, {
-				type: 'select_child',
+				type: 'source_identified',
 				sourceId: 12,
 				sourceName: 'IPDB Machine 4836',
 				skipLocator: true
@@ -464,12 +436,27 @@ describe('transition', () => {
 			expect(next.stage).toBe('locator');
 			expect(next.draft.skipLocator).toBe(true);
 		});
+
+		it('from search → locator stage (URL recognition path)', () => {
+			const state = searchState();
+			const next = transition(state, {
+				type: 'source_identified',
+				sourceId: 21,
+				sourceName: 'IPDB #4836',
+				skipLocator: true
+			});
+
+			expect(next.stage).toBe('locator');
+			expect(next.draft.sourceId).toBe(21);
+			expect(next.draft.sourceName).toBe('IPDB #4836');
+			expect(next.draft.skipLocator).toBe(true);
+		});
 	});
 
-	describe('start_create', () => {
+	describe('source_create_started', () => {
 		it('from search → create with parent: null', () => {
 			const state = searchState();
-			const next = transition(state, { type: 'start_create', prefillName: 'New Source' });
+			const next = transition(state, { type: 'source_create_started', prefillName: 'New Source' });
 
 			expect(next.stage).toBe('create');
 			if (next.stage === 'create') {
@@ -481,7 +468,7 @@ describe('transition', () => {
 		it('from identify → create with parent carried over', () => {
 			const parent = makeParent({ id: 10, name: 'Book Series' });
 			const state = identifyState(parent);
-			const next = transition(state, { type: 'start_create', prefillName: 'New Edition' });
+			const next = transition(state, { type: 'source_create_started', prefillName: 'New Edition' });
 
 			expect(next.stage).toBe('create');
 			if (next.stage === 'create') {
@@ -491,7 +478,7 @@ describe('transition', () => {
 		});
 	});
 
-	describe('created', () => {
+	describe('source_created', () => {
 		it('→ locator stage with draft updated to new source', () => {
 			const state: CiteState = {
 				stage: 'create',
@@ -500,7 +487,7 @@ describe('transition', () => {
 				prefillName: 'New Source'
 			};
 			const next = transition(state, {
-				type: 'created',
+				type: 'source_created',
 				sourceId: 50,
 				sourceName: 'New Source',
 				skipLocator: false
@@ -520,7 +507,7 @@ describe('transition', () => {
 				prefillName: 'Web Child'
 			};
 			const next = transition(state, {
-				type: 'created',
+				type: 'source_created',
 				sourceId: 51,
 				sourceName: 'Web Child',
 				skipLocator: true
@@ -534,10 +521,10 @@ describe('transition', () => {
 	describe('invalid transitions', () => {
 		const source = makeSource({ id: 1 });
 
-		it('select_child from search → no-op', () => {
+		it('source_created from search → no-op', () => {
 			const state = searchState();
 			const next = transition(state, {
-				type: 'select_child',
+				type: 'source_created',
 				sourceId: 1,
 				sourceName: 'X',
 				skipLocator: false
@@ -545,43 +532,26 @@ describe('transition', () => {
 			expect(next).toBe(state);
 		});
 
-		it('created from search → no-op', () => {
-			const state = searchState();
-			const next = transition(state, {
-				type: 'created',
-				sourceId: 1,
-				sourceName: 'X',
-				skipLocator: false
-			});
-			expect(next).toBe(state);
-		});
-
-		it('select_source from identify → no-op', () => {
+		it('source_selected from identify → no-op', () => {
 			const state = identifyState();
-			const next = transition(state, { type: 'select_source', source });
+			const next = transition(state, { type: 'source_selected', source });
 			expect(next).toBe(state);
 		});
 
-		it('select_source_with_id from identify → no-op', () => {
-			const state = identifyState();
-			const next = transition(state, { type: 'select_source_with_id', source, identifier: '1' });
-			expect(next).toBe(state);
-		});
-
-		it('start_create from locator → no-op', () => {
+		it('source_create_started from locator → no-op', () => {
 			const state: CiteState = { stage: 'locator', draft: emptyDraft() };
-			const next = transition(state, { type: 'start_create', prefillName: 'X' });
+			const next = transition(state, { type: 'source_create_started', prefillName: 'X' });
 			expect(next).toBe(state);
 		});
 
-		it('start_create from create → no-op', () => {
+		it('source_create_started from create → no-op', () => {
 			const state: CiteState = {
 				stage: 'create',
 				draft: emptyDraft(),
 				parent: null,
 				prefillName: 'Y'
 			};
-			const next = transition(state, { type: 'start_create', prefillName: 'X' });
+			const next = transition(state, { type: 'source_create_started', prefillName: 'X' });
 			expect(next).toBe(state);
 		});
 	});

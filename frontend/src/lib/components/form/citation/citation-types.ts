@@ -14,7 +14,11 @@ export type ParentContext = {
 	source_type: string;
 	author: string;
 	child_input_mode: string | null;
-	/** Stable key for identifier parsing dispatch. Pending backend model field. */
+	/**
+	 * Which URL/ID parsing convention applies to this source's children.
+	 * Stopgap — will be subsumed by the extractor registry.
+	 * See docs/plans/citations/CitationAutogenerationDesign.md.
+	 */
 	identifier_key: string | null;
 };
 
@@ -28,28 +32,35 @@ export type CitationInstanceDraft = {
 
 /** Which stage the citation flow is in. Each variant carries only the context that stage needs. */
 export type CiteState =
+	/** Initial state. User searches for an existing source or pastes a URL. */
 	| { stage: 'search'; draft: CitationInstanceDraft }
+	/** User selected an abstract source (e.g. "IPDB") and must identify which child to cite. */
 	| {
 			stage: 'identify';
 			draft: CitationInstanceDraft;
 			parent: ParentContext;
 			prefillIdentifier?: string;
 	  }
+	/** User is creating a new source manually. */
 	| {
 			stage: 'create';
 			draft: CitationInstanceDraft;
 			parent: ParentContext | null;
 			prefillName: string;
 	  }
+	/** Source is chosen. User enters an optional locator (page number, URL fragment, etc.). */
 	| { stage: 'locator'; draft: CitationInstanceDraft };
 
 /** Inputs to the state machine, dispatched by stage components via the orchestrator. */
 export type CiteAction =
-	| { type: 'select_source'; source: CitationSourceResult }
-	| { type: 'select_source_with_id'; source: CitationSourceResult; identifier: string }
-	| { type: 'select_child'; sourceId: number; sourceName: string; skipLocator: boolean }
-	| { type: 'start_create'; prefillName: string }
-	| { type: 'created'; sourceId: number; sourceName: string; skipLocator: boolean };
+	/** User picked a source from search results. Abstract → identify; concrete → locator. */
+	| { type: 'source_selected'; source: CitationSourceResult }
+	/** The exact citable CitationSource is known (via URL recognition, child selection, etc.). → locator. */
+	| { type: 'source_identified'; sourceId: number; sourceName: string; skipLocator: boolean }
+	/** User wants to create a new CitationSource. → create. */
+	| { type: 'source_create_started'; prefillName: string }
+	/** New CitationSource was created via API. → locator. */
+	| { type: 'source_created'; sourceId: number; sourceName: string; skipLocator: boolean };
 
 // ---------------------------------------------------------------------------
 // Pure functions
@@ -60,22 +71,48 @@ export function suppressChildResults(results: CitationSourceResult[]): CitationS
 	return results.filter((r) => !r.parent_id || !resultIds.has(r.parent_id));
 }
 
-const IPDB_RE = /^https?:\/\/(?:www\.)?ipdb\.org\/machine\.cgi\?id=(\d+)/;
-const OPDB_RE = /^https?:\/\/(?:www\.)?opdb\.org\/machines\/([A-Za-z0-9_-]+)/;
+// ---------------------------------------------------------------------------
+// Identifier schemes — one entry per identifier_key value.
+//
+// Stopgap registry: will be subsumed by the server-side extractor layer.
+// See docs/plans/citations/CitationAutogenerationDesign.md.
+// To add a new scheme, add one entry here — no other switch statements.
+// ---------------------------------------------------------------------------
+
+type IdentifierScheme = {
+	/** Human-readable name shown when the URL is detected pre-selection. */
+	sourceName: string;
+	/** Regex that matches the full URL and captures the ID in group 1. */
+	urlPattern: RegExp;
+	/** Regex that matches a bare (non-URL) identifier. */
+	barePattern: RegExp;
+	/** Construct a canonical URL from a parsed ID. */
+	buildUrl: (id: string) => string;
+};
+
+const IDENTIFIER_SCHEMES: Record<string, IdentifierScheme> = {
+	ipdb: {
+		sourceName: 'IPDB',
+		urlPattern: /^https?:\/\/(?:www\.)?ipdb\.org\/machine\.cgi\?id=(\d+)/,
+		barePattern: /^\d+$/,
+		buildUrl: (id) => `https://www.ipdb.org/machine.cgi?id=${id}`
+	},
+	opdb: {
+		sourceName: 'OPDB',
+		urlPattern: /^https?:\/\/(?:www\.)?opdb\.org\/machines\/([A-Za-z0-9_-]+)/,
+		barePattern: /^[A-Za-z0-9_-]+$/,
+		buildUrl: (id) => `https://opdb.org/machines/${id}`
+	}
+};
 
 /** Pre-selection: matches a pasted URL before any source is selected. */
 export function detectSourceFromUrl(url: string): { sourceName: string; machineId: string } | null {
-	let match = IPDB_RE.exec(url);
-	if (match) return { sourceName: 'IPDB', machineId: match[1] };
-
-	match = OPDB_RE.exec(url);
-	if (match) return { sourceName: 'OPDB', machineId: match[1] };
-
+	for (const scheme of Object.values(IDENTIFIER_SCHEMES)) {
+		const match = scheme.urlPattern.exec(url);
+		if (match) return { sourceName: scheme.sourceName, machineId: match[1] };
+	}
 	return null;
 }
-
-const BARE_DIGITS = /^\d+$/;
-const BARE_OPDB_ID = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Post-selection: extracts a normalized identifier from user input.
@@ -90,22 +127,13 @@ export function parseIdentifierInput(
 ): string | null {
 	if (!input) return null;
 
-	// Instance-level: dispatch on backend-provided key
+	// Instance-level: dispatch on identifier scheme
 	if (identifierKey) {
-		switch (identifierKey) {
-			case 'ipdb': {
-				const urlMatch = IPDB_RE.exec(input);
-				if (urlMatch) return urlMatch[1];
-				return BARE_DIGITS.test(input) ? input : null;
-			}
-			case 'opdb': {
-				const urlMatch = OPDB_RE.exec(input);
-				if (urlMatch) return urlMatch[1];
-				return BARE_OPDB_ID.test(input) ? input : null;
-			}
-			default:
-				return null;
-		}
+		const scheme = IDENTIFIER_SCHEMES[identifierKey];
+		if (!scheme) return null;
+		const urlMatch = scheme.urlPattern.exec(input);
+		if (urlMatch) return urlMatch[1];
+		return scheme.barePattern.test(input) ? input : null;
 	}
 
 	// Type-level: derive from source type
@@ -148,14 +176,9 @@ function isValidIsbn10(isbn: string): boolean {
 
 /** Construct a canonical URL for a child source from its identifier key and parsed ID. */
 export function buildChildUrl(identifierKey: string | null, parsedId: string): string | null {
-	switch (identifierKey) {
-		case 'ipdb':
-			return `https://www.ipdb.org/machine.cgi?id=${parsedId}`;
-		case 'opdb':
-			return `https://opdb.org/machines/${parsedId}`;
-		default:
-			return null;
-	}
+	if (!identifierKey) return null;
+	const scheme = IDENTIFIER_SCHEMES[identifierKey];
+	return scheme ? scheme.buildUrl(parsedId) : null;
 }
 
 export function isDraftSubmittable(draft: CitationInstanceDraft): boolean {
@@ -177,15 +200,14 @@ function parentContextFromSource(source: CitationSourceResult): ParentContext {
 		source_type: source.source_type,
 		author: source.author,
 		child_input_mode: source.child_input_mode ?? null,
-		// TODO: clean up cast once backend adds identifier_key to the schema
-		identifier_key: ((source as Record<string, unknown>).identifier_key as string | null) ?? null
+		identifier_key: source.identifier_key || null
 	};
 }
 
 /** Invalid action/state combos return current state unchanged. */
 export function transition(state: CiteState, action: CiteAction): CiteState {
 	switch (action.type) {
-		case 'select_source': {
+		case 'source_selected': {
 			if (state.stage !== 'search') return state;
 			const draft = { ...state.draft, sourceId: action.source.id, sourceName: action.source.name };
 			if (action.source.is_abstract) {
@@ -201,22 +223,8 @@ export function transition(state: CiteState, action: CiteAction): CiteState {
 			};
 		}
 
-		case 'select_source_with_id': {
-			if (state.stage !== 'search') return state;
-			return {
-				stage: 'identify',
-				draft: {
-					...state.draft,
-					sourceId: action.source.id,
-					sourceName: action.source.name
-				},
-				parent: parentContextFromSource(action.source),
-				prefillIdentifier: action.identifier
-			};
-		}
-
-		case 'select_child': {
-			if (state.stage !== 'identify') return state;
+		case 'source_identified': {
+			if (state.stage !== 'search' && state.stage !== 'identify') return state;
 			return {
 				stage: 'locator',
 				draft: {
@@ -228,7 +236,7 @@ export function transition(state: CiteState, action: CiteAction): CiteState {
 			};
 		}
 
-		case 'start_create': {
+		case 'source_create_started': {
 			if (state.stage !== 'search' && state.stage !== 'identify') return state;
 			return {
 				stage: 'create',
@@ -238,7 +246,7 @@ export function transition(state: CiteState, action: CiteAction): CiteState {
 			};
 		}
 
-		case 'created': {
+		case 'source_created': {
 			if (state.stage !== 'create') return state;
 			return {
 				stage: 'locator',

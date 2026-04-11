@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import FieldGroup from './FieldGroup.svelte';
 	import WikilinkAutocomplete from './WikilinkAutocomplete.svelte';
 	import { fetchLinkTypes } from '$lib/api/link-types';
@@ -44,6 +45,8 @@
 	let triggerStart = $state(-1);
 	let dropdownLeft = $state(0);
 	let dropdownTop = $state(0);
+	let textareaBlurTimeout: ReturnType<typeof setTimeout> | undefined;
+	let autocompleteBlurTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// -----------------------------------------------------------------------
 	// Cursor position via mirror div
@@ -105,6 +108,7 @@
 	// -----------------------------------------------------------------------
 
 	function openDropdown() {
+		clearBlurTimeouts();
 		const pos = getCursorPosition();
 		dropdownLeft = pos.left;
 		dropdownTop = pos.top;
@@ -112,8 +116,16 @@
 	}
 
 	function closeDropdown() {
+		clearBlurTimeouts();
 		open = false;
 		triggerStart = -1;
+	}
+
+	function clearBlurTimeouts() {
+		clearTimeout(textareaBlurTimeout);
+		clearTimeout(autocompleteBlurTimeout);
+		textareaBlurTimeout = undefined;
+		autocompleteBlurTimeout = undefined;
 	}
 
 	// -----------------------------------------------------------------------
@@ -243,7 +255,9 @@
 
 	function handleTextareaBlur() {
 		if (!open) return;
-		setTimeout(() => {
+		clearTimeout(textareaBlurTimeout);
+		textareaBlurTimeout = setTimeout(() => {
+			textareaBlurTimeout = undefined;
 			if (!autocompleteEl?.contains(document.activeElement)) {
 				closeDropdown();
 			}
@@ -252,13 +266,19 @@
 
 	function handleAutocompleteFocusout() {
 		if (!open) return;
-		setTimeout(() => {
+		clearTimeout(autocompleteBlurTimeout);
+		autocompleteBlurTimeout = setTimeout(() => {
+			autocompleteBlurTimeout = undefined;
 			const active = document.activeElement;
 			if (active !== textareaEl && !autocompleteEl?.contains(active)) {
 				closeDropdown();
 			}
 		}, BLUR_DELAY_MS);
 	}
+
+	onDestroy(() => {
+		clearBlurTimeouts();
+	});
 </script>
 
 <div class="markdown-textarea" bind:this={wrapperEl}>
@@ -288,7 +308,9 @@
 			style:left="{dropdownLeft}px"
 			style:top="{dropdownTop}px"
 			bind:this={autocompleteEl}
-			onmousedown={(e) => e.preventDefault()}
+			onmousedown={(e) => {
+				if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
+			}}
 			onfocusout={handleAutocompleteFocusout}
 		>
 			<WikilinkAutocomplete
@@ -328,6 +350,7 @@
 	.link-dropdown {
 		position: absolute;
 		z-index: 10;
+		min-width: 16rem;
 		max-width: 24rem;
 		max-height: 20rem;
 		overflow-y: auto;

@@ -18,7 +18,9 @@
 	let inputEl: HTMLInputElement | undefined = $state();
 
 	$effect(() => {
-		requestAnimationFrame(() => inputEl?.focus());
+		if (inputEl) {
+			inputEl.focus();
+		}
 	});
 
 	function handleKeydown(e: KeyboardEvent) {

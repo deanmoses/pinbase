@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { onDestroy, tick } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { fetchLinkTypes, searchLinkTargets } from '$lib/api/link-types';
 	import type { LinkType, LinkTarget } from '$lib/api/link-types';
 	import { formatLinkText } from './wikilink-helpers';
 	import { createDebouncedSearch } from './search-helpers';
-	import CitationAutocomplete from './CitationAutocomplete.svelte';
+	import CitationAutocomplete from './citation/CitationAutocomplete.svelte';
 	import DropdownHeader from './DropdownHeader.svelte';
 	import DropdownItem from './DropdownItem.svelte';
 	import DropdownSearchInput from './DropdownSearchInput.svelte';
@@ -51,6 +51,18 @@
 
 	onDestroy(() => debouncedSearch?.cancel());
 
+	$effect(() => {
+		if (stage === 'search' && searchInputEl) {
+			searchInputEl.focus();
+		}
+	});
+
+	$effect(() => {
+		if (stage !== 'search' || searchIndex < 0) return;
+		const el = searchInputEl?.closest('.wikilink-autocomplete');
+		el?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+	});
+
 	// Eagerly prefetch link types so they're ready before the user types [[.
 	// Cached at module level, so this is a no-op after first call.
 	fetchLinkTypes()
@@ -88,7 +100,6 @@
 				}
 			);
 			stage = 'search';
-			tick().then(() => searchInputEl?.focus());
 			debouncedSearch.search('');
 		}
 	}
@@ -158,12 +169,10 @@
 			case 'ArrowDown':
 				e.preventDefault();
 				searchIndex = Math.min(searchIndex + 1, searchResults.length - 1);
-				scrollActiveIntoView();
 				break;
 			case 'ArrowUp':
 				e.preventDefault();
 				searchIndex = Math.max(searchIndex - 1, -1);
-				scrollActiveIntoView();
 				break;
 			case 'Enter':
 				e.preventDefault();
@@ -189,13 +198,6 @@
 				}
 				break;
 		}
-	}
-
-	function scrollActiveIntoView() {
-		tick().then(() => {
-			const el = searchInputEl?.closest('.wikilink-autocomplete');
-			el?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
-		});
 	}
 
 	// -----------------------------------------------------------------------

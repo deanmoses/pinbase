@@ -6,20 +6,23 @@
 		type ParentContext,
 		type ChildSource
 	} from './citation-types';
+	import { createDebouncedSearch } from '../search-helpers';
 	import DropdownHeader from '../DropdownHeader.svelte';
 
 	let {
 		parentContext,
 		prefillIdentifier,
-		onselectchild,
-		oncreated,
+		onsourceidentified,
 		oncancel,
 		onback
 	}: {
 		parentContext: ParentContext;
 		prefillIdentifier?: string;
-		onselectchild: (child: { sourceId: number; sourceName: string; skipLocator: boolean }) => void;
-		oncreated: (result: { sourceId: number; sourceName: string; skipLocator: boolean }) => void;
+		onsourceidentified: (child: {
+			sourceId: number;
+			sourceName: string;
+			skipLocator: boolean;
+		}) => void;
 		oncancel: () => void;
 		onback: () => void;
 	} = $props();
@@ -31,35 +34,54 @@
 	// svelte-ignore state_referenced_locally
 	let rawInput = $state(prefillIdentifier ?? '');
 	let children = $state<ChildSource[]>([]);
-	let loading = $state(true);
-	let loadError = $state(false);
+	let loading = $state(false);
+	let lookupFailed = $state(false);
 	let submitting = $state(false);
 	let error = $state('');
 	let inputEl: HTMLInputElement | undefined = $state();
 
 	// -----------------------------------------------------------------------
-	// Fetch children on mount
+	// Debounced children lookup
 	// -----------------------------------------------------------------------
 
+	const debouncedSearch = createDebouncedSearch<ChildSource>(
+		async (q: string) => {
+			if (!q.trim()) return [];
+			loading = true;
+			lookupFailed = false;
+			try {
+				const { data, error: apiError } = await client.GET(
+					'/api/citation-sources/{source_id}/children/',
+					{ params: { path: { source_id: parentContext.id }, query: { q } } }
+				);
+				if (apiError || !data) {
+					lookupFailed = true;
+					return [];
+				}
+				return data as ChildSource[];
+			} catch {
+				lookupFailed = true;
+				return [];
+			} finally {
+				loading = false;
+			}
+		},
+		(results) => {
+			children = results;
+		},
+		200
+	);
+
 	$effect(() => {
-		fetchChildren();
+		debouncedSearch.search(rawInput);
+		return () => debouncedSearch.cancel();
 	});
 
-	async function fetchChildren() {
-		loading = true;
-		loadError = false;
-		const { data, error: apiError } = await client.GET('/api/citation-sources/{source_id}/', {
-			params: { path: { source_id: parentContext.id } }
-		});
-		if (apiError || !data) {
-			loading = false;
-			loadError = true;
-			return;
+	$effect(() => {
+		if (inputEl) {
+			inputEl.focus();
 		}
-		children = data.children as ChildSource[];
-		loading = false;
-		requestAnimationFrame(() => inputEl?.focus());
-	}
+	});
 
 	// -----------------------------------------------------------------------
 	// Identifier parsing and matching
@@ -86,7 +108,7 @@
 		);
 	});
 
-	let canAct = $derived(!loading && !loadError && parsedId !== null);
+	let canAct = $derived(!loading && !lookupFailed && parsedId !== null);
 	let actionLabel = $derived(matchedChild ? 'Cite' : 'Create & cite');
 
 	// -----------------------------------------------------------------------
@@ -97,7 +119,7 @@
 		if (!parsedId || submitting) return;
 
 		if (matchedChild) {
-			onselectchild({
+			onsourceidentified({
 				sourceId: matchedChild.id,
 				sourceName: matchedChild.name,
 				skipLocator: matchedChild.skip_locator
@@ -131,7 +153,7 @@
 			return;
 		}
 
-		oncreated({
+		onsourceidentified({
 			sourceId: data.id,
 			sourceName: data.name,
 			skipLocator: data.skip_locator
@@ -184,8 +206,8 @@
 	<div aria-live="polite">
 		{#if loading}
 			<div class="status-msg">Loading…</div>
-		{:else if loadError}
-			<div class="status-msg status-error">Failed to load — matching unavailable</div>
+		{:else if lookupFailed}
+			<div class="status-msg status-error">Lookup failed — try again</div>
 		{:else if parsedId && matchedChild}
 			<div class="match-info">{matchedChild.name}</div>
 		{:else if parsedId && !matchedChild}

@@ -4,22 +4,29 @@
 	import {
 		suppressChildResults,
 		detectSourceFromUrl,
-		type CitationSourceResult
+		parseIdentifierInput,
+		buildChildUrl,
+		type CitationSourceResult,
+		type ChildSource
 	} from './citation-types';
 	import DropdownHeader from '../DropdownHeader.svelte';
 	import DropdownItem from '../DropdownItem.svelte';
 	import DropdownSearchInput from '../DropdownSearchInput.svelte';
 
 	let {
-		onselectsource,
-		onselectsourcewithid,
-		onstartcreate,
+		onsourceselected,
+		onsourceidentified,
+		onsourcecreatestarted,
 		oncancel,
 		onback
 	}: {
-		onselectsource: (source: CitationSourceResult) => void;
-		onselectsourcewithid: (source: CitationSourceResult, identifier: string) => void;
-		onstartcreate: (prefillName: string) => void;
+		onsourceselected: (source: CitationSourceResult) => void;
+		onsourceidentified: (child: {
+			sourceId: number;
+			sourceName: string;
+			skipLocator: boolean;
+		}) => void;
+		onsourcecreatestarted: (prefillName: string) => void;
 		oncancel: () => void;
 		onback: () => void;
 	} = $props();
@@ -86,15 +93,31 @@
 	// -----------------------------------------------------------------------
 
 	$effect(() => {
-		requestAnimationFrame(() => searchInputEl?.focus());
+		if (searchInputEl) {
+			searchInputEl.focus();
+		}
+	});
+
+	$effect(() => {
+		if (activeIndex < 0 || !resultsListEl) return;
+		resultsListEl.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
 	});
 
 	function selectSource(source: CitationSourceResult) {
 		debouncedSearch.cancel();
-		onselectsource(source);
+		onsourceselected(source);
 	}
 
-	async function selectDetected() {
+	/**
+	 * Fully resolve a recognized URL to a citable source.
+	 *
+	 * 1. Find the abstract parent (e.g. "IPDB") by searching for the source name.
+	 * 2. Look up existing children matching the extracted identifier.
+	 * 3. If a child exists, dispatch source_identified directly.
+	 * 4. If not, create the child source, then dispatch source_identified.
+	 * 5. On failure, fall back to source_selected (lands on the identify stage).
+	 */
+	async function resolveRecognizedUrl() {
 		if (!detected || resolving) return;
 		debouncedSearch.cancel();
 		resolving = true;
@@ -102,33 +125,98 @@
 		const { sourceName, machineId } = detected;
 
 		try {
-			const { data } = await client.GET('/api/citation-sources/search/', {
+			// Step 1: Find abstract parent
+			const { data: searchData } = await client.GET('/api/citation-sources/search/', {
 				params: { query: { q: sourceName } }
 			});
 			if (gen !== resolveGeneration) return;
 
-			const results = (data ?? []) as CitationSourceResult[];
+			const results = (searchData ?? []) as CitationSourceResult[];
 			const parent = results.find((r) => r.is_abstract);
-			resolving = false;
 
-			if (parent) {
-				onselectsourcewithid(parent, machineId);
-			} else {
+			if (!parent) {
+				resolving = false;
 				resolveError = true;
 				console.warn(`Citation search: no abstract parent found for "${sourceName}"`);
+				return;
 			}
+
+			// Step 2: Look up existing children
+			const { data: childrenData, error: childrenError } = await client.GET(
+				'/api/citation-sources/{source_id}/children/',
+				{ params: { path: { source_id: parent.id }, query: { q: machineId } } }
+			);
+			if (gen !== resolveGeneration) return;
+
+			if (!childrenError && childrenData) {
+				const children = childrenData as ChildSource[];
+				const match = children.find((c) => {
+					for (const url of c.urls) {
+						const parsed = parseIdentifierInput(
+							parent.source_type,
+							parent.identifier_key || null,
+							url
+						);
+						if (parsed === machineId) return true;
+					}
+					return false;
+				});
+
+				if (match) {
+					// Step 3: Existing child found
+					resolving = false;
+					onsourceidentified({
+						sourceId: match.id,
+						sourceName: match.name,
+						skipLocator: match.skip_locator
+					});
+					return;
+				}
+			}
+
+			// Step 4: No existing child — create one
+			const childUrl = buildChildUrl(parent.identifier_key || null, machineId);
+			const { data: created, error: createError } = await client.POST('/api/citation-sources/', {
+				body: {
+					name: `${parent.name} #${machineId}`,
+					source_type: parent.source_type,
+					author: '',
+					publisher: '',
+					date_note: '',
+					description: '',
+					parent_id: parent.id,
+					url: childUrl,
+					link_label: '',
+					link_type: 'homepage'
+				}
+			});
+			if (gen !== resolveGeneration) return;
+
+			if (createError) {
+				// Fall back to identify stage
+				resolving = false;
+				onsourceselected(parent);
+				return;
+			}
+
+			resolving = false;
+			onsourceidentified({
+				sourceId: created.id,
+				sourceName: created.name,
+				skipLocator: created.skip_locator
+			});
 		} catch (err) {
 			if (gen === resolveGeneration) {
 				resolving = false;
 				resolveError = true;
-				console.warn('Citation search: failed to resolve parent source', err);
+				console.warn('Citation search: failed to resolve recognized URL', err);
 			}
 		}
 	}
 
 	function startCreate() {
 		debouncedSearch.cancel();
-		onstartcreate(searchQuery);
+		onsourcecreatestarted(searchQuery);
 	}
 
 	// -----------------------------------------------------------------------
@@ -140,18 +228,16 @@
 			case 'ArrowDown':
 				e.preventDefault();
 				activeIndex = Math.min(activeIndex + 1, totalItems - 1);
-				scrollActiveIntoView();
 				break;
 			case 'ArrowUp':
 				e.preventDefault();
 				activeIndex = Math.max(activeIndex - 1, -1);
-				scrollActiveIntoView();
 				break;
 			case 'Enter':
 				e.preventDefault();
 				if (activeIndex < 0) break;
 				if (detected && activeIndex === 0) {
-					selectDetected();
+					resolveRecognizedUrl();
 				} else if (activeIndex >= resultsStartIndex && activeIndex < createNewIndex) {
 					selectSource(searchResults[activeIndex - resultsStartIndex]);
 				} else if (showCreateNew && activeIndex === createNewIndex) {
@@ -176,12 +262,6 @@
 				break;
 		}
 	}
-
-	function scrollActiveIntoView() {
-		requestAnimationFrame(() => {
-			resultsListEl?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
-		});
-	}
 </script>
 
 <DropdownHeader {onback}>Citation</DropdownHeader>
@@ -196,7 +276,7 @@
 	{#if detected}
 		<DropdownItem
 			active={activeIndex === 0}
-			onselect={selectDetected}
+			onselect={resolveRecognizedUrl}
 			onhover={() => (activeIndex = 0)}
 		>
 			<span class="item-label">{detected.sourceName} Machine {detected.machineId}</span>
