@@ -12,18 +12,21 @@
 	let {
 		oncomplete,
 		oncancel,
-		onfocusreturn
+		onfocusreturn,
+		initialType
 	}: {
 		oncomplete: (linkText: string) => void;
 		oncancel: () => void;
 		onfocusreturn?: () => void;
+		/** When set, skip the type picker and jump directly to this link type. */
+		initialType?: string;
 	} = $props();
 
 	// -----------------------------------------------------------------------
 	// State
 	// -----------------------------------------------------------------------
 
-	let stage = $state<'type' | 'search' | 'cite'>('type');
+	let stage = $state<'type' | 'search' | 'cite'>(initialType === 'cite' ? 'cite' : 'type');
 
 	// Type picker
 	let linkTypes = $state<LinkType[]>([]);
@@ -68,6 +71,10 @@
 	fetchLinkTypes()
 		.then((types) => {
 			linkTypes = types;
+			if (initialType) {
+				const match = types.find((t) => t.name === initialType);
+				if (match) selectType(match);
+			}
 		})
 		.catch(() => {
 			// Degraded state: type picker will be empty
@@ -119,7 +126,12 @@
 		oncomplete(formatLinkText(selectedType.name, target.ref));
 	}
 
-	function goBackToTypePicker() {
+	function goBack() {
+		if (initialType) {
+			// Arrived via toolbar — no type picker to go back to, just close
+			oncancel();
+			return;
+		}
 		debouncedSearch?.cancel();
 		debouncedSearch = null;
 		stage = 'type';
@@ -188,13 +200,13 @@
 			case 'Backspace':
 				if (!searchQuery) {
 					e.preventDefault();
-					goBackToTypePicker();
+					goBack();
 				}
 				break;
 			case 'ArrowLeft':
 				if (searchInputEl && searchInputEl.selectionStart === 0) {
 					e.preventDefault();
-					goBackToTypePicker();
+					goBack();
 				}
 				break;
 		}
@@ -225,7 +237,7 @@
 			</DropdownItem>
 		{/each}
 	{:else if stage === 'search'}
-		<DropdownHeader onback={goBackToTypePicker}>{selectedType?.label}</DropdownHeader>
+		<DropdownHeader onback={goBack}>{selectedType?.label}</DropdownHeader>
 		<DropdownSearchInput
 			placeholder="Search {selectedType?.label ?? ''}..."
 			value={searchQuery}
@@ -253,7 +265,7 @@
 		<CitationAutocomplete
 			oncomplete={(linkText) => oncomplete(linkText)}
 			oncancel={() => oncancel()}
-			onback={() => goBackToTypePicker()}
+			onback={() => goBack()}
 		/>
 	{/if}
 </div>

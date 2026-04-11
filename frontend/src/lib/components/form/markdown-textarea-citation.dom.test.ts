@@ -289,7 +289,7 @@ describe('MarkdownTextArea citation integration', () => {
 
 		// Mousedown on a non-input element should still be prevented
 		// (keeps focus on textarea, prevents blur)
-		const header = screen.getByText('Citation');
+		const header = document.querySelector('.dropdown-header')!;
 		const headerEvent = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
 		header.dispatchEvent(headerEvent);
 		expect(headerEvent.defaultPrevented).toBe(true);

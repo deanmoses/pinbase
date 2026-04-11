@@ -11,9 +11,11 @@
 		pasteLink,
 		indentLines,
 		listEnter,
+		toggleList,
 		applyResult
 	} from './markdown-shortcuts';
 	import type { EditResult } from './markdown-shortcuts';
+	import MarkdownToolbar from './MarkdownToolbar.svelte';
 
 	// Prefetch link types on mount so the cache is warm by the time user types [[
 	fetchLinkTypes();
@@ -43,6 +45,7 @@
 	// Dropdown state
 	let open = $state(false);
 	let triggerStart = $state(-1);
+	let initialType: string | undefined = $state();
 	let dropdownLeft = $state(0);
 	let dropdownTop = $state(0);
 	let textareaBlurTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -119,6 +122,15 @@
 		clearBlurTimeouts();
 		open = false;
 		triggerStart = -1;
+		initialType = undefined;
+	}
+
+	/** Open the link/citation picker from the toolbar (no [[ trigger needed). */
+	function openLinkPicker(mode?: string) {
+		if (!textareaEl) return;
+		triggerStart = textareaEl.selectionStart;
+		initialType = mode;
+		openDropdown();
 	}
 
 	function clearBlurTimeouts() {
@@ -284,6 +296,34 @@
 <div class="markdown-textarea" bind:this={wrapperEl}>
 	<FieldGroup {label} {id}>
 		{#snippet children(inputId)}
+			<MarkdownToolbar
+				onbold={() => {
+					if (!textareaEl) return;
+					applyAndSync(
+						toggleMarker(textareaEl.value, textareaEl.selectionStart, textareaEl.selectionEnd, '**')
+					);
+				}}
+				onitalic={() => {
+					if (!textareaEl) return;
+					applyAndSync(
+						toggleMarker(textareaEl.value, textareaEl.selectionStart, textareaEl.selectionEnd, '*')
+					);
+				}}
+				onlink={() => openLinkPicker()}
+				onbulletlist={() => {
+					if (!textareaEl) return;
+					applyAndSync(
+						toggleList(textareaEl.value, textareaEl.selectionStart, textareaEl.selectionEnd, false)
+					);
+				}}
+				onnumberedlist={() => {
+					if (!textareaEl) return;
+					applyAndSync(
+						toggleList(textareaEl.value, textareaEl.selectionStart, textareaEl.selectionEnd, true)
+					);
+				}}
+				oncitation={() => openLinkPicker('cite')}
+			/>
 			<textarea
 				bind:this={textareaEl}
 				id={inputId}
@@ -315,6 +355,7 @@
 		>
 			<WikilinkAutocomplete
 				bind:this={autocompleteRef}
+				{initialType}
 				oncomplete={(linkText) => insertWikilink(linkText)}
 				oncancel={() => {
 					closeDropdown();
@@ -329,6 +370,11 @@
 <style>
 	.markdown-textarea {
 		position: relative;
+	}
+
+	.markdown-textarea textarea {
+		border-top-left-radius: 0;
+		border-top-right-radius: 0;
 	}
 
 	/* ----- Mirror (hidden, for cursor measurement) ----- */
