@@ -406,6 +406,62 @@ describe('MarkdownTextArea citation integration', () => {
 		});
 	});
 
+	it('wires aria-activedescendant on the citation search combobox', async () => {
+		const user = userEvent.setup();
+		renderTextArea();
+		const textarea = screen.getByRole('textbox', { name: /description/i }) as HTMLTextAreaElement;
+
+		const searchInput = await enterCitationFlow(textarea);
+		await searchCitation(user, searchInput);
+
+		// Combobox should control a listbox
+		const listboxId = searchInput.getAttribute('aria-controls');
+		expect(listboxId).toBeTruthy();
+		expect(document.getElementById(listboxId!)).toHaveAttribute('role', 'listbox');
+
+		// No active descendant initially
+		expect(searchInput).not.toHaveAttribute('aria-activedescendant');
+
+		// ArrowDown highlights first result — read its id from the DOM
+		fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+		const options = screen.getAllByRole('option');
+		expect(searchInput.getAttribute('aria-activedescendant')).toBe(options[0].id);
+
+		// ArrowDown highlights second result
+		fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+		expect(searchInput.getAttribute('aria-activedescendant')).toBe(options[1].id);
+	});
+
+	it('wires aria-activedescendant on the identify-by-search combobox', async () => {
+		const user = userEvent.setup();
+		renderTextArea();
+		const textarea = screen.getByRole('textbox', { name: /description/i }) as HTMLTextAreaElement;
+
+		await enterBookIdentifyStage(user, textarea);
+
+		const searchInput = screen.getByRole('combobox', {
+			name: /filter editions/i
+		}) as HTMLInputElement;
+
+		// Combobox should control a listbox
+		const listboxId = searchInput.getAttribute('aria-controls');
+		expect(listboxId).toBeTruthy();
+		expect(document.getElementById(listboxId!)).toHaveAttribute('role', 'listbox');
+
+		// No active descendant initially
+		expect(searchInput).not.toHaveAttribute('aria-activedescendant');
+
+		// ArrowDown highlights first child edition
+		searchInput.focus();
+		fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+		const options = screen.getAllByRole('option');
+		expect(searchInput.getAttribute('aria-activedescendant')).toBe(options[0].id);
+
+		// ArrowDown highlights second child edition
+		fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+		expect(searchInput.getAttribute('aria-activedescendant')).toBe(options[1].id);
+	});
+
 	it('does not let keydown events bubble out of the citation dropdown', async () => {
 		renderTextArea();
 		const textarea = screen.getByRole('textbox', { name: /description/i }) as HTMLTextAreaElement;

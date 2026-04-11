@@ -35,6 +35,13 @@
 	let searchInputEl: HTMLInputElement | undefined = $state();
 	let resultsListEl: HTMLDivElement | undefined = $state();
 
+	// ARIA — per-instance IDs for combobox pattern
+	const uid = Math.random().toString(36).slice(2, 8);
+	const listboxId = `cite-identify-${uid}`;
+	function itemId(key: string | number) {
+		return `cite-identify-item-${uid}-${key}`;
+	}
+
 	// -----------------------------------------------------------------------
 	// Fetch children on mount
 	// -----------------------------------------------------------------------
@@ -124,9 +131,16 @@
 	// Item index math
 	// -----------------------------------------------------------------------
 
-	let showCreateNew = $derived(filterQuery.trim().length > 0);
+	let showCreateNew = $derived(!loading && !loadError && filterQuery.trim().length > 0);
 	let createNewIndex = $derived(filteredChildren.length);
-	let totalItems = $derived(filteredChildren.length + (showCreateNew ? 1 : 0));
+	let totalItems = $derived(
+		loading || loadError ? 0 : filteredChildren.length + (showCreateNew ? 1 : 0)
+	);
+	let activeDescendant = $derived(
+		activeIndex >= 0 && activeIndex < totalItems
+			? itemId(filteredChildren[activeIndex]?.id ?? `create-${createNewIndex}`)
+			: undefined
+	);
 
 	// -----------------------------------------------------------------------
 	// Actions
@@ -203,8 +217,10 @@
 	oninput={handleSearchInput}
 	onkeydown={handleKeydown}
 	bind:inputRef={searchInputEl}
+	{activeDescendant}
+	{listboxId}
 />
-<div class="results-list" bind:this={resultsListEl}>
+<div class="results-list" role="listbox" id={listboxId} bind:this={resultsListEl}>
 	{#if loading}
 		<div class="status-msg">Loading…</div>
 	{:else if loadError}
@@ -212,6 +228,7 @@
 	{:else}
 		{#each filteredChildren as child, i (child.id)}
 			<DropdownItem
+				id={itemId(child.id)}
 				active={i === activeIndex}
 				onselect={() => selectChild(child)}
 				onhover={() => (activeIndex = i)}
@@ -224,6 +241,7 @@
 		{/each}
 		{#if showCreateNew}
 			<DropdownItem
+				id={itemId(`create-${createNewIndex}`)}
 				active={activeIndex === createNewIndex}
 				onselect={startCreate}
 				onhover={() => (activeIndex = createNewIndex)}

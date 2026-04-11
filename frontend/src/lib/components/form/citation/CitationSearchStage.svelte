@@ -45,6 +45,13 @@
 	let resolveError = $state(false);
 	let resolveGeneration = 0;
 
+	// ARIA — per-instance IDs for combobox pattern
+	const uid = Math.random().toString(36).slice(2, 8);
+	const listboxId = `cite-search-${uid}`;
+	function itemId(key: string | number) {
+		return `cite-search-item-${uid}-${key}`;
+	}
+
 	// -----------------------------------------------------------------------
 	// URL detection (synchronous, runs on every input change)
 	// -----------------------------------------------------------------------
@@ -88,6 +95,14 @@
 	let resultsStartIndex = $derived(detected ? 1 : 0);
 	let createNewIndex = $derived(resultsStartIndex + searchResults.length);
 	let totalItems = $derived((detected ? 1 : 0) + searchResults.length + (showCreateNew ? 1 : 0));
+	let activeDescendant = $derived.by(() => {
+		if (activeIndex < 0 || activeIndex >= totalItems) return undefined;
+		if (detected && activeIndex === 0) return itemId(`detected-${detected.machineId}`);
+		if (activeIndex >= resultsStartIndex && activeIndex < createNewIndex)
+			return itemId(searchResults[activeIndex - resultsStartIndex].id);
+		if (activeIndex === createNewIndex) return itemId('create');
+		return undefined;
+	});
 
 	// -----------------------------------------------------------------------
 	// Actions
@@ -254,10 +269,13 @@
 	oninput={handleSearchInput}
 	onkeydown={handleKeydown}
 	bind:inputRef={searchInputEl}
+	{activeDescendant}
+	{listboxId}
 />
-<div class="results-list" bind:this={resultsListEl}>
+<div class="results-list" role="listbox" id={listboxId} bind:this={resultsListEl}>
 	{#if detected}
 		<DropdownItem
+			id={itemId(`detected-${detected.machineId}`)}
 			active={activeIndex === 0}
 			onselect={resolveRecognizedUrl}
 			onhover={() => (activeIndex = 0)}
@@ -272,6 +290,7 @@
 	{/if}
 	{#each searchResults as source, i (source.id)}
 		<DropdownItem
+			id={itemId(source.id)}
 			active={i + resultsStartIndex === activeIndex}
 			onselect={() => selectSource(source)}
 			onhover={() => (activeIndex = i + resultsStartIndex)}
@@ -282,6 +301,7 @@
 	{/each}
 	{#if showCreateNew}
 		<DropdownItem
+			id={itemId('create')}
 			active={activeIndex === createNewIndex}
 			onselect={startCreate}
 			onhover={() => (activeIndex = createNewIndex)}
