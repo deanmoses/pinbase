@@ -13,7 +13,9 @@ import {
 	JJP_SOURCE,
 	BOOK_CHILDREN,
 	BOOK_DETAIL_RESPONSE,
-	CREATED_SOURCE
+	CREATED_SOURCE,
+	EXTRACT_ISBN_DRAFT,
+	EXTRACT_ISBN_MATCH
 } from './citation-fixtures';
 
 const { mockGET, mockPOST } = vi.hoisted(() => ({
@@ -643,6 +645,163 @@ describe('CitationAutocomplete (component-level)', () => {
 
 			// No "Create" option should appear when recognition is present
 			expect(screen.queryByRole('option', { name: /Create/ })).not.toBeInTheDocument();
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// ISBN extraction flows
+	// -----------------------------------------------------------------------
+
+	describe('ISBN extraction flows', () => {
+		it('shows "Look up ISBN" action when ISBN-shaped input has no matches', async () => {
+			const user = userEvent.setup();
+			renderAutocomplete();
+
+			mockGET.mockReturnValue(mockSearchReturning([]));
+
+			const input = getSearchInput();
+			input.focus();
+			await user.keyboard('978-0-596-51774-8');
+
+			await vi.waitFor(() => {
+				expect(
+					screen.getByRole('option', { name: /Look up ISBN 9780596517748/i })
+				).toBeInTheDocument();
+			});
+		});
+
+		it('ISBN lookup returns draft → create stage prefilled', async () => {
+			const user = userEvent.setup();
+			renderAutocomplete();
+
+			mockGET.mockReturnValue(mockSearchReturning([]));
+			mockPOST.mockImplementation((url: string) => {
+				if (url === '/api/citation-sources/extract/')
+					return Promise.resolve({ data: EXTRACT_ISBN_DRAFT });
+				if (url === '/api/citation-sources/') return Promise.resolve({ data: CREATED_SOURCE });
+				return Promise.resolve({ data: CREATED_INSTANCE });
+			});
+
+			const input = getSearchInput();
+			input.focus();
+			await user.keyboard('978-0-596-51774-8');
+
+			await vi.waitFor(() => {
+				expect(screen.getByRole('option', { name: /Look up ISBN/i })).toBeInTheDocument();
+			});
+
+			fireEvent.pointerDown(screen.getByRole('option', { name: /Look up ISBN/i }));
+
+			await vi.waitFor(() => {
+				expect(screen.getByText('New source')).toBeInTheDocument();
+			});
+
+			// Verify prefilled fields
+			expect(screen.getByDisplayValue('Learning Python')).toBeInTheDocument();
+			expect(screen.getByDisplayValue('Mark Lutz')).toBeInTheDocument();
+			expect(screen.getByDisplayValue("O'Reilly Media")).toBeInTheDocument();
+			expect(screen.getByDisplayValue('2009')).toBeInTheDocument();
+			// Type picker should be hidden (locked to book)
+			expect(screen.queryByText('magazine')).not.toBeInTheDocument();
+		});
+
+		it('ISBN lookup returns match → locator stage', async () => {
+			const user = userEvent.setup();
+			renderAutocomplete();
+
+			mockGET.mockReturnValue(mockSearchReturning([]));
+			mockPOST.mockImplementation((url: string) => {
+				if (url === '/api/citation-sources/extract/')
+					return Promise.resolve({ data: EXTRACT_ISBN_MATCH });
+				return Promise.resolve({ data: CREATED_INSTANCE });
+			});
+
+			const input = getSearchInput();
+			input.focus();
+			await user.keyboard('978-0-596-51774-8');
+
+			await vi.waitFor(() => {
+				expect(screen.getByRole('option', { name: /Look up ISBN/i })).toBeInTheDocument();
+			});
+
+			fireEvent.pointerDown(screen.getByRole('option', { name: /Look up ISBN/i }));
+
+			// Match path → locator stage (source has skip_locator: false, so locator input appears)
+			await vi.waitFor(() => {
+				expect(screen.getByRole('textbox', { name: /citation locator/i })).toBeInTheDocument();
+			});
+		});
+
+		it('ISBN lookup with empty author → create stage with empty editable author field', async () => {
+			const user = userEvent.setup();
+			renderAutocomplete();
+
+			const draftNoAuthor = {
+				...EXTRACT_ISBN_DRAFT,
+				draft: { ...EXTRACT_ISBN_DRAFT.draft, author: '' }
+			};
+
+			mockGET.mockReturnValue(mockSearchReturning([]));
+			mockPOST.mockImplementation((url: string) => {
+				if (url === '/api/citation-sources/extract/')
+					return Promise.resolve({ data: draftNoAuthor });
+				return Promise.resolve({ data: CREATED_SOURCE });
+			});
+
+			const input = getSearchInput();
+			input.focus();
+			await user.keyboard('978-0-596-51774-8');
+
+			await vi.waitFor(() => {
+				expect(screen.getByRole('option', { name: /Look up ISBN/i })).toBeInTheDocument();
+			});
+
+			fireEvent.pointerDown(screen.getByRole('option', { name: /Look up ISBN/i }));
+
+			await vi.waitFor(() => {
+				expect(screen.getByText('New source')).toBeInTheDocument();
+			});
+
+			// Author field present and empty (editable)
+			const authorInput = screen.getByPlaceholderText('Author (optional)') as HTMLInputElement;
+			expect(authorInput.value).toBe('');
+		});
+
+		it('ISBN lookup error → shows error, Create fallback still available', async () => {
+			const user = userEvent.setup();
+			renderAutocomplete();
+
+			const errorResponse = {
+				draft: null,
+				match: null,
+				error: 'timeout',
+				confidence: '',
+				source_api: ''
+			};
+
+			mockGET.mockReturnValue(mockSearchReturning([]));
+			mockPOST.mockImplementation((url: string) => {
+				if (url === '/api/citation-sources/extract/')
+					return Promise.resolve({ data: errorResponse });
+				return Promise.resolve({ data: CREATED_SOURCE });
+			});
+
+			const input = getSearchInput();
+			input.focus();
+			await user.keyboard('978-0-596-51774-8');
+
+			await vi.waitFor(() => {
+				expect(screen.getByRole('option', { name: /Look up ISBN/i })).toBeInTheDocument();
+			});
+
+			fireEvent.pointerDown(screen.getByRole('option', { name: /Look up ISBN/i }));
+
+			await vi.waitFor(() => {
+				expect(screen.getByText(/timed out/i)).toBeInTheDocument();
+			});
+
+			// Create fallback still available
+			expect(screen.getByRole('option', { name: /Create/i })).toBeInTheDocument();
 		});
 	});
 });

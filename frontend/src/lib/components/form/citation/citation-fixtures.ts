@@ -206,3 +206,32 @@ export const CREATED_IPDB_CHILD = {
 
 /** Minimal response from POST /api/citation-instances/ — component reads id. */
 export const CREATED_INSTANCE = { id: 42 };
+
+// ---------------------------------------------------------------------------
+// Extraction responses — returned by POST /api/citation-sources/extract/
+// ---------------------------------------------------------------------------
+
+/** Successful extraction: Open Library returned book metadata. */
+export const EXTRACT_ISBN_DRAFT = {
+	draft: {
+		name: 'Learning Python',
+		source_type: 'book',
+		author: 'Mark Lutz',
+		publisher: "O'Reilly Media",
+		year: 2009,
+		isbn: '9780596517748'
+	},
+	match: null,
+	error: null,
+	confidence: 'high',
+	source_api: 'openlibrary'
+};
+
+/** ISBN matched an existing source in the database. */
+export const EXTRACT_ISBN_MATCH = {
+	draft: null,
+	match: { id: 1, name: 'The Encyclopedia of Pinball', skip_locator: false },
+	error: null,
+	confidence: '',
+	source_api: ''
+};

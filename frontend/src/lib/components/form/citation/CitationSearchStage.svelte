@@ -6,7 +6,8 @@
 		createChildByIdentifier,
 		type CitationSourceResult,
 		type RecognitionResult,
-		type SearchResponse
+		type SearchResponse,
+		type ExtractionDraft
 	} from './citation-types';
 	import DropdownHeader from '../DropdownHeader.svelte';
 	import DropdownItem from '../DropdownItem.svelte';
@@ -16,6 +17,7 @@
 		onsourceselected,
 		onsourceidentified,
 		onsourcecreatestarted,
+		onextractiondraft,
 		oncancel,
 		onback
 	}: {
@@ -26,6 +28,7 @@
 			skipLocator: boolean;
 		}) => void;
 		onsourcecreatestarted: (prefillName: string) => void;
+		onextractiondraft: (draft: ExtractionDraft) => void;
 		oncancel: () => void;
 		onback: () => void;
 	} = $props();
@@ -42,6 +45,25 @@
 	let resultsListEl: HTMLDivElement | undefined = $state();
 	let creating = $state(false);
 	let createError = $state('');
+	let extracting = $state(false);
+	let extractError = $state('');
+
+	// -----------------------------------------------------------------------
+	// ISBN detection
+	// -----------------------------------------------------------------------
+
+	function normalizeIsbn(raw: string): string | null {
+		const stripped = raw.replace(/-/g, '').replace(/ /g, '').toUpperCase();
+		if (stripped.length === 13 && /^\d{13}$/.test(stripped)) return stripped;
+		if (stripped.length === 10 && /^\d{9}[\dX]$/.test(stripped)) return stripped;
+		return null;
+	}
+
+	let isbnInput = $derived(
+		!recognition && searchResults.length === 0 && searchQuery.trim()
+			? normalizeIsbn(searchQuery)
+			: null
+	);
 
 	// ARIA — per-instance IDs for combobox pattern
 	const uid = Math.random().toString(36).slice(2, 8);
@@ -80,6 +102,7 @@
 		activeIndex = -1;
 		creating = false;
 		createError = '';
+		extractError = '';
 		debouncedSearch.search(searchQuery);
 	}
 
@@ -120,15 +143,17 @@
 	// -----------------------------------------------------------------------
 
 	let hasRecognitionItem = $derived(recognitionItem !== null);
+	let hasIsbnItem = $derived(isbnInput !== null && !recognition);
 	let showCreateNew = $derived(searchQuery.trim().length > 0 && !recognition);
-	let resultsStartIndex = $derived(hasRecognitionItem ? 1 : 0);
+	let resultsStartIndex = $derived(hasRecognitionItem ? 1 : hasIsbnItem ? 1 : 0);
 	let createNewIndex = $derived(resultsStartIndex + searchResults.length);
 	let totalItems = $derived(
-		(hasRecognitionItem ? 1 : 0) + searchResults.length + (showCreateNew ? 1 : 0)
+		(hasRecognitionItem ? 1 : hasIsbnItem ? 1 : 0) + searchResults.length + (showCreateNew ? 1 : 0)
 	);
 	let activeDescendant = $derived.by(() => {
 		if (activeIndex < 0 || activeIndex >= totalItems) return undefined;
 		if (hasRecognitionItem && activeIndex === 0) return itemId('recognition');
+		if (hasIsbnItem && activeIndex === 0) return itemId('isbn');
 		if (activeIndex >= resultsStartIndex && activeIndex < createNewIndex)
 			return itemId(searchResults[activeIndex - resultsStartIndex].id);
 		if (activeIndex === createNewIndex) return itemId('create');
@@ -226,6 +251,49 @@
 		onsourcecreatestarted(searchQuery);
 	}
 
+	async function lookupIsbn(isbn: string) {
+		if (extracting) return;
+		extracting = true;
+		extractError = '';
+
+		const { data, error } = await client.POST('/api/citation-sources/extract/', {
+			body: { input: isbn }
+		});
+
+		extracting = false;
+
+		if (error || !data) {
+			extractError = 'Lookup failed. You can still create manually.';
+			return;
+		}
+
+		if (data.match) {
+			debouncedSearch.cancel();
+			onsourceidentified({
+				sourceId: data.match.id,
+				sourceName: data.match.name,
+				skipLocator: data.match.skip_locator
+			});
+			return;
+		}
+
+		if (data.draft) {
+			debouncedSearch.cancel();
+			onextractiondraft(data.draft);
+			return;
+		}
+
+		if (data.error === 'not_found') {
+			extractError = 'ISBN not found. You can still create manually.';
+		} else if (data.error === 'timeout') {
+			extractError = 'Lookup timed out. You can still create manually.';
+		} else if (data.error === 'api_error') {
+			extractError = 'External service error. You can still create manually.';
+		} else {
+			extractError = 'Lookup failed. You can still create manually.';
+		}
+	}
+
 	// -----------------------------------------------------------------------
 	// Keyboard navigation
 	// -----------------------------------------------------------------------
@@ -245,6 +313,8 @@
 				if (activeIndex < 0) break;
 				if (hasRecognitionItem && activeIndex === 0) {
 					handleRecognitionSelect();
+				} else if (hasIsbnItem && activeIndex === 0) {
+					if (isbnInput) lookupIsbn(isbnInput);
 				} else if (activeIndex >= resultsStartIndex && activeIndex < createNewIndex) {
 					selectSource(searchResults[activeIndex - resultsStartIndex]);
 				} else if (showCreateNew && activeIndex === createNewIndex) {
@@ -303,6 +373,25 @@
 			</button>
 		</div>
 	{/if}
+	{#if isbnInput && !recognition}
+		<DropdownItem
+			id={itemId('isbn')}
+			active={activeIndex === 0}
+			onselect={() => {
+				if (isbnInput) lookupIsbn(isbnInput);
+			}}
+			onhover={() => (activeIndex = 0)}
+		>
+			{#if extracting}
+				<span class="item-label extract-loading">Looking up ISBN…</span>
+			{:else}
+				<span class="item-label">Look up ISBN {isbnInput}</span>
+			{/if}
+		</DropdownItem>
+	{/if}
+	{#if extractError}
+		<div class="create-error">{extractError}</div>
+	{/if}
 	{#if createError}
 		<div class="create-error">{createError}</div>
 	{/if}
@@ -329,7 +418,7 @@
 	{/if}
 	{#if !recognition && !searchResults.length && !searchQuery.trim()}
 		<div class="no-results">Type to search sources…</div>
-	{:else if !recognition && !searchResults.length && searchQuery.trim()}
+	{:else if !recognition && !searchResults.length && searchQuery.trim() && !isbnInput}
 		<div class="no-results">No matches</div>
 	{/if}
 </div>
@@ -349,6 +438,11 @@
 	}
 
 	.create-new {
+		color: var(--color-text-muted);
+		font-style: italic;
+	}
+
+	.extract-loading {
 		color: var(--color-text-muted);
 		font-style: italic;
 	}
