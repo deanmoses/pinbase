@@ -12,6 +12,7 @@
 	import ModelSpecsSidebar from '$lib/components/ModelSpecsSidebar.svelte';
 	import PageActionBar from '$lib/components/PageActionBar.svelte';
 	import RatingsSidebarSection from '$lib/components/RatingsSidebarSection.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import SectionEditorModal from '$lib/components/SectionEditorModal.svelte';
 	import SidebarList from '$lib/components/SidebarList.svelte';
 	import SidebarListItem from '$lib/components/SidebarListItem.svelte';
@@ -24,6 +25,8 @@
 	import ModelRelationshipsList from '$lib/components/ModelRelationshipsList.svelte';
 	import OverviewEditor from '$lib/components/editors/OverviewEditor.svelte';
 	import PeopleEditor from '$lib/components/editors/PeopleEditor.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import MediaEditor from '$lib/components/editors/MediaEditor.svelte';
 	import RelationshipsEditor from '$lib/components/editors/RelationshipsEditor.svelte';
 	import SpecificationsEditor from '$lib/components/editors/SpecificationsEditor.svelte';
 	import {
@@ -88,8 +91,7 @@
 
 	// --- Section editing state ---
 
-	// TODO: add 'media' as its editor is built
-	type EditingSection = 'overview' | 'specifications' | 'people' | 'relationships';
+	type EditingSection = 'overview' | 'specifications' | 'people' | 'relationships' | 'media';
 	let editing = $state<EditingSection | null>(null);
 	let editError = $state('');
 
@@ -184,7 +186,8 @@
 						{ label: 'Overview', onclick: () => openEditor('overview') },
 						{ label: 'Specifications', onclick: () => openEditor('specifications') },
 						{ label: 'People', onclick: () => openEditor('people') },
-						{ label: 'Relationships', onclick: () => openEditor('relationships') }
+						{ label: 'Relationships', onclick: () => openEditor('relationships') },
+						{ label: 'Media', onclick: () => openEditor('media') }
 					]
 				: undefined}
 			historyHref={resolve(`/models/${slug}/edit-history`)}
@@ -264,7 +267,10 @@
 				{/if}
 
 				<!-- Media -->
-				<AccordionSection heading="Media">
+				<AccordionSection
+					heading="Media"
+					onEdit={auth.isAuthenticated ? () => (editing = 'media') : undefined}
+				>
 					<MediaGrid
 						media={model.uploaded_media}
 						categories={[...MEDIA_CATEGORIES.model]}
@@ -514,8 +520,18 @@
 	/>
 </SectionEditorModal>
 
-<!-- TODO: Add SectionEditorModal for Media
-     as its editor component is built -->
+<!-- Media editor — uses base Modal (no save/cancel, operations are immediate) -->
+<Modal title="Edit Media" open={editing === 'media'} onclose={closeEditor}>
+	{#snippet footer()}
+		<Button onclick={closeEditor}>Done</Button>
+	{/snippet}
+	<MediaEditor
+		entityType="model"
+		slug={model.slug}
+		media={model.uploaded_media}
+		categories={[...MEDIA_CATEGORIES.model]}
+	/>
+</Modal>
 
 <style>
 	.muted {

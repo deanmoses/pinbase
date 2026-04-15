@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { auth } from '$lib/auth.svelte';
 	import type { EditCitationSelection } from '$lib/edit-citation';
+	import Button from '$lib/components/Button.svelte';
 	import EditCitationField from './EditCitationField.svelte';
 	import TextField from './TextField.svelte';
 
@@ -44,9 +45,9 @@
 			<EditCitationField bind:citation {showMixedEditWarning} />
 
 			<div class="form-actions">
-				<button type="submit" class="btn-save" disabled={saveStatus === 'saving'}>
+				<Button type="submit" disabled={saveStatus === 'saving'}>
 					{saveStatus === 'saving' ? 'Saving\u2026' : 'Save changes'}
-				</button>
+				</Button>
 				{#if saveStatus === 'saved'}
 					<span class="save-feedback saved">Saved</span>
 				{/if}
@@ -80,22 +81,6 @@
 		display: flex;
 		align-items: center;
 		gap: var(--size-4);
-	}
-
-	.btn-save {
-		padding: var(--size-2) var(--size-5);
-		font-size: var(--font-size-1);
-		font-weight: 600;
-		color: #fff;
-		background-color: var(--color-accent);
-		border: none;
-		border-radius: var(--radius-2);
-		cursor: pointer;
-	}
-
-	.btn-save:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
 	}
 
 	.save-feedback {
