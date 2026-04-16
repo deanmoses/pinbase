@@ -58,24 +58,6 @@ Fields:
 
 - Description
 
-### Gameplay & Theme
-
-Fields:
-
-- Themes
-- Tags
-- Gameplay features
-
-### Technology
-
-Fields:
-
-- Technology generation
-- Technology subgeneration
-- System
-- Display type
-- Display subtype
-
 ### Basics
 
 Fields:
@@ -86,22 +68,36 @@ Fields:
 - Month
 - Manufacturer
 - Abbreviations
-- Players
-- Flippers
-- Cabinet
+
+### Technology
+
+Fields:
+
+- Technology generation
+- Technology subgeneration
+- Display type
+- Display subtype
+- System
+
+### Features
+
+Fields:
+
 - Game format
+- Cabinet
+- \# Players
+- \# Flippers
 - Reward types
+- Tags
+- Gameplay features
+- Themes
 - Production quantity
-
-Suggested visual subgroups:
-
-- `Identity`: name, slug, year, month, manufacturer, abbreviations
-- `Core machine facts`: players, flippers, cabinet, game format, reward types, production quantity
 
 ### Relationships
 
 Fields:
 
+- Title
 - Variant of
 - Converted from
 - Remake of
@@ -110,11 +106,13 @@ Fields:
 
 Fields:
 
-- IPDB ID
-- OPDB ID
-- Pinside ID
-- IPDB rating
-- Pinside rating
+- External links
+  - IPDB ID
+  - OPDB ID
+  - Pinside ID
+- Ratings
+  - Pinside rating
+  - IPDB rating
 
 ### Credits
 
@@ -150,43 +148,20 @@ Suggested sections:
 
 ### Overview
 
-Expanded by default.
-
 Fields:
 
 - Description
 
 ### Title Basics
 
-Collapsed by default.
-
 Fields:
 
 - Name
 - Slug
 - Franchise
+- Series (this is a FK on Title not Model, right?)
 - Abbreviations
-
-Rationale:
-
-- Title editing should stay focused on title-owned facts.
-- Identity fields should remain available, but not dominant.
 
 ### Ownership Boundary
 
-The title edit page should preserve a clear boundary between title-owned facts and model-owned facts.
-
-Model-owned facts that should not be edited from title edit:
-
-- machine roster
-- variants
-- specifications
-- ratings
-- external IDs
-- credits
-- model-specific metadata
-
-Rationale:
-
-- The boundary is important to preserve internally.
-- But it should be presented clearly and simply, without forcing the reader/editor to think in implementation terms more than necessary.
+We should preserve a clear boundary between title-owned facts and model-owned facts. Model-owned facts should not be edited from title edit, and vice versa.
