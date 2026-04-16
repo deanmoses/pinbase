@@ -60,6 +60,24 @@ describe('FeaturesEditor dirty-state contract', () => {
 		});
 	});
 
+	it('rejects save when a feature has a count but no slug', async () => {
+		PATCH.mockResolvedValue({ data: {}, error: undefined });
+		invalidateAll.mockResolvedValue(undefined);
+		const user = userEvent.setup();
+		render(FeaturesEditorFixture, {
+			props: { initialModel: INITIAL_MODEL }
+		});
+
+		// Clear the feature slug (click the × button on the SearchableSelect)
+		const clearBtn = screen.getAllByRole('button', { name: 'Clear selection' })[0];
+		await user.click(clearBtn);
+
+		// The row now has count=3 but no slug — save should reject
+		await user.click(screen.getByRole('button', { name: 'Save' }));
+		expect(screen.getByTestId('last-error')).not.toHaveTextContent('');
+		expect(PATCH).not.toHaveBeenCalled();
+	});
+
 	it('reports clean state initially and dirty state after editing', async () => {
 		const user = userEvent.setup();
 		render(FeaturesEditorFixture, {

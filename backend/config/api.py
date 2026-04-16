@@ -2,6 +2,7 @@ import importlib
 
 from django.apps import apps
 from django.db import connection
+from django.http import JsonResponse
 from ninja import NinjaAPI, Schema
 from ninja.errors import HttpError
 
@@ -72,6 +73,20 @@ def _discover_routers():
 
 
 _discover_routers()
+
+
+# ---------------------------------------------------------------------------
+# Structured validation errors — returns field-level + form-level errors
+# so the frontend can display inline per-field messages.
+# Import is deferred until after router discovery to avoid circular imports.
+# ---------------------------------------------------------------------------
+
+from apps.catalog.api.edit_claims import StructuredValidationError  # noqa: E402
+
+
+@api.exception_handler(StructuredValidationError)
+def _handle_structured_validation_error(request, exc):
+    return JsonResponse({"detail": exc.to_response_body()}, status=422)
 
 
 # ---------------------------------------------------------------------------

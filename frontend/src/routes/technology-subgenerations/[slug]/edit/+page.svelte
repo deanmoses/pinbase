@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import client from '$lib/api/client';
+	import { parseApiError } from '$lib/components/editors/save-model-claims';
 	import {
 		shouldShowMixedEditCitationWarning,
 		type EditCitationSelection,
@@ -75,7 +76,7 @@
 			setTimeout(() => (saveStatus = 'idle'), 3000);
 		} else {
 			saveStatus = 'error';
-			saveError = error ? JSON.stringify(error) : 'Save failed.';
+			saveError = error ? parseApiError(error).message : 'Save failed.';
 		}
 	}
 </script>

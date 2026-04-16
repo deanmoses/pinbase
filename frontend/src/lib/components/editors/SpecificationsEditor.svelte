@@ -11,7 +11,12 @@
 		fetchModelEditOptions,
 		type ModelEditOptions
 	} from './model-edit-options';
-	import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
+	import {
+		saveModelClaims,
+		type FieldErrors,
+		type SaveResult,
+		type SaveMeta
+	} from './save-model-claims';
 
 	const TECHNOLOGY_FIELDS = [
 		{
@@ -94,6 +99,7 @@
 	let fields = $state<SpecFormFields>({ ...original });
 	let dirty = $derived.by(() => Object.keys(diffScalarFields(fields, original)).length > 0);
 
+	let fieldErrors = $state<FieldErrors>({});
 	let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
 	let constraints = $state<FieldConstraints>({});
 
@@ -118,6 +124,7 @@
 	}
 
 	export async function save(meta?: SaveMeta): Promise<void> {
+		fieldErrors = {};
 		const changed = diffScalarFields(fields, original);
 
 		if (!dirty) {
@@ -133,7 +140,10 @@
 		if (result.ok) {
 			onsaved();
 		} else {
-			onerror(result.error);
+			fieldErrors = result.fieldErrors;
+			onerror(
+				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
+			);
 		}
 	}
 </script>
@@ -146,6 +156,7 @@
 					label={fk.label}
 					options={editOptions[fk.optionsKey] ?? []}
 					bind:selected={fields[fk.field]}
+					error={fieldErrors[fk.field] ?? ''}
 					allowZeroCount
 					showCounts={false}
 					placeholder="Search {fk.label.toLowerCase()}..."
@@ -159,11 +170,13 @@
 			<NumberField
 				label="Players"
 				bind:value={fields.player_count}
+				error={fieldErrors.player_count ?? ''}
 				{...fc(constraints, 'player_count')}
 			/>
 			<NumberField
 				label="Flippers"
 				bind:value={fields.flipper_count}
+				error={fieldErrors.flipper_count ?? ''}
 				{...fc(constraints, 'flipper_count')}
 			/>
 			{#each MACHINE_FK_FIELDS as fk (fk.field)}
@@ -171,12 +184,18 @@
 					label={fk.label}
 					options={editOptions[fk.optionsKey] ?? []}
 					bind:selected={fields[fk.field]}
+					error={fieldErrors[fk.field] ?? ''}
 					allowZeroCount
 					showCounts={false}
 					placeholder="Search {fk.label.toLowerCase()}..."
 				/>
 			{/each}
-			<NumberField label="Production quantity" bind:value={fields.production_quantity} min={0} />
+			<NumberField
+				label="Production quantity"
+				bind:value={fields.production_quantity}
+				error={fieldErrors.production_quantity ?? ''}
+				min={0}
+			/>
 		</div>
 	</Fieldset>
 </div>

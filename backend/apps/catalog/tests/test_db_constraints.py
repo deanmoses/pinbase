@@ -382,4 +382,4 @@ class TestValidateCheckConstraints:
             content_type="application/json",
         )
         assert resp.status_code == 422
-        assert "year_start must be <= year_end" in resp.json()["detail"]
+        assert "year_start must be <= year_end" in resp.json()["detail"]["message"]

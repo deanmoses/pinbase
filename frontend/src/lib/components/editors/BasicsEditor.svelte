@@ -13,7 +13,12 @@
 		fetchModelEditOptions,
 		type ModelEditOptions
 	} from './model-edit-options';
-	import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
+	import {
+		saveModelClaims,
+		type FieldErrors,
+		type SaveResult,
+		type SaveMeta
+	} from './save-model-claims';
 
 	type BasicsModel = {
 		name: string;
@@ -67,6 +72,7 @@
 			stringSetChanged(abbreviations, originalAbbreviations)
 	);
 
+	let fieldErrors = $state<FieldErrors>({});
 	let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
 	let constraints = $state<FieldConstraints>({});
 
@@ -91,6 +97,7 @@
 	}
 
 	export async function save(meta?: SaveMeta): Promise<void> {
+		fieldErrors = {};
 		const changed = diffScalarFields(fields, original);
 		const abbrevsChanged = stringSetChanged(abbreviations, originalAbbreviations);
 
@@ -108,20 +115,29 @@
 		if (result.ok) {
 			onsaved();
 		} else {
-			onerror(result.error);
+			fieldErrors = result.fieldErrors;
+			onerror(
+				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
+			);
 		}
 	}
 </script>
 
 <div class="basics-grid">
-	<TextField label="Name" bind:value={fields.name} />
-	<TextField label="Slug" bind:value={fields.slug} />
-	<NumberField label="Year" bind:value={fields.year} {...fc(constraints, 'year')} />
-	<MonthSelect label="Month" bind:value={fields.month} />
+	<TextField label="Name" bind:value={fields.name} error={fieldErrors.name ?? ''} />
+	<TextField label="Slug" bind:value={fields.slug} error={fieldErrors.slug ?? ''} />
+	<NumberField
+		label="Year"
+		bind:value={fields.year}
+		error={fieldErrors.year ?? ''}
+		{...fc(constraints, 'year')}
+	/>
+	<MonthSelect label="Month" bind:value={fields.month} error={fieldErrors.month ?? ''} />
 	<SearchableSelect
 		label="Manufacturer"
 		options={editOptions.corporate_entities ?? []}
 		bind:selected={fields.corporate_entity}
+		error={fieldErrors.corporate_entity ?? ''}
 		allowZeroCount
 		showCounts={false}
 		placeholder="Search manufacturers..."

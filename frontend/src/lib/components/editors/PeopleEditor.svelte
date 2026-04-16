@@ -9,7 +9,12 @@
 		fetchModelEditOptions,
 		type ModelEditOptions
 	} from './model-edit-options';
-	import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
+	import {
+		saveModelClaims,
+		type FieldErrors,
+		type SaveResult,
+		type SaveMeta
+	} from './save-model-claims';
 
 	type Credit = components['schemas']['CreditSchema'];
 
@@ -48,6 +53,7 @@
 		return JSON.stringify(current) !== JSON.stringify(original);
 	});
 
+	let fieldErrors = $state<FieldErrors>({});
 	let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
 
 	$effect(() => {
@@ -73,19 +79,19 @@
 	}
 
 	export async function save(meta?: SaveMeta): Promise<void> {
-		const incomplete = editCredits.find(
+		fieldErrors = {};
+		const incompleteRows = editCredits.filter(
 			(c) => (c.person_slug && !c.role) || (!c.person_slug && c.role)
 		);
-		if (incomplete) {
-			const personLabel = editOptions.people.find((p) => p.slug === incomplete.person_slug)?.label;
-			const roleLabel = editOptions.credit_roles.find((r) => r.slug === incomplete.role)?.label;
-			if (personLabel) {
-				onerror(`${personLabel} is missing a role.`);
-			} else if (roleLabel) {
-				onerror(`${roleLabel} is missing a person.`);
-			} else {
-				onerror('Each credit needs both a person and a role.');
+		if (incompleteRows.length > 0) {
+			for (const row of incompleteRows) {
+				if (row.person_slug && !row.role) {
+					fieldErrors[`credit_role.${row.person_slug}:`] = 'Select a role.';
+				} else {
+					fieldErrors[`credit_person.:${row.role}`] = 'Select a person.';
+				}
 			}
+			onerror('Please fix the errors below.');
 			return;
 		}
 
@@ -106,14 +112,21 @@
 		if (result.ok) {
 			onsaved();
 		} else {
-			onerror(result.error);
+			fieldErrors = result.fieldErrors;
+			onerror(
+				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
+			);
 		}
 	}
 </script>
 
 <div class="people-editor">
 	{#each editCredits as credit, i (credit.key)}
-		<div class="credit-row">
+		{@const pairError = fieldErrors[`credits.${credit.person_slug}:${credit.role}`] ?? ''}
+		{@const personError = fieldErrors[`credit_person.:${credit.role}`] ?? ''}
+		{@const roleError = fieldErrors[`credit_role.${credit.person_slug}:`] ?? ''}
+		{@const rowError = pairError || personError || roleError}
+		<div class="credit-row" class:has-error={!!rowError}>
 			<div class="credit-person">
 				<SearchableSelect
 					label=""
@@ -136,6 +149,9 @@
 			</div>
 			<button type="button" class="remove-btn" onclick={() => removeCredit(i)}>&times;</button>
 		</div>
+		{#if rowError}
+			<p class="row-error" role="alert">{rowError}</p>
+		{/if}
 	{/each}
 	<button
 		type="button"
@@ -163,6 +179,12 @@
 
 	.credit-role {
 		width: 10rem;
+	}
+
+	.row-error {
+		font-size: var(--font-size-0);
+		color: var(--color-error);
+		margin: 0;
 	}
 
 	.remove-btn {

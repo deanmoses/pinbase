@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from ninja.errors import HttpError
 
 from apps.catalog.api.edit_claims import (
+    StructuredValidationError,
     _normalize_abbreviations,
     build_credit_claim_specs,
     build_gameplay_feature_claim_specs,
@@ -35,13 +35,13 @@ class TestValidateScalarFields:
         }
 
     def test_rejects_clearing_required_string_fields(self):
-        with pytest.raises(HttpError, match="cannot be cleared"):
+        with pytest.raises(StructuredValidationError, match="cannot be cleared"):
             validate_scalar_fields(Title, {"name": None})
 
 
 class TestPlanScalarFieldClaims:
     def test_rejects_empty_fields(self):
-        with pytest.raises(HttpError, match="No changes provided"):
+        with pytest.raises(StructuredValidationError, match="No changes provided"):
             plan_scalar_field_claims(Title, {})
 
     def test_reuses_scalar_validation(self):
@@ -55,11 +55,15 @@ class TestValidateScalarFieldsNumericConstraints:
     """Validators defined on model fields are enforced at claim-assertion time."""
 
     def test_rejects_year_below_minimum(self):
-        with pytest.raises(HttpError, match="greater than or equal to 1800"):
+        with pytest.raises(
+            StructuredValidationError, match="greater than or equal to 1800"
+        ):
             validate_scalar_fields(MachineModel, {"year": 1000})
 
     def test_rejects_year_above_maximum(self):
-        with pytest.raises(HttpError, match="less than or equal to 2100"):
+        with pytest.raises(
+            StructuredValidationError, match="less than or equal to 2100"
+        ):
             validate_scalar_fields(MachineModel, {"year": 3000})
 
     def test_accepts_valid_year(self):
@@ -67,7 +71,7 @@ class TestValidateScalarFieldsNumericConstraints:
         assert len(specs) == 1
 
     def test_rejects_flipper_count_above_maximum(self):
-        with pytest.raises(HttpError, match="less than or equal to 20"):
+        with pytest.raises(StructuredValidationError, match="less than or equal to 20"):
             validate_scalar_fields(MachineModel, {"flipper_count": 999})
 
     def test_accepts_valid_flipper_count(self):
@@ -75,7 +79,7 @@ class TestValidateScalarFieldsNumericConstraints:
         assert len(specs) == 1
 
     def test_rejects_rating_above_maximum(self):
-        with pytest.raises(HttpError, match="less than or equal to 10"):
+        with pytest.raises(StructuredValidationError, match="less than or equal to 10"):
             validate_scalar_fields(MachineModel, {"ipdb_rating": 11})
 
     def test_skips_validators_for_null(self):
@@ -84,11 +88,13 @@ class TestValidateScalarFieldsNumericConstraints:
         assert specs[0].value == ""
 
     def test_rejects_person_birth_day_above_maximum(self):
-        with pytest.raises(HttpError, match="less than or equal to 31"):
+        with pytest.raises(StructuredValidationError, match="less than or equal to 31"):
             validate_scalar_fields(Person, {"birth_day": 32})
 
     def test_rejects_corporate_entity_year_below_minimum(self):
-        with pytest.raises(HttpError, match="greater than or equal to 1800"):
+        with pytest.raises(
+            StructuredValidationError, match="greater than or equal to 1800"
+        ):
             validate_scalar_fields(CorporateEntity, {"year_start": 100})
 
 
@@ -142,19 +148,36 @@ class TestFieldConstraintsEndpoint:
 
 class TestNormalizeGameplayFeatureInputs:
     def test_rejects_duplicate_slug(self):
-        with pytest.raises(HttpError, match="Duplicate gameplay feature slug"):
+        with pytest.raises(StructuredValidationError) as exc_info:
             normalize_gameplay_feature_inputs([("ramps", 1), ("ramps", 2)])
+        assert exc_info.value.field_errors == {
+            "gameplay_features.ramps": "Duplicate feature.",
+        }
 
     def test_rejects_non_positive_count(self):
-        with pytest.raises(HttpError, match="Count must be positive"):
+        with pytest.raises(StructuredValidationError) as exc_info:
             normalize_gameplay_feature_inputs([("ramps", 0)])
+        assert exc_info.value.field_errors == {
+            "gameplay_features.ramps": "Count must be positive, got 0.",
+        }
 
     def test_rejects_unknown_slug_when_available_set_given(self):
-        with pytest.raises(HttpError, match="Unknown gameplay_feature slugs"):
+        with pytest.raises(StructuredValidationError) as exc_info:
             normalize_gameplay_feature_inputs(
                 [("ramps", 2), ("loops", None)],
                 available_slugs={"ramps"},
             )
+        assert exc_info.value.field_errors == {
+            "gameplay_features.loops": "Unknown gameplay feature.",
+        }
+
+    def test_accumulates_multiple_errors(self):
+        with pytest.raises(StructuredValidationError) as exc_info:
+            normalize_gameplay_feature_inputs(
+                [("ramps", 0), ("loops", -1)],
+            )
+        assert "gameplay_features.ramps" in exc_info.value.field_errors
+        assert "gameplay_features.loops" in exc_info.value.field_errors
 
     def test_accepts_valid_input(self):
         desired = normalize_gameplay_feature_inputs(
@@ -188,26 +211,35 @@ class TestBuildGameplayFeatureClaimSpecs:
 
 class TestNormalizeCreditInputs:
     def test_rejects_duplicate_pair(self):
-        with pytest.raises(HttpError, match="Duplicate credit"):
+        with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
                 [("pat-lawlor", "design"), ("pat-lawlor", "design")]
             )
+        assert exc_info.value.field_errors == {
+            "credits.pat-lawlor:design": "Duplicate credit.",
+        }
 
     def test_rejects_unknown_person(self):
-        with pytest.raises(HttpError, match="Unknown person slugs"):
+        with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
                 [("pat-lawlor", "design")],
                 available_people={"john-youssi"},
                 available_roles={"design"},
             )
+        assert exc_info.value.field_errors == {
+            "credits.pat-lawlor:design": "Unknown person: pat-lawlor.",
+        }
 
     def test_rejects_unknown_role(self):
-        with pytest.raises(HttpError, match="Unknown credit role slugs"):
+        with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
                 [("pat-lawlor", "design")],
                 available_people={"pat-lawlor"},
                 available_roles={"software"},
             )
+        assert exc_info.value.field_errors == {
+            "credits.pat-lawlor:design": "Unknown role: design.",
+        }
 
     def test_allows_same_person_with_different_roles(self):
         desired = normalize_credit_inputs(
@@ -270,5 +302,5 @@ class TestNormalizeAbbreviations:
         assert _normalize_abbreviations([" MM ", "", "MM", "mm"]) == ["MM", "mm"]
 
     def test_rejects_too_long_values(self):
-        with pytest.raises(HttpError, match="50 characters or fewer"):
+        with pytest.raises(StructuredValidationError, match="50 characters or fewer"):
             _normalize_abbreviations(["x" * 51])

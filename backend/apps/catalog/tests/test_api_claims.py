@@ -140,7 +140,7 @@ class TestPatchClaimsPersistence:
             content_type="application/json",
         )
         assert resp.status_code == 422
-        assert "unique" in resp.json()["detail"].lower()
+        assert "unique" in resp.json()["detail"]["message"].lower()
 
     def test_user_claim_beats_lower_priority_source(
         self, client, user, pm, low_priority_source

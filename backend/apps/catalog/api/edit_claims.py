@@ -6,12 +6,12 @@ build a list of ClaimSpecs, then execute them atomically in a ChangeSet.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import NoReturn
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models as db_models, transaction
-from ninja.errors import HttpError
 
 from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import CreditRole, GameplayFeature, Person
@@ -32,6 +32,83 @@ class ClaimSpec:
     claim_key: str = ""
 
 
+class StructuredValidationError(Exception):
+    """Validation error with separate field-level and form-level messages.
+
+    Raised by claim-editing helpers and caught by a custom exception
+    handler in ``config/api.py`` that returns a 422 JSON response:
+
+    .. code-block:: json
+
+        {
+            "detail": {
+                "message": "summary",
+                "field_errors": {"year": "Must be ≤ 2100."},
+                "form_errors": ["No changes provided."]
+            }
+        }
+    """
+
+    def __init__(
+        self,
+        *,
+        message: str,
+        field_errors: dict[str, str] | None = None,
+        form_errors: list[str] | None = None,
+    ) -> None:
+        self.message = message
+        self.field_errors = field_errors or {}
+        self.form_errors = form_errors or []
+        super().__init__(message)
+
+    def to_response_body(self) -> dict:
+        return {
+            "message": self.message,
+            "field_errors": self.field_errors,
+            "form_errors": self.form_errors,
+        }
+
+
+@dataclass
+class ValidationErrors:
+    """Accumulates field-level and form-level errors, then raises once.
+
+    Structured error responses let the frontend display errors inline
+    next to the offending field instead of a single banner string.
+    """
+
+    field_errors: dict[str, str] = field(default_factory=dict)
+    form_errors: list[str] = field(default_factory=list)
+
+    def add_field(self, field_name: str, message: str) -> None:
+        self.field_errors[field_name] = message
+
+    def add_form(self, message: str) -> None:
+        self.form_errors.append(message)
+
+    @property
+    def has_errors(self) -> bool:
+        return bool(self.field_errors) or bool(self.form_errors)
+
+    def raise_if_errors(self) -> None:
+        if not self.has_errors:
+            return
+        parts = list(self.field_errors.values()) + self.form_errors
+        raise StructuredValidationError(
+            message="; ".join(parts),
+            field_errors=self.field_errors,
+            form_errors=self.form_errors,
+        )
+
+
+def raise_form_error(message: str) -> NoReturn:
+    """Raise a structured 422 for a form-level (non-field) error."""
+    raise StructuredValidationError(
+        message=message,
+        form_errors=[message],
+    )
+
+
 def plan_scalar_field_claims(
     model_class, fields: dict, *, entity=None
 ) -> list[ClaimSpec]:
@@ -40,11 +117,11 @@ def plan_scalar_field_claims(
     Shared by PATCH endpoints that only accept scalar ``fields`` payloads.
     """
     if not fields:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     specs = validate_scalar_fields(model_class, fields, entity=entity)
     if not specs:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
     return specs
 
 
@@ -101,34 +178,43 @@ def validate_scalar_fields(
     the same value is meaningful (e.g., a user confirming a machine-sourced
     value). The frontend is responsible for only sending changed fields.
 
-    Raises HttpError 422 on unknown fields or invalid markdown.
+    Collects all field-level errors and raises them together so the
+    frontend can display every problem at once.
+
+    Raises HttpError 422 on unknown fields or invalid values.
     """
     editable = set(get_claim_fields(model_class))
     unknown = set(fields.keys()) - editable
     if unknown:
-        raise HttpError(422, f"Unknown or non-editable fields: {sorted(unknown)}")
+        raise_form_error(f"Unknown or non-editable fields: {sorted(unknown)}")
 
+    errors = ValidationErrors()
     specs: list[ClaimSpec] = []
     for field_name, value in fields.items():
-        field = model_class._meta.get_field(field_name)
+        field_obj = model_class._meta.get_field(field_name)
         # Claim.value is NOT NULL; store allowed clears as "" and let the
         # resolver coerce that sentinel back to None/blank based on field
         # metadata. Required fields must reject clears up front.
         if value is None:
-            if not (field.null or getattr(field, "blank", False)):
-                raise HttpError(422, f"Field '{field_name}' cannot be cleared.")
+            if not (field_obj.null or getattr(field_obj, "blank", False)):
+                errors.add_field(field_name, "This field cannot be cleared.")
+                continue
             value = ""
         try:
             value = validate_claim_value(field_name, value, model_class)
         except ValidationError as exc:
-            raise HttpError(422, "; ".join(exc.messages)) from exc
-        if getattr(field, "unique", False) and value != "":
+            errors.add_field(field_name, "; ".join(exc.messages))
+            continue
+        if getattr(field_obj, "unique", False) and value != "":
             conflict_qs = model_class.objects.filter(**{field_name: value})
             if entity is not None and getattr(entity, "pk", None) is not None:
                 conflict_qs = conflict_qs.exclude(pk=entity.pk)
             if conflict_qs.exists():
-                raise HttpError(422, f"Field '{field_name}' must be unique.")
+                errors.add_field(field_name, "This value must be unique.")
+                continue
         specs.append(ClaimSpec(field_name=field_name, value=value))
+
+    errors.raise_if_errors()
     return specs
 
 
@@ -147,7 +233,7 @@ def plan_parent_claims(
     Raises HttpError 422 on invalid slugs, self-links, or cycles.
     """
     if entity.slug in desired_slugs:
-        raise HttpError(422, f"A {model_class.__name__} cannot be its own parent.")
+        raise_form_error(f"A {model_class.__name__} cannot be its own parent.")
 
     # Resolve desired slugs → PKs (also validates existence).
     slug_to_pk = dict(
@@ -155,7 +241,7 @@ def plan_parent_claims(
     )
     missing = desired_slugs - slug_to_pk.keys()
     if missing:
-        raise HttpError(422, f"Unknown parent slugs: {sorted(missing)}")
+        raise_form_error(f"Unknown parent slugs: {sorted(missing)}")
 
     # Cycle detection: for each proposed parent, walk up the existing
     # graph (excluding the edited entity's current parents, since
@@ -174,8 +260,7 @@ def plan_parent_claims(
             while stack:
                 current = stack.pop()
                 if current == entity.slug:
-                    raise HttpError(
-                        422,
+                    raise_form_error(
                         f"Adding parent '{start_slug}' would create a cycle.",
                     )
                 if current in visited:
@@ -277,7 +362,7 @@ def plan_m2m_claims(
         )
         missing = desired_slugs - slug_to_pk.keys()
         if missing:
-            raise HttpError(422, f"Unknown {claim_field_name} slugs: {sorted(missing)}")
+            raise_form_error(f"Unknown {claim_field_name} slugs: {sorted(missing)}")
         desired_pks = set(slug_to_pk.values())
     else:
         desired_pks = set()
@@ -325,20 +410,28 @@ def normalize_gameplay_feature_inputs(
     Duplicate slugs are rejected. Counts, when provided, must be positive.
     When ``available_slugs`` is provided, unknown slugs are rejected without
     touching the database.
+
+    Field errors are keyed ``gameplay_features.{slug}`` so the frontend can
+    display them inline on the corresponding row.
     """
+    errors = ValidationErrors()
     desired: dict[str, int | None] = {}
     for slug, count in desired_features:
         if slug in desired:
-            raise HttpError(422, f"Duplicate gameplay feature slug: {slug!r}")
+            errors.add_field(f"gameplay_features.{slug}", "Duplicate feature.")
+            continue
         if count is not None and count <= 0:
-            raise HttpError(422, f"Count must be positive for {slug!r}, got {count}")
+            errors.add_field(
+                f"gameplay_features.{slug}", f"Count must be positive, got {count}."
+            )
+            continue
         desired[slug] = count
 
     if available_slugs is not None:
-        missing = set(desired.keys()) - available_slugs
-        if missing:
-            raise HttpError(422, f"Unknown gameplay_feature slugs: {sorted(missing)}")
+        for slug in set(desired.keys()) - available_slugs:
+            errors.add_field(f"gameplay_features.{slug}", "Unknown gameplay feature.")
 
+    errors.raise_if_errors()
     return desired
 
 
@@ -526,27 +619,40 @@ def normalize_credit_inputs(
 
     When available slug sets are provided, unknown people or roles are rejected
     without touching the database.
+
+    Field errors are keyed ``credits.{person_slug}:{role}`` so the frontend
+    can display them inline on the corresponding row.
     """
+    errors = ValidationErrors()
     desired: set[tuple[str, str]] = set()
     for person_slug, role in desired_credits:
         pair = (person_slug, role)
         if pair in desired:
-            raise HttpError(
-                422,
-                f"Duplicate credit: person={person_slug!r}, role={role!r}",
-            )
+            errors.add_field(f"credits.{person_slug}:{role}", "Duplicate credit.")
+            continue
         desired.add(pair)
 
     if available_people is not None:
         missing_people = {p for p, _ in desired} - available_people
         if missing_people:
-            raise HttpError(422, f"Unknown person slugs: {sorted(missing_people)}")
+            for person_slug, role in desired:
+                if person_slug in missing_people:
+                    errors.add_field(
+                        f"credits.{person_slug}:{role}",
+                        f"Unknown person: {person_slug}.",
+                    )
 
     if available_roles is not None:
         missing_roles = {r for _, r in desired} - available_roles
         if missing_roles:
-            raise HttpError(422, f"Unknown credit role slugs: {sorted(missing_roles)}")
+            for person_slug, role in desired:
+                if role in missing_roles:
+                    errors.add_field(
+                        f"credits.{person_slug}:{role}",
+                        f"Unknown role: {role}.",
+                    )
 
+    errors.raise_if_errors()
     return desired
 
 
@@ -578,7 +684,7 @@ def _normalize_abbreviations(values: list[str]) -> list[str]:
         if not value:
             continue
         if len(value) > 50:
-            raise HttpError(422, "Abbreviations must be 50 characters or fewer.")
+            raise_form_error("Abbreviations must be 50 characters or fewer.")
         if value in seen:
             continue
         seen.add(value)
@@ -622,8 +728,8 @@ def execute_claims(
                     template = CitationInstance.objects.select_related(
                         "citation_source"
                     ).get(pk=citation.citation_instance_id)
-                except CitationInstance.DoesNotExist as exc:
-                    raise HttpError(422, "Unknown citation instance.") from exc
+                except CitationInstance.DoesNotExist:
+                    raise_form_error("Unknown citation instance.")
 
                 for claim in created_claims:
                     instance = CitationInstance(
@@ -637,6 +743,6 @@ def execute_claims(
             field_names = list({s.field_name for s in specs})
             resolve_after_mutation(entity, field_names=field_names)
     except ValidationError as exc:
-        raise HttpError(422, "; ".join(exc.messages)) from exc
+        raise_form_error("; ".join(exc.messages))
     except IntegrityError as exc:
-        raise HttpError(422, f"Unique constraint violation: {exc}") from exc
+        raise_form_error(f"Unique constraint violation: {exc}")

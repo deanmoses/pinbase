@@ -10,7 +10,12 @@
 		fetchModelEditOptions,
 		type ModelEditOptions
 	} from './model-edit-options';
-	import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
+	import {
+		saveModelClaims,
+		type FieldErrors,
+		type SaveResult,
+		type SaveMeta
+	} from './save-model-claims';
 
 	type GameplayFeatureRef = { slug: string; name?: string; count?: number | null };
 
@@ -55,6 +60,7 @@
 	const originalFeatures = untrack(() => initialModel.gameplay_features);
 	let features = $state<KeyedFeature[]>(untrack(() => toKeyed(initialModel.gameplay_features)));
 
+	let fieldErrors = $state<FieldErrors>({});
 	let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
 
 	$effect(() => {
@@ -97,6 +103,18 @@
 	}
 
 	export async function save(meta?: SaveMeta): Promise<void> {
+		fieldErrors = {};
+
+		// Reject incomplete feature rows (count without a feature selected)
+		const incompleteFeatures = features.filter((f) => !f.slug && f.count !== '');
+		if (incompleteFeatures.length > 0) {
+			for (const row of incompleteFeatures) {
+				fieldErrors[`gameplay_features.${row.slug}`] = 'Select a feature or remove this row.';
+			}
+			onerror('Please fix the errors below.');
+			return;
+		}
+
 		const themesChanged = slugSetChanged(themes, originalThemes);
 		const tagsChanged = slugSetChanged(tags, originalTags);
 		const rewardTypesChanged = slugSetChanged(rewardTypes, originalRewardTypes);
@@ -125,7 +143,10 @@
 		if (result.ok) {
 			onsaved();
 		} else {
-			onerror(result.error);
+			fieldErrors = result.fieldErrors;
+			onerror(
+				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
+			);
 		}
 	}
 </script>
@@ -164,6 +185,7 @@
 	<Fieldset legend="Gameplay Features">
 		<div class="gf-list">
 			{#each features as feature, i (feature.key)}
+				{@const rowError = fieldErrors[`gameplay_features.${feature.slug}`] ?? ''}
 				<div class="gf-row">
 					<div class="gf-select">
 						<SearchableSelect
@@ -180,6 +202,9 @@
 					</div>
 					<button type="button" class="remove-btn" onclick={() => removeFeature(i)}>&times;</button>
 				</div>
+				{#if rowError}
+					<p class="row-error" role="alert">{rowError}</p>
+				{/if}
 			{/each}
 			<button
 				type="button"
@@ -204,6 +229,12 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: var(--size-3);
+	}
+
+	.row-error {
+		font-size: var(--font-size-0);
+		color: var(--color-error);
+		margin: 0;
 	}
 
 	.gf-list {

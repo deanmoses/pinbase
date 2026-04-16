@@ -196,7 +196,7 @@ class TestPatchCorporateEntityScalars:
             {"fields": {"slug": other_entity.slug}},
         )
         assert resp.status_code == 422
-        assert "unique" in resp.json()["detail"].lower()
+        assert "unique" in resp.json()["detail"]["message"].lower()
 
     def test_edit_years(self, client, user, entity):
         client.force_login(user)

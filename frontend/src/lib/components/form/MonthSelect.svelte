@@ -4,11 +4,13 @@
 	let {
 		label,
 		value = $bindable(''),
-		id = ''
+		id = '',
+		error = ''
 	}: {
 		label: string;
 		value?: string | number;
 		id?: string;
+		error?: string;
 	} = $props();
 
 	const months = [
@@ -27,9 +29,14 @@
 	];
 </script>
 
-<FieldGroup {label} {id}>
-	{#snippet children(inputId)}
-		<select id={inputId} bind:value>
+<FieldGroup {label} {id} {error}>
+	{#snippet children(inputId, errorId)}
+		<select
+			id={inputId}
+			bind:value
+			aria-invalid={error ? true : undefined}
+			aria-describedby={error ? errorId : undefined}
+		>
 			<option value="">—</option>
 			{#each months as name, i (i)}
 				<option value={i + 1}>{name}</option>

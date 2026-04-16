@@ -2,7 +2,12 @@
 	import { untrack } from 'svelte';
 	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 	import type { EditorDirtyChange } from './editor-contract';
-	import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
+	import {
+		saveModelClaims,
+		type FieldErrors,
+		type SaveResult,
+		type SaveMeta
+	} from './save-model-claims';
 
 	let {
 		initialDescription = '',
@@ -18,6 +23,8 @@
 		ondirtychange?: EditorDirtyChange;
 	} = $props();
 
+	let fieldErrors = $state<FieldErrors>({});
+
 	// untrack: intentional one-time capture; component re-mounts when modal reopens
 	const original = untrack(() => initialDescription);
 	let description = $state(original);
@@ -32,6 +39,7 @@
 	}
 
 	export async function save(meta?: SaveMeta): Promise<void> {
+		fieldErrors = {};
 		if (!dirty) {
 			onsaved();
 			return;
@@ -45,13 +53,21 @@
 		if (result.ok) {
 			onsaved();
 		} else {
-			onerror(result.error);
+			fieldErrors = result.fieldErrors;
+			onerror(
+				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
+			);
 		}
 	}
 </script>
 
 <div class="overview-editor">
-	<MarkdownTextArea label="Description" bind:value={description} rows={8} />
+	<MarkdownTextArea
+		label="Description"
+		bind:value={description}
+		rows={8}
+		error={fieldErrors.description ?? ''}
+	/>
 </div>
 
 <style>

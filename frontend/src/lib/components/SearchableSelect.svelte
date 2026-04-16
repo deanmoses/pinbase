@@ -8,7 +8,8 @@
 		allowZeroCount = false,
 		showCounts = true,
 		placeholder = 'Search...',
-		label = ''
+		label = '',
+		error = ''
 	}: {
 		options: { slug: string; label: string; count?: number }[];
 		selected?: string | string[] | null;
@@ -17,6 +18,7 @@
 		showCounts?: boolean;
 		placeholder?: string;
 		label?: string;
+		error?: string;
 	} = $props();
 
 	function isDisabled(opt: { count?: number }): boolean {
@@ -155,6 +157,7 @@
 
 	const inputId = `searchable-select-${Math.random().toString(36).slice(2, 8)}`;
 	const listboxId = `listbox-${Math.random().toString(36).slice(2, 8)}`;
+	const errorId = `${inputId}-error`;
 </script>
 
 <div class="searchable-select">
@@ -171,6 +174,8 @@
 			aria-expanded={open}
 			aria-controls={listboxId}
 			aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
+			aria-invalid={error ? true : undefined}
+			aria-describedby={error ? errorId : undefined}
 			{placeholder}
 			value={open ? query : selectedLabel() || ''}
 			oninput={(e) => {
@@ -245,6 +250,10 @@
 				<li class="no-results">No matches</li>
 			{/each}
 		</ul>
+	{/if}
+
+	{#if error}
+		<p class="field-error" id={errorId} role="alert">{error}</p>
 	{/if}
 </div>
 
@@ -390,5 +399,11 @@
 		color: var(--color-text-muted);
 		text-align: center;
 		font-size: var(--font-size-1);
+	}
+
+	.field-error {
+		font-size: var(--font-size-0);
+		color: var(--color-error);
+		margin: var(--size-1) 0 0;
 	}
 </style>

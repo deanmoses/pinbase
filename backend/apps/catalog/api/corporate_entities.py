@@ -11,10 +11,14 @@ from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
-from ninja.errors import HttpError
 from ninja.security import django_auth
 
-from .edit_claims import execute_claims, plan_alias_claims, validate_scalar_fields
+from .edit_claims import (
+    execute_claims,
+    plan_alias_claims,
+    raise_form_error,
+    validate_scalar_fields,
+)
 from apps.provenance.helpers import build_sources, claims_prefetch
 
 from .helpers import (
@@ -168,7 +172,7 @@ def patch_corporate_entity_claims(
 ):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     if not data.fields and data.aliases is None:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     ce = get_object_or_404(CorporateEntity.objects.active(), slug=slug)
 
@@ -184,7 +188,7 @@ def patch_corporate_entity_claims(
         )
 
     if not specs:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     execute_claims(ce, specs, user=request.user, note=data.note, citation=data.citation)
 

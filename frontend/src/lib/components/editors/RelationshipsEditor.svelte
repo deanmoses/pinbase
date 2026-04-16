@@ -8,7 +8,12 @@
 		fetchModelEditOptions,
 		type ModelEditOptions
 	} from './model-edit-options';
-	import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
+	import {
+		saveModelClaims,
+		type FieldErrors,
+		type SaveResult,
+		type SaveMeta
+	} from './save-model-claims';
 
 	const HIERARCHY_FIELDS = [
 		{ field: 'variant_of', label: 'Variant of' },
@@ -45,6 +50,7 @@
 		remake_of: initialModel.remake_of?.slug ?? ''
 	}));
 
+	let fieldErrors = $state<FieldErrors>({});
 	let fields = $state({ ...original });
 	let dirty = $derived.by(() => Object.keys(diffScalarFields(fields, original)).length > 0);
 
@@ -69,6 +75,7 @@
 	}
 
 	export async function save(meta?: SaveMeta): Promise<void> {
+		fieldErrors = {};
 		const changed = diffScalarFields(fields, original);
 
 		if (!dirty) {
@@ -84,7 +91,10 @@
 		if (result.ok) {
 			onsaved();
 		} else {
-			onerror(result.error);
+			fieldErrors = result.fieldErrors;
+			onerror(
+				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
+			);
 		}
 	}
 </script>
@@ -94,6 +104,7 @@
 		label="Title"
 		options={titleOptions}
 		bind:selected={fields.title}
+		error={fieldErrors.title ?? ''}
 		allowZeroCount
 		showCounts={false}
 		placeholder="Search titles..."
@@ -104,6 +115,7 @@
 			{label}
 			options={modelOptions}
 			bind:selected={fields[field]}
+			error={fieldErrors[field] ?? ''}
 			allowZeroCount
 			showCounts={false}
 			placeholder="Search models..."
