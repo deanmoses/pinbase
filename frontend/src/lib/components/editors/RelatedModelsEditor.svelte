@@ -31,7 +31,6 @@
 		ondirtychange = () => {}
 	}: {
 		initialModel: {
-			title?: HierarchyRef;
 			variant_of?: HierarchyRef;
 			converted_from?: HierarchyRef;
 			remake_of?: HierarchyRef;
@@ -44,7 +43,6 @@
 
 	// Flatten nested FK objects to slug strings for form state
 	const original = untrack(() => ({
-		title: initialModel.title?.slug ?? '',
 		variant_of: initialModel.variant_of?.slug ?? '',
 		converted_from: initialModel.converted_from?.slug ?? '',
 		remake_of: initialModel.remake_of?.slug ?? ''
@@ -56,7 +54,6 @@
 
 	let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
 
-	let titleOptions = $derived(editOptions.titles ?? []);
 	// Filter out the current model from the options list
 	let modelOptions = $derived((editOptions.models ?? []).filter((o) => o.slug !== slug));
 
@@ -99,17 +96,7 @@
 	}
 </script>
 
-<div class="relationships-editor">
-	<SearchableSelect
-		label="Title"
-		options={titleOptions}
-		bind:selected={fields.title}
-		error={fieldErrors.title ?? ''}
-		allowZeroCount
-		showCounts={false}
-		placeholder="Search titles..."
-	/>
-
+<div class="related-models-editor">
 	{#each HIERARCHY_FIELDS as { field, label } (field)}
 		<SearchableSelect
 			{label}
@@ -124,7 +111,7 @@
 </div>
 
 <style>
-	.relationships-editor {
+	.related-models-editor {
 		display: flex;
 		flex-direction: column;
 		gap: var(--size-3);

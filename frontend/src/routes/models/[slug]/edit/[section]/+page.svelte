@@ -8,10 +8,10 @@
 	import Button from '$lib/components/Button.svelte';
 	import BasicsEditor from '$lib/components/editors/BasicsEditor.svelte';
 	import OverviewEditor from '$lib/components/editors/OverviewEditor.svelte';
-	import SpecificationsEditor from '$lib/components/editors/SpecificationsEditor.svelte';
+	import TechnologyEditor from '$lib/components/editors/TechnologyEditor.svelte';
 	import FeaturesEditor from '$lib/components/editors/FeaturesEditor.svelte';
 	import PeopleEditor from '$lib/components/editors/PeopleEditor.svelte';
-	import RelationshipsEditor from '$lib/components/editors/RelationshipsEditor.svelte';
+	import RelatedModelsEditor from '$lib/components/editors/RelatedModelsEditor.svelte';
 	import ExternalDataEditor from '$lib/components/editors/ExternalDataEditor.svelte';
 	import MediaEditor from '$lib/components/editors/MediaEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
@@ -98,8 +98,8 @@
 						onerror={(msg) => (editError = msg)}
 						ondirtychange={handleDirtyChange}
 					/>
-				{:else if section.key === 'specifications'}
-					<SpecificationsEditor
+				{:else if section.key === 'technology'}
+					<TechnologyEditor
 						bind:this={editorRef}
 						initialModel={model}
 						slug={model.slug}
@@ -125,8 +125,8 @@
 						onerror={(msg) => (editError = msg)}
 						ondirtychange={handleDirtyChange}
 					/>
-				{:else if section.key === 'relationships'}
-					<RelationshipsEditor
+				{:else if section.key === 'related-models'}
+					<RelatedModelsEditor
 						bind:this={editorRef}
 						initialModel={model}
 						slug={model.slug}

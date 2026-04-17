@@ -175,9 +175,9 @@ describe('SectionEditorModal', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Open editor' }));
 		await user.click(screen.getByRole('button', { name: 'Overview' }));
-		await user.click(screen.getByRole('menuitem', { name: 'Specifications' }));
+		await user.click(screen.getByRole('menuitem', { name: 'Technology' }));
 
-		expect(screen.getByTestId('last-switched')).toHaveTextContent('specifications');
+		expect(screen.getByTestId('last-switched')).toHaveTextContent('technology');
 	});
 
 	it('disables the section switcher when switcherDisabled is true', async () => {

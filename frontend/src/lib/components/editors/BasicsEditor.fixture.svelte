@@ -6,6 +6,7 @@
 		slug: string;
 		year?: number | null;
 		month?: number | null;
+		title?: { slug: string } | null;
 		corporate_entity?: { slug: string } | null;
 		abbreviations: string[];
 	};

@@ -26,6 +26,10 @@ const EDIT_OPTIONS = {
 		corporate_entities: [
 			{ slug: 'williams-electronics', label: 'Williams Electronics' },
 			{ slug: 'stern-pinball-inc', label: 'Stern Pinball, Inc.' }
+		],
+		titles: [
+			{ slug: 'medieval-madness', label: 'Medieval Madness' },
+			{ slug: 'attack-from-mars', label: 'Attack from Mars' }
 		]
 	}
 };
@@ -41,6 +45,7 @@ const INITIAL_MODEL = {
 	slug: 'medieval-madness',
 	year: 1997,
 	month: 6,
+	title: { slug: 'medieval-madness' },
 	corporate_entity: { slug: 'williams-electronics' },
 	abbreviations: ['MM']
 };
@@ -79,5 +84,27 @@ describe('BasicsEditor dirty-state contract', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Check dirty' }));
 		expect(screen.getByTestId('dirty-handle')).toHaveTextContent('true');
+	});
+
+	it('changing Title marks dirty and PATCHes only the title slug', async () => {
+		const user = userEvent.setup();
+		PATCH.mockResolvedValue({ data: {}, error: undefined });
+		invalidateAll.mockResolvedValue(undefined);
+		render(BasicsEditorFixture, {
+			props: { initialModel: INITIAL_MODEL }
+		});
+
+		await user.click(screen.getByRole('combobox', { name: 'Title' }));
+		await user.click(await screen.findByRole('option', { name: 'Attack from Mars' }));
+
+		expect(screen.getByTestId('dirty-callback')).toHaveTextContent('true');
+
+		await user.click(screen.getByRole('button', { name: 'Save' }));
+
+		expect(PATCH).toHaveBeenCalledOnce();
+		expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
+			params: { path: { slug: 'medieval-madness' } },
+			body: { fields: { title: 'attack-from-mars' }, note: '' }
+		});
 	});
 });

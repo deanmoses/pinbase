@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import SpecificationsEditorFixture from './SpecificationsEditor.fixture.svelte';
+import TechnologyEditorFixture from './TechnologyEditor.fixture.svelte';
 
 const { GET, PATCH } = vi.hoisted(() => ({
 	GET: vi.fn(),
@@ -28,7 +28,7 @@ const EDIT_OPTIONS = {
 			{ slug: 'dot-matrix-era', label: 'Dot Matrix Era' }
 		],
 		technology_subgenerations: [
-			{ slug: 'wpc-95', label: 'WPC-95' },
+			{ slug: 'wpc-95', label: 'WPC-95 subgen' },
 			{ slug: 'system-11', label: 'System 11' }
 		],
 		display_types: [
@@ -42,22 +42,7 @@ const EDIT_OPTIONS = {
 		systems: [
 			{ slug: 'wpc-95', label: 'WPC-95' },
 			{ slug: 'spike-2', label: 'Spike 2' }
-		],
-		cabinets: [
-			{ slug: 'standard', label: 'Standard' },
-			{ slug: 'widebody', label: 'Widebody' }
-		],
-		game_formats: [
-			{ slug: 'pinball-machine', label: 'Pinball Machine' },
-			{ slug: 'arcade-video', label: 'Arcade Video' }
 		]
-	}
-};
-
-const FIELD_CONSTRAINTS = {
-	data: {
-		player_count: { min: 1, max: 6, step: 1 },
-		flipper_count: { min: 0, max: 8, step: 1 }
 	}
 };
 
@@ -66,12 +51,7 @@ const INITIAL_MODEL = {
 	technology_subgeneration: { slug: 'wpc-95' },
 	system: { slug: 'wpc-95' },
 	display_type: { slug: 'dmd' },
-	display_subtype: { slug: 'orange-dmd' },
-	cabinet: { slug: 'standard' },
-	game_format: { slug: 'pinball-machine' },
-	player_count: 4,
-	flipper_count: 2,
-	production_quantity: '4016'
+	display_subtype: { slug: 'orange-dmd' }
 };
 
 function mockGetResponses() {
@@ -80,22 +60,18 @@ function mockGetResponses() {
 			return EDIT_OPTIONS;
 		}
 
-		if (path === '/api/field-constraints/{entity_type}') {
-			return FIELD_CONSTRAINTS;
-		}
-
 		throw new Error(`Unexpected GET ${path}`);
 	});
 }
 
 function renderEditor(initialModel = INITIAL_MODEL) {
 	mockGetResponses();
-	return render(SpecificationsEditorFixture, {
+	return render(TechnologyEditorFixture, {
 		props: { initialModel, slug: 'medieval-madness' }
 	});
 }
 
-describe('SpecificationsEditor', () => {
+describe('TechnologyEditor', () => {
 	beforeEach(() => {
 		GET.mockReset();
 		PATCH.mockReset();
@@ -110,17 +86,9 @@ describe('SpecificationsEditor', () => {
 		expect(await screen.findByRole('option', { name: 'Solid State' })).toBeInTheDocument();
 		expect(screen.getByRole('option', { name: 'Dot Matrix Era' })).toBeInTheDocument();
 
-		await user.click(screen.getByRole('combobox', { name: 'Cabinet' }));
-		expect(await screen.findByRole('option', { name: 'Standard' })).toBeInTheDocument();
-		expect(screen.getByRole('option', { name: 'Widebody' })).toBeInTheDocument();
-	});
-
-	it('renders number fields (player count, flipper count, production quantity)', () => {
-		renderEditor();
-
-		expect(screen.getByLabelText('Players')).toHaveValue(4);
-		expect(screen.getByLabelText('Flippers')).toHaveValue(2);
-		expect(screen.getByLabelText('Production quantity')).toHaveValue(4016);
+		await user.click(screen.getByRole('combobox', { name: 'System' }));
+		expect(await screen.findByRole('option', { name: 'WPC-95' })).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'Spike 2' })).toBeInTheDocument();
 	});
 
 	it('reports clean state initially and dirty state after editing', async () => {
@@ -132,9 +100,10 @@ describe('SpecificationsEditor', () => {
 		await user.click(screen.getByRole('button', { name: 'Check dirty' }));
 		expect(screen.getByTestId('dirty-handle')).toHaveTextContent('false');
 
-		const flippersInput = screen.getByLabelText('Flippers');
-		await user.clear(flippersInput);
-		await user.type(flippersInput, '3');
+		// Clear the System combobox to mark dirty
+		const systemCombobox = screen.getByRole('combobox', { name: 'System' });
+		await user.click(systemCombobox);
+		await user.click(screen.getByRole('option', { name: 'Spike 2' }));
 
 		expect(screen.getByTestId('dirty-callback')).toHaveTextContent('true');
 
@@ -158,16 +127,15 @@ describe('SpecificationsEditor', () => {
 		invalidateAll.mockResolvedValue(undefined);
 		renderEditor();
 
-		const playersInput = screen.getByLabelText('Players');
-		await user.clear(playersInput);
-		await user.type(playersInput, '6');
+		await user.click(screen.getByRole('combobox', { name: 'System' }));
+		await user.click(screen.getByRole('option', { name: 'Spike 2' }));
 
 		await user.click(screen.getByRole('button', { name: 'Save' }));
 
 		expect(PATCH).toHaveBeenCalledOnce();
 		expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
 			params: { path: { slug: 'medieval-madness' } },
-			body: { fields: { player_count: 6 }, note: '' }
+			body: { fields: { system: 'spike-2' }, note: '' }
 		});
 		expect(screen.getByTestId('saved-count')).toHaveTextContent('1');
 	});
@@ -178,9 +146,8 @@ describe('SpecificationsEditor', () => {
 		invalidateAll.mockResolvedValue(undefined);
 		renderEditor();
 
-		const flippersInput = screen.getByLabelText('Flippers');
-		await user.clear(flippersInput);
-		await user.type(flippersInput, '3');
+		await user.click(screen.getByRole('combobox', { name: 'Display type' }));
+		await user.click(screen.getByRole('option', { name: 'LCD' }));
 
 		await user.click(screen.getByRole('button', { name: 'Save with meta' }));
 
@@ -188,7 +155,7 @@ describe('SpecificationsEditor', () => {
 		expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
 			params: { path: { slug: 'medieval-madness' } },
 			body: {
-				fields: { flipper_count: 3 },
+				fields: { display_type: 'lcd' },
 				note: 'Corrected per flyer',
 				citation: { citation_instance_id: 42 }
 			}

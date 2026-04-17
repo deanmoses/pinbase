@@ -1,17 +1,19 @@
 <script lang="ts">
-	import RelationshipsEditor from './RelationshipsEditor.svelte';
+	import TechnologyEditor from './TechnologyEditor.svelte';
 
-	type RelationshipsModel = {
-		variant_of?: { slug: string } | null;
-		converted_from?: { slug: string } | null;
-		remake_of?: { slug: string } | null;
+	type TechnologyModel = {
+		technology_generation?: { slug: string } | null;
+		technology_subgeneration?: { slug: string } | null;
+		system?: { slug: string } | null;
+		display_type?: { slug: string } | null;
+		display_subtype?: { slug: string } | null;
 	};
 
 	let {
 		initialModel,
 		slug = 'medieval-madness'
 	}: {
-		initialModel: RelationshipsModel;
+		initialModel: TechnologyModel;
 		slug?: string;
 	} = $props();
 
@@ -26,21 +28,39 @@
 				isDirty(): boolean;
 		  }
 		| undefined = $state();
+
+	function handleSaved() {
+		savedCount++;
+	}
+
+	function handleError(msg: string) {
+		lastError = msg;
+	}
 </script>
 
-<RelationshipsEditor
+<TechnologyEditor
 	bind:this={editorRef}
 	{initialModel}
 	{slug}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
+	onsaved={handleSaved}
+	onerror={handleError}
 	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
+<button type="button" onclick={() => editorRef?.save()}>Save</button>
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
 	Check dirty
 </button>
-<button type="button" onclick={() => editorRef?.save()}>Save</button>
+<button
+	type="button"
+	onclick={() =>
+		editorRef?.save({
+			note: 'Corrected per flyer',
+			citation: { citation_instance_id: 42 }
+		})}
+>
+	Save with meta
+</button>
 
 <p data-testid="dirty-callback">{String(dirtyFromCallback)}</p>
 <p data-testid="dirty-handle">{dirtyFromHandle}</p>

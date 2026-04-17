@@ -51,9 +51,9 @@ describe('PageActionBar', () => {
 						href: '/models/medieval-madness/edit/overview'
 					},
 					{
-						key: 'relationships',
-						label: 'Relationships',
-						href: '/models/medieval-madness/edit/relationships'
+						key: 'related-models',
+						label: 'Related Models',
+						href: '/models/medieval-madness/edit/related-models'
 					}
 				],
 				historyHref: '/models/medieval-madness/history',
@@ -67,9 +67,9 @@ describe('PageActionBar', () => {
 			'href',
 			'/models/medieval-madness/edit/overview'
 		);
-		expect(screen.getByRole('menuitem', { name: 'Relationships' })).toHaveAttribute(
+		expect(screen.getByRole('menuitem', { name: 'Related Models' })).toHaveAttribute(
 			'href',
-			'/models/medieval-madness/edit/relationships'
+			'/models/medieval-madness/edit/related-models'
 		);
 	});
 });

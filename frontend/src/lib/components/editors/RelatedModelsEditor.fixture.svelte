@@ -1,23 +1,17 @@
 <script lang="ts">
-	import FeaturesEditor from './FeaturesEditor.svelte';
+	import RelatedModelsEditor from './RelatedModelsEditor.svelte';
 
-	type FeaturesModel = {
-		game_format?: { slug: string } | null;
-		cabinet?: { slug: string } | null;
-		reward_types: { slug: string }[];
-		tags: { slug: string }[];
-		themes: { slug: string }[];
-		production_quantity: string;
-		player_count?: number | null;
-		flipper_count?: number | null;
-		gameplay_features: { slug: string; count?: number | null }[];
+	type RelatedModels = {
+		variant_of?: { slug: string } | null;
+		converted_from?: { slug: string } | null;
+		remake_of?: { slug: string } | null;
 	};
 
 	let {
 		initialModel,
 		slug = 'medieval-madness'
 	}: {
-		initialModel: FeaturesModel;
+		initialModel: RelatedModels;
 		slug?: string;
 	} = $props();
 
@@ -34,7 +28,7 @@
 		| undefined = $state();
 </script>
 
-<FeaturesEditor
+<RelatedModelsEditor
 	bind:this={editorRef}
 	{initialModel}
 	{slug}

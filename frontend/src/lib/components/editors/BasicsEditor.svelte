@@ -25,6 +25,7 @@
 		slug: string;
 		year?: number | null;
 		month?: number | null;
+		title?: { slug: string } | null;
 		corporate_entity?: { slug: string } | null;
 		abbreviations: string[];
 	};
@@ -48,6 +49,7 @@
 		slug: string;
 		year: string | number;
 		month: string | number;
+		title: string;
 		corporate_entity: string;
 	};
 
@@ -57,6 +59,7 @@
 			slug: m.slug,
 			year: m.year ?? '',
 			month: m.month ?? '',
+			title: m.title?.slug ?? '',
 			corporate_entity: m.corporate_entity?.slug ?? ''
 		};
 	}
@@ -124,15 +127,15 @@
 </script>
 
 <div class="basics-grid">
-	<TextField label="Name" bind:value={fields.name} error={fieldErrors.name ?? ''} />
-	<TextField label="Slug" bind:value={fields.slug} error={fieldErrors.slug ?? ''} />
-	<NumberField
-		label="Year"
-		bind:value={fields.year}
-		error={fieldErrors.year ?? ''}
-		{...fc(constraints, 'year')}
+	<SearchableSelect
+		label="Title"
+		options={editOptions.titles ?? []}
+		bind:selected={fields.title}
+		error={fieldErrors.title ?? ''}
+		allowZeroCount
+		showCounts={false}
+		placeholder="Search titles..."
 	/>
-	<MonthSelect label="Month" bind:value={fields.month} error={fieldErrors.month ?? ''} />
 	<SearchableSelect
 		label="Manufacturer"
 		options={editOptions.corporate_entities ?? []}
@@ -142,6 +145,15 @@
 		showCounts={false}
 		placeholder="Search manufacturers..."
 	/>
+	<TextField label="Name" bind:value={fields.name} error={fieldErrors.name ?? ''} />
+	<TextField label="Slug" bind:value={fields.slug} error={fieldErrors.slug ?? ''} />
+	<NumberField
+		label="Year"
+		bind:value={fields.year}
+		error={fieldErrors.year ?? ''}
+		{...fc(constraints, 'year')}
+	/>
+	<MonthSelect label="Month" bind:value={fields.month} error={fieldErrors.month ?? ''} />
 	<TagInput label="Abbreviations" bind:tags={abbreviations} placeholder="Type and press Enter" />
 </div>
 

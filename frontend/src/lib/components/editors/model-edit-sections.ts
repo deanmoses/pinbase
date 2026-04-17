@@ -1,10 +1,10 @@
 export type ModelEditSectionKey =
 	| 'basics'
 	| 'overview'
-	| 'specifications'
+	| 'technology'
 	| 'features'
 	| 'people'
-	| 'relationships'
+	| 'related-models'
 	| 'external-data'
 	| 'media';
 
@@ -37,9 +37,9 @@ export const MODEL_EDIT_SECTIONS: ModelEditSectionDef[] = [
 		usesSectionEditorForm: true
 	},
 	{
-		key: 'specifications',
-		segment: 'specifications',
-		label: 'Specifications',
+		key: 'technology',
+		segment: 'technology',
+		label: 'Technology',
 		showCitation: true,
 		showMixedEditWarning: true,
 		usesSectionEditorForm: true
@@ -61,17 +61,9 @@ export const MODEL_EDIT_SECTIONS: ModelEditSectionDef[] = [
 		usesSectionEditorForm: true
 	},
 	{
-		key: 'relationships',
-		segment: 'relationships',
-		label: 'Relationships',
-		showCitation: true,
-		showMixedEditWarning: true,
-		usesSectionEditorForm: true
-	},
-	{
-		key: 'external-data',
-		segment: 'external-data',
-		label: 'External Data',
+		key: 'related-models',
+		segment: 'related-models',
+		label: 'Related Models',
 		showCitation: true,
 		showMixedEditWarning: true,
 		usesSectionEditorForm: true
@@ -83,6 +75,14 @@ export const MODEL_EDIT_SECTIONS: ModelEditSectionDef[] = [
 		showCitation: false,
 		showMixedEditWarning: false,
 		usesSectionEditorForm: false
+	},
+	{
+		key: 'external-data',
+		segment: 'external-data',
+		label: 'External Data',
+		showCitation: true,
+		showMixedEditWarning: true,
+		usesSectionEditorForm: true
 	}
 ];
 

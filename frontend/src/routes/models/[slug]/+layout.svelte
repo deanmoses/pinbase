@@ -31,12 +31,12 @@
 	import Button from '$lib/components/Button.svelte';
 	import EditSectionMenu from '$lib/components/EditSectionMenu.svelte';
 	import MediaEditor from '$lib/components/editors/MediaEditor.svelte';
-	import RelationshipsEditor from '$lib/components/editors/RelationshipsEditor.svelte';
+	import RelatedModelsEditor from '$lib/components/editors/RelatedModelsEditor.svelte';
 	import BasicsEditor from '$lib/components/editors/BasicsEditor.svelte';
 	import ExternalDataEditor from '$lib/components/editors/ExternalDataEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import FeaturesEditor from '$lib/components/editors/FeaturesEditor.svelte';
-	import SpecificationsEditor from '$lib/components/editors/SpecificationsEditor.svelte';
+	import TechnologyEditor from '$lib/components/editors/TechnologyEditor.svelte';
 	import {
 		deduplicateCitations,
 		findFirstInlineMarker,
@@ -219,6 +219,26 @@
 			(model.remakes && model.remakes.length > 0) ||
 			model.title_models.length > 1
 	);
+	let hasTechnology = $derived(
+		!!model.technology_generation ||
+			!!model.technology_subgeneration ||
+			!!model.display_type ||
+			!!model.display_subtype ||
+			!!model.system
+	);
+	let hasFeatures = $derived(
+		!!model.game_format ||
+			!!model.cabinet ||
+			(model.reward_types?.length ?? 0) > 0 ||
+			model.themes.length > 0 ||
+			!!model.production_quantity ||
+			!!model.player_count ||
+			!!model.flipper_count ||
+			model.gameplay_features.length > 0 ||
+			!!model.franchise ||
+			!!model.series ||
+			model.variant_features.length > 0
+	);
 	let peopleHeading = $derived(`People (${model.credits.length})`);
 	let mediaHeading = $derived(`Media (${model.uploaded_media.length})`);
 </script>
@@ -279,45 +299,60 @@
 						{/if}
 					</AccordionSection>
 
-					<!-- Specifications — mobile only -->
-					<div class="mobile-only">
-						<AccordionSection heading="Specifications" onEdit={editAction('specifications')}>
-							<ModelSpecsSidebar {model} />
-							{#if model.ipdb_rating || model.pinside_rating}
-								<div class="mobile-ratings">
-									{#if model.ipdb_rating}
-										<span>IPDB: {model.ipdb_rating.toFixed(1)}</span>
-									{/if}
-									{#if model.pinside_rating}
-										<span>Pinside: {model.pinside_rating.toFixed(1)}</span>
-									{/if}
-								</div>
-							{/if}
-						</AccordionSection>
-					</div>
+					<!-- Technology — mobile only -->
+					{#if hasTechnology}
+						<div class="mobile-only">
+							<AccordionSection heading="Technology" onEdit={editAction('technology')}>
+								<ModelSpecsSidebar {model} section="technology" />
+							</AccordionSection>
+						</div>
+					{/if}
+
+					<!-- Features — mobile only -->
+					{#if hasFeatures}
+						<div class="mobile-only">
+							<AccordionSection heading="Features" onEdit={editAction('features')}>
+								<ModelSpecsSidebar {model} section="features" />
+								{#if model.ipdb_rating || model.pinside_rating}
+									<div class="mobile-ratings">
+										{#if model.ipdb_rating}
+											<span>IPDB: {model.ipdb_rating.toFixed(1)}</span>
+										{/if}
+										{#if model.pinside_rating}
+											<span>Pinside: {model.pinside_rating.toFixed(1)}</span>
+										{/if}
+									</div>
+								{/if}
+							</AccordionSection>
+						</div>
+					{/if}
 
 					<!-- People -->
-					<AccordionSection heading={peopleHeading} onEdit={editAction('people')}>
-						<CreditsList credits={model.credits} showHeading={false} />
-					</AccordionSection>
+					{#if model.credits.length > 0}
+						<AccordionSection heading={peopleHeading} onEdit={editAction('people')}>
+							<CreditsList credits={model.credits} showHeading={false} />
+						</AccordionSection>
+					{/if}
 
-					<!-- Relationships — mobile only -->
+					<!-- Related Models — mobile only -->
 					{#if hasRelationships}
 						<div class="mobile-only">
-							<AccordionSection heading="Relationships" onEdit={editAction('relationships')}>
+							<AccordionSection heading="Related Models" onEdit={editAction('related-models')}>
 								<ModelRelationshipsList {model} />
 							</AccordionSection>
 						</div>
 					{/if}
 
 					<!-- Media -->
-					<AccordionSection heading={mediaHeading} onEdit={editAction('media')}>
-						<MediaGrid
-							media={model.uploaded_media}
-							categories={[...MEDIA_CATEGORIES.model]}
-							canEdit={false}
-						/>
-					</AccordionSection>
+					{#if model.uploaded_media.length > 0}
+						<AccordionSection heading={mediaHeading} onEdit={editAction('media')}>
+							<MediaGrid
+								media={model.uploaded_media}
+								categories={[...MEDIA_CATEGORIES.model]}
+								canEdit={false}
+							/>
+						</AccordionSection>
+					{/if}
 
 					<!-- References — only when citations exist -->
 					{#if allCitations.length > 0}
@@ -343,9 +378,17 @@
 
 			{#snippet sidebar()}
 				<div class:desktop-only={isDetail}>
-					<SidebarSection heading="Specifications" onEdit={editAction('specifications')}>
-						<ModelSpecsSidebar {model} />
-					</SidebarSection>
+					{#if hasTechnology}
+						<SidebarSection heading="Technology" onEdit={editAction('technology')}>
+							<ModelSpecsSidebar {model} section="technology" />
+						</SidebarSection>
+					{/if}
+
+					{#if hasFeatures}
+						<SidebarSection heading="Features" onEdit={editAction('features')}>
+							<ModelSpecsSidebar {model} section="features" />
+						</SidebarSection>
+					{/if}
 
 					<RatingsSidebarSection
 						ipdbRating={model.ipdb_rating}
@@ -522,8 +565,8 @@
 				onerror={(msg) => (editError = msg)}
 				ondirtychange={handleEditorDirtyChange}
 			/>
-		{:else if sectionDef.key === 'specifications'}
-			<SpecificationsEditor
+		{:else if sectionDef.key === 'technology'}
+			<TechnologyEditor
 				bind:this={activeEditorRef}
 				initialModel={model}
 				slug={model.slug}
@@ -549,8 +592,8 @@
 				onerror={(msg) => (editError = msg)}
 				ondirtychange={handleEditorDirtyChange}
 			/>
-		{:else if sectionDef.key === 'relationships'}
-			<RelationshipsEditor
+		{:else if sectionDef.key === 'related-models'}
+			<RelatedModelsEditor
 				bind:this={activeEditorRef}
 				initialModel={model}
 				slug={model.slug}

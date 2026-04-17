@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import RelationshipsEditorFixture from './RelationshipsEditor.fixture.svelte';
+import RelatedModelsEditorFixture from './RelatedModelsEditor.fixture.svelte';
 
 const { GET, PATCH } = vi.hoisted(() => ({
 	GET: vi.fn(),
@@ -31,7 +31,7 @@ const EDIT_OPTIONS = {
 	}
 };
 
-describe('RelationshipsEditor dirty-state contract', () => {
+describe('RelatedModelsEditor dirty-state contract', () => {
 	beforeEach(() => {
 		GET.mockReset();
 		PATCH.mockReset();
@@ -44,7 +44,7 @@ describe('RelationshipsEditor dirty-state contract', () => {
 
 	it('reports clean state initially and dirty state after editing', async () => {
 		const user = userEvent.setup();
-		render(RelationshipsEditorFixture, {
+		render(RelatedModelsEditorFixture, {
 			props: {
 				initialModel: {
 					variant_of: null,
