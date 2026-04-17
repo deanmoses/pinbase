@@ -108,6 +108,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Manufacturer"
 			options={manufacturerOptions}
 			bind:selected={filters.manufacturer}
@@ -117,6 +118,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Person"
 			options={personOptions}
 			bind:selected={filters.person}
@@ -126,6 +128,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Theme"
 			options={themeOptions}
 			bind:selected={filters.themes}
@@ -136,6 +139,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Feature"
 			options={featureOptions}
 			bind:selected={filters.features}
@@ -146,6 +150,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Reward Type"
 			options={rewardTypeOptions}
 			bind:selected={filters.rewardTypes}
@@ -181,6 +186,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="System"
 			options={systemOptions}
 			bind:selected={filters.system}
@@ -190,6 +196,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Franchise"
 			options={franchiseOptions}
 			bind:selected={filters.franchise}
@@ -199,6 +206,7 @@
 
 	<div class="filter-section">
 		<SearchableSelect
+			compact
 			label="Series"
 			options={seriesOptions}
 			bind:selected={filters.series}

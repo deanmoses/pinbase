@@ -19,6 +19,7 @@
 	import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
 	import { getMenuItemAction, type EditSectionMenuItem } from '$lib/components/edit-section-menu';
 	import { LAYOUT_BREAKPOINT } from '$lib/constants';
+	import { modelHasTitleOwnedIdentity } from '$lib/catalog-rules';
 	import { setModelEditActionContext } from '$lib/components/editors/edit-action-context';
 	import OverviewEditor from '$lib/components/editors/OverviewEditor.svelte';
 	import PeopleEditor from '$lib/components/editors/PeopleEditor.svelte';
@@ -361,6 +362,7 @@
 				bind:this={ref.current}
 				initialData={model}
 				slug={model.slug}
+				slim={modelHasTitleOwnedIdentity(model)}
 				{onsaved}
 				{onerror}
 				{ondirtychange}

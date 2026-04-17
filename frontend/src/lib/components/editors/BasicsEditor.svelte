@@ -30,13 +30,17 @@
 		abbreviations: string[];
 	};
 
+	// `slim` hides name/slug/title/abbreviations. Used on single-model titles
+	// where title owns name/slug/abbreviations and the Title picker belongs to
+	// the deferred "Change Title" section. Only Manufacturer/Year/Month remain.
 	let {
 		initialData,
 		slug,
 		onsaved,
 		onerror,
-		ondirtychange = () => {}
-	}: SectionEditorProps<BasicsModel> = $props();
+		ondirtychange = () => {},
+		slim = false
+	}: SectionEditorProps<BasicsModel> & { slim?: boolean } = $props();
 
 	type BasicsFormFields = {
 		name: string;
@@ -63,10 +67,12 @@
 	const originalAbbreviations = untrack(() => [...initialData.abbreviations]);
 	let fields = $state<BasicsFormFields>({ ...original });
 	let abbreviations = $state<string[]>(untrack(() => [...initialData.abbreviations]));
+	// Hidden fields (slim mode) never mutate because they have no UI, so
+	// diffScalarFields naturally ignores them — no explicit strip needed.
 	let dirty = $derived.by(
 		() =>
 			Object.keys(diffScalarFields(fields, original)).length > 0 ||
-			stringSetChanged(abbreviations, originalAbbreviations)
+			(!slim && stringSetChanged(abbreviations, originalAbbreviations))
 	);
 
 	let fieldErrors = $state<FieldErrors>({});
@@ -96,7 +102,7 @@
 	export async function save(meta?: SaveMeta): Promise<void> {
 		fieldErrors = {};
 		const changed = diffScalarFields(fields, original);
-		const abbrevsChanged = stringSetChanged(abbreviations, originalAbbreviations);
+		const abbrevsChanged = !slim && stringSetChanged(abbreviations, originalAbbreviations);
 
 		if (!dirty) {
 			onsaved();
@@ -121,21 +127,23 @@
 </script>
 
 <div class="basics-grid">
-	<!--
-		TODO: title is required (NOT NULL on MachineModel), but SearchableSelect's
-		built-in ✕ button still lets users clear it locally. Saving triggers a
-		backend 422 that renders inline, so the invariant holds — but the UX is
-		"click clear, try to save, see error" instead of "can't clear at all".
-		Follow-up: add a `required` prop to SearchableSelect that hides the ✕.
-	-->
-	<SearchableSelect
-		label="Title"
-		options={editOptions.titles ?? []}
-		bind:selected={fields.title}
-		error={fieldErrors.title ?? ''}
-		showCounts={false}
-		placeholder="Search titles..."
-	/>
+	{#if !slim}
+		<!--
+			TODO: title is required (NOT NULL on MachineModel), but SearchableSelect's
+			built-in ✕ button still lets users clear it locally. Saving triggers a
+			backend 422 that renders inline, so the invariant holds — but the UX is
+			"click clear, try to save, see error" instead of "can't clear at all".
+			Follow-up: add a `required` prop to SearchableSelect that hides the ✕.
+		-->
+		<SearchableSelect
+			label="Title"
+			options={editOptions.titles ?? []}
+			bind:selected={fields.title}
+			error={fieldErrors.title ?? ''}
+			showCounts={false}
+			placeholder="Search titles..."
+		/>
+	{/if}
 	<SearchableSelect
 		label="Manufacturer"
 		options={editOptions.corporate_entities ?? []}
@@ -145,8 +153,10 @@
 		showCounts={false}
 		placeholder="Search manufacturers..."
 	/>
-	<TextField label="Name" bind:value={fields.name} error={fieldErrors.name ?? ''} />
-	<TextField label="Slug" bind:value={fields.slug} error={fieldErrors.slug ?? ''} />
+	{#if !slim}
+		<TextField label="Name" bind:value={fields.name} error={fieldErrors.name ?? ''} />
+		<TextField label="Slug" bind:value={fields.slug} error={fieldErrors.slug ?? ''} />
+	{/if}
 	<NumberField
 		label="Year"
 		bind:value={fields.year}
@@ -154,7 +164,9 @@
 		{...fc(constraints, 'year')}
 	/>
 	<MonthSelect label="Month" bind:value={fields.month} error={fieldErrors.month ?? ''} />
-	<TagInput label="Abbreviations" bind:tags={abbreviations} placeholder="Type and press Enter" />
+	{#if !slim}
+		<TagInput label="Abbreviations" bind:tags={abbreviations} placeholder="Type and press Enter" />
+	{/if}
 </div>
 
 <style>

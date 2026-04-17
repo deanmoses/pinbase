@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import Fieldset from '$lib/components/form/Fieldset.svelte';
 	import NumberField from '$lib/components/form/NumberField.svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
 	import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
@@ -81,21 +80,19 @@
 </script>
 
 <div class="external-data-editor">
-	<Fieldset legend="External Links">
-		<div class="fields-grid">
-			<TextField
-				label="OPDB Group ID"
-				bind:value={fields.opdb_id}
-				error={fieldErrors.opdb_id ?? ''}
-			/>
-			<NumberField
-				label="Fandom Page ID"
-				bind:value={fields.fandom_page_id}
-				error={fieldErrors.fandom_page_id ?? ''}
-				{...fc(constraints, 'fandom_page_id')}
-			/>
-		</div>
-	</Fieldset>
+	<div class="fields-grid">
+		<TextField
+			label="OPDB Group ID"
+			bind:value={fields.opdb_id}
+			error={fieldErrors.opdb_id ?? ''}
+		/>
+		<NumberField
+			label="Fandom Page ID"
+			bind:value={fields.fandom_page_id}
+			error={fieldErrors.fandom_page_id ?? ''}
+			{...fc(constraints, 'fandom_page_id')}
+		/>
+	</div>
 </div>
 
 <style>

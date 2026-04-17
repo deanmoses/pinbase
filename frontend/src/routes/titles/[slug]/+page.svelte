@@ -15,11 +15,16 @@
 		findRefEntry,
 		scrollToAndHighlight
 	} from '$lib/components/citation-refs';
+	import { getTitleAreaEditActionContext } from '$lib/components/editors/edit-action-context';
 
 	let { data } = $props();
 	let title = $derived(data.title);
 	let md = $derived(title.model_detail);
 	let specs = $derived(title.agreed_specs);
+
+	// Desktop: opens the layout's SectionEditorHost modal. Mobile: navigates to
+	// the appropriate edit route. Returns undefined when unauthenticated.
+	const editAction = getTitleAreaEditActionContext();
 
 	let descriptionContentEl: HTMLDivElement | undefined = $state();
 	let refsContentEl: HTMLDivElement | undefined = $state();
@@ -102,7 +107,7 @@
 
 {#if md}
 	<!-- Single-model title: sections sourced from the one model's detail. -->
-	<AccordionSection heading="Overview" open={true}>
+	<AccordionSection heading="Overview" open={true} onEdit={editAction('model:overview')}>
 		{#if md.description?.html}
 			<div bind:this={descriptionContentEl}>
 				<Markdown
@@ -118,12 +123,12 @@
 	</AccordionSection>
 
 	{#if md.technology_generation || md.technology_subgeneration || md.display_type || md.display_subtype || md.system}
-		<AccordionSection heading="Technology">
+		<AccordionSection heading="Technology" onEdit={editAction('model:technology')}>
 			<ModelSpecsSidebar model={md} section="technology" />
 		</AccordionSection>
 	{/if}
 
-	<AccordionSection heading="Features">
+	<AccordionSection heading="Features" onEdit={editAction('model:features')}>
 		<ModelSpecsSidebar model={md} section="features" />
 	</AccordionSection>
 
@@ -134,19 +139,22 @@
 	{/if}
 
 	{#if md.credits.length > 0}
-		<AccordionSection heading="People ({md.credits.length})">
+		<AccordionSection heading="People ({md.credits.length})" onEdit={editAction('model:people')}>
 			<CreditsList credits={md.credits} showHeading={false} />
 		</AccordionSection>
 	{/if}
 
 	{#if md.uploaded_media.length > 0}
-		<AccordionSection heading="Media ({md.uploaded_media.length})">
+		<AccordionSection
+			heading="Media ({md.uploaded_media.length})"
+			onEdit={editAction('model:media')}
+		>
 			<MediaGrid media={md.uploaded_media} canEdit={false} />
 		</AccordionSection>
 	{/if}
 
 	{#if md.ipdb_id || md.opdb_id || md.pinside_id || title.opdb_id || title.fandom_page_id}
-		<AccordionSection heading="External Links">
+		<AccordionSection heading="External Links" onEdit={editAction('model:external-data')}>
 			<div class="external-ids">
 				{#if md.ipdb_id}
 					<a href="https://www.ipdb.org/machine.cgi?id={md.ipdb_id}">Internet Pinball Database</a>
@@ -184,7 +192,7 @@
 	{/if}
 {:else}
 	<!-- Overview -->
-	<AccordionSection heading="Overview" open={true}>
+	<AccordionSection heading="Overview" open={true} onEdit={editAction('title:overview')}>
 		{#if title.description?.html}
 			<div bind:this={descriptionContentEl}>
 				<Markdown
@@ -371,7 +379,7 @@
 
 	<!-- External Links -->
 	{#if hasExternalLinks}
-		<AccordionSection heading="External Links">
+		<AccordionSection heading="External Links" onEdit={editAction('title:external-data')}>
 			<div class="external-ids">
 				{#if title.opdb_id}
 					<a href="https://opdb.org/groups/{title.opdb_id}">OPDB</a>

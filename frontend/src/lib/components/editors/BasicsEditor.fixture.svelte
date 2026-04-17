@@ -13,10 +13,12 @@
 
 	let {
 		initialData,
-		slug = 'medieval-madness'
+		slug = 'medieval-madness',
+		slim = false
 	}: {
 		initialData: BasicsModel;
 		slug?: string;
+		slim?: boolean;
 	} = $props();
 
 	let dirtyFromCallback = $state(false);
@@ -36,6 +38,7 @@
 	bind:this={editorRef}
 	{initialData}
 	{slug}
+	{slim}
 	onsaved={() => savedCount++}
 	onerror={(message) => (lastError = message)}
 	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}

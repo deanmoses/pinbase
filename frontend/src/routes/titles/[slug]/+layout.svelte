@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { auth } from '$lib/auth.svelte';
 	import MetaTags from '$lib/components/MetaTags.svelte';
@@ -9,15 +10,33 @@
 	import ModelSpecsSidebar from '$lib/components/ModelSpecsSidebar.svelte';
 	import PageActionBar from '$lib/components/PageActionBar.svelte';
 	import RatingsSidebarSection from '$lib/components/RatingsSidebarSection.svelte';
+	import SectionEditorHost from '$lib/components/SectionEditorHost.svelte';
 	import SidebarList from '$lib/components/SidebarList.svelte';
 	import SidebarListItem from '$lib/components/SidebarListItem.svelte';
 	import SidebarSection from '$lib/components/SidebarSection.svelte';
 	import TaxonomyLinkSidebarSection from '$lib/components/TaxonomyLinkSidebarSection.svelte';
 	import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 	import NeedsReviewBanner from '$lib/components/NeedsReviewBanner.svelte';
-	import type { EditSectionDropdown, EditSectionMenuItem } from '$lib/components/edit-section-menu';
-	import { MODEL_EDIT_SECTIONS } from '$lib/components/editors/model-edit-sections';
-	import { titleSectionsFor } from '$lib/components/editors/title-edit-sections';
+	import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
+	import { getMenuItemAction, type EditSectionMenuItem } from '$lib/components/edit-section-menu';
+	import { LAYOUT_BREAKPOINT } from '$lib/constants';
+	import {
+		combinedSectionsFor,
+		type CombinedSectionKey
+	} from '$lib/components/editors/combined-edit-sections';
+	import { modelHasTitleOwnedIdentity } from '$lib/catalog-rules';
+	import { setTitleAreaEditActionContext } from '$lib/components/editors/edit-action-context';
+	import BasicsEditor from '$lib/components/editors/BasicsEditor.svelte';
+	import ExternalDataEditor from '$lib/components/editors/ExternalDataEditor.svelte';
+	import FeaturesEditor from '$lib/components/editors/FeaturesEditor.svelte';
+	import MediaEditor from '$lib/components/editors/MediaEditor.svelte';
+	import OverviewEditor from '$lib/components/editors/OverviewEditor.svelte';
+	import PeopleEditor from '$lib/components/editors/PeopleEditor.svelte';
+	import RelatedModelsEditor from '$lib/components/editors/RelatedModelsEditor.svelte';
+	import TechnologyEditor from '$lib/components/editors/TechnologyEditor.svelte';
+	import TitleBasicsEditor from '$lib/components/editors/TitleBasicsEditor.svelte';
+	import TitleExternalDataEditor from '$lib/components/editors/TitleExternalDataEditor.svelte';
+	import TitleOverviewEditor from '$lib/components/editors/TitleOverviewEditor.svelte';
 
 	let { data, children } = $props();
 	let title = $derived(data.title);
@@ -38,6 +57,18 @@
 			!page.url.pathname.endsWith('/edit-history') &&
 			!page.url.pathname.includes('/media')
 	);
+
+	// Mobile detection — matches TwoColumnLayout breakpoint (LAYOUT_BREAKPOINT)
+	let isMobile = $state(false);
+	$effect(() => {
+		const mql = matchMedia(`(max-width: ${LAYOUT_BREAKPOINT}rem)`);
+		isMobile = mql.matches;
+		function onChange(e: MediaQueryListEvent) {
+			isMobile = e.matches;
+		}
+		mql.addEventListener('change', onChange);
+		return () => mql.removeEventListener('change', onChange);
+	});
 
 	let metaDescription = $derived.by(() => {
 		if (title.description?.text) return title.description.text;
@@ -67,35 +98,44 @@
 		return items;
 	});
 
-	// Single-model titles: two labeled dropdowns ("Edit Title" + "Edit Model") in the action bar.
-	// Multi-model titles: one "Edit" dropdown with title sections.
-	let editDropdowns = $derived.by<EditSectionDropdown[] | undefined>(() => {
-		if (!auth.isAuthenticated) return undefined;
+	// --- Combined-menu edit state ---
 
-		if (md) {
-			const titleItems: EditSectionMenuItem[] = titleSectionsFor(true).map((s) => ({
+	let sections = $derived(combinedSectionsFor(!!md));
+	let editing = $state<CombinedSectionKey | null>(null);
+
+	let switcherItems: EditSectionMenuItem[] = $derived(
+		sections.map((s) => {
+			if (!isMobile) {
+				return { key: s.key, label: s.menuLabel, onclick: () => (editing = s.key) };
+			}
+			if (s.tier === 'title') {
+				return {
+					key: s.key,
+					label: s.menuLabel,
+					href: resolve(`/titles/${slug}/edit/${s.segment}`)
+				};
+			}
+			// combinedSectionsFor only emits model-tier entries when md exists.
+			if (!md) throw new Error('unreachable: model-tier section without model_detail');
+			// The model edit route reads the model's title_models count to decide
+			// whether BasicsEditor renders in slim mode — no entry-point signaling
+			// needed here.
+			return {
 				key: s.key,
-				label: s.label,
-				href: resolve(`/titles/${slug}/edit/${s.segment}`)
-			}));
-			const modelItems: EditSectionMenuItem[] = MODEL_EDIT_SECTIONS.map((s) => ({
-				key: s.key,
-				label: s.label,
+				label: s.menuLabel,
 				href: resolve(`/models/${md.slug}/edit/${s.segment}`)
-			}));
-			return [
-				{ label: 'Edit Title', items: titleItems },
-				{ label: 'Edit Model', items: modelItems }
-			];
-		}
+			};
+		})
+	);
 
-		const titleItems: EditSectionMenuItem[] = titleSectionsFor(false).map((s) => ({
-			key: s.key,
-			label: s.label,
-			href: resolve(`/titles/${slug}/edit/${s.segment}`)
-		}));
-		return [{ label: 'Edit', items: titleItems }];
-	});
+	let editSectionsForBar = $derived(auth.isAuthenticated ? switcherItems : undefined);
+
+	function editAction(key: CombinedSectionKey): (() => void) | undefined {
+		if (!auth.isAuthenticated) return undefined;
+		return getMenuItemAction(switcherItems, key, (href) => goto(href));
+	}
+
+	setTitleAreaEditActionContext(editAction);
 </script>
 
 <MetaTags
@@ -120,7 +160,7 @@
 
 	{#if !isEdit}
 		<PageActionBar
-			{editDropdowns}
+			editSections={editSectionsForBar}
 			historyHref={resolve(`/titles/${slug}/edit-history`)}
 			sourcesHref={resolve(`/titles/${slug}/sources`)}
 		/>
@@ -272,6 +312,114 @@
 		{/snippet}
 	</TwoColumnLayout>
 </article>
+
+<SectionEditorHost bind:editingKey={editing} {sections} {switcherItems}>
+	{#snippet editor(key, { ref, onsaved, onerror, ondirtychange })}
+		{#if key === 'title:overview'}
+			<TitleOverviewEditor
+				bind:this={ref.current}
+				initialData={title.description?.text ?? ''}
+				slug={title.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if key === 'title:basics'}
+			<TitleBasicsEditor
+				bind:this={ref.current}
+				initialData={title}
+				slug={title.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if key === 'title:external-data'}
+			<TitleExternalDataEditor
+				bind:this={ref.current}
+				initialData={title}
+				slug={title.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:overview'}
+			<OverviewEditor
+				bind:this={ref.current}
+				initialData={md.description?.text ?? ''}
+				slug={md.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:basics'}
+			<BasicsEditor
+				bind:this={ref.current}
+				initialData={md}
+				slug={md.slug}
+				slim={modelHasTitleOwnedIdentity(md)}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:technology'}
+			<TechnologyEditor
+				bind:this={ref.current}
+				initialData={md}
+				slug={md.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:features'}
+			<FeaturesEditor
+				bind:this={ref.current}
+				initialData={md}
+				slug={md.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:people'}
+			<PeopleEditor
+				bind:this={ref.current}
+				initialData={md.credits}
+				slug={md.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:related-models'}
+			<RelatedModelsEditor
+				bind:this={ref.current}
+				initialData={md}
+				slug={md.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{:else if md && key === 'model:external-data'}
+			<ExternalDataEditor
+				bind:this={ref.current}
+				initialData={md}
+				slug={md.slug}
+				{onsaved}
+				{onerror}
+				{ondirtychange}
+			/>
+		{/if}
+	{/snippet}
+
+	{#snippet immediateEditor()}
+		{#if md}
+			<MediaEditor
+				entityType="model"
+				slug={md.slug}
+				media={md.uploaded_media}
+				categories={[...MEDIA_CATEGORIES.model]}
+			/>
+		{/if}
+	{/snippet}
+</SectionEditorHost>
 
 <style>
 	dl {

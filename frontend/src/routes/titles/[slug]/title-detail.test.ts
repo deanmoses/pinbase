@@ -1,6 +1,6 @@
 import { render } from 'svelte/server';
 import { describe, expect, it, vi } from 'vitest';
-import Page from './+page.svelte';
+import Harness from './title-detail.test-harness.svelte';
 import { load } from './+layout.server';
 
 const MOCK_TITLE = {
@@ -69,7 +69,7 @@ describe('title detail SSR route', () => {
 	});
 
 	it('renders meaningful title content into initial HTML', () => {
-		const { body } = render(Page, {
+		const { body } = render(Harness, {
 			props: {
 				data: { title: MOCK_TITLE }
 			}

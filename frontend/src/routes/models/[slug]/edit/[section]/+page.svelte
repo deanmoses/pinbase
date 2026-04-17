@@ -17,12 +17,18 @@
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { SaveMeta } from '$lib/components/editors/save-model-claims';
 	import { findSectionBySegment } from '$lib/components/editors/model-edit-sections';
+	import { modelHasTitleOwnedIdentity } from '$lib/catalog-rules';
 
 	let { data } = $props();
 	let model = $derived(data.model);
 	let slug = $derived(page.params.slug);
 	let sectionSegment = $derived(page.params.section);
 	let section = $derived(sectionSegment ? findSectionBySegment(sectionSegment) : undefined);
+
+	// On single-model titles, name/slug/title/abbreviations are title-owned per
+	// ModelAndTitleUX.md — the model-side editor never shows them, regardless
+	// of entry point.
+	let slimBasics = $derived(modelHasTitleOwnedIdentity(model));
 
 	// Redirect invalid sections to basics
 	$effect(() => {
@@ -85,6 +91,7 @@
 						bind:this={editorRef}
 						initialData={model}
 						slug={model.slug}
+						slim={slimBasics}
 						onsaved={handleSaved}
 						onerror={(msg) => (editError = msg)}
 						ondirtychange={handleDirtyChange}

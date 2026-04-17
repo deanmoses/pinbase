@@ -108,3 +108,49 @@ describe('BasicsEditor dirty-state contract', () => {
 		});
 	});
 });
+
+describe('BasicsEditor slim mode', () => {
+	beforeEach(() => {
+		GET.mockReset();
+		PATCH.mockReset();
+		invalidateAll.mockReset();
+		mockGetResponses();
+	});
+
+	it('hides name, slug, title, and abbreviations when slim', () => {
+		render(BasicsEditorFixture, {
+			props: { initialData: INITIAL_MODEL, slim: true }
+		});
+
+		expect(screen.queryByLabelText('Name')).toBeNull();
+		expect(screen.queryByLabelText('Slug')).toBeNull();
+		expect(screen.queryByRole('combobox', { name: 'Title' })).toBeNull();
+		expect(screen.queryByLabelText('Abbreviations')).toBeNull();
+
+		// The kept fields are still rendered.
+		expect(screen.getByRole('combobox', { name: 'Manufacturer' })).toBeInTheDocument();
+		expect(screen.getByLabelText('Year')).toBeInTheDocument();
+		expect(screen.getByLabelText('Month')).toBeInTheDocument();
+	});
+
+	it('saves only year/month/corporate_entity changes in slim mode', async () => {
+		const user = userEvent.setup();
+		PATCH.mockResolvedValue({ data: {}, error: undefined });
+		invalidateAll.mockResolvedValue(undefined);
+		render(BasicsEditorFixture, {
+			props: { initialData: INITIAL_MODEL, slim: true }
+		});
+
+		const yearInput = screen.getByLabelText('Year');
+		await user.clear(yearInput);
+		await user.type(yearInput, '1998');
+
+		await user.click(screen.getByRole('button', { name: 'Save' }));
+
+		expect(PATCH).toHaveBeenCalledOnce();
+		expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
+			params: { path: { slug: 'medieval-madness' } },
+			body: { fields: { year: 1998 }, note: '' }
+		});
+	});
+});

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { normalizeText } from '$lib/utils';
+	import FieldGroup from './form/FieldGroup.svelte';
 
 	let {
 		options,
@@ -9,7 +10,8 @@
 		showCounts = true,
 		placeholder = 'Search...',
 		label = '',
-		error = ''
+		error = '',
+		compact = false
 	}: {
 		options: { slug: string; label: string; count?: number }[];
 		selected?: string | string[] | null;
@@ -19,6 +21,8 @@
 		placeholder?: string;
 		label?: string;
 		error?: string;
+		/** Use the de-emphasized filter-sidebar label treatment instead of the form FieldGroup. */
+		compact?: boolean;
 	} = $props();
 
 	function isDisabled(opt: { count?: number }): boolean {
@@ -160,11 +164,7 @@
 	const errorId = `${inputId}-error`;
 </script>
 
-<div class="searchable-select">
-	{#if label}
-		<label class="filter-label" for={inputId}>{label}</label>
-	{/if}
-
+{#snippet body()}
 	<div class="input-wrap">
 		<input
 			id={inputId}
@@ -251,11 +251,27 @@
 			{/each}
 		</ul>
 	{/if}
+{/snippet}
 
-	{#if error}
-		<p class="field-error" id={errorId} role="alert">{error}</p>
-	{/if}
-</div>
+{#if compact}
+	<div class="searchable-select">
+		{#if label}
+			<label class="filter-label" for={inputId}>{label}</label>
+		{/if}
+		{@render body()}
+		{#if error}
+			<p class="field-error" id={errorId} role="alert">{error}</p>
+		{/if}
+	</div>
+{:else}
+	<FieldGroup {label} id={inputId} {error}>
+		{#snippet children(_id, _errorId)}
+			<div class="searchable-select">
+				{@render body()}
+			</div>
+		{/snippet}
+	</FieldGroup>
+{/if}
 
 <style>
 	.searchable-select {
