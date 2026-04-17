@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { resolve } from '$app/paths';
 	import AccordionSection from '$lib/components/AccordionSection.svelte';
 	import CardGrid from '$lib/components/grid/CardGrid.svelte';
@@ -9,11 +10,34 @@
 	import ModelSpecsSidebar from '$lib/components/ModelSpecsSidebar.svelte';
 	import ReferencesSection from '$lib/components/ReferencesSection.svelte';
 	import RelatedTitlesSection from '$lib/components/RelatedTitlesSection.svelte';
+	import {
+		findFirstInlineMarker,
+		findRefEntry,
+		scrollToAndHighlight
+	} from '$lib/components/citation-refs';
 
 	let { data } = $props();
 	let title = $derived(data.title);
 	let md = $derived(title.model_detail);
 	let specs = $derived(title.agreed_specs);
+
+	let descriptionContentEl: HTMLDivElement | undefined = $state();
+	let refsContentEl: HTMLDivElement | undefined = $state();
+	let refsAccordionOpen = $state(false);
+
+	function scrollToInlineMarker(index: number) {
+		if (!descriptionContentEl) return;
+		const marker = findFirstInlineMarker(descriptionContentEl, index);
+		if (marker) scrollToAndHighlight(marker);
+	}
+
+	async function scrollToRefEntry(index: number) {
+		refsAccordionOpen = true;
+		await tick();
+		if (!refsContentEl) return;
+		const entry = findRefEntry(refsContentEl, index);
+		if (entry) scrollToAndHighlight(entry);
+	}
 
 	// Flatten parents and variants into a single grid — no hierarchy.
 	let flatModels = $derived.by(() => {
@@ -80,11 +104,14 @@
 	<!-- Single-model title: sections sourced from the one model's detail. -->
 	<AccordionSection heading="Overview" open={true}>
 		{#if md.description?.html}
-			<Markdown
-				html={md.description.html}
-				citations={md.description.citations}
-				showReferences={false}
-			/>
+			<div bind:this={descriptionContentEl}>
+				<Markdown
+					html={md.description.html}
+					citations={md.description.citations}
+					showReferences={false}
+					onNavigateToRef={scrollToRefEntry}
+				/>
+			</div>
 		{:else}
 			<p class="muted">No description yet.</p>
 		{/if}
@@ -141,24 +168,32 @@
 	{/if}
 
 	{#if md.description && md.description.citations.length > 0}
-		<AccordionSection heading="References ({md.description.citations.length})">
-			<ReferencesSection
-				citations={md.description.citations}
-				open={true}
-				showToggle={false}
-				onBackLink={() => {}}
-			/>
+		<AccordionSection
+			heading="References ({md.description.citations.length})"
+			bind:open={refsAccordionOpen}
+		>
+			<div bind:this={refsContentEl}>
+				<ReferencesSection
+					citations={md.description.citations}
+					open={true}
+					showToggle={false}
+					onBackLink={scrollToInlineMarker}
+				/>
+			</div>
 		</AccordionSection>
 	{/if}
 {:else}
 	<!-- Overview -->
 	<AccordionSection heading="Overview" open={true}>
 		{#if title.description?.html}
-			<Markdown
-				html={title.description.html}
-				citations={title.description.citations}
-				showReferences={false}
-			/>
+			<div bind:this={descriptionContentEl}>
+				<Markdown
+					html={title.description.html}
+					citations={title.description.citations}
+					showReferences={false}
+					onNavigateToRef={scrollToRefEntry}
+				/>
+			</div>
 		{:else}
 			<p class="muted">No description yet.</p>
 		{/if}
@@ -350,13 +385,18 @@
 
 	<!-- References — only when citations exist -->
 	{#if descriptionCitations.length > 0}
-		<AccordionSection heading="References ({descriptionCitations.length})">
-			<ReferencesSection
-				citations={descriptionCitations}
-				open={true}
-				showToggle={false}
-				onBackLink={() => {}}
-			/>
+		<AccordionSection
+			heading="References ({descriptionCitations.length})"
+			bind:open={refsAccordionOpen}
+		>
+			<div bind:this={refsContentEl}>
+				<ReferencesSection
+					citations={descriptionCitations}
+					open={true}
+					showToggle={false}
+					onBackLink={scrollToInlineMarker}
+				/>
+			</div>
 		</AccordionSection>
 	{/if}
 {/if}

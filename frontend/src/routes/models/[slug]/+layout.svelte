@@ -18,6 +18,7 @@
 	import SidebarList from '$lib/components/SidebarList.svelte';
 	import SidebarListItem from '$lib/components/SidebarListItem.svelte';
 	import SidebarSection from '$lib/components/SidebarSection.svelte';
+	import TaxonomyLinkSidebarSection from '$lib/components/TaxonomyLinkSidebarSection.svelte';
 	import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 	import CreditsList from '$lib/components/CreditsList.svelte';
 	import MediaGrid from '$lib/components/media/MediaGrid.svelte';
@@ -239,6 +240,19 @@
 			!!model.series ||
 			model.variant_features.length > 0
 	);
+	// Desktop sidebar shows Franchise/Series as their own sections, so the Features
+	// sidebar should hide when *only* franchise/series would appear.
+	let hasFeaturesExcludingFranchiseSeries = $derived(
+		!!model.game_format ||
+			!!model.cabinet ||
+			(model.reward_types?.length ?? 0) > 0 ||
+			model.themes.length > 0 ||
+			!!model.production_quantity ||
+			!!model.player_count ||
+			!!model.flipper_count ||
+			model.gameplay_features.length > 0 ||
+			model.variant_features.length > 0
+	);
 	let peopleHeading = $derived(`People (${model.credits.length})`);
 	let mediaHeading = $derived(`Media (${model.uploaded_media.length})`);
 	let hasExternalLinks = $derived(!!(model.ipdb_id || model.opdb_id || model.pinside_id));
@@ -413,9 +427,9 @@
 						</SidebarSection>
 					{/if}
 
-					{#if hasFeatures}
+					{#if hasFeaturesExcludingFranchiseSeries}
 						<SidebarSection heading="Features" onEdit={editAction('features')}>
-							<ModelSpecsSidebar {model} section="features" />
+							<ModelSpecsSidebar {model} section="features" showFranchiseSeries={false} />
 						</SidebarSection>
 					{/if}
 
@@ -423,6 +437,13 @@
 						ipdbRating={model.ipdb_rating}
 						pinsideRating={model.pinside_rating}
 					/>
+
+					<TaxonomyLinkSidebarSection
+						heading="Franchise"
+						basePath="/franchises"
+						item={model.franchise}
+					/>
+					<TaxonomyLinkSidebarSection heading="Series" basePath="/series" item={model.series} />
 
 					{#if model.title}
 						<SidebarSection heading="Parent Title">

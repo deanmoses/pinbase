@@ -95,6 +95,7 @@ def _handle_structured_validation_error(request, exc):
 
 _ENTITY_MODEL_MAP = {
     "model": "MachineModel",
+    "title": "Title",
     "person": "Person",
     "corporate-entity": "CorporateEntity",
     "manufacturer": "Manufacturer",

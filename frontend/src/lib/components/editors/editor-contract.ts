@@ -1,4 +1,4 @@
-import type { SaveMeta } from './save-model-claims';
+import type { SaveMeta } from './save-claims-shared';
 
 export type EditorDirtyChange = (dirty: boolean) => void;
 

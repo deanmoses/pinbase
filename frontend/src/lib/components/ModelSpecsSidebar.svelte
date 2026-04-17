@@ -4,8 +4,16 @@
 
 	type Model = components['schemas']['MachineModelDetailSchema'];
 
-	let { model, section = 'all' }: { model: Model; section?: 'technology' | 'features' | 'all' } =
-		$props();
+	let {
+		model,
+		section = 'all',
+		showFranchiseSeries = true
+	}: {
+		model: Model;
+		section?: 'technology' | 'features' | 'all';
+		/** When false, omits Franchise and Series rows — used when those surface as their own sidebar sections. */
+		showFranchiseSeries?: boolean;
+	} = $props();
 </script>
 
 <dl>
@@ -100,13 +108,13 @@
 				{/each}
 			</dd>
 		{/if}
-		{#if model.franchise}
+		{#if showFranchiseSeries && model.franchise}
 			<dt>Franchise</dt>
 			<dd>
 				<a href={resolve(`/franchises/${model.franchise.slug}`)}>{model.franchise.name}</a>
 			</dd>
 		{/if}
-		{#if model.series}
+		{#if showFranchiseSeries && model.series}
 			<dt>Series</dt>
 			<dd>
 				<a href={resolve(`/series/${model.series.slug}`)}>{model.series.name}</a>

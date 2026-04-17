@@ -58,11 +58,11 @@ Goal: title-detail API returns data shaped for the section-based reader, with th
 
 9. Replace the current `ModelDetailBody` render path for single-model titles. Compose Model reader sections + franchise/series inside Features + Related Titles + title-level External Links merged with model-level external IDs.
 
-10. Top-bar with **two** edit launchpads per the separate-edit decision:
-    - "Edit title" → `/titles/[slug]/edit`
-    - "Edit model" → `/models/[slug]/edit`
+10. Action bar with **two labeled edit dropdowns** per the separate-edit decision:
+    - "Edit Title" dropdown — title-tier sections (Basics, External Data). Each item navigates to `/titles/[slug]/edit/[section]`.
+    - "Edit Model" dropdown — model-tier sections (Overview, Technology, Features, etc.). Each item navigates to `/models/[modelSlug]/edit/[section]`.
 
-    History and Sources: decide whether to merge across tiers or show title-tier only. Default: merged, to match reader view. Revisit if awkward.
+    History and Sources remain single title-tier links on the action bar (unchanged from today). Revisit per-tier split only if it feels missing in practice.
 
 ## Phase 5 — Tests, cleanup, responsive check
 
@@ -80,6 +80,7 @@ Goal: title-detail API returns data shaped for the section-based reader, with th
 
 ## Open questions
 
-- **History / Sources scope for single-model titles** — title-tier only, or merged across both tiers? Suggest merged to match the reader view; flag if awkward.
+- **History / Sources scope for single-model titles** — kept title-tier only for this tranche. Revisit per-tier split only if it feels missing in practice.
 - **Aggregation helper location** — where does the existing sidebar logic live, and does it already expose what we need? Drives whether Phase 1 is "extend" or "extract + extend."
 - **"Hide if none" on Models section** — won't fire in practice (multi-model = ≥2 models post-FK-NOT-NULL). Keep as defensive default or drop? Suggest keep; costs nothing.
+- **Combined single-model edit menu** — this tranche ships two separate dropdowns. If a combined single-menu feels better after use, migrate to a tier-aware registry with dual-slug plumbing in a follow-up.

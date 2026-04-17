@@ -142,12 +142,13 @@ Put series / franchise under Features, even though it's not a good fit. There's 
 
 #### Single-Model Title Edit
 
-When clicking 'edit' on a single-model title, we need to think through what happens. For example:
+On a single-model title + model, some fields overlap and we're going to have to choose which to show:
 
-- Do we need to make the title.name and title.slug editable? Or does it just follow the model.name and slug?
-- The Description and Abbreviations of both Title and Model should not be visible/populated/editable; pick one.
+- We will make Title.name and Title.slug editable and hide Model.name and Model.slug, because it's the title slug that's used for routing.
+- We will hide Title.description and only show Model.description, because if we ever split the Title + Model, that description should go with the Model.
+- We will hide Model.abbreviations and only show Title.Abbreviations, because if we ever split the Title + Model, those abbreviations will be more relevant to the title.
 
-I think we need to merge the edit of title and model on single-model titles... I'd actually prefer keeping them separate for users doing editing, on the assumption that those people have taken the time to understand the domain model a bit but there's no place to GO to get that separate edit view: for single-model titles, the only detail page is the Title one, so in my mind the Title detail page MUST provide access to the full editing experience.
+On a single-model title, the edit dropdown menu should contain a combined set of the editors from both title and model editors.
 
 Sections:
 
