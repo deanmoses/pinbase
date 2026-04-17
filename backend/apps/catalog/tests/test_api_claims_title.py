@@ -143,7 +143,7 @@ class TestPatchTitleClaims:
         client.force_login(user)
         resp = _patch(client, title.slug, {"fields": {"slug": "attack-from-mars"}})
         assert resp.status_code == 422
-        assert "unique" in resp.json()["detail"].lower()
+        assert "unique" in resp.json()["detail"]["message"].lower()
 
     def test_franchise_can_be_changed_and_cleared(
         self, client, user, title, franchise, other_franchise

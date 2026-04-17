@@ -9,16 +9,19 @@
 		label,
 		id = '',
 		optional = false,
+		error = '',
 		children
 	}: {
 		label: string;
 		id?: string;
 		optional?: boolean;
-		children: Snippet<[string]>;
+		error?: string;
+		children: Snippet<[string, string]>;
 	} = $props();
 
 	const uniqueSuffix = Math.random().toString(36).slice(2, 8);
 	let inputId = $derived.by(() => id || `ef-${slugifyLabel(label)}-${uniqueSuffix}`);
+	let errorId = $derived(`${inputId}-error`);
 </script>
 
 <div class="field-group">
@@ -26,7 +29,10 @@
 		>{label}
 		{#if optional}<span class="optional">(optional)</span>{/if}</label
 	>
-	{@render children(inputId)}
+	{@render children(inputId, errorId)}
+	{#if error}
+		<p class="field-error" id={errorId} role="alert">{error}</p>
+	{/if}
 </div>
 
 <style>
@@ -45,5 +51,11 @@
 	.optional {
 		font-weight: 400;
 		font-size: var(--font-size-0);
+	}
+
+	.field-error {
+		font-size: var(--font-size-0);
+		color: var(--color-error);
+		margin: 0;
 	}
 </style>

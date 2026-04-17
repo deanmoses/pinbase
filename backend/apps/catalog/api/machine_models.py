@@ -9,19 +9,20 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
-from ninja.errors import HttpError
 from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
 from ..cache import MODELS_ALL_KEY, get_cached_response, set_cached_response
 from .constants import DEFAULT_PAGE_SIZE
 from .edit_claims import (
+    StructuredValidationError,
     execute_claims,
     plan_abbreviation_claims,
     plan_credit_claims,
     plan_gameplay_feature_claims,
     plan_m2m_claims,
     plan_scalar_field_claims,
+    raise_form_error,
 )
 from apps.provenance.helpers import build_sources, claims_prefetch
 
@@ -80,6 +81,7 @@ from ..models import (
     TechnologyGeneration,
     TechnologySubgeneration,
     Theme,
+    Title,
 )
 
 # ---------------------------------------------------------------------------
@@ -926,6 +928,7 @@ def get_model_edit_options(request):
         "credit_roles": _opts(
             CreditRole.objects.active().order_by("display_order", "name")
         ),
+        "titles": _opts(Title.objects.active().order_by("name")),
         "models": [
             {
                 "slug": obj.slug,
@@ -968,8 +971,9 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
 
     for field_name, value in data.fields.items():
         if field_name in _SELF_REF_FIELDS and value == slug:
-            raise HttpError(
-                422, f"Field '{field_name}' cannot reference the model itself."
+            raise StructuredValidationError(
+                message="A model cannot reference itself.",
+                field_errors={field_name: "A model cannot reference itself."},
             )
 
     if data.themes is not None:
@@ -1010,7 +1014,7 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
         specs.extend(plan_abbreviation_claims(pm, data.abbreviations))
 
     if not specs:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     execute_claims(pm, specs, user=request.user, note=data.note, citation=data.citation)
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { diffScalarFields, slugSetChanged, stringSetChanged } from './edit-helpers';
+import { creditsChanged, diffScalarFields, slugSetChanged, stringSetChanged } from './edit-helpers';
 
 // Form fields use string | number (NumberField returns number, cleared fields are '')
 type TestFields = Record<string, string | number>;
@@ -80,5 +80,79 @@ describe('stringSetChanged', () => {
 
 	it('returns false for empty vs empty', () => {
 		expect(stringSetChanged([], [])).toBe(false);
+	});
+});
+
+describe('creditsChanged', () => {
+	it('returns false when current matches original', () => {
+		const current = [
+			{ person_slug: 'pat-lawlor', role: 'game-design' },
+			{ person_slug: 'john-youssi', role: 'artwork' }
+		];
+		const original = [
+			{ person: { slug: 'pat-lawlor' }, role: 'game-design' },
+			{ person: { slug: 'john-youssi' }, role: 'artwork' }
+		];
+		expect(creditsChanged(current, original)).toBe(false);
+	});
+
+	it('returns true when a credit is added', () => {
+		const current = [
+			{ person_slug: 'pat-lawlor', role: 'game-design' },
+			{ person_slug: 'john-youssi', role: 'artwork' }
+		];
+		const original = [{ person: { slug: 'pat-lawlor' }, role: 'game-design' }];
+		expect(creditsChanged(current, original)).toBe(true);
+	});
+
+	it('returns true when a credit is removed', () => {
+		const current = [{ person_slug: 'pat-lawlor', role: 'game-design' }];
+		const original = [
+			{ person: { slug: 'pat-lawlor' }, role: 'game-design' },
+			{ person: { slug: 'john-youssi' }, role: 'artwork' }
+		];
+		expect(creditsChanged(current, original)).toBe(true);
+	});
+
+	it('returns true when a role is changed', () => {
+		const current = [{ person_slug: 'pat-lawlor', role: 'mechanical-design' }];
+		const original = [{ person: { slug: 'pat-lawlor' }, role: 'game-design' }];
+		expect(creditsChanged(current, original)).toBe(true);
+	});
+
+	it('filters out incomplete rows from current', () => {
+		const current = [
+			{ person_slug: 'pat-lawlor', role: 'game-design' },
+			{ person_slug: '', role: 'artwork' },
+			{ person_slug: 'john-youssi', role: '' }
+		];
+		const original = [{ person: { slug: 'pat-lawlor' }, role: 'game-design' }];
+		expect(creditsChanged(current, original)).toBe(false);
+	});
+
+	it('filters out rows with null person_slug or role', () => {
+		// SearchableSelect sets value to null on deselect, not ''
+		const current = [
+			{ person_slug: 'pat-lawlor', role: 'game-design' },
+			{ person_slug: 'john-youssi', role: null as unknown as string }
+		];
+		const original = [{ person: { slug: 'pat-lawlor' }, role: 'game-design' }];
+		expect(creditsChanged(current, original)).toBe(false);
+	});
+
+	it('returns false for empty arrays on both sides', () => {
+		expect(creditsChanged([], [])).toBe(false);
+	});
+
+	it('is order-independent', () => {
+		const current = [
+			{ person_slug: 'john-youssi', role: 'artwork' },
+			{ person_slug: 'pat-lawlor', role: 'game-design' }
+		];
+		const original = [
+			{ person: { slug: 'pat-lawlor' }, role: 'game-design' },
+			{ person: { slug: 'john-youssi' }, role: 'artwork' }
+		];
+		expect(creditsChanged(current, original)).toBe(false);
 	});
 });

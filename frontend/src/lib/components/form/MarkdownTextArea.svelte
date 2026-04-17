@@ -24,12 +24,14 @@
 		label,
 		value = $bindable(''),
 		id = '',
-		rows = 4
+		rows = 4,
+		error = ''
 	}: {
 		label: string;
 		value?: string;
 		id?: string;
 		rows?: number;
+		error?: string;
 	} = $props();
 
 	// -----------------------------------------------------------------------
@@ -294,8 +296,8 @@
 </script>
 
 <div class="markdown-textarea" bind:this={wrapperEl}>
-	<FieldGroup {label} {id}>
-		{#snippet children(inputId)}
+	<FieldGroup {label} {id} {error}>
+		{#snippet children(inputId, errorId)}
 			<MarkdownToolbar
 				onbold={() => {
 					if (!textareaEl) return;
@@ -334,6 +336,8 @@
 				onpaste={handlePaste}
 				onclick={handleTextareaClick}
 				onblur={handleTextareaBlur}
+				aria-invalid={error ? true : undefined}
+				aria-describedby={error ? errorId : undefined}
 			></textarea>
 		{/snippet}
 	</FieldGroup>

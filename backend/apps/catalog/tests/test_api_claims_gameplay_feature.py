@@ -78,7 +78,7 @@ class TestPatchGameplayFeatureValidation:
         client.force_login(user)
         resp = _patch(client, feature.slug, {"fields": {"name": "Drop Targets"}})
         assert resp.status_code == 422
-        assert "unique" in resp.json()["detail"].lower()
+        assert "unique" in resp.json()["detail"]["message"].lower()
 
     def test_invalid_markdown_link_returns_422(self, client, user, feature):
         client.force_login(user)
@@ -88,7 +88,7 @@ class TestPatchGameplayFeatureValidation:
             {"fields": {"description": "Links to [[system:nope]]."}},
         )
         assert resp.status_code == 422
-        assert "nope" in resp.json()["detail"].lower()
+        assert "nope" in resp.json()["detail"]["message"].lower()
 
 
 # ---------------------------------------------------------------------------

@@ -43,3 +43,20 @@ export function stringSetChanged(current: string[], original: string[]): boolean
 	const b = [...original].sort();
 	return JSON.stringify(a) !== JSON.stringify(b);
 }
+
+/**
+ * Compare credit rows (person_slug + role pairs) against an original list.
+ * Filters out incomplete rows from `current` before comparing.
+ * Order-independent (both sides sorted before comparison).
+ */
+export function creditsChanged(
+	current: { person_slug: string; role: string }[],
+	original: { person: { slug: string }; role: string }[]
+): boolean {
+	const orig = original.map((c) => `${c.person.slug}:${c.role}`).sort();
+	const curr = current
+		.filter((c) => c.person_slug && c.role)
+		.map((c) => `${c.person_slug}:${c.role}`)
+		.sort();
+	return JSON.stringify(orig) !== JSON.stringify(curr);
+}

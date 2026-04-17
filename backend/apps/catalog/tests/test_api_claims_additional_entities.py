@@ -391,7 +391,7 @@ class TestAdditionalPatchClaimEndpoints:
         )
 
         assert resp.status_code == 422
-        assert "unique" in resp.json()["detail"].lower()
+        assert "unique" in resp.json()["detail"]["message"].lower()
 
 
 @pytest.mark.django_db
@@ -646,7 +646,7 @@ class TestUniqueNameValidation:
         )
 
         assert resp.status_code == 422
-        assert "unique" in resp.json()["detail"].lower()
+        assert "unique" in resp.json()["detail"]["message"].lower()
         assert ChangeSet.objects.count() == 0
 
 

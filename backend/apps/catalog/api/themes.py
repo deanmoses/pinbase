@@ -7,13 +7,13 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
-from ninja.errors import HttpError
 from ninja.security import django_auth
 
 from .edit_claims import (
     execute_claims,
     plan_alias_claims,
     plan_parent_claims,
+    raise_form_error,
     validate_scalar_fields,
 )
 from apps.provenance.helpers import build_sources, claims_prefetch
@@ -132,7 +132,7 @@ def list_themes(request):
 def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
     """Assert per-field claims from the authenticated user, then re-resolve."""
     if not data.fields and data.parents is None and data.aliases is None:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     theme = get_object_or_404(Theme.objects.active(), slug=slug)
 
@@ -158,7 +158,7 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
         )
 
     if not specs:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     execute_claims(
         theme, specs, user=request.user, note=data.note, citation=data.citation

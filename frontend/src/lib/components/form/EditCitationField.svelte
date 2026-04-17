@@ -69,7 +69,8 @@
 </script>
 
 <FieldGroup label="Evidence for this edit" optional>
-	{#snippet children(inputId)}
+	<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+	{#snippet children(inputId, errorId)}
 		<div class="citation-field">
 			{#if citation}
 				<div id={inputId} class="citation-summary">

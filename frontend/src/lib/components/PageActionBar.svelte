@@ -1,0 +1,81 @@
+<script lang="ts">
+	import EditSectionMenu from '$lib/components/EditSectionMenu.svelte';
+	import type { EditSectionMenuItem } from '$lib/components/edit-section-menu';
+	import ActionMenu from '$lib/components/ActionMenu.svelte';
+
+	type Props = {
+		detailHref?: string;
+		editHref?: string;
+		editSections?: EditSectionMenuItem[];
+		historyHref: string;
+		sourcesHref: string;
+	};
+
+	let { detailHref, editHref, editSections = [], historyHref, sourcesHref }: Props = $props();
+</script>
+
+<nav aria-label="Page actions">
+	{#if detailHref}
+		<a class="detail-link" href={detailHref}>Back</a>
+	{/if}
+	<div class="actions">
+		{#if editSections.length > 0}
+			<EditSectionMenu items={editSections} />
+		{:else if editHref}
+			<a href={editHref}>Edit</a>
+		{/if}
+		<a href={historyHref}>History</a>
+		<ActionMenu label="Tools">
+			<a class="tools-item" href={sourcesHref} role="menuitem">Sources</a>
+		</ActionMenu>
+	</div>
+</nav>
+
+<style>
+	nav {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--size-4);
+		padding: var(--size-2) 0 var(--size-3);
+		border-bottom: 1px solid var(--color-border-soft);
+		margin-bottom: var(--size-4);
+	}
+
+	.actions {
+		display: flex;
+		align-items: center;
+		gap: var(--size-4);
+		margin-left: auto;
+	}
+
+	.detail-link::before {
+		content: '← ';
+	}
+
+	nav a {
+		color: var(--color-text-muted);
+		text-decoration: none;
+		font-size: var(--font-size-0);
+	}
+
+	nav a:hover {
+		color: var(--color-accent);
+	}
+
+	.tools-item {
+		display: block;
+		padding: var(--size-1) var(--size-3);
+		font-size: var(--font-size-0);
+		outline-offset: -2px;
+	}
+
+	.tools-item:hover {
+		color: var(--color-accent);
+		background: var(--color-surface);
+	}
+
+	.tools-item:focus-visible {
+		outline: 2px solid var(--color-accent);
+	}
+</style>

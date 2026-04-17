@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { fetchLinkTypes, searchLinkTargets } from '$lib/api/link-types';
 	import type { LinkType, LinkTarget } from '$lib/api/link-types';
 	import { formatLinkText } from './wikilink-helpers';
@@ -26,7 +26,9 @@
 	// State
 	// -----------------------------------------------------------------------
 
-	let stage = $state<'type' | 'search' | 'cite'>(initialType === 'cite' ? 'cite' : 'type');
+	let stage = $state<'type' | 'search' | 'cite'>(
+		untrack(() => (initialType === 'cite' ? 'cite' : 'type'))
+	);
 
 	// Type picker
 	let linkTypes = $state<LinkType[]>([]);

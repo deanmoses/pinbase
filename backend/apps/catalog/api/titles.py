@@ -11,7 +11,6 @@ from apps.core.models import active_status_q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
-from ninja.errors import HttpError
 from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import django_auth
 
@@ -19,6 +18,7 @@ from .constants import DEFAULT_PAGE_SIZE
 from .edit_claims import (
     execute_claims,
     plan_abbreviation_claims,
+    raise_form_error,
     plan_scalar_field_claims,
 )
 from apps.provenance.helpers import build_sources, claims_prefetch
@@ -759,7 +759,7 @@ def list_all_titles(request):
 def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     """Assert title-owned claims and return the refreshed title detail."""
     if not data.fields and data.abbreviations is None:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     title = get_object_or_404(
         Title.objects.active().prefetch_related("abbreviations"), slug=slug
@@ -774,7 +774,7 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
         specs.extend(plan_abbreviation_claims(title, data.abbreviations))
 
     if not specs:
-        raise HttpError(422, "No changes provided.")
+        raise_form_error("No changes provided.")
 
     execute_claims(
         title,

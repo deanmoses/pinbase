@@ -179,6 +179,10 @@ a:hover {
 	color: var(--color-text-muted);
 }
 
+:where(input, textarea, select)[aria-invalid='true'] {
+	border-color: var(--color-error);
+}
+
 /* ========================================
    UTILITY
    ======================================== */

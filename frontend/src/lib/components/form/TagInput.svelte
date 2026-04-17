@@ -5,12 +5,14 @@
 		label,
 		tags = $bindable([]),
 		placeholder = '',
-		optional = false
+		optional = false,
+		error = ''
 	}: {
 		label: string;
 		tags?: string[];
 		placeholder?: string;
 		optional?: boolean;
+		error?: string;
 	} = $props();
 
 	let inputValue = $state('');
@@ -50,8 +52,8 @@
 	}
 </script>
 
-<FieldGroup {label} {optional}>
-	{#snippet children(inputId)}
+<FieldGroup {label} {optional} {error}>
+	{#snippet children(inputId, errorId)}
 		<input
 			id={inputId}
 			type="text"
@@ -60,6 +62,8 @@
 			onkeydown={handleKeydown}
 			onpaste={handlePaste}
 			onblur={() => addTag(inputValue)}
+			aria-invalid={error ? true : undefined}
+			aria-describedby={error ? errorId : undefined}
 		/>
 		{#if tags.length > 0}
 			<div class="selected-tags">
