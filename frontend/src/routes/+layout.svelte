@@ -1,19 +1,28 @@
 <script>
 	import '../app.css';
+	import { page } from '$app/state';
 	import Nav from '$lib/components/Nav.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 
 	let { children } = $props();
+
+	// Focus-mode routes (e.g. /titles/:slug/edit/:section) render their own
+	// minimal chrome; suppress site Nav/Footer and the page-content wrapper.
+	let isFocusMode = $derived(/\/edit(\/|$)/.test(page.url.pathname));
 </script>
 
 <div class="site-shell">
-	<Nav />
+	{#if !isFocusMode}
+		<Nav />
+	{/if}
 
-	<main class="page-content">
+	<main class:page-content={!isFocusMode} class:focus-content={isFocusMode}>
 		{@render children()}
 	</main>
 
-	<Footer />
+	{#if !isFocusMode}
+		<Footer />
+	{/if}
 </div>
 
 <style>
@@ -29,5 +38,10 @@
 		max-width: 72rem;
 		margin: 0 auto;
 		padding: var(--size-6) var(--size-5);
+	}
+
+	.focus-content {
+		flex: 1;
+		width: 100%;
 	}
 </style>

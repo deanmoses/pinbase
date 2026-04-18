@@ -160,262 +160,267 @@
 	imageAlt={model.hero_image_url ? `${model.name} pinball machine` : undefined}
 />
 
-{#snippet actionBar()}
-	{#if !isEdit}
-		<PageActionBar
-			detailHref={isDetail ? undefined : resolve(`/models/${slug}`)}
-			editSections={auth.isAuthenticated ? editSections : undefined}
-			historyHref={resolve(`/models/${slug}/edit-history`)}
-			sourcesHref={resolve(`/models/${slug}/sources`)}
-		/>
-	{/if}
-{/snippet}
-
-{#snippet main()}
+{#if isEdit}
 	{@render children()}
-{/snippet}
-
-{#snippet sidebar()}
-	{#if hasTechnology}
-		<SidebarSection heading="Technology" onEdit={editAction('technology')}>
-			<ModelSpecsSidebar {model} section="technology" />
-		</SidebarSection>
-	{/if}
-
-	{#if hasFeaturesExcludingFranchiseSeries}
-		<SidebarSection heading="Features" onEdit={editAction('features')}>
-			<ModelSpecsSidebar {model} section="features" showFranchiseSeries={false} />
-		</SidebarSection>
-	{/if}
-
-	<RatingsSidebarSection ipdbRating={model.ipdb_rating} pinsideRating={model.pinside_rating} />
-
-	<TaxonomyLinkSidebarSection heading="Franchise" basePath="/franchises" item={model.franchise} />
-	<TaxonomyLinkSidebarSection heading="Series" basePath="/series" item={model.series} />
-
-	{#if model.title}
-		<SidebarSection heading="Parent Title">
-			<SidebarList>
-				<SidebarListItem>
-					<a href={resolve(`/titles/${model.title.slug}`)}>{model.title.name}</a>
-				</SidebarListItem>
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.variants.length > 0}
-		<SidebarSection
-			heading="Variants of this Model"
-			note="These play identically, differing only cosmetically:"
-		>
-			<SidebarList>
-				{#each model.variants as variant (variant.slug)}
-					<SidebarListItem>
-						<a href={resolve(`/models/${variant.slug}`)}>{variant.name}</a>
-						{#if variant.year}
-							<span class="muted">{variant.year}</span>
-						{/if}
-					</SidebarListItem>
-				{/each}
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.variant_of}
-		<SidebarSection heading="Parent Model">
-			<SidebarList>
-				<SidebarListItem>
-					<a href={resolve(`/models/${model.variant_of.slug}`)}>{model.variant_of.name}</a>
-					{#if model.variant_of.year}
-						<span class="muted">{model.variant_of.year}</span>
-					{/if}
-				</SidebarListItem>
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.variant_siblings && model.variant_siblings.length > 0}
-		<SidebarSection heading="Other Variants">
-			<SidebarList>
-				{#each model.variant_siblings as sibling (sibling.slug)}
-					<SidebarListItem>
-						<a href={resolve(`/models/${sibling.slug}`)}>{sibling.name}</a>
-						{#if sibling.year}
-							<span class="muted">{sibling.year}</span>
-						{/if}
-					</SidebarListItem>
-				{/each}
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.converted_from}
-		<SidebarSection heading="Converted From" note="This game was rebuilt from the hardware of:">
-			<SidebarList>
-				<SidebarListItem>
-					<a href={resolve(`/models/${model.converted_from.slug}`)}>{model.converted_from.name}</a>
-					{#if model.converted_from.year}
-						<span class="muted">{model.converted_from.year}</span>
-					{/if}
-				</SidebarListItem>
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.conversions && model.conversions.length > 0}
-		<SidebarSection
-			heading="Conversions"
-			note="Different games rebuilt from this machine's hardware:"
-		>
-			<SidebarList>
-				{#each model.conversions as conversion (conversion.slug)}
-					<SidebarListItem>
-						<a href={resolve(`/models/${conversion.slug}`)}>{conversion.name}</a>
-						{#if conversion.year}
-							<span class="muted">{conversion.year}</span>
-						{/if}
-					</SidebarListItem>
-				{/each}
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.remake_of}
-		<SidebarSection heading="Remake Of" note="This game is a remake of:">
-			<SidebarList>
-				<SidebarListItem>
-					<a href={resolve(`/models/${model.remake_of.slug}`)}>{model.remake_of.name}</a>
-					{#if model.remake_of.year}
-						<span class="muted">{model.remake_of.year}</span>
-					{/if}
-				</SidebarListItem>
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	{#if model.remakes && model.remakes.length > 0}
-		<SidebarSection heading="Remakes" note="Later remakes of this machine:">
-			<SidebarList>
-				{#each model.remakes as remake (remake.slug)}
-					<SidebarListItem>
-						<a href={resolve(`/models/${remake.slug}`)}>{remake.name}</a>
-						{#if remake.year}
-							<span class="muted">{remake.year}</span>
-						{/if}
-					</SidebarListItem>
-				{/each}
-			</SidebarList>
-		</SidebarSection>
-	{/if}
-
-	<ModelHierarchy
-		models={model.title_models}
-		heading="Other Models In Title"
-		excludeSlug={model.variant_of?.slug ?? model.slug}
-	/>
-
-	<ExternalLinksSidebarSection
-		ipdbId={model.ipdb_id}
-		opdbId={model.opdb_id}
-		pinsideId={model.pinside_id}
-		note="See this model on other sites:"
-	/>
-{/snippet}
-
-<RecordDetailShell
-	name={model.name}
-	heroImageUrl={model.hero_image_url}
-	heroImageAlt="{model.name} backglass"
-	{parentLink}
-	{metaItems}
-	sidebarDesktopOnly={isDetail}
-	{actionBar}
-	{main}
-	sidebar={isEdit ? undefined : sidebar}
-/>
-
-<SectionEditorHost
-	bind:editingKey={editing}
-	sections={MODEL_EDIT_SECTIONS}
-	switcherItems={editSections}
->
-	{#snippet editor(key, { ref, onsaved, onerror, ondirtychange })}
-		{#if key === 'basics'}
-			<BasicsEditor
-				bind:this={ref.current}
-				initialData={model}
-				slug={model.slug}
-				slim={modelHasTitleOwnedIdentity(model)}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'overview'}
-			<OverviewEditor
-				bind:this={ref.current}
-				initialData={model.description?.text ?? ''}
-				slug={model.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'technology'}
-			<TechnologyEditor
-				bind:this={ref.current}
-				initialData={model}
-				slug={model.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'features'}
-			<FeaturesEditor
-				bind:this={ref.current}
-				initialData={model}
-				slug={model.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'people'}
-			<PeopleEditor
-				bind:this={ref.current}
-				initialData={model.credits}
-				slug={model.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'related-models'}
-			<RelatedModelsEditor
-				bind:this={ref.current}
-				initialData={model}
-				slug={model.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'external-data'}
-			<ExternalDataEditor
-				bind:this={ref.current}
-				initialData={model}
-				slug={model.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
+{:else}
+	{#snippet actionBar()}
+		{#if !isEdit}
+			<PageActionBar
+				detailHref={isDetail ? undefined : resolve(`/models/${slug}`)}
+				editSections={auth.isAuthenticated ? editSections : undefined}
+				historyHref={resolve(`/models/${slug}/edit-history`)}
+				sourcesHref={resolve(`/models/${slug}/sources`)}
 			/>
 		{/if}
 	{/snippet}
 
-	{#snippet immediateEditor()}
-		<MediaEditor
-			entityType="model"
-			slug={model.slug}
-			media={model.uploaded_media}
-			categories={[...MEDIA_CATEGORIES.model]}
+	{#snippet main()}
+		{@render children()}
+	{/snippet}
+
+	{#snippet sidebar()}
+		{#if hasTechnology}
+			<SidebarSection heading="Technology" onEdit={editAction('technology')}>
+				<ModelSpecsSidebar {model} section="technology" />
+			</SidebarSection>
+		{/if}
+
+		{#if hasFeaturesExcludingFranchiseSeries}
+			<SidebarSection heading="Features" onEdit={editAction('features')}>
+				<ModelSpecsSidebar {model} section="features" showFranchiseSeries={false} />
+			</SidebarSection>
+		{/if}
+
+		<RatingsSidebarSection ipdbRating={model.ipdb_rating} pinsideRating={model.pinside_rating} />
+
+		<TaxonomyLinkSidebarSection heading="Franchise" basePath="/franchises" item={model.franchise} />
+		<TaxonomyLinkSidebarSection heading="Series" basePath="/series" item={model.series} />
+
+		{#if model.title}
+			<SidebarSection heading="Parent Title">
+				<SidebarList>
+					<SidebarListItem>
+						<a href={resolve(`/titles/${model.title.slug}`)}>{model.title.name}</a>
+					</SidebarListItem>
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.variants.length > 0}
+			<SidebarSection
+				heading="Variants of this Model"
+				note="These play identically, differing only cosmetically:"
+			>
+				<SidebarList>
+					{#each model.variants as variant (variant.slug)}
+						<SidebarListItem>
+							<a href={resolve(`/models/${variant.slug}`)}>{variant.name}</a>
+							{#if variant.year}
+								<span class="muted">{variant.year}</span>
+							{/if}
+						</SidebarListItem>
+					{/each}
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.variant_of}
+			<SidebarSection heading="Parent Model">
+				<SidebarList>
+					<SidebarListItem>
+						<a href={resolve(`/models/${model.variant_of.slug}`)}>{model.variant_of.name}</a>
+						{#if model.variant_of.year}
+							<span class="muted">{model.variant_of.year}</span>
+						{/if}
+					</SidebarListItem>
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.variant_siblings && model.variant_siblings.length > 0}
+			<SidebarSection heading="Other Variants">
+				<SidebarList>
+					{#each model.variant_siblings as sibling (sibling.slug)}
+						<SidebarListItem>
+							<a href={resolve(`/models/${sibling.slug}`)}>{sibling.name}</a>
+							{#if sibling.year}
+								<span class="muted">{sibling.year}</span>
+							{/if}
+						</SidebarListItem>
+					{/each}
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.converted_from}
+			<SidebarSection heading="Converted From" note="This game was rebuilt from the hardware of:">
+				<SidebarList>
+					<SidebarListItem>
+						<a href={resolve(`/models/${model.converted_from.slug}`)}>{model.converted_from.name}</a
+						>
+						{#if model.converted_from.year}
+							<span class="muted">{model.converted_from.year}</span>
+						{/if}
+					</SidebarListItem>
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.conversions && model.conversions.length > 0}
+			<SidebarSection
+				heading="Conversions"
+				note="Different games rebuilt from this machine's hardware:"
+			>
+				<SidebarList>
+					{#each model.conversions as conversion (conversion.slug)}
+						<SidebarListItem>
+							<a href={resolve(`/models/${conversion.slug}`)}>{conversion.name}</a>
+							{#if conversion.year}
+								<span class="muted">{conversion.year}</span>
+							{/if}
+						</SidebarListItem>
+					{/each}
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.remake_of}
+			<SidebarSection heading="Remake Of" note="This game is a remake of:">
+				<SidebarList>
+					<SidebarListItem>
+						<a href={resolve(`/models/${model.remake_of.slug}`)}>{model.remake_of.name}</a>
+						{#if model.remake_of.year}
+							<span class="muted">{model.remake_of.year}</span>
+						{/if}
+					</SidebarListItem>
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		{#if model.remakes && model.remakes.length > 0}
+			<SidebarSection heading="Remakes" note="Later remakes of this machine:">
+				<SidebarList>
+					{#each model.remakes as remake (remake.slug)}
+						<SidebarListItem>
+							<a href={resolve(`/models/${remake.slug}`)}>{remake.name}</a>
+							{#if remake.year}
+								<span class="muted">{remake.year}</span>
+							{/if}
+						</SidebarListItem>
+					{/each}
+				</SidebarList>
+			</SidebarSection>
+		{/if}
+
+		<ModelHierarchy
+			models={model.title_models}
+			heading="Other Models In Title"
+			excludeSlug={model.variant_of?.slug ?? model.slug}
+		/>
+
+		<ExternalLinksSidebarSection
+			ipdbId={model.ipdb_id}
+			opdbId={model.opdb_id}
+			pinsideId={model.pinside_id}
+			note="See this model on other sites:"
 		/>
 	{/snippet}
-</SectionEditorHost>
+
+	<RecordDetailShell
+		name={model.name}
+		heroImageUrl={model.hero_image_url}
+		heroImageAlt="{model.name} backglass"
+		{parentLink}
+		{metaItems}
+		sidebarDesktopOnly={isDetail}
+		{actionBar}
+		{main}
+		sidebar={isEdit ? undefined : sidebar}
+	/>
+
+	<SectionEditorHost
+		bind:editingKey={editing}
+		sections={MODEL_EDIT_SECTIONS}
+		switcherItems={editSections}
+	>
+		{#snippet editor(key, { ref, onsaved, onerror, ondirtychange })}
+			{#if key === 'basics'}
+				<BasicsEditor
+					bind:this={ref.current}
+					initialData={model}
+					slug={model.slug}
+					slim={modelHasTitleOwnedIdentity(model)}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'overview'}
+				<OverviewEditor
+					bind:this={ref.current}
+					initialData={model.description?.text ?? ''}
+					slug={model.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'technology'}
+				<TechnologyEditor
+					bind:this={ref.current}
+					initialData={model}
+					slug={model.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'features'}
+				<FeaturesEditor
+					bind:this={ref.current}
+					initialData={model}
+					slug={model.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'people'}
+				<PeopleEditor
+					bind:this={ref.current}
+					initialData={model.credits}
+					slug={model.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'related-models'}
+				<RelatedModelsEditor
+					bind:this={ref.current}
+					initialData={model}
+					slug={model.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'external-data'}
+				<ExternalDataEditor
+					bind:this={ref.current}
+					initialData={model}
+					slug={model.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{/if}
+		{/snippet}
+
+		{#snippet immediateEditor()}
+			<MediaEditor
+				entityType="model"
+				slug={model.slug}
+				media={model.uploaded_media}
+				categories={[...MEDIA_CATEGORIES.model]}
+			/>
+		{/snippet}
+	</SectionEditorHost>
+{/if}
 
 <style>
 	.muted {

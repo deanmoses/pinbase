@@ -145,276 +145,284 @@
 	imageAlt={heroImage ? `${title.name} pinball machine` : undefined}
 />
 
-{#if title.needs_review}
-	<NeedsReviewBanner notes={title.needs_review_notes} links={title.review_links} />
-{/if}
-
-{#snippet actionBar()}
-	{#if !isEdit}
-		<PageActionBar
-			editSections={editSectionsForBar}
-			historyHref={resolve(`/titles/${slug}/edit-history`)}
-			sourcesHref={resolve(`/titles/${slug}/sources`)}
-		/>
-	{/if}
-{/snippet}
-
-{#snippet main()}
+{#if isEdit}
 	{@render children()}
-{/snippet}
-
-{#snippet sidebar()}
-	{#if md}
-		<SidebarSection heading="Specifications">
-			<ModelSpecsSidebar model={md} />
-		</SidebarSection>
-
-		<RatingsSidebarSection ipdbRating={md.ipdb_rating} pinsideRating={md.pinside_rating} />
-
-		{#if md.variants.length > 0}
-			<SidebarSection heading="Variants">
-				<SidebarList>
-					{#each md.variants as variant (variant.slug)}
-						<SidebarListItem>
-							<a href={resolve(`/models/${variant.slug}`)}>{variant.name}</a>
-							{#if variant.year}
-								<span class="muted">{variant.year}</span>
-							{/if}
-						</SidebarListItem>
-					{/each}
-				</SidebarList>
-			</SidebarSection>
-		{/if}
-
-		<ExternalLinksSidebarSection
-			ipdbId={md.ipdb_id}
-			opdbId={md.opdb_id}
-			pinsideId={md.pinside_id}
-			note="See this title on other sites:"
-		/>
-	{:else}
-		{#if specs.technology_generation || specs.display_type || specs.player_count || specs.system || specs.cabinet || specs.game_format || specs.display_subtype || specs.production_quantity || (specs.themes && specs.themes.length > 0) || title.abbreviations.length > 0}
-			<SidebarSection heading="Specifications">
-				<dl>
-					{#if specs.technology_generation}
-						<dt>Generation</dt>
-						<dd>
-							<a href={resolve(`/technology-generations/${specs.technology_generation.slug}`)}
-								>{specs.technology_generation.name}</a
-							>
-						</dd>
-					{/if}
-					{#if specs.display_type}
-						<dt>Display Type</dt>
-						<dd>
-							<a href={resolve(`/display-types/${specs.display_type.slug}`)}
-								>{specs.display_type.name}</a
-							>
-						</dd>
-					{/if}
-					{#if specs.player_count}
-						<dt>Players</dt>
-						<dd>{specs.player_count}</dd>
-					{/if}
-					{#if specs.flipper_count}
-						<dt>Flippers</dt>
-						<dd>{specs.flipper_count}</dd>
-					{/if}
-					{#if specs.production_quantity}
-						<dt>Units Made</dt>
-						<dd>{specs.production_quantity}</dd>
-					{/if}
-					{#if specs.system}
-						<dt>System</dt>
-						<dd>
-							<a href={resolve(`/systems/${specs.system.slug}`)}>{specs.system.name}</a>
-						</dd>
-					{/if}
-					{#if specs.themes && specs.themes.length > 0}
-						<dt>Themes</dt>
-						<dd>
-							{#each specs.themes as theme, i (theme.slug)}
-								{#if i > 0},{/if}
-								<a href={resolve(`/themes/${theme.slug}`)}>{theme.name}</a>
-							{/each}
-						</dd>
-					{/if}
-					{#if specs.gameplay_features && specs.gameplay_features.length > 0}
-						<dt>Features</dt>
-						<dd>
-							{#each specs.gameplay_features as feature, i (feature.slug)}
-								{#if i > 0},{/if}
-								<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a
-								>{#if feature.count}&nbsp;({feature.count}){/if}
-							{/each}
-						</dd>
-					{/if}
-					{#if specs.reward_types && specs.reward_types.length > 0}
-						<dt>Reward Types</dt>
-						<dd>
-							{#each specs.reward_types as rt, i (rt.slug)}
-								{#if i > 0},{/if}
-								<a href={resolve(`/reward-types/${rt.slug}`)}>{rt.name}</a>
-							{/each}
-						</dd>
-					{/if}
-					{#if title.abbreviations.length > 0}
-						<dt>Abbrs</dt>
-						<dd>{title.abbreviations.join(', ')}</dd>
-					{/if}
-					{#if specs.cabinet}
-						<dt>Cabinet</dt>
-						<dd>
-							<a href={resolve(`/cabinets/${specs.cabinet.slug}`)}>{specs.cabinet.name}</a>
-						</dd>
-					{/if}
-					{#if specs.game_format}
-						<dt>Format</dt>
-						<dd>
-							<a href={resolve(`/game-formats/${specs.game_format.slug}`)}
-								>{specs.game_format.name}</a
-							>
-						</dd>
-					{/if}
-					{#if specs.display_subtype}
-						<dt>Display</dt>
-						<dd>
-							<a href={resolve(`/display-subtypes/${specs.display_subtype.slug}`)}
-								>{specs.display_subtype.name}</a
-							>
-						</dd>
-					{/if}
-				</dl>
-			</SidebarSection>
-		{/if}
-
-		<TaxonomyLinkSidebarSection heading="Franchise" basePath="/franchises" item={title.franchise} />
-		<TaxonomyLinkSidebarSection heading="Series" basePath="/series" item={title.series} />
-
-		{#if title.machines.length > 0}
-			<ModelHierarchy models={title.machines} />
-		{/if}
+{:else}
+	{#if title.needs_review}
+		<NeedsReviewBanner notes={title.needs_review_notes} links={title.review_links} />
 	{/if}
-{/snippet}
 
-<RecordDetailShell
-	name={title.name}
-	heroImageUrl={md ? md.hero_image_url : title.hero_image_url}
-	heroImageAlt="{title.name} backglass"
-	{metaItems}
-	sidebarDesktopOnly={isDetail}
-	{actionBar}
-	{main}
-	sidebar={isEdit ? undefined : sidebar}
-/>
-
-<SectionEditorHost bind:editingKey={editing} {sections} {switcherItems}>
-	{#snippet editor(key, { ref, onsaved, onerror, ondirtychange })}
-		{#if key === 'title:overview'}
-			<TitleOverviewEditor
-				bind:this={ref.current}
-				initialData={title.description?.text ?? ''}
-				slug={title.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'title:basics'}
-			<TitleBasicsEditor
-				bind:this={ref.current}
-				initialData={title}
-				slug={title.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if key === 'title:external-data'}
-			<TitleExternalDataEditor
-				bind:this={ref.current}
-				initialData={title}
-				slug={title.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:overview'}
-			<OverviewEditor
-				bind:this={ref.current}
-				initialData={md.description?.text ?? ''}
-				slug={md.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:basics'}
-			<BasicsEditor
-				bind:this={ref.current}
-				initialData={md}
-				slug={md.slug}
-				slim={modelHasTitleOwnedIdentity(md)}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:technology'}
-			<TechnologyEditor
-				bind:this={ref.current}
-				initialData={md}
-				slug={md.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:features'}
-			<FeaturesEditor
-				bind:this={ref.current}
-				initialData={md}
-				slug={md.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:people'}
-			<PeopleEditor
-				bind:this={ref.current}
-				initialData={md.credits}
-				slug={md.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:related-models'}
-			<RelatedModelsEditor
-				bind:this={ref.current}
-				initialData={md}
-				slug={md.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
-			/>
-		{:else if md && key === 'model:external-data'}
-			<ExternalDataEditor
-				bind:this={ref.current}
-				initialData={md}
-				slug={md.slug}
-				{onsaved}
-				{onerror}
-				{ondirtychange}
+	{#snippet actionBar()}
+		{#if !isEdit}
+			<PageActionBar
+				editSections={editSectionsForBar}
+				historyHref={resolve(`/titles/${slug}/edit-history`)}
+				sourcesHref={resolve(`/titles/${slug}/sources`)}
 			/>
 		{/if}
 	{/snippet}
 
-	{#snippet immediateEditor()}
+	{#snippet main()}
+		{@render children()}
+	{/snippet}
+
+	{#snippet sidebar()}
 		{#if md}
-			<MediaEditor
-				entityType="model"
-				slug={md.slug}
-				media={md.uploaded_media}
-				categories={[...MEDIA_CATEGORIES.model]}
+			<SidebarSection heading="Specifications">
+				<ModelSpecsSidebar model={md} />
+			</SidebarSection>
+
+			<RatingsSidebarSection ipdbRating={md.ipdb_rating} pinsideRating={md.pinside_rating} />
+
+			{#if md.variants.length > 0}
+				<SidebarSection heading="Variants">
+					<SidebarList>
+						{#each md.variants as variant (variant.slug)}
+							<SidebarListItem>
+								<a href={resolve(`/models/${variant.slug}`)}>{variant.name}</a>
+								{#if variant.year}
+									<span class="muted">{variant.year}</span>
+								{/if}
+							</SidebarListItem>
+						{/each}
+					</SidebarList>
+				</SidebarSection>
+			{/if}
+
+			<ExternalLinksSidebarSection
+				ipdbId={md.ipdb_id}
+				opdbId={md.opdb_id}
+				pinsideId={md.pinside_id}
+				note="See this title on other sites:"
 			/>
+		{:else}
+			{#if specs.technology_generation || specs.display_type || specs.player_count || specs.system || specs.cabinet || specs.game_format || specs.display_subtype || specs.production_quantity || (specs.themes && specs.themes.length > 0) || title.abbreviations.length > 0}
+				<SidebarSection heading="Specifications">
+					<dl>
+						{#if specs.technology_generation}
+							<dt>Generation</dt>
+							<dd>
+								<a href={resolve(`/technology-generations/${specs.technology_generation.slug}`)}
+									>{specs.technology_generation.name}</a
+								>
+							</dd>
+						{/if}
+						{#if specs.display_type}
+							<dt>Display Type</dt>
+							<dd>
+								<a href={resolve(`/display-types/${specs.display_type.slug}`)}
+									>{specs.display_type.name}</a
+								>
+							</dd>
+						{/if}
+						{#if specs.player_count}
+							<dt>Players</dt>
+							<dd>{specs.player_count}</dd>
+						{/if}
+						{#if specs.flipper_count}
+							<dt>Flippers</dt>
+							<dd>{specs.flipper_count}</dd>
+						{/if}
+						{#if specs.production_quantity}
+							<dt>Units Made</dt>
+							<dd>{specs.production_quantity}</dd>
+						{/if}
+						{#if specs.system}
+							<dt>System</dt>
+							<dd>
+								<a href={resolve(`/systems/${specs.system.slug}`)}>{specs.system.name}</a>
+							</dd>
+						{/if}
+						{#if specs.themes && specs.themes.length > 0}
+							<dt>Themes</dt>
+							<dd>
+								{#each specs.themes as theme, i (theme.slug)}
+									{#if i > 0},{/if}
+									<a href={resolve(`/themes/${theme.slug}`)}>{theme.name}</a>
+								{/each}
+							</dd>
+						{/if}
+						{#if specs.gameplay_features && specs.gameplay_features.length > 0}
+							<dt>Features</dt>
+							<dd>
+								{#each specs.gameplay_features as feature, i (feature.slug)}
+									{#if i > 0},{/if}
+									<a href={resolve(`/gameplay-features/${feature.slug}`)}>{feature.name}</a
+									>{#if feature.count}&nbsp;({feature.count}){/if}
+								{/each}
+							</dd>
+						{/if}
+						{#if specs.reward_types && specs.reward_types.length > 0}
+							<dt>Reward Types</dt>
+							<dd>
+								{#each specs.reward_types as rt, i (rt.slug)}
+									{#if i > 0},{/if}
+									<a href={resolve(`/reward-types/${rt.slug}`)}>{rt.name}</a>
+								{/each}
+							</dd>
+						{/if}
+						{#if title.abbreviations.length > 0}
+							<dt>Abbrs</dt>
+							<dd>{title.abbreviations.join(', ')}</dd>
+						{/if}
+						{#if specs.cabinet}
+							<dt>Cabinet</dt>
+							<dd>
+								<a href={resolve(`/cabinets/${specs.cabinet.slug}`)}>{specs.cabinet.name}</a>
+							</dd>
+						{/if}
+						{#if specs.game_format}
+							<dt>Format</dt>
+							<dd>
+								<a href={resolve(`/game-formats/${specs.game_format.slug}`)}
+									>{specs.game_format.name}</a
+								>
+							</dd>
+						{/if}
+						{#if specs.display_subtype}
+							<dt>Display</dt>
+							<dd>
+								<a href={resolve(`/display-subtypes/${specs.display_subtype.slug}`)}
+									>{specs.display_subtype.name}</a
+								>
+							</dd>
+						{/if}
+					</dl>
+				</SidebarSection>
+			{/if}
+
+			<TaxonomyLinkSidebarSection
+				heading="Franchise"
+				basePath="/franchises"
+				item={title.franchise}
+			/>
+			<TaxonomyLinkSidebarSection heading="Series" basePath="/series" item={title.series} />
+
+			{#if title.machines.length > 0}
+				<ModelHierarchy models={title.machines} />
+			{/if}
 		{/if}
 	{/snippet}
-</SectionEditorHost>
+
+	<RecordDetailShell
+		name={title.name}
+		heroImageUrl={md ? md.hero_image_url : title.hero_image_url}
+		heroImageAlt="{title.name} backglass"
+		{metaItems}
+		sidebarDesktopOnly={isDetail}
+		{actionBar}
+		{main}
+		sidebar={isEdit ? undefined : sidebar}
+	/>
+
+	<SectionEditorHost bind:editingKey={editing} {sections} {switcherItems}>
+		{#snippet editor(key, { ref, onsaved, onerror, ondirtychange })}
+			{#if key === 'title:overview'}
+				<TitleOverviewEditor
+					bind:this={ref.current}
+					initialData={title.description?.text ?? ''}
+					slug={title.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'title:basics'}
+				<TitleBasicsEditor
+					bind:this={ref.current}
+					initialData={title}
+					slug={title.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if key === 'title:external-data'}
+				<TitleExternalDataEditor
+					bind:this={ref.current}
+					initialData={title}
+					slug={title.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:overview'}
+				<OverviewEditor
+					bind:this={ref.current}
+					initialData={md.description?.text ?? ''}
+					slug={md.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:basics'}
+				<BasicsEditor
+					bind:this={ref.current}
+					initialData={md}
+					slug={md.slug}
+					slim={modelHasTitleOwnedIdentity(md)}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:technology'}
+				<TechnologyEditor
+					bind:this={ref.current}
+					initialData={md}
+					slug={md.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:features'}
+				<FeaturesEditor
+					bind:this={ref.current}
+					initialData={md}
+					slug={md.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:people'}
+				<PeopleEditor
+					bind:this={ref.current}
+					initialData={md.credits}
+					slug={md.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:related-models'}
+				<RelatedModelsEditor
+					bind:this={ref.current}
+					initialData={md}
+					slug={md.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{:else if md && key === 'model:external-data'}
+				<ExternalDataEditor
+					bind:this={ref.current}
+					initialData={md}
+					slug={md.slug}
+					{onsaved}
+					{onerror}
+					{ondirtychange}
+				/>
+			{/if}
+		{/snippet}
+
+		{#snippet immediateEditor()}
+			{#if md}
+				<MediaEditor
+					entityType="model"
+					slug={md.slug}
+					media={md.uploaded_media}
+					categories={[...MEDIA_CATEGORIES.model]}
+				/>
+			{/if}
+		{/snippet}
+	</SectionEditorHost>
+{/if}
 
 <style>
 	dl {
