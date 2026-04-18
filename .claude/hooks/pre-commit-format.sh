@@ -47,4 +47,46 @@ if [ -n "$STAGED_MD" ]; then
   done
 fi
 
+# --- Generic whitespace fixers (mirrors pre-commit-hooks built-ins) ---
+# trailing-whitespace + end-of-file-fixer exclude .md; mixed-line-ending applies to all.
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACM)
+if [ -n "$STAGED_ALL" ]; then
+  echo "$STAGED_ALL" | while IFS= read -r file; do
+    [ -f "$file" ] || continue
+    # Skip binary files
+    if ! grep -Iq . "$file" 2>/dev/null; then
+      continue
+    fi
+
+    changed=0
+
+    # CRLF -> LF (all files)
+    if grep -q $'\r' "$file" 2>/dev/null; then
+      LC_ALL=C sed -i '' $'s/\r$//' "$file"
+      changed=1
+    fi
+
+    # trailing-whitespace + end-of-file-fixer skip .md
+    case "$file" in
+      *.md) ;;
+      *)
+        # Strip trailing whitespace on each line
+        if grep -qE '[ 	]+$' "$file" 2>/dev/null; then
+          LC_ALL=C sed -i '' -E 's/[[:space:]]+$//' "$file"
+          changed=1
+        fi
+        # Ensure file ends with exactly one newline
+        if [ -s "$file" ] && [ "$(tail -c 1 "$file" | xxd -p)" != "0a" ]; then
+          printf '\n' >> "$file"
+          changed=1
+        fi
+        ;;
+    esac
+
+    if [ "$changed" = "1" ]; then
+      git add "$file"
+    fi
+  done
+fi
+
 exit 0
