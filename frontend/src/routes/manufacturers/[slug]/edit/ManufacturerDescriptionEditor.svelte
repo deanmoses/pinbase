@@ -7,7 +7,7 @@
 		saveManufacturerClaims,
 		type FieldErrors,
 		type SaveMeta,
-		type SaveResult
+		type ManufacturerSaveResult
 	} from './save-manufacturer-claims';
 
 	let {
@@ -38,7 +38,7 @@
 			return;
 		}
 
-		const result: SaveResult = await saveManufacturerClaims(slug, {
+		const result: ManufacturerSaveResult = await saveManufacturerClaims(slug, {
 			fields: { description },
 			...meta
 		});

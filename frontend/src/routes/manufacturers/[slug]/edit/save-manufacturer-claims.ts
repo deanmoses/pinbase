@@ -17,10 +17,14 @@ export type ManufacturerSectionPatchBody = Partial<
 	Pick<ManufacturerClaimsBody, 'fields' | 'note' | 'citation'>
 >;
 
+export type ManufacturerSaveResult = SaveResult & {
+	updatedSlug?: string;
+};
+
 export async function saveManufacturerClaims(
 	slug: string,
 	body: ManufacturerSectionPatchBody
-): Promise<SaveResult & { updatedSlug?: string }> {
+): Promise<ManufacturerSaveResult> {
 	const { data, error } = await client.PATCH('/api/manufacturers/{slug}/claims/', {
 		params: { path: { slug } },
 		body: { fields: {}, note: '', ...body }

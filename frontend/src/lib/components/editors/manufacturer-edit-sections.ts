@@ -10,7 +10,7 @@ export const MANUFACTURER_EDIT_SECTIONS: ManufacturerEditSectionDef[] = [
 		segment: 'name',
 		label: 'Name',
 		showCitation: true,
-		showMixedEditWarning: true
+		showMixedEditWarning: false
 	},
 	{
 		key: 'description',

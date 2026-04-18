@@ -23,4 +23,8 @@ describe('manufacturer edit sections', () => {
 		expect(findManufacturerSectionBySegment('description')?.key).toBe('description');
 		expect(findManufacturerSectionBySegment('missing')).toBeUndefined();
 	});
+
+	it('does not show the mixed-edit warning for the name section', () => {
+		expect(findManufacturerSectionBySegment('name')?.showMixedEditWarning).toBe(false);
+	});
 });

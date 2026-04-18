@@ -1,15 +1,25 @@
 import { render } from 'svelte/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { pageState } = vi.hoisted(() => ({
+const { pageState, authState } = vi.hoisted(() => ({
 	pageState: {
 		params: { slug: 'medieval-madness' },
 		url: new URL('http://localhost:5173/titles/medieval-madness')
-	}
+	},
+	authState: { isAuthenticated: false }
 }));
 
 vi.mock('$app/state', () => ({
 	page: pageState
+}));
+
+vi.mock('$lib/auth.svelte', () => ({
+	auth: {
+		get isAuthenticated() {
+			return authState.isAuthenticated;
+		},
+		load: vi.fn()
+	}
 }));
 
 import Harness from './layout.test-harness.svelte';
@@ -50,6 +60,7 @@ describe('title layout', () => {
 	beforeEach(() => {
 		pageState.params.slug = 'medieval-madness';
 		pageState.url = new URL('http://localhost:5173/titles/medieval-madness');
+		authState.isAuthenticated = false;
 	});
 
 	it('omits the Back link on the detail route', () => {
@@ -70,5 +81,23 @@ describe('title layout', () => {
 
 		expect(body).toContain('>Back<');
 		expect(body).toContain('/titles/medieval-madness');
+	});
+
+	it('renders direct edit links on editable title sidebar sections when authenticated', () => {
+		authState.isAuthenticated = true;
+
+		const { body } = render(Harness, {
+			props: {
+				data: {
+					title: {
+						...MOCK_TITLE,
+						franchise: { name: 'Williams Classics', slug: 'williams-classics' }
+					}
+				}
+			}
+		});
+
+		expect(body).toContain('Franchise');
+		expect(body).toContain('>edit<');
 	});
 });

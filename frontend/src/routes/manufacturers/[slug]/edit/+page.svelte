@@ -4,19 +4,11 @@
 	import { resolve } from '$app/paths';
 	import { defaultManufacturerSectionSegment } from '$lib/components/editors/manufacturer-edit-sections';
 	import { LAYOUT_BREAKPOINT } from '$lib/constants';
+	import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
 
 	let slug = $derived(page.params.slug);
-	let isMobile = $state<boolean | null>(null);
-
-	$effect(() => {
-		const mql = matchMedia(`(max-width: ${LAYOUT_BREAKPOINT}rem)`);
-		isMobile = mql.matches;
-		function onChange(e: MediaQueryListEvent) {
-			isMobile = e.matches;
-		}
-		mql.addEventListener('change', onChange);
-		return () => mql.removeEventListener('change', onChange);
-	});
+	const isMobileFlag = createIsMobileFlag(LAYOUT_BREAKPOINT);
+	let isMobile = $derived<boolean | null>(isMobileFlag.current);
 
 	$effect(() => {
 		if (isMobile === false) {

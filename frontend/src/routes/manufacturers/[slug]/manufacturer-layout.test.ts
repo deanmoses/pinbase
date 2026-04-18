@@ -1,15 +1,25 @@
 import { render } from 'svelte/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { pageState } = vi.hoisted(() => ({
+const { pageState, authState } = vi.hoisted(() => ({
 	pageState: {
 		params: { slug: 'williams' },
 		url: new URL('http://localhost:5173/manufacturers/williams')
-	}
+	},
+	authState: { isAuthenticated: false }
 }));
 
 vi.mock('$app/state', () => ({
 	page: pageState
+}));
+
+vi.mock('$lib/auth.svelte', () => ({
+	auth: {
+		get isAuthenticated() {
+			return authState.isAuthenticated;
+		},
+		load: vi.fn()
+	}
 }));
 
 import Harness from './layout.test-harness.svelte';
@@ -49,6 +59,7 @@ describe('manufacturer layout', () => {
 	beforeEach(() => {
 		pageState.params.slug = 'williams';
 		pageState.url = new URL('http://localhost:5173/manufacturers/williams');
+		authState.isAuthenticated = false;
 	});
 
 	it('renders the action bar without the legacy tab navigation on the detail route', () => {
@@ -70,5 +81,16 @@ describe('manufacturer layout', () => {
 
 		expect(body).toContain('>Back<');
 		expect(body).toContain('/manufacturers/williams');
+	});
+
+	it('renders a direct edit link on the Links sidebar section when authenticated', () => {
+		authState.isAuthenticated = true;
+
+		const { body } = render(Harness, {
+			props: { data: { manufacturer: MOCK_MANUFACTURER } }
+		});
+
+		expect(body).toContain('Links');
+		expect(body).toContain('>edit<');
 	});
 });

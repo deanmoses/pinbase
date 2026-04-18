@@ -1,13 +1,17 @@
 <script lang="ts">
-	import { setContext } from 'svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import EditSectionMenu from '$lib/components/EditSectionMenu.svelte';
+	import EditSectionShell from '$lib/components/EditSectionShell.svelte';
 	import type { EditSectionMenuItem } from '$lib/components/edit-section-menu';
 	import {
+		defaultManufacturerSectionSegment,
 		findManufacturerSectionBySegment,
 		MANUFACTURER_EDIT_SECTIONS
 	} from '$lib/components/editors/manufacturer-edit-sections';
+	import { setEditLayoutContext } from '$lib/components/editors/edit-layout-context';
+	import { LAYOUT_BREAKPOINT } from '$lib/constants';
+	import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
 
 	let { children } = $props();
 	let slug = $derived(page.params.slug);
@@ -16,8 +20,10 @@
 		sectionSegment ? findManufacturerSectionBySegment(sectionSegment) : undefined
 	);
 	let editorDirty = $state(false);
+	const isMobileFlag = createIsMobileFlag(LAYOUT_BREAKPOINT, null);
+	let isMobile = $derived(isMobileFlag.current);
 
-	setContext('edit-layout', {
+	setEditLayoutContext({
 		setDirty(dirty: boolean) {
 			editorDirty = dirty;
 		}
@@ -30,58 +36,21 @@
 			href: resolve(`/manufacturers/${slug}/edit/${section.segment}`)
 		}))
 	);
+
+	$effect(() => {
+		if (isMobile !== false) return;
+		const segment = currentSection?.segment ?? defaultManufacturerSectionSegment();
+		goto(resolve(`/manufacturers/${slug}?edit=${segment}`), { replaceState: true });
+	});
 </script>
 
-<div class="edit-shell">
-	<header class="edit-header">
-		<a href={resolve(`/manufacturers/${slug}`)} class="back-link">&larr; Back</a>
-		<h1>
-			{#if currentSection}
-				<EditSectionMenu
-					items={switcherItems}
-					currentKey={currentSection.key}
-					disabled={editorDirty}
-					variant="heading"
-				/>
-			{:else}
-				Edit
-			{/if}
-		</h1>
-	</header>
-
-	{@render children()}
-</div>
-
-<style>
-	.edit-shell {
-		max-width: 48rem;
-		margin: 0 auto;
-		padding: var(--size-4);
-	}
-
-	.edit-header {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		margin-bottom: var(--size-4);
-	}
-
-	.back-link {
-		position: absolute;
-		left: 0;
-		font-size: var(--font-size-1);
-		color: var(--color-text-muted);
-		text-decoration: none;
-	}
-
-	.back-link:hover {
-		color: var(--color-text-primary);
-	}
-
-	.edit-header h1 {
-		font-size: var(--font-size-3);
-		font-weight: 600;
-		margin: 0;
-	}
-</style>
+{#if isMobile === true}
+	<EditSectionShell
+		detailHref={resolve(`/manufacturers/${slug}`)}
+		{switcherItems}
+		currentSectionKey={currentSection?.key}
+		{editorDirty}
+	>
+		{@render children()}
+	</EditSectionShell>
+{/if}

@@ -7,10 +7,10 @@
 	import { diffScalarFields } from '$lib/edit-helpers';
 	import type { ManufacturerEditView } from './manufacturer-edit-types';
 	import {
+		type ManufacturerSaveResult,
 		saveManufacturerClaims,
 		type FieldErrors,
-		type SaveMeta,
-		type SaveResult
+		type SaveMeta
 	} from './save-manufacturer-claims';
 
 	type NameFields = {
@@ -54,7 +54,7 @@
 			return;
 		}
 
-		const result: SaveResult & { updatedSlug?: string } = await saveManufacturerClaims(slug, {
+		const result: ManufacturerSaveResult = await saveManufacturerClaims(slug, {
 			fields: changedFields,
 			...meta
 		});

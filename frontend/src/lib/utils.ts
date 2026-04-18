@@ -22,3 +22,11 @@ export function formatYearRange(yearStart?: number | null, yearEnd?: number | nu
 	if (yearEnd) return `\u2013${yearEnd}`;
 	return null;
 }
+
+export function websiteHostname(url: string): string {
+	try {
+		return new URL(url).hostname;
+	} catch {
+		return url;
+	}
+}

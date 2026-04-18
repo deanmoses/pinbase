@@ -7,17 +7,19 @@
 	let {
 		heading,
 		basePath,
-		item
+		item,
+		onEdit = undefined
 	}: {
 		heading: string;
 		/** Section prefix, e.g. '/franchises' or '/series'. */
 		basePath: string;
 		item: { slug: string; name: string } | null | undefined;
+		onEdit?: (() => void) | undefined;
 	} = $props();
 </script>
 
 {#if item}
-	<SidebarSection {heading}>
+	<SidebarSection {heading} {onEdit}>
 		<SidebarList>
 			<SidebarListItem>
 				<a href={resolveHref(`${basePath}/${item.slug}`)}>{item.name}</a>

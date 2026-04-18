@@ -1,9 +1,6 @@
-export type ManufacturerEditView = {
-	name: string;
-	slug: string;
-	website: string | null;
-	logo_url: string | null;
-	description?: {
-		text?: string | null;
-	} | null;
-};
+import type { components } from '$lib/api/schema';
+
+export type ManufacturerEditView = Pick<
+	components['schemas']['ManufacturerDetailSchema'],
+	'name' | 'slug' | 'website' | 'logo_url' | 'description'
+>;
