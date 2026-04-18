@@ -7,6 +7,7 @@
 	import type { EditSectionMenuItem } from '$lib/components/edit-section-menu';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { SaveMeta } from '$lib/components/editors/save-claims-shared';
+	import { toast } from '$lib/toast/toast.svelte';
 
 	type SectionDef = {
 		key: TSectionKey;
@@ -54,7 +55,12 @@
 
 	const callbacks: EditorCallbacks = {
 		ref: refBox,
-		onsaved: () => clearEditorState(),
+		onsaved: () => {
+			// The toast appears immediately after the user clicked Save, so
+			// a short "Saved." is less noisy than repeating the section name.
+			toast.success('Saved.');
+			clearEditorState();
+		},
 		onerror: (msg) => (editError = msg),
 		ondirtychange: (dirty) => (editorDirty = dirty)
 	};

@@ -141,7 +141,7 @@
 				href: resolve(`/models/${md.slug}/edit/${s.segment}`)
 			};
 		}),
-		// "Create Model" is appended last per the Record Create & Delete spec.
+		// "Create Model" is appended per the Record Create & Delete spec.
 		// It's a navigation action (not a section editor), so it carries only
 		// an `href`; auth gating happens via `editSectionsForBar` below, which
 		// drops the whole menu when anonymous.
@@ -149,6 +149,14 @@
 			key: 'create-model',
 			label: 'Create Model',
 			href: resolve(`/titles/${slug}/models/new`)
+		},
+		// "Delete Title" is the last item in the menu (destructive action).
+		// Navigates to a focus-mode confirmation page; auth gating rides
+		// on editSectionsForBar.
+		{
+			key: 'delete-title',
+			label: 'Delete Title',
+			href: resolve(`/titles/${slug}/delete`)
 		}
 	]);
 

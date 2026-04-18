@@ -36,6 +36,12 @@ class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     link_url_pattern = "/titles/{slug}"
     link_sort_order = 10
 
+    # A user-driven soft-delete of a Title cascades to its active MachineModels
+    # (each gets a ``status=deleted`` claim in the same ChangeSet). The DB FK
+    # from MachineModel.title is PROTECT, which blocks hard deletion; the
+    # cascade here is an application-layer rule over resolved ``status``.
+    soft_delete_cascade_relations = ("machine_models",)
+
     opdb_id = models.CharField(
         max_length=50,
         unique=True,

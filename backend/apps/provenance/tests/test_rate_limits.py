@@ -10,6 +10,8 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
 from apps.provenance.rate_limits import (
+    CREATE_RATE_LIMIT_SPEC,
+    DELETE_RATE_LIMIT_SPEC,
     RateLimitExceeded,
     RateLimitSpec,
     check_and_record,
@@ -131,6 +133,25 @@ class TestRateLimits:
 
         with pytest.raises(RateLimitExceeded):
             check_and_record(Anon(), SPEC)
+
+
+class TestBucketConfig:
+    """Pin the configured bucket parameters so accidental edits in
+    constants.py are caught at test time rather than in production."""
+
+    def test_delete_bucket_is_5_per_day(self):
+        assert DELETE_RATE_LIMIT_SPEC.bucket == "delete"
+        assert DELETE_RATE_LIMIT_SPEC.limit == 5
+        assert DELETE_RATE_LIMIT_SPEC.window_seconds == 86_400
+
+    def test_create_and_delete_buckets_are_independent(self, user):
+        for _ in range(CREATE_RATE_LIMIT_SPEC.limit):
+            check_and_record(user, CREATE_RATE_LIMIT_SPEC)
+        # Filling the create bucket does not consume delete slots.
+        for _ in range(DELETE_RATE_LIMIT_SPEC.limit):
+            check_and_record(user, DELETE_RATE_LIMIT_SPEC)
+        reset_for_user(user, CREATE_RATE_LIMIT_SPEC.bucket)
+        reset_for_user(user, DELETE_RATE_LIMIT_SPEC.bucket)
 
 
 # Silence time.sleep warnings in case any test uses real time.

@@ -30,10 +30,19 @@ from .entity_create import (
     validate_name,
     validate_slug_format,
 )
+from .soft_delete import (
+    SoftDeleteBlocked,
+    execute_soft_delete,
+    plan_soft_delete,
+)
 from apps.catalog.naming import MAX_CATALOG_NAME_LENGTH, normalize_catalog_name
 from apps.provenance.helpers import build_sources, claims_prefetch
 from apps.provenance.models import ChangeSetAction
-from apps.provenance.rate_limits import CREATE_RATE_LIMIT_SPEC, check_and_record
+from apps.provenance.rate_limits import (
+    CREATE_RATE_LIMIT_SPEC,
+    DELETE_RATE_LIMIT_SPEC,
+    check_and_record,
+)
 
 from .helpers import (
     _build_rich_text,
@@ -184,6 +193,39 @@ class TitleCreateSchema(Schema):
     slug: str
     note: str = ""
     citation: EditCitationInput | None = None
+
+
+class TitleDeleteSchema(Schema):
+    note: str = ""
+    citation: EditCitationInput | None = None
+
+
+class TitleRestoreSchema(Schema):
+    note: str = ""
+    citation: EditCitationInput | None = None
+
+
+class BlockingReferrerSchema(Schema):
+    entity_type: str
+    slug: Optional[str] = None
+    name: str
+    relation: str
+    blocked_target_type: str
+    blocked_target_slug: Optional[str] = None
+
+
+class TitleDeletePreviewSchema(Schema):
+    title_name: str
+    title_slug: str
+    active_model_count: int
+    changeset_count: int
+    blocked_by: list[BlockingReferrerSchema] = []
+
+
+class TitleDeleteResponseSchema(Schema):
+    changeset_id: int
+    affected_titles: list[str]
+    affected_models: list[str]
 
 
 def _assert_title_name_available(name: str, *, exclude_pk: int | None = None) -> None:
@@ -1062,3 +1104,149 @@ def create_model(request, title_slug: str, data: ModelCreateSchema):
 
     pm = get_object_or_404(_model_detail_qs(), slug=slug)
     return Status(201, _serialize_model_detail(pm))
+
+
+# ---------------------------------------------------------------------------
+# Delete / restore
+# ---------------------------------------------------------------------------
+
+
+def _serialize_blocking_referrer(ref) -> dict:
+    return {
+        "entity_type": ref.entity_type,
+        "slug": ref.slug,
+        "name": ref.name,
+        "relation": ref.relation,
+        "blocked_target_type": ref.blocked_target_type,
+        "blocked_target_slug": ref.blocked_target_slug,
+    }
+
+
+def _count_title_changesets(title, model_pks: list[int]) -> int:
+    """Count user ChangeSets with at least one claim on *title* or *models*.
+
+    Used by the delete-preview endpoint to show the user how much provenance
+    rides along with the Title.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from apps.provenance.models import ChangeSet
+
+    title_ct = ContentType.objects.get_for_model(Title)
+    model_ct = ContentType.objects.get_for_model(MachineModel)
+    q = Q(claims__content_type=title_ct, claims__object_id=title.pk)
+    if model_pks:
+        q |= Q(claims__content_type=model_ct, claims__object_id__in=model_pks)
+    return ChangeSet.objects.filter(user__isnull=False).filter(q).distinct().count()
+
+
+@titles_router.get(
+    "/{slug}/delete-preview/",
+    auth=django_auth,
+    response=TitleDeletePreviewSchema,
+    tags=["private"],
+)
+def title_delete_preview(request, slug: str):
+    """Return the impact summary used by the delete confirmation screen.
+
+    Includes counts for active child models and user ChangeSets that touch
+    the title or any of its active models, plus any blocking referrers so
+    the UI can refuse the action before it's attempted.
+    """
+    title = get_object_or_404(Title.objects.active(), slug=slug)
+    plan = plan_soft_delete(title)
+    # All entities in the plan are the ones we'd hide. Exclude the root Title
+    # when counting Models; the response calls each out separately.
+    model_pks = [e.pk for e in plan.entities_to_delete if isinstance(e, MachineModel)]
+    # Skip the ChangeSet count query when blocked — the UI hides the impact
+    # summary in that branch, so the number is never displayed.
+    changeset_count = (
+        0 if plan.is_blocked else _count_title_changesets(title, model_pks)
+    )
+    return {
+        "title_name": title.name,
+        "title_slug": title.slug,
+        "active_model_count": len(model_pks),
+        "changeset_count": changeset_count,
+        "blocked_by": [_serialize_blocking_referrer(b) for b in plan.blockers],
+    }
+
+
+@titles_router.post(
+    "/{slug}/delete/",
+    auth=django_auth,
+    response={200: TitleDeleteResponseSchema, 422: dict},
+    tags=["private"],
+)
+def delete_title(request, slug: str, data: TitleDeleteSchema):
+    """Soft-delete a Title and cascade to its active MachineModels.
+
+    Writes a single user ChangeSet with ``action=delete`` containing one
+    ``status=deleted`` claim per affected entity. Rate-limited per user on
+    the ``delete`` bucket (5/day; staff bypass). Blocks with 422 when an
+    active PROTECT referrer outside the cascade tree would be left
+    dangling; the response body lists the referrers so the UI can explain.
+    """
+    check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
+
+    title = get_object_or_404(Title.objects.active(), slug=slug)
+    try:
+        changeset, deleted = execute_soft_delete(
+            title, user=request.user, note=data.note, citation=data.citation
+        )
+    except SoftDeleteBlocked as exc:
+        return Status(
+            422,
+            {
+                "detail": "Cannot delete: active references would be left dangling.",
+                "blocked_by": [_serialize_blocking_referrer(b) for b in exc.blockers],
+            },
+        )
+
+    if changeset is None:
+        # Already soft-deleted; shouldn't happen because of the .active()
+        # fetch above, but guard anyway.
+        return Status(422, {"detail": "Title is already deleted."})
+
+    affected_titles = [e.slug for e in deleted if isinstance(e, Title)]
+    affected_models = [e.slug for e in deleted if isinstance(e, MachineModel)]
+    return {
+        "changeset_id": changeset.pk,
+        "affected_titles": affected_titles,
+        "affected_models": affected_models,
+    }
+
+
+@titles_router.post(
+    "/{slug}/restore/",
+    auth=django_auth,
+    response={200: TitleDetailSchema, 422: dict, 404: dict},
+    tags=["private"],
+)
+def restore_title(request, slug: str, data: TitleRestoreSchema):
+    """Write a fresh ``status=active`` claim on a soft-deleted Title.
+
+    This is the "Restore" path (distinct from Undo, which inverts a
+    specific delete ChangeSet). Restore does NOT bring child Models back —
+    they keep their ``status=deleted`` claims until individually restored
+    or the original delete ChangeSet is undone. Shares the ``create``
+    rate-limit bucket (Restore is semantically a re-create).
+    """
+    check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
+
+    # Bypass .active() — we're looking for soft-deleted titles.
+    title = get_object_or_404(Title, slug=slug)
+    if title.status != "deleted":
+        return Status(422, {"detail": "Title is not deleted."})
+
+    execute_claims(
+        title,
+        [ClaimSpec(field_name="status", value="active")],
+        user=request.user,
+        action=ChangeSetAction.EDIT,
+        note=data.note,
+        citation=data.citation,
+    )
+
+    refreshed = get_object_or_404(_detail_qs(), slug=slug)
+    return _serialize_title_detail(refreshed)

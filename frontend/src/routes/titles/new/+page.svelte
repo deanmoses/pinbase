@@ -9,6 +9,7 @@
 	import { pageTitle } from '$lib/constants';
 	import { resolveHref } from '$lib/utils';
 	import { classifyCreateResponse, reconcileSlug, slugifyForCatalog } from '$lib/create-form';
+	import { toast } from '$lib/toast/toast.svelte';
 
 	let { data } = $props();
 
@@ -69,6 +70,7 @@
 			const outcome = classifyCreateResponse({ data: created, error, response });
 			switch (outcome.kind) {
 				case 'ok':
+					toast.success(`Created “${outcome.data.name}”.`, { persistUntilNav: true });
 					await goto(resolveHref(`/titles/${outcome.slug}`));
 					return;
 				case 'rate_limited':

@@ -3,13 +3,25 @@
 	import { page } from '$app/state';
 	import Nav from '$lib/components/Nav.svelte';
 	import Footer from '$lib/components/Footer.svelte';
+	import ToastHost from '$lib/toast/ToastHost.svelte';
 
 	let { children } = $props();
 
-	// Focus-mode routes (edit pages and the create pages under /:entity/new)
-	// render their own minimal chrome; suppress site Nav/Footer and the
-	// page-content wrapper.
-	let isFocusMode = $derived(/\/edit(\/|$)|\/new$/.test(page.url.pathname));
+	// Focus-mode routes render their own minimal chrome; suppress site
+	// Nav/Footer and the page-content wrapper. Patterns:
+	//   /:entity/new                           create a top-level record
+	//   /:entity/:slug/:child/new              create a nested record
+	//   /:entity/:slug/edit                    edit (no section)
+	//   /:entity/:slug/edit/:section           edit a section
+	//   /:entity/:slug/delete                  destructive confirmation
+	// Note: `edit` and `delete` require a slug segment before them so a
+	// catalog record with slug='edit' or 'delete' (e.g. /titles/delete)
+	// still gets full chrome. `new` is safe without that guard because
+	// SvelteKit's route priority gives /:entity/new to the create page,
+	// not the detail page.
+	let isFocusMode = $derived(
+		/\/new$|\/[^/]+\/[^/]+\/edit(\/|$)|\/[^/]+\/[^/]+\/delete$/.test(page.url.pathname)
+	);
 </script>
 
 <div class="site-shell">
@@ -24,6 +36,8 @@
 	{#if !isFocusMode}
 		<Footer />
 	{/if}
+
+	<ToastHost />
 </div>
 
 <style>

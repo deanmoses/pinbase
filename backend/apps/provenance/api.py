@@ -221,6 +221,38 @@ def revert_claim(request, entity_type: str, slug: str, data: RevertClaimSchema):
     return {"ok": True}
 
 
+class UndoChangeSetSchema(Schema):
+    changeset_id: int
+    note: str = ""
+
+
+@edit_history_router.post(
+    "/undo-changeset/",
+    auth=django_auth,
+    response={200: dict, 403: dict, 404: dict, 422: dict},
+    tags=["private"],
+)
+def undo_changeset(request, data: UndoChangeSetSchema):
+    """Atomically invert a DELETE ChangeSet (restore a soft-deleted tree).
+
+    This powers the post-delete Undo toast. Scoped to delete ChangeSets
+    authored by the caller; other scenarios use per-claim revert.
+    """
+    from .models import ChangeSet
+    from .revert import UndoError, execute_undo_changeset
+
+    try:
+        changeset = ChangeSet.objects.get(pk=data.changeset_id)
+    except ChangeSet.DoesNotExist:
+        return Status(404, {"detail": "ChangeSet not found."})
+
+    try:
+        new_cs = execute_undo_changeset(changeset, user=request.user, note=data.note)
+    except UndoError as exc:
+        return Status(exc.status_code, {"detail": str(exc)})
+    return {"ok": True, "changeset_id": new_cs.pk}
+
+
 citation_instances_router = Router(tags=["citation-instances", "private"])
 
 

@@ -26,7 +26,12 @@ from dataclasses import dataclass
 
 from django.core.cache import cache
 
-from .constants import CREATE_RATE_LIMIT, CREATE_WINDOW_SECONDS
+from .constants import (
+    CREATE_RATE_LIMIT,
+    CREATE_WINDOW_SECONDS,
+    DELETE_RATE_LIMIT,
+    DELETE_WINDOW_SECONDS,
+)
 
 _CACHE_TTL_FUDGE_SECONDS = 60
 
@@ -49,11 +54,21 @@ class RateLimitSpec:
 
 # Shared bucket for user-driven record creation (Title, Model, …). All record
 # types share one bucket so that a burst of creates is capped in aggregate,
-# not per-record-type. Delete and Restore will add sibling specs here.
+# not per-record-type. Restore uses this same bucket (it is semantically a
+# create — a fresh ``status=active`` claim that brings a record back).
 CREATE_RATE_LIMIT_SPEC = RateLimitSpec(
     bucket="create",
     limit=CREATE_RATE_LIMIT,
     window_seconds=CREATE_WINDOW_SECONDS,
+)
+
+# Shared bucket for user-driven record deletion. A cascading delete counts as
+# one ChangeSet and consumes one slot here — not one per hidden child.
+# Inverting one's own ChangeSet (Undo) is exempt and does not consume a slot.
+DELETE_RATE_LIMIT_SPEC = RateLimitSpec(
+    bucket="delete",
+    limit=DELETE_RATE_LIMIT,
+    window_seconds=DELETE_WINDOW_SECONDS,
 )
 
 
