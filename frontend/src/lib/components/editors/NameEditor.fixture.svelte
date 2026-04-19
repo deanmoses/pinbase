@@ -1,38 +1,44 @@
 <script lang="ts">
-	import ManufacturerNameEditor from './ManufacturerNameEditor.svelte';
-	import type { ManufacturerEditView } from './manufacturer-edit-types';
+	import NameEditor from './NameEditor.svelte';
+	import type { SaveMeta, SaveResult } from './save-claims-shared';
 
 	let {
-		initialData = {
-			name: 'Williams',
-			slug: 'williams',
-			website: 'https://williams.example',
-			logo_url: 'https://williams.example/logo.png',
-			description: { text: 'Historic manufacturer', html: '', citations: [] }
-		},
-		slug = 'williams'
+		initialData = { name: 'Williams', slug: 'williams' },
+		slug = 'williams',
+		saveResult = { ok: true } as SaveResult
 	}: {
-		initialData?: ManufacturerEditView;
+		initialData?: { name: string; slug: string };
 		slug?: string;
+		saveResult?: SaveResult;
 	} = $props();
 
 	let dirtyFromCallback = $state(false);
 	let dirtyFromHandle = $state('unknown');
 	let savedCount = $state(0);
 	let lastError = $state('');
+	let lastSaveBody = $state<unknown>(null);
 
 	let editorRef:
 		| {
-				save(meta?: unknown): Promise<void>;
+				save(meta?: SaveMeta): Promise<void>;
 				isDirty(): boolean;
 		  }
 		| undefined = $state();
+
+	async function save(
+		_slug: string,
+		body: { fields: Partial<{ name: string; slug: string }> } & SaveMeta
+	): Promise<SaveResult> {
+		lastSaveBody = body;
+		return saveResult;
+	}
 </script>
 
-<ManufacturerNameEditor
+<NameEditor
 	bind:this={editorRef}
 	{initialData}
 	{slug}
+	{save}
 	onsaved={() => savedCount++}
 	onerror={(message) => (lastError = message)}
 	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
@@ -47,3 +53,4 @@
 <p data-testid="dirty-handle">{dirtyFromHandle}</p>
 <p data-testid="saved-count">{savedCount}</p>
 <p data-testid="last-error">{lastError}</p>
+<p data-testid="last-save-body">{JSON.stringify(lastSaveBody)}</p>

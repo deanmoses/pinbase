@@ -8,7 +8,7 @@
 		saveManufacturerClaims,
 		type FieldErrors,
 		type SaveMeta,
-		type ManufacturerSaveResult
+		type SaveResult
 	} from './save-manufacturer-claims';
 
 	type BasicsFields = {
@@ -52,7 +52,7 @@
 			return;
 		}
 
-		const result: ManufacturerSaveResult = await saveManufacturerClaims(slug, {
+		const result: SaveResult = await saveManufacturerClaims(slug, {
 			fields: changedFields,
 			...meta
 		});

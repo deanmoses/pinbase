@@ -17,14 +17,10 @@ export type DisplayTypeSectionPatchBody = Partial<
 	Pick<DisplayTypeClaimsBody, 'fields' | 'note' | 'citation'>
 >;
 
-export type DisplayTypeSaveResult = SaveResult & {
-	updatedSlug?: string;
-};
-
 export async function saveDisplayTypeClaims(
 	slug: string,
 	body: DisplayTypeSectionPatchBody
-): Promise<DisplayTypeSaveResult> {
+): Promise<SaveResult> {
 	const { data, error } = await client.PATCH('/api/display-types/{slug}/claims/', {
 		params: { path: { slug } },
 		body: { fields: {}, note: '', ...body }

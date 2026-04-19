@@ -17,14 +17,10 @@ export type PersonSectionPatchBody = Partial<
 	Pick<PersonClaimsBody, 'fields' | 'note' | 'citation'>
 >;
 
-export type PersonSaveResult = SaveResult & {
-	updatedSlug?: string;
-};
-
 export async function savePersonClaims(
 	slug: string,
 	body: PersonSectionPatchBody
-): Promise<PersonSaveResult> {
+): Promise<SaveResult> {
 	const { data, error } = await client.PATCH('/api/people/{slug}/claims/', {
 		params: { path: { slug } },
 		body: { fields: {}, note: '', ...body }

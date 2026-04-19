@@ -12,7 +12,9 @@ export type SaveMeta = {
 
 export type FieldErrors = Record<string, string>;
 
-export type SaveResult = { ok: true } | { ok: false; error: string; fieldErrors: FieldErrors };
+export type SaveResult =
+	| { ok: true; updatedSlug?: string }
+	| { ok: false; error: string; fieldErrors: FieldErrors };
 
 type ParsedError = { message: string; fieldErrors: FieldErrors };
 

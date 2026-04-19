@@ -8,7 +8,7 @@
 		saveDisplayTypeClaims,
 		type FieldErrors,
 		type SaveMeta,
-		type DisplayTypeSaveResult
+		type SaveResult
 	} from './save-display-type-claims';
 
 	type DisplayOrderFields = {
@@ -50,7 +50,7 @@
 			return;
 		}
 
-		const result: DisplayTypeSaveResult = await saveDisplayTypeClaims(slug, {
+		const result: SaveResult = await saveDisplayTypeClaims(slug, {
 			fields: changedFields,
 			...meta
 		});

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
+	import NameEditor from '$lib/components/editors/NameEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { PersonEditSectionKey } from '$lib/components/editors/person-edit-sections';
 	import PersonDetailsEditor from './PersonDetailsEditor.svelte';
-	import PersonNameEditor from './PersonNameEditor.svelte';
 	import { savePersonClaims } from './save-person-claims';
 	import type { PersonEditView } from './person-edit-types';
 
@@ -27,10 +27,11 @@
 </script>
 
 {#if sectionKey === 'name'}
-	<PersonNameEditor
+	<NameEditor
 		bind:this={editorRef}
-		{initialData}
+		initialData={{ name: initialData.name, slug: initialData.slug }}
 		{slug}
+		save={savePersonClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}

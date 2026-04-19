@@ -10,7 +10,7 @@
 	import {
 		savePersonClaims,
 		type FieldErrors,
-		type PersonSaveResult,
+		type SaveResult,
 		type SaveMeta
 	} from './save-person-claims';
 
@@ -77,7 +77,7 @@
 			return;
 		}
 
-		const result: PersonSaveResult = await savePersonClaims(slug, {
+		const result: SaveResult = await savePersonClaims(slug, {
 			fields: changedFields,
 			...meta
 		});

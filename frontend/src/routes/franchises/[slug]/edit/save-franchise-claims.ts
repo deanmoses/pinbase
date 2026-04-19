@@ -17,14 +17,10 @@ export type FranchiseSectionPatchBody = Partial<
 	Pick<FranchiseClaimsBody, 'fields' | 'note' | 'citation'>
 >;
 
-export type FranchiseSaveResult = SaveResult & {
-	updatedSlug?: string;
-};
-
 export async function saveFranchiseClaims(
 	slug: string,
 	body: FranchiseSectionPatchBody
-): Promise<FranchiseSaveResult> {
+): Promise<SaveResult> {
 	const { data, error } = await client.PATCH('/api/franchises/{slug}/claims/', {
 		params: { path: { slug } },
 		body: { fields: {}, note: '', ...body }

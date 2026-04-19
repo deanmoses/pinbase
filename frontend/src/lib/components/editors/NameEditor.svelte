@@ -3,38 +3,31 @@
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import TextField from '$lib/components/form/TextField.svelte';
-	import type { SectionEditorProps } from '$lib/components/editors/editor-contract';
+	import type { SectionEditorProps } from './editor-contract';
 	import { reconcileSlug, slugifyForCatalog } from '$lib/create-form';
 	import { diffScalarFields } from '$lib/edit-helpers';
-	import type { FranchiseEditView } from './franchise-edit-types';
-	import {
-		type FranchiseSaveResult,
-		saveFranchiseClaims,
-		type FieldErrors,
-		type SaveMeta
-	} from './save-franchise-claims';
+	import type { FieldErrors, SaveMeta, SaveResult } from './save-claims-shared';
 
 	type NameFields = {
 		name: string;
 		slug: string;
 	};
 
+	type SaveFn = (
+		slug: string,
+		body: { fields: Partial<NameFields> } & SaveMeta
+	) => Promise<SaveResult>;
+
 	let {
 		initialData,
 		slug,
+		save: saveFn,
 		onsaved,
 		onerror,
 		ondirtychange = () => {}
-	}: SectionEditorProps<FranchiseEditView> = $props();
+	}: SectionEditorProps<NameFields> & { save: SaveFn } = $props();
 
-	function extractFields(franchise: FranchiseEditView): NameFields {
-		return {
-			name: franchise.name,
-			slug: franchise.slug
-		};
-	}
-
-	const original = untrack(() => extractFields(initialData));
+	const original = untrack(() => ({ ...initialData }));
 	let fields = $state<NameFields>({ ...original });
 	// Seeded with the projected slug (not the saved one) so that an editorially
 	// customized slug starts out "pre-diverged" — reconcileSlug leaves it alone
@@ -67,14 +60,20 @@
 			return;
 		}
 
-		const result: FranchiseSaveResult = await saveFranchiseClaims(slug, {
+		const result = await saveFn(slug, {
 			fields: changedFields,
 			...meta
 		});
 
 		if (result.ok) {
 			if (result.updatedSlug && result.updatedSlug !== slug) {
-				const nextPathname = page.url.pathname.replace(`/${slug}`, `/${result.updatedSlug}`);
+				// Edit URLs are always /<resource>/<slug>/... so the slug sits at index 2.
+				// Splitting and replacing by index avoids substring-match traps like
+				// slug=`people` on `/people/people/edit/name` (where a regex anchored only
+				// on the trailing boundary would corrupt the leading collection segment).
+				const segments = page.url.pathname.split('/');
+				segments[2] = result.updatedSlug;
+				const nextPathname = segments.join('/');
 				await goto(`${nextPathname}${page.url.search}`, { replaceState: true });
 			}
 			onsaved();

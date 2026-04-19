@@ -1,9 +1,9 @@
 <script lang="ts">
 	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
+	import NameEditor from '$lib/components/editors/NameEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { DisplayTypeEditSectionKey } from '$lib/components/editors/display-type-edit-sections';
 	import DisplayTypeDisplayOrderEditor from './DisplayTypeDisplayOrderEditor.svelte';
-	import DisplayTypeNameEditor from './DisplayTypeNameEditor.svelte';
 	import { saveDisplayTypeClaims } from './save-display-type-claims';
 	import type { DisplayTypeEditView } from './display-type-edit-types';
 
@@ -27,10 +27,11 @@
 </script>
 
 {#if sectionKey === 'name'}
-	<DisplayTypeNameEditor
+	<NameEditor
 		bind:this={editorRef}
-		{initialData}
+		initialData={{ name: initialData.name, slug: initialData.slug }}
 		{slug}
+		save={saveDisplayTypeClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}
