@@ -24,6 +24,7 @@ from django.db import transaction
 
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
+from apps.core.models import CatalogModel
 from apps.core.validators import bulk_create_validated
 from apps.catalog.models import (
     Cabinet,
@@ -102,32 +103,15 @@ def _normalize_credit_role(raw: str) -> str:
     return _CREDIT_ROLE_MAP.get(lower, lower)
 
 
-# Taxonomy registry: (json_filename, model_class, has_display_order, parent_config)
-# parent_config: (model_fk_field, parent_model, json_fk_key) or None
-# Maps model class → source slug suffix for per-entity AI description sources.
+# Model class → source slug suffix for per-entity AI description sources.
+# Derived from CatalogModel subclasses so new catalog entities are picked up
+# automatically. Location is not a CatalogModel but has its own AI source.
 AI_DESC_SOURCE_REGISTRY: list[tuple[type, str]] = [
-    (MachineModel, "model"),
-    (Title, "title"),
-    (Manufacturer, "manufacturer"),
-    (CorporateEntity, "corporate-entity"),
-    (Person, "person"),
-    (GameplayFeature, "gameplay-feature"),
-    (Theme, "theme"),
-    (Franchise, "franchise"),
-    (Series, "series"),
-    (Cabinet, "cabinet"),
-    (CreditRole, "credit-role"),
-    (DisplayType, "display-type"),
-    (DisplaySubtype, "display-subtype"),
-    (GameFormat, "game-format"),
-    (RewardType, "reward-type"),
-    (System, "system"),
-    (Tag, "tag"),
-    (TechnologyGeneration, "technology-generation"),
-    (TechnologySubgeneration, "technology-subgeneration"),
-    (Location, "location"),
-]
+    (cls, cls.entity_type) for cls in CatalogModel.__subclasses__()
+] + [(Location, "location")]
 
+# Taxonomy ingest registry: (json_filename, model_class, has_display_order, parent_config)
+# parent_config: (model_fk_field, parent_model, json_fk_key) or None
 TAXONOMY_REGISTRY = [
     # Top-level (no parent FK) — order matters: parents before children.
     ("technology_generation.json", TechnologyGeneration, True, None),
