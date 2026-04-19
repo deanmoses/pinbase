@@ -2,7 +2,6 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
 	import Button from '$lib/components/Button.svelte';
 	import SectionEditorForm from '$lib/components/SectionEditorForm.svelte';
 	import MediaEditor from '$lib/components/editors/MediaEditor.svelte';
@@ -83,12 +82,7 @@
 			</SectionEditorForm>
 		{/key}
 	{:else if section.key === 'media'}
-		<MediaEditor
-			entityType="person"
-			slug={person.slug}
-			media={person.uploaded_media}
-			categories={[...MEDIA_CATEGORIES.person]}
-		/>
+		<MediaEditor entityType="person" slug={person.slug} media={person.uploaded_media} />
 		<div class="media-footer">
 			<Button onclick={handleCancel}>Done</Button>
 		</div>

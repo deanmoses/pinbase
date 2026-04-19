@@ -10,7 +10,6 @@ from apps.core.models import (
     AliasBase,
     CatalogModel,
     EntityStatusMixin,
-    LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
@@ -23,9 +22,7 @@ from apps.core.validators import validate_no_mojibake
 __all__ = ["Theme", "ThemeAlias", "MachineModelTheme"]
 
 
-class Theme(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class Theme(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
 
     Supports a DAG hierarchy via the ``parents`` M2M (structural, not
@@ -34,7 +31,7 @@ class Theme(
     """
 
     entity_type = "theme"
-    link_url_pattern = "/themes/{slug}"
+    entity_type_plural = "themes"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

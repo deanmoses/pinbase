@@ -9,7 +9,6 @@ from django.db import models
 from apps.core.models import (
     CatalogModel,
     EntityStatusMixin,
-    LinkableModel,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -37,7 +36,6 @@ class MachineModel(
     CatalogModel,
     EntityStatusMixin,
     SluggedModel,
-    LinkableModel,
     MediaSupported,
     TimeStampedModel,
 ):
@@ -52,9 +50,9 @@ class MachineModel(
     """
 
     entity_type = "model"
+    entity_type_plural = "models"
     MEDIA_CATEGORIES = ["backglass", "playfield", "cabinet", "other"]
 
-    link_url_pattern = "/models/{slug}"
     link_sort_order = 20
 
     # Identity

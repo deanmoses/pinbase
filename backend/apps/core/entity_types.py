@@ -1,7 +1,7 @@
-"""Public entity_type → catalog model class resolution.
+"""Public entity_type → linkable model class resolution.
 
-Every catalog entity declares a hyphenated canonical public identifier via
-``CatalogModel.entity_type``. This module is the single adapter from that
+Every linkable entity declares a hyphenated canonical public identifier via
+``LinkableModel.entity_type``. This module is the single adapter from that
 public string to the concrete model class. Callers that need Django's
 concatenated ``_meta.model_name`` or a ContentType use the returned class
 directly.
@@ -15,17 +15,17 @@ from __future__ import annotations
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 
-from apps.core.models import CatalogModel
+from apps.core.models import LinkableModel
 
-_ENTITY_TYPE_MAP: dict[str, type[CatalogModel]] | None = None
+_ENTITY_TYPE_MAP: dict[str, type[LinkableModel]] | None = None
 
 
-def _build_map() -> dict[str, type[CatalogModel]]:
-    # Ensure all apps are loaded so every CatalogModel subclass is imported.
+def _build_map() -> dict[str, type[LinkableModel]]:
+    # Ensure all apps are loaded so every LinkableModel subclass is imported.
     apps.check_apps_ready()
-    result: dict[str, type[CatalogModel]] = {}
+    result: dict[str, type[LinkableModel]] = {}
 
-    def walk(cls: type[CatalogModel]) -> None:
+    def walk(cls: type[LinkableModel]) -> None:
         for subclass in cls.__subclasses__():
             walk(subclass)
             meta = getattr(subclass, "_meta", None)
@@ -39,12 +39,12 @@ def _build_map() -> dict[str, type[CatalogModel]]:
                 )
             result[key] = subclass
 
-    walk(CatalogModel)
+    walk(LinkableModel)
     return result
 
 
-def get_catalog_model(entity_type: str) -> type[CatalogModel]:
-    """Return the catalog model class for a canonical entity_type string.
+def get_linkable_model(entity_type: str) -> type[LinkableModel]:
+    """Return the linkable model class for a canonical entity_type string.
 
     Raises ``ValueError`` if the entity_type is unknown — including
     Django-internal concatenated forms like ``'corporateentity'`` or

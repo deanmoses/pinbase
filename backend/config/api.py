@@ -115,10 +115,10 @@ def _handle_rate_limit_exceeded(request, exc):
 def get_field_constraints(request, entity_type: str):
     """Return numeric field constraints derived from model validators."""
     from apps.catalog.api.edit_claims import get_field_constraints as _get
-    from apps.core.entity_types import get_catalog_model
+    from apps.core.entity_types import get_linkable_model
 
     try:
-        model_class = get_catalog_model(entity_type)
+        model_class = get_linkable_model(entity_type)
     except ValueError:
         raise HttpError(404, f"Unknown entity type: {entity_type}")
 

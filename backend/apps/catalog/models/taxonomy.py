@@ -10,7 +10,6 @@ from apps.core.models import (
     AliasBase,
     CatalogModel,
     EntityStatusMixin,
-    LinkableModel,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
@@ -37,7 +36,7 @@ __all__ = [
 
 
 class TechnologyGeneration(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+    CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
 ):
     """A major technological era: Pure Mechanical, Electromechanical, Solid State.
 
@@ -45,7 +44,7 @@ class TechnologyGeneration(
     """
 
     entity_type = "technology-generation"
-    link_url_pattern = "/technology-generations/{slug}"
+    entity_type_plural = "technology-generations"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -64,7 +63,7 @@ class TechnologyGeneration(
 
 
 class TechnologySubgeneration(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+    CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
 ):
     """A subdivision within a TechnologyGeneration.
 
@@ -72,7 +71,7 @@ class TechnologySubgeneration(
     """
 
     entity_type = "technology-subgeneration"
-    link_url_pattern = "/technology-subgenerations/{slug}"
+    entity_type_plural = "technology-subgenerations"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -95,16 +94,14 @@ class TechnologySubgeneration(
         return self.name
 
 
-class DisplayType(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class DisplayType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A display technology category: Score Reels, DMD, LCD, etc.
 
     Replaces the old DisplayType enum.
     """
 
     entity_type = "display-type"
-    link_url_pattern = "/display-types/{slug}"
+    entity_type_plural = "display-types"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -122,16 +119,14 @@ class DisplayType(
         return self.name
 
 
-class DisplaySubtype(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class DisplaySubtype(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A subdivision within a DisplayType.
 
     e.g., LCD → Standard LCD, HD LCD.
     """
 
     entity_type = "display-subtype"
-    link_url_pattern = "/display-subtypes/{slug}"
+    entity_type_plural = "display-subtypes"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -154,13 +149,11 @@ class DisplaySubtype(
         return self.name
 
 
-class Cabinet(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class Cabinet(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """Physical cabinet form factor: Floor, Tabletop, Countertop, Cocktail."""
 
     entity_type = "cabinet"
-    link_url_pattern = "/cabinets/{slug}"
+    entity_type_plural = "cabinets"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -178,13 +171,11 @@ class Cabinet(
         return self.name
 
 
-class GameFormat(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class GameFormat(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """Game format: Pinball, Bagatelle, Shuffle Alley, Pitch-and-Bat."""
 
     entity_type = "game-format"
-    link_url_pattern = "/game-formats/{slug}"
+    entity_type_plural = "game-formats"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -202,9 +193,7 @@ class GameFormat(
         return self.name
 
 
-class RewardType(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class RewardType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A pinball reward mechanism: replay, add-a-ball, free-play, etc.
 
     Reward types are the payoff mechanic for achieving a goal, distinct from
@@ -212,7 +201,7 @@ class RewardType(
     """
 
     entity_type = "reward-type"
-    link_url_pattern = "/reward-types/{slug}"
+    entity_type_plural = "reward-types"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -266,16 +255,14 @@ class RewardTypeAlias(AliasBase):
         ]
 
 
-class Tag(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class Tag(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A classification tag: Home Use, Prototype, Widebody, Remake, etc.
 
     Linked to MachineModel via M2M relationship claims.
     """
 
     entity_type = "tag"
-    link_url_pattern = "/tags/{slug}"
+    entity_type_plural = "tags"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -312,13 +299,11 @@ class MachineModelTag(TimeStampedModel):
         return f"{self.machinemodel} → {self.tag}"
 
 
-class CreditRole(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class CreditRole(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A credit role category: Design, Art, Software, etc."""
 
     entity_type = "credit-role"
-    link_url_pattern = "/credit-roles/{slug}"
+    entity_type_plural = "credit-roles"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

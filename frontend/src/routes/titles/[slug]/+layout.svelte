@@ -16,7 +16,6 @@
 	import SidebarSection from '$lib/components/SidebarSection.svelte';
 	import TaxonomyLinkSidebarSection from '$lib/components/TaxonomyLinkSidebarSection.svelte';
 	import NeedsReviewBanner from '$lib/components/NeedsReviewBanner.svelte';
-	import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
 	import { getMenuItemAction, type EditSectionMenuItem } from '$lib/components/edit-section-menu';
 	import { LAYOUT_BREAKPOINT } from '$lib/constants';
 	import { resolveDetailSubrouteMode } from '$lib/detail-subroute-mode';
@@ -384,12 +383,7 @@
 
 		{#snippet immediateEditor()}
 			{#if md}
-				<MediaEditor
-					entityType="model"
-					slug={md.slug}
-					media={md.uploaded_media}
-					categories={[...MEDIA_CATEGORIES.model]}
-				/>
+				<MediaEditor entityType="model" slug={md.slug} media={md.uploaded_media} />
 			{/if}
 		{/snippet}
 	</SectionEditorHost>

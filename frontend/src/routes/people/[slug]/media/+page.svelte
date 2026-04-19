@@ -9,12 +9,7 @@
 </script>
 
 {#if auth.isAuthenticated}
-	<MediaEditor
-		entityType="person"
-		slug={person.slug}
-		media={person.uploaded_media}
-		categories={[...MEDIA_CATEGORIES.person]}
-	/>
+	<MediaEditor entityType="person" slug={person.slug} media={person.uploaded_media} />
 {:else}
 	<MediaGrid
 		media={person.uploaded_media}

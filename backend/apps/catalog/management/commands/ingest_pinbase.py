@@ -24,7 +24,7 @@ from django.db import transaction
 
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
-from apps.core.models import CatalogModel
+from apps.core.models import CatalogModel, LinkableModel
 from apps.core.validators import bulk_create_validated
 from apps.catalog.models import (
     Cabinet,
@@ -152,7 +152,7 @@ def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
 
     linkable_models: dict[str, Any] = {}
     for model in apps.get_models():
-        if hasattr(model, "link_url_pattern") and hasattr(model, "slug"):
+        if issubclass(model, LinkableModel) and hasattr(model, "slug"):
             link_type = getattr(
                 model,
                 "link_type_name",

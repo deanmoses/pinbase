@@ -16,7 +16,7 @@ from ninja.security import django_auth
 
 from apps.catalog.claims import build_media_attachment_claim
 from apps.catalog.resolve import resolve_media_attachments
-from apps.core.entity_types import get_catalog_model
+from apps.core.entity_types import get_linkable_model
 from apps.core.models import MediaSupported
 from apps.provenance.models import Claim
 from apps.media.constants import (
@@ -122,7 +122,7 @@ def _resolve_entity(entity_type: str, slug: str):
     Returns (content_type, entity) or raises HttpError.
     """
     try:
-        model_class = get_catalog_model(entity_type)
+        model_class = get_linkable_model(entity_type)
     except ValueError:
         raise HttpError(404, f"Unknown entity_type '{entity_type}'.")
 

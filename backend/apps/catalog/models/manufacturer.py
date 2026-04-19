@@ -11,7 +11,6 @@ from apps.core.models import (
     AliasBase,
     CatalogModel,
     EntityStatusMixin,
-    LinkableModel,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -38,7 +37,6 @@ class Manufacturer(
     CatalogModel,
     EntityStatusMixin,
     SluggedModel,
-    LinkableModel,
     MediaSupported,
     TimeStampedModel,
 ):
@@ -50,9 +48,9 @@ class Manufacturer(
     """
 
     entity_type = "manufacturer"
+    entity_type_plural = "manufacturers"
     MEDIA_CATEGORIES = ["logo", "other"]
 
-    link_url_pattern = "/manufacturers/{slug}"
     link_sort_order = 30
 
     name = models.CharField(
@@ -127,9 +125,7 @@ class ManufacturerAlias(AliasBase):
         ]
 
 
-class CorporateEntity(
-    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
-):
+class CorporateEntity(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
@@ -137,7 +133,7 @@ class CorporateEntity(
     """
 
     entity_type = "corporate-entity"
-    link_url_pattern = "/corporate-entities/{slug}"
+    entity_type_plural = "corporate-entities"
 
     manufacturer = models.ForeignKey(
         Manufacturer,

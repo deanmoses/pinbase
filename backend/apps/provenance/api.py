@@ -21,7 +21,7 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.citation.models import CitationSource
-from apps.core.entity_types import get_catalog_model
+from apps.core.entity_types import get_linkable_model
 
 from .models import CitationInstance
 from .page_endpoints import pages_router
@@ -174,10 +174,8 @@ def _resolve_catalog_entity(entity_type: str, slug: str):
     entity type is unknown or the slug doesn't exist.
     """
     try:
-        model_class = get_catalog_model(entity_type)
+        model_class = get_linkable_model(entity_type)
     except ValueError:
-        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
-    if not hasattr(model_class, "link_url_pattern"):
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
     return get_object_or_404(model_class, slug=slug)
 

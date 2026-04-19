@@ -11,7 +11,6 @@ from apps.core.models import (
     AliasBase,
     CatalogModel,
     EntityStatusMixin,
-    LinkableModel,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -29,7 +28,6 @@ class GameplayFeature(
     CatalogModel,
     EntityStatusMixin,
     SluggedModel,
-    LinkableModel,
     MediaSupported,
     TimeStampedModel,
 ):
@@ -40,9 +38,8 @@ class GameplayFeature(
     """
 
     entity_type = "gameplay-feature"
+    entity_type_plural = "gameplay-features"
     MEDIA_CATEGORIES = ["other"]
-
-    link_url_pattern = "/gameplay-features/{slug}"
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

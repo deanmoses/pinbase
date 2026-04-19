@@ -3,7 +3,6 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { auth } from '$lib/auth.svelte';
-	import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
 	import MediaEditor from '$lib/components/editors/MediaEditor.svelte';
 	import MetaTags from '$lib/components/MetaTags.svelte';
 	import PageActionBar from '$lib/components/PageActionBar.svelte';
@@ -156,12 +155,7 @@
 		{/snippet}
 
 		{#snippet immediateEditor()}
-			<MediaEditor
-				entityType="person"
-				slug={person.slug}
-				media={person.uploaded_media}
-				categories={[...MEDIA_CATEGORIES.person]}
-			/>
+			<MediaEditor entityType="person" slug={person.slug} media={person.uploaded_media} />
 		{/snippet}
 	</SectionEditorHost>
 {/if}

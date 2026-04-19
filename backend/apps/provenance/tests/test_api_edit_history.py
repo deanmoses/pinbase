@@ -191,6 +191,6 @@ class TestEditHistoryEntityTypeGuard:
         assert resp.status_code == 404
 
     def test_non_linkable_entity_type_returns_404(self, client):
-        """Models without link_url_pattern (e.g. Location) should be rejected."""
+        """Models that aren't LinkableModel subclasses (e.g. Location) should be rejected."""
         resp = client.get("/api/edit-history/location/some-slug/")
         assert resp.status_code == 404

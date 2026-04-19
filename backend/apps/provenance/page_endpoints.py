@@ -22,7 +22,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.responses import Status
 
-from apps.core.entity_types import get_catalog_model
+from apps.core.entity_types import get_linkable_model
 
 from .evidence import build_cited_changesets
 from .helpers import claims_prefetch
@@ -108,7 +108,7 @@ pages_router = Router(tags=["private"])
 def cited_edit_evidence(request, entity_type: str, slug: str):
     """Return active cited user edits for the requested entity."""
     try:
-        model_class = get_catalog_model(entity_type)
+        model_class = get_linkable_model(entity_type)
     except ValueError:
         return Status(404, {"detail": "Unknown entity type."})
 
@@ -163,7 +163,7 @@ def list_changes(
 
     if entity_type:
         try:
-            model_class = get_catalog_model(entity_type)
+            model_class = get_linkable_model(entity_type)
         except ValueError:
             return {"items": [], "next_cursor": None}
         ct = ContentType.objects.get_for_model(model_class)
