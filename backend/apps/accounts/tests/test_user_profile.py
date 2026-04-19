@@ -221,7 +221,7 @@ class TestEditHistoryUserDisplayNull:
             changeset=user_cs,
         )
 
-        resp = client.get(f"/api/edit-history/machinemodel/{pm.slug}/")
+        resp = client.get(f"/api/edit-history/model/{pm.slug}/")
         data = resp.json()
         # Find entries by user_display to avoid ordering assumptions
         user_entries = [e for e in data if e["user_display"] == "tester"]

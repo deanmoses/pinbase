@@ -268,7 +268,7 @@ class TestUploadValidation:
     def test_unknown_entity_type(self, client, machine_model):
         file = _create_test_image()
         resp = _post_upload(client, machine_model, file=file, entity_type="spaceship")
-        assert resp.status_code == 400
+        assert resp.status_code == 404
         assert "unknown entity_type" in resp.json()["detail"].lower()
 
     def test_entity_type_not_media_supported(self, client, machine_model):

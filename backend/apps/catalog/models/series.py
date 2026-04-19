@@ -6,6 +6,7 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from apps.core.models import (
+    CatalogModel,
     EntityStatusMixin,
     LinkableModel,
     MarkdownField,
@@ -20,12 +21,15 @@ from apps.core.validators import validate_no_mojibake
 __all__ = ["Franchise", "Series"]
 
 
-class Franchise(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
+class Franchise(
+    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """An IP grouping that spans manufacturers and eras.
 
     e.g., Indiana Jones, Star Trek. Most Titles do not belong to a Franchise.
     """
 
+    entity_type = "franchise"
     link_url_pattern = "/franchises/{slug}"
 
     name = models.CharField(
@@ -43,7 +47,9 @@ class Franchise(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
         return self.name
 
 
-class Series(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
+class Series(
+    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """A manually-curated grouping of related Titles sharing a thematic lineage.
 
     e.g., the "Eight Ball" series spans Eight Ball, Eight Ball Deluxe, and
@@ -52,6 +58,7 @@ class Series(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     maintained by curators via the admin or seed data.
     """
 
+    entity_type = "series"
     link_url_pattern = "/series/{slug}"
 
     name = models.CharField(

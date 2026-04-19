@@ -40,9 +40,9 @@ class TestExportCatalogMeta:
         output = (
             tmp_path / "frontend" / "src" / "lib" / "api" / "catalog-meta.ts"
         ).read_text()
-        assert "model: [" in output
+        assert "'model': [" in output
         assert "'backglass'" in output
-        assert "manufacturer: [" in output
+        assert "'manufacturer': [" in output
         assert "'logo'" in output
 
     def test_output_is_valid_typescript_shape(self, tmp_path, settings):

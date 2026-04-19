@@ -319,7 +319,7 @@ class TestDetachEndpoint:
             content_type="application/json",
         )
 
-        assert resp.status_code == 400
+        assert resp.status_code == 404
 
     def test_unknown_slug(self, auth_client, asset):
         resp = auth_client.post(

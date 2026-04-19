@@ -7,6 +7,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.core.models import (
+    CatalogModel,
     EntityStatusMixin,
     LinkableModel,
     MarkdownField,
@@ -33,17 +34,26 @@ EXTERNAL_ID_MIN = 1
 
 
 class MachineModel(
-    EntityStatusMixin, SluggedModel, LinkableModel, MediaSupported, TimeStampedModel
+    CatalogModel,
+    EntityStatusMixin,
+    SluggedModel,
+    LinkableModel,
+    MediaSupported,
+    TimeStampedModel,
 ):
     """A pinball machine title/design — the resolved/materialized view.
 
     Fields are derived from resolving claims. The resolution logic picks the
     winning claim per field (highest priority source, most recent if tied).
+
+    The public entity_type is 'model' (not 'machinemodel'): Django's
+    ``Model`` base class conflicts with the ideal name, so the class is
+    ``MachineModel`` but the public-facing identifier drops the prefix.
     """
 
+    entity_type = "model"
     MEDIA_CATEGORIES = ["backglass", "playfield", "cabinet", "other"]
 
-    api_type_key = "model"
     link_url_pattern = "/models/{slug}"
     link_sort_order = 20
 

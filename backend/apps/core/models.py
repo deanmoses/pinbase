@@ -6,6 +6,7 @@ from typing import ClassVar
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.functions import Now
 from django.db.models.signals import post_delete
@@ -324,6 +325,46 @@ class LinkableModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+# ---------------------------------------------------------------------------
+# CatalogModel abstract base — canonical public entity_type
+# ---------------------------------------------------------------------------
+
+
+class CatalogModel(models.Model):
+    """Abstract base for top-level catalog entities with a public entity_type name.
+
+    Subclasses MUST declare ``entity_type`` as a hyphenated canonical public
+    identifier, e.g. ``entity_type = 'corporate-entity'``. The value becomes
+    the URL segment in ``/api/edit-history/{entity_type}/{slug}/`` and similar
+    endpoints — the single source of truth consumed by ``get_catalog_model``
+    and ``export_catalog_meta``.
+
+    Django's ``_meta.model_name`` remains the concatenated ContentType form
+    for internal lookups; ``entity_type`` is the public-facing name.
+    """
+
+    entity_type: str  # required on concrete subclasses
+
+    class Meta:
+        abstract = True
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Django's ModelBase metaclass fires __init_subclass__ on abstract
+        # subclasses too. Only validate concrete ones.
+        meta = getattr(cls, "_meta", None)
+        if meta is None or meta.abstract:
+            return
+        entity_type = cls.__dict__.get("entity_type")
+        if not isinstance(entity_type, str) or not entity_type:
+            raise ImproperlyConfigured(
+                f"{cls.__name__} inherits CatalogModel but does not declare "
+                f"entity_type as a non-empty string."
+            )
+        # Collision detection happens lazily in get_catalog_model's map
+        # builder, not here, to avoid depending on import order.
 
 
 # ---------------------------------------------------------------------------

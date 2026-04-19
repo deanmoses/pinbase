@@ -8,6 +8,7 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    CatalogModel,
     EntityStatusMixin,
     LinkableModel,
     MarkdownField,
@@ -22,7 +23,9 @@ from apps.core.validators import validate_no_mojibake
 __all__ = ["Theme", "ThemeAlias", "MachineModelTheme"]
 
 
-class Theme(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
+class Theme(
+    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
 
     Supports a DAG hierarchy via the ``parents`` M2M (structural, not
@@ -30,6 +33,7 @@ class Theme(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     from relationship claims.
     """
 
+    entity_type = "theme"
     link_url_pattern = "/themes/{slug}"
 
     name = models.CharField(

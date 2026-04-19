@@ -3,22 +3,22 @@
 
 export const ENTITY_TYPES = [
 	{ value: 'cabinet', label: 'Cabinet' },
-	{ value: 'corporateentity', label: 'Corporate Entity' },
-	{ value: 'creditrole', label: 'Credit Role' },
-	{ value: 'displaysubtype', label: 'Display Subtype' },
-	{ value: 'displaytype', label: 'Display Type' },
+	{ value: 'corporate-entity', label: 'Corporate Entity' },
+	{ value: 'credit-role', label: 'Credit Role' },
+	{ value: 'display-subtype', label: 'Display Subtype' },
+	{ value: 'display-type', label: 'Display Type' },
 	{ value: 'franchise', label: 'Franchise' },
-	{ value: 'gameformat', label: 'Game Format' },
-	{ value: 'gameplayfeature', label: 'Gameplay Feature' },
-	{ value: 'model', label: 'Model' },
+	{ value: 'game-format', label: 'Game Format' },
+	{ value: 'gameplay-feature', label: 'Gameplay Feature' },
 	{ value: 'manufacturer', label: 'Manufacturer' },
+	{ value: 'model', label: 'Model' },
 	{ value: 'person', label: 'Person' },
-	{ value: 'rewardtype', label: 'Reward Type' },
+	{ value: 'reward-type', label: 'Reward Type' },
 	{ value: 'series', label: 'Series' },
 	{ value: 'system', label: 'System' },
 	{ value: 'tag', label: 'Tag' },
-	{ value: 'technologygeneration', label: 'Technology Generation' },
-	{ value: 'technologysubgeneration', label: 'Technology Subgeneration' },
+	{ value: 'technology-generation', label: 'Technology Generation' },
+	{ value: 'technology-subgeneration', label: 'Technology Subgeneration' },
 	{ value: 'theme', label: 'Theme' },
 	{ value: 'title', label: 'Title' }
 ] as const;
@@ -26,7 +26,7 @@ export const ENTITY_TYPES = [
 export type EntityTypeValue = (typeof ENTITY_TYPES)[number]['value'];
 
 export const MEDIA_CATEGORIES = {
-	gameplayfeature: ['other'],
+	'gameplay-feature': ['other'],
 	manufacturer: ['logo', 'other'],
 	model: ['backglass', 'playfield', 'cabinet', 'other'],
 	person: ['portrait', 'other']

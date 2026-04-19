@@ -9,6 +9,7 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
+    CatalogModel,
     EntityStatusMixin,
     LinkableModel,
     MarkdownField,
@@ -30,10 +31,16 @@ DAY_MIN, DAY_MAX = 1, 31
 
 
 class Person(
-    EntityStatusMixin, SluggedModel, LinkableModel, MediaSupported, TimeStampedModel
+    CatalogModel,
+    EntityStatusMixin,
+    SluggedModel,
+    LinkableModel,
+    MediaSupported,
+    TimeStampedModel,
 ):
     """A person involved in pinball machine design (designer, artist, etc.)."""
 
+    entity_type = "person"
     MEDIA_CATEGORIES = ["portrait", "other"]
 
     link_url_pattern = "/people/{slug}"

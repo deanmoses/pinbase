@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 from apps.core.models import (
+    CatalogModel,
     EntityStatusMixin,
     LinkableModel,
     MarkdownField,
@@ -24,7 +25,9 @@ __all__ = ["Title", "TitleAbbreviation"]
 EXTERNAL_ID_MIN = 1
 
 
-class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
+class Title(
+    CatalogModel, EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel
+):
     """The canonical identity of a pinball game, independent of edition or variant.
 
     OPDB calls this a "group" in its JSON, but we use "Title" as it is the
@@ -33,6 +36,7 @@ class Title(EntityStatusMixin, SluggedModel, LinkableModel, TimeStampedModel):
     from claims, just like MachineModel and Manufacturer.
     """
 
+    entity_type = "title"
     link_url_pattern = "/titles/{slug}"
     link_sort_order = 10
 

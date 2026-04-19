@@ -16,9 +16,9 @@
 {#if auth.isAuthenticated}
 	<h2 class="heading">Upload Media</h2>
 	<MediaUploadZone
-		entityType="gameplayfeature"
+		entityType="gameplay-feature"
 		slug={profile.slug}
-		categories={[...MEDIA_CATEGORIES.gameplayfeature]}
+		categories={[...MEDIA_CATEGORIES['gameplay-feature']]}
 		onuploaded={handleUploaded}
 	/>
 {:else}

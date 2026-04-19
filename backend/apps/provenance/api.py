@@ -9,12 +9,10 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from apps.core.entity_types import resolve_entity_type
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
@@ -23,6 +21,7 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.citation.models import CitationSource
+from apps.core.entity_types import get_catalog_model
 
 from .models import CitationInstance
 from .page_endpoints import pages_router
@@ -168,18 +167,16 @@ edit_history_router = Router(tags=["edit-history"])
 
 
 def _resolve_catalog_entity(entity_type: str, slug: str):
-    """Look up a catalog entity by content-type name and slug.
+    """Look up a catalog entity by canonical entity_type and slug.
 
     Returns the entity instance, or a ``Status(404, ...)`` response if the
     entity type is unknown or the slug doesn't exist.
     """
-    ct_name = resolve_entity_type(entity_type)
     try:
-        ct = ContentType.objects.get(app_label="catalog", model=ct_name)
-    except ContentType.DoesNotExist:
+        model_class = get_catalog_model(entity_type)
+    except ValueError:
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
-    model_class = ct.model_class()
-    if not model_class or not hasattr(model_class, "link_url_pattern"):
+    if not hasattr(model_class, "link_url_pattern"):
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
     return get_object_or_404(model_class, slug=slug)
 
