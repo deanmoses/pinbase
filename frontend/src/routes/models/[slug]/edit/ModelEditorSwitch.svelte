@@ -3,11 +3,12 @@
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { ModelEditSectionKey } from '$lib/components/editors/model-edit-sections';
 	import BasicsEditor from '$lib/components/editors/BasicsEditor.svelte';
+	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
 	import ExternalDataEditor from '$lib/components/editors/ExternalDataEditor.svelte';
 	import FeaturesEditor from '$lib/components/editors/FeaturesEditor.svelte';
-	import OverviewEditor from '$lib/components/editors/OverviewEditor.svelte';
 	import PeopleEditor from '$lib/components/editors/PeopleEditor.svelte';
 	import RelatedModelsEditor from '$lib/components/editors/RelatedModelsEditor.svelte';
+	import { saveModelClaims } from '$lib/components/editors/save-model-claims';
 	import TechnologyEditor from '$lib/components/editors/TechnologyEditor.svelte';
 
 	type ModelDetail = components['schemas']['MachineModelDetailSchema'];
@@ -44,10 +45,11 @@
 		{ondirtychange}
 	/>
 {:else if sectionKey === 'overview'}
-	<OverviewEditor
+	<DescriptionEditor
 		bind:this={editorRef}
 		initialData={initialData.description?.text ?? ''}
 		{slug}
+		save={saveModelClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}

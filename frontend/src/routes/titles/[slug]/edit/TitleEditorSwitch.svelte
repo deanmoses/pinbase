@@ -1,10 +1,11 @@
 <script lang="ts">
 	import type { components } from '$lib/api/schema';
+	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
+	import { saveTitleClaims } from '$lib/components/editors/save-title-claims';
 	import type { TitleEditSectionKey } from '$lib/components/editors/title-edit-sections';
 	import TitleBasicsEditor from '$lib/components/editors/TitleBasicsEditor.svelte';
 	import TitleExternalDataEditor from '$lib/components/editors/TitleExternalDataEditor.svelte';
-	import TitleOverviewEditor from '$lib/components/editors/TitleOverviewEditor.svelte';
 
 	type TitleDetail = components['schemas']['TitleDetailSchema'];
 
@@ -28,10 +29,11 @@
 </script>
 
 {#if sectionKey === 'overview'}
-	<TitleOverviewEditor
+	<DescriptionEditor
 		bind:this={editorRef}
 		initialData={initialData.description?.text ?? ''}
 		{slug}
+		save={saveTitleClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}

@@ -1,9 +1,10 @@
 <script lang="ts">
+	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { ManufacturerEditSectionKey } from '$lib/components/editors/manufacturer-edit-sections';
 	import ManufacturerBasicsEditor from './ManufacturerBasicsEditor.svelte';
-	import ManufacturerDescriptionEditor from './ManufacturerDescriptionEditor.svelte';
 	import ManufacturerNameEditor from './ManufacturerNameEditor.svelte';
+	import { saveManufacturerClaims } from './save-manufacturer-claims';
 	import type { ManufacturerEditView } from './manufacturer-edit-types';
 
 	let {
@@ -35,10 +36,11 @@
 		{ondirtychange}
 	/>
 {:else if sectionKey === 'description'}
-	<ManufacturerDescriptionEditor
+	<DescriptionEditor
 		bind:this={editorRef}
-		{initialData}
+		initialData={initialData.description?.text ?? ''}
 		{slug}
+		save={saveManufacturerClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}

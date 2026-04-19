@@ -1,8 +1,9 @@
 <script lang="ts">
+	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { FranchiseEditSectionKey } from '$lib/components/editors/franchise-edit-sections';
-	import FranchiseDescriptionEditor from './FranchiseDescriptionEditor.svelte';
 	import FranchiseNameEditor from './FranchiseNameEditor.svelte';
+	import { saveFranchiseClaims } from './save-franchise-claims';
 	import type { FranchiseEditView } from './franchise-edit-types';
 
 	let {
@@ -34,10 +35,11 @@
 		{ondirtychange}
 	/>
 {:else if sectionKey === 'description'}
-	<FranchiseDescriptionEditor
+	<DescriptionEditor
 		bind:this={editorRef}
-		{initialData}
+		initialData={initialData.description?.text ?? ''}
 		{slug}
+		save={saveFranchiseClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}

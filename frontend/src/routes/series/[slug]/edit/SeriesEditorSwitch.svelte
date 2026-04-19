@@ -1,8 +1,9 @@
 <script lang="ts">
+	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { SeriesEditSectionKey } from '$lib/components/editors/series-edit-sections';
-	import SeriesDescriptionEditor from './SeriesDescriptionEditor.svelte';
 	import SeriesNameEditor from './SeriesNameEditor.svelte';
+	import { saveSeriesClaims } from './save-series-claims';
 	import type { SeriesEditView } from './series-edit-types';
 
 	let {
@@ -34,10 +35,11 @@
 		{ondirtychange}
 	/>
 {:else if sectionKey === 'description'}
-	<SeriesDescriptionEditor
+	<DescriptionEditor
 		bind:this={editorRef}
-		{initialData}
+		initialData={initialData.description?.text ?? ''}
 		{slug}
+		save={saveSeriesClaims}
 		{onsaved}
 		{onerror}
 		{ondirtychange}

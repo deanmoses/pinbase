@@ -1,9 +1,10 @@
 <script lang="ts">
+	import DescriptionEditor from '$lib/components/editors/DescriptionEditor.svelte';
 	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
 	import type { PersonEditSectionKey } from '$lib/components/editors/person-edit-sections';
-	import PersonBioEditor from './PersonBioEditor.svelte';
 	import PersonDetailsEditor from './PersonDetailsEditor.svelte';
 	import PersonNameEditor from './PersonNameEditor.svelte';
+	import { savePersonClaims } from './save-person-claims';
 	import type { PersonEditView } from './person-edit-types';
 
 	let {
@@ -35,7 +36,16 @@
 		{ondirtychange}
 	/>
 {:else if sectionKey === 'bio'}
-	<PersonBioEditor bind:this={editorRef} {initialData} {slug} {onsaved} {onerror} {ondirtychange} />
+	<DescriptionEditor
+		bind:this={editorRef}
+		initialData={initialData.description?.text ?? ''}
+		{slug}
+		save={savePersonClaims}
+		label="Bio"
+		{onsaved}
+		{onerror}
+		{ondirtychange}
+	/>
 {:else if sectionKey === 'details'}
 	<PersonDetailsEditor
 		bind:this={editorRef}

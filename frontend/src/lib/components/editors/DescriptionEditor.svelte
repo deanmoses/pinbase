@@ -2,26 +2,26 @@
 	import { untrack } from 'svelte';
 	import MarkdownTextArea from '$lib/components/form/MarkdownTextArea.svelte';
 	import type { SectionEditorProps } from './editor-contract';
-	import {
-		saveModelClaims,
-		type FieldErrors,
-		type SaveResult,
-		type SaveMeta
-	} from './save-model-claims';
+	import type { FieldErrors, SaveMeta, SaveResult } from './save-claims-shared';
+
+	type SaveFn = (
+		slug: string,
+		body: { fields: { description: string } } & SaveMeta
+	) => Promise<SaveResult>;
 
 	let {
 		initialData,
 		slug,
+		save: saveFn,
+		label = 'Description',
 		onsaved,
 		onerror,
 		ondirtychange = () => {}
-	}: SectionEditorProps<string> = $props();
+	}: SectionEditorProps<string> & { save: SaveFn; label?: string } = $props();
 
-	let fieldErrors = $state<FieldErrors>({});
-
-	// untrack: intentional one-time capture; component re-mounts when modal reopens
 	const original = untrack(() => initialData);
 	let description = $state(original);
+	let fieldErrors = $state<FieldErrors>({});
 	let dirty = $derived(description !== original);
 
 	$effect(() => {
@@ -39,7 +39,7 @@
 			return;
 		}
 
-		const result: SaveResult = await saveModelClaims(slug, {
+		const result = await saveFn(slug, {
 			fields: { description },
 			...meta
 		});
@@ -55,9 +55,9 @@
 	}
 </script>
 
-<div class="overview-editor">
+<div class="editor-fields">
 	<MarkdownTextArea
-		label="Description"
+		{label}
 		bind:value={description}
 		rows={8}
 		error={fieldErrors.description ?? ''}
@@ -65,7 +65,7 @@
 </div>
 
 <style>
-	.overview-editor {
+	.editor-fields {
 		display: flex;
 		flex-direction: column;
 		gap: var(--size-3);

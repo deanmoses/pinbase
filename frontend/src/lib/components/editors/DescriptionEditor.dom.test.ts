@@ -2,33 +2,11 @@ import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import TitleOverviewEditorFixture from './TitleOverviewEditor.fixture.svelte';
+import DescriptionEditorFixture from './DescriptionEditor.fixture.svelte';
 import { _resetCache } from '$lib/api/link-types';
 
-const { PATCH } = vi.hoisted(() => ({
-	PATCH: vi.fn()
-}));
-
-const { invalidateAll } = vi.hoisted(() => ({
-	invalidateAll: vi.fn()
-}));
-
-vi.mock('$lib/api/client', () => ({
-	default: { PATCH }
-}));
-
-vi.mock('$app/navigation', () => ({
-	invalidateAll
-}));
-
-describe('TitleOverviewEditor dirty-state contract', () => {
-	afterEach(() => {
-		vi.unstubAllGlobals();
-	});
-
+describe('DescriptionEditor', () => {
 	beforeEach(() => {
-		PATCH.mockReset();
-		invalidateAll.mockReset();
 		_resetCache();
 		vi.stubGlobal(
 			'fetch',
@@ -39,9 +17,13 @@ describe('TitleOverviewEditor dirty-state contract', () => {
 		);
 	});
 
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it('reports clean state initially and dirty state after editing', async () => {
 		const user = userEvent.setup();
-		render(TitleOverviewEditorFixture);
+		render(DescriptionEditorFixture);
 
 		expect(screen.getByTestId('dirty-callback')).toHaveTextContent('false');
 
@@ -56,23 +38,26 @@ describe('TitleOverviewEditor dirty-state contract', () => {
 		expect(screen.getByTestId('dirty-handle')).toHaveTextContent('true');
 	});
 
-	it('calls PATCH on /api/titles/{slug}/claims/ when saving dirty state', async () => {
-		PATCH.mockResolvedValueOnce({ data: {}, error: undefined });
+	it('calls the injected save function with the edited description when dirty', async () => {
 		const user = userEvent.setup();
-		render(TitleOverviewEditorFixture);
+		render(DescriptionEditorFixture);
 
 		await user.type(screen.getByLabelText('Description'), ' updated');
 		await user.click(screen.getByRole('button', { name: 'Save' }));
 
-		expect(PATCH).toHaveBeenCalledWith(
-			'/api/titles/{slug}/claims/',
-			expect.objectContaining({
-				params: { path: { slug: 'addams-family' } },
-				body: expect.objectContaining({
-					fields: expect.objectContaining({ description: 'Original description updated' })
-				})
-			})
+		expect(screen.getByTestId('last-save-body')).toHaveTextContent(
+			JSON.stringify({ fields: { description: 'Original description updated' } })
 		);
+		expect(screen.getByTestId('saved-count')).toHaveTextContent('1');
+	});
+
+	it('skips the save call when clean', async () => {
+		const user = userEvent.setup();
+		render(DescriptionEditorFixture);
+
+		await user.click(screen.getByRole('button', { name: 'Save' }));
+
+		expect(screen.getByTestId('last-save-body')).toHaveTextContent('null');
 		expect(screen.getByTestId('saved-count')).toHaveTextContent('1');
 	});
 });

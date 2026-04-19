@@ -1,10 +1,12 @@
 <script lang="ts">
-	import TitleOverviewEditor from './TitleOverviewEditor.svelte';
+	import DescriptionEditor from './DescriptionEditor.svelte';
+	import type { SaveResult } from './save-claims-shared';
 
 	let dirtyFromCallback = $state(false);
 	let dirtyFromHandle = $state('unknown');
 	let savedCount = $state(0);
 	let lastError = $state('');
+	let lastSaveBody = $state<unknown>(null);
 
 	let editorRef:
 		| {
@@ -16,12 +18,18 @@
 	function handleDirtyChange(dirty: boolean) {
 		dirtyFromCallback = dirty;
 	}
+
+	async function save(_slug: string, body: unknown): Promise<SaveResult> {
+		lastSaveBody = body;
+		return { ok: true };
+	}
 </script>
 
-<TitleOverviewEditor
+<DescriptionEditor
 	bind:this={editorRef}
 	initialData="Original description"
-	slug="addams-family"
+	slug="medieval-madness"
+	{save}
 	onsaved={() => savedCount++}
 	onerror={(message) => (lastError = message)}
 	ondirtychange={handleDirtyChange}
@@ -36,3 +44,4 @@
 <p data-testid="dirty-handle">{dirtyFromHandle}</p>
 <p data-testid="saved-count">{savedCount}</p>
 <p data-testid="last-error">{lastError}</p>
+<p data-testid="last-save-body">{JSON.stringify(lastSaveBody)}</p>
