@@ -29,7 +29,7 @@ from typing import Iterable
 
 from django.db import models as db_models
 
-from apps.core.models import EntityStatusMixin
+from apps.core.models import CatalogModel, EntityStatusMixin
 from apps.provenance.models import ChangeSetAction
 
 from .edit_claims import ClaimSpec, execute_multi_entity_claims
@@ -40,7 +40,7 @@ from .schemas import EditCitationInput
 class BlockingReferrer:
     """A live reference that prevents a soft-delete from proceeding."""
 
-    entity_type: str  # ContentType.model value, e.g. "machinemodel"
+    entity_type: str  # canonical hyphenated CatalogModel.entity_type, e.g. "model"
     pk: int
     name: str
     slug: str | None
@@ -92,7 +92,19 @@ def _is_active(entity) -> bool:
 
 
 def _entity_type(entity) -> str:
-    return entity._meta.model_name
+    """Canonical hyphenated entity_type for wire-format serialization.
+
+    All soft-delete roots and blockers are CatalogModel subclasses today.
+    If that ever changes, add an explicit policy here rather than silently
+    leaking the Django-internal concatenated ``_meta.model_name``.
+    """
+    cls = type(entity)
+    if not issubclass(cls, CatalogModel):
+        raise TypeError(
+            f"{cls.__name__} is not a CatalogModel; soft-delete wire format "
+            "requires a canonical entity_type."
+        )
+    return cls.entity_type
 
 
 def _entity_key(entity) -> tuple[str, int]:

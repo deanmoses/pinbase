@@ -98,7 +98,7 @@ class TestProtectBlocker:
         assert plan.is_blocked
         assert len(plan.blockers) == 1
         blocker = plan.blockers[0]
-        assert blocker.entity_type == "machinemodel"
+        assert blocker.entity_type == "model"
         assert blocker.slug == "other-variant"
         assert blocker.relation == "variant_of"
         assert blocker.blocked_target_slug == "target-pro"

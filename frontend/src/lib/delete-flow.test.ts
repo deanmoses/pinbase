@@ -80,11 +80,11 @@ describe('createDeleteSubmitter', () => {
 			detail: 'Cannot delete: active references.',
 			blocked_by: [
 				{
-					entity_type: 'machinemodel',
+					entity_type: 'model',
 					slug: 'other',
 					name: 'Other',
 					relation: 'variant_of',
-					blocked_target_type: 'machinemodel',
+					blocked_target_type: 'model',
 					blocked_target_slug: 'target'
 				}
 			]

@@ -20,7 +20,7 @@
 					}:`,
 					referrers: blockedReferrers,
 					renderReferrerHref: (r: BlockingReferrer) =>
-						r.slug && r.entity_type === 'machinemodel' ? `/models/${r.slug}` : null,
+						r.slug && r.entity_type === 'model' ? `/models/${r.slug}` : null,
 					renderReferrerHint: (r: BlockingReferrer) =>
 						`references ${r.blocked_target_slug ?? 'this title'} via ${r.relation}`,
 					footer: 'Resolve these references, then try again.'

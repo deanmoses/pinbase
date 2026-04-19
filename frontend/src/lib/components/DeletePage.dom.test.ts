@@ -121,7 +121,7 @@ describe('DeletePage', () => {
 			lead: "Can't delete:",
 			referrers: [
 				{
-					entity_type: 'machinemodel',
+					entity_type: 'model',
 					slug: 'medieval-madness-pro',
 					name: 'Medieval Madness (Pro)',
 					relation: 'system',

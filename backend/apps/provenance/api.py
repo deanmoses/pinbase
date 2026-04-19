@@ -61,7 +61,8 @@ class ReviewClaimSchema(Schema):
     needs_review_notes: str
     created_at: str
     # Context about the subject (the entity this claim targets).
-    subject_type: str  # ContentType.model value, e.g. "manufacturer"
+    # Canonical hyphenated CatalogModel.entity_type, e.g. "manufacturer".
+    subject_type: str
     subject_name: str
     subject_slug: Optional[str] = None
     # Title that this claim created (for group claims).
@@ -145,7 +146,7 @@ def list_review_claims(request):
                 "value": claim.value,
                 "needs_review_notes": claim.needs_review_notes,
                 "created_at": claim.created_at.isoformat(),
-                "subject_type": claim.content_type.model,
+                "subject_type": claim.content_type.model_class().entity_type,
                 "subject_name": subject_name,
                 "subject_slug": subject_slug,
                 "title_slug": title_slug,
