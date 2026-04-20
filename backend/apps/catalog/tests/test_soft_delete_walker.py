@@ -15,7 +15,13 @@ from apps.catalog.api.soft_delete import (
     execute_soft_delete,
     plan_soft_delete,
 )
-from apps.catalog.models import MachineModel, Title
+from apps.catalog.models import (
+    GameplayFeature,
+    MachineModel,
+    Tag,
+    Theme,
+    Title,
+)
 from apps.provenance.models import Claim, Source
 
 pytestmark = pytest.mark.django_db
@@ -130,6 +136,111 @@ class TestProtectBlocker:
         TitleAbbreviation.objects.create(title=t, value="MM")
         plan = plan_soft_delete(t)
         assert not plan.is_blocked
+
+
+class TestUsageBlockers:
+    """Active lifecycle entities reachable via M2M through-rows or self-ref
+    hierarchy must block delete. These references are invisible to the FK
+    PROTECT walker because the intermediate through-table has no lifecycle.
+    The model-level ``soft_delete_usage_blockers`` opt-in declares which
+    reverse managers to check.
+    """
+
+    def test_tag_blocked_by_active_machine_model_via_m2m(self):
+        """Tag delete blocks while an active MachineModel has it applied."""
+        tag = Tag.objects.create(name="Widebody", slug="widebody", status="active")
+        title = _title("mm")
+        mm = _model(title, "mm-pro")
+        mm.tags.add(tag)
+
+        plan = plan_soft_delete(tag)
+        assert plan.is_blocked
+        assert any(
+            b.entity_type == "model" and b.slug == "mm-pro" for b in plan.blockers
+        )
+
+    def test_tag_not_blocked_by_soft_deleted_machine_model(self):
+        """Soft-deleted referrer must not block — mirrors the FK PROTECT rule."""
+        tag = Tag.objects.create(name="Widebody", slug="widebody", status="active")
+        title = _title("mm")
+        mm = _model(title, "mm-pro", status="deleted")
+        mm.tags.add(tag)
+
+        plan = plan_soft_delete(tag)
+        assert not plan.is_blocked
+
+    def test_theme_blocked_by_active_machine_model(self):
+        theme = Theme.objects.create(name="Sports", slug="sports", status="active")
+        title = _title("mm")
+        mm = _model(title, "mm-pro")
+        mm.themes.add(theme)
+
+        plan = plan_soft_delete(theme)
+        assert plan.is_blocked
+        assert any(b.slug == "mm-pro" for b in plan.blockers)
+
+    def test_theme_blocked_by_active_child_theme(self):
+        """Self-ref hierarchy — a parent Theme can't be deleted while an
+        active child points at it via ``Theme.parents``."""
+        parent = Theme.objects.create(name="Sports", slug="sports", status="active")
+        child = Theme.objects.create(name="Football", slug="football", status="active")
+        child.parents.add(parent)
+
+        plan = plan_soft_delete(parent)
+        assert plan.is_blocked
+        assert any(b.slug == "football" for b in plan.blockers)
+
+    def test_theme_not_blocked_by_soft_deleted_child(self):
+        parent = Theme.objects.create(name="Sports", slug="sports", status="active")
+        child = Theme.objects.create(name="Football", slug="football", status="deleted")
+        child.parents.add(parent)
+
+        plan = plan_soft_delete(parent)
+        assert not plan.is_blocked
+
+    def test_gameplay_feature_blocked_by_active_machine_model(self):
+        feature = GameplayFeature.objects.create(
+            name="Multiball", slug="multiball", status="active"
+        )
+        title = _title("mm")
+        mm = _model(title, "mm-pro")
+        mm.gameplay_features.add(feature)
+
+        plan = plan_soft_delete(feature)
+        assert plan.is_blocked
+        assert any(b.slug == "mm-pro" for b in plan.blockers)
+
+    def test_gameplay_feature_blocked_by_active_child(self):
+        parent = GameplayFeature.objects.create(
+            name="Ramps", slug="ramps", status="active"
+        )
+        child = GameplayFeature.objects.create(
+            name="Spinning Ramp", slug="spinning-ramp", status="active"
+        )
+        child.parents.add(parent)
+
+        plan = plan_soft_delete(parent)
+        assert plan.is_blocked
+        assert any(b.slug == "spinning-ramp" for b in plan.blockers)
+
+    def test_title_cascade_with_tagged_children_not_self_blocked(
+        self, bootstrap_source
+    ):
+        """Title delete cascades to its MachineModels. Each model's tags
+        look referenced-by-an-active-model during walk — but the model is
+        itself in the cascade set, so the existing dedup must continue to
+        skip it. Regression guard on the cascade filter at
+        ``plan_soft_delete`` (soft_delete.py) interacting with the new
+        usage-blocker rule.
+        """
+        tag = Tag.objects.create(name="Widebody", slug="widebody", status="active")
+        t = _title("mm", source=bootstrap_source)
+        mm = _model(t, "mm-pro", source=bootstrap_source)
+        mm.tags.add(tag)
+
+        plan = plan_soft_delete(t)
+        assert not plan.is_blocked
+        assert set(plan.entities_to_delete) == {t, mm}
 
 
 class TestExecute:

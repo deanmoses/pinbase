@@ -42,6 +42,7 @@ from ..models import MachineModel, Theme
 class ThemeListSchema(Schema):
     name: str
     slug: str
+    aliases: list[str] = []
     parent_slugs: list[str] = []
 
 
@@ -110,13 +111,17 @@ themes_router = Router(tags=["themes"])
 def list_themes(request):
     themes = (
         Theme.objects.active()
-        .prefetch_related(Prefetch("parents", queryset=Theme.objects.active()))
+        .prefetch_related(
+            Prefetch("parents", queryset=Theme.objects.active()),
+            "aliases",
+        )
         .order_by("name")
     )
     return [
         {
             "name": t.name,
             "slug": t.slug,
+            "aliases": [a.value for a in t.aliases.all()],
             "parent_slugs": [p.slug for p in t.parents.all()],
         }
         for t in themes

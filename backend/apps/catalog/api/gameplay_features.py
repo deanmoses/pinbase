@@ -41,6 +41,7 @@ from ..models import GameplayFeature, MachineModel
 class GameplayFeatureListSchema(Schema):
     name: str
     slug: str
+    aliases: list[str] = []
     model_count: int = 0
     parent_slugs: list[str] = []
 
@@ -105,6 +106,7 @@ def list_gameplay_features(request):
         .prefetch_related(
             Prefetch("children", queryset=GameplayFeature.objects.active()),
             Prefetch("parents", queryset=GameplayFeature.objects.active()),
+            "aliases",
         )
         .order_by("name")
     )
@@ -143,6 +145,7 @@ def list_gameplay_features(request):
             {
                 "name": f.name,
                 "slug": f.slug,
+                "aliases": [a.value for a in f.aliases.all()],
                 "model_count": len(all_model_pks),
                 "parent_slugs": [p.slug for p in f.parents.all()],
             }

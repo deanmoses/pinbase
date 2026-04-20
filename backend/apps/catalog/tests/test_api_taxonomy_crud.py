@@ -19,6 +19,7 @@ from apps.catalog.models import (
     DisplayType,
     MachineModel,
     RewardType,
+    RewardTypeAlias,
     Tag,
     TechnologyGeneration,
     TechnologySubgeneration,
@@ -449,3 +450,102 @@ class TestParentedDeletePreviewBreadcrumb:
         body = resp.json()
         assert body["parent_name"] is None
         assert body["parent_slug"] is None
+
+
+# ── Delete blocked by active M2M referrer ────────────────────────────
+
+
+def _title_with_model(slug: str) -> tuple[Title, MachineModel]:
+    title = Title.objects.create(name=slug.title(), slug=slug, status="active")
+    mm = MachineModel.objects.create(
+        name=slug.title(), slug=f"{slug}-pro", title=title, status="active"
+    )
+    return title, mm
+
+
+@pytest.mark.django_db
+class TestTagDeleteBlockedByActiveMachineModel:
+    """Active MachineModel applying a Tag via ``MachineModelTag`` must block
+    Tag delete. The through-table has no lifecycle of its own, so the
+    walker reaches the referrer through ``soft_delete_usage_blockers``."""
+
+    def test_preview_surfaces_blocker(self, client, user):
+        tag = Tag.objects.create(name="Widebody", slug="widebody", status="active")
+        _, mm = _title_with_model("mm")
+        mm.tags.add(tag)
+
+        client.force_login(user)
+        resp = client.get(f"/api/tags/{tag.slug}/delete-preview/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["blocked_by"]) == 1
+        assert body["blocked_by"][0]["entity_type"] == "model"
+        assert body["changeset_count"] == 0  # short-circuited while blocked
+
+    def test_delete_returns_422_blocked_body(self, client, user):
+        tag = Tag.objects.create(name="Widebody", slug="widebody", status="active")
+        _, mm = _title_with_model("mm")
+        mm.tags.add(tag)
+
+        client.force_login(user)
+        resp = _post(client, f"/api/tags/{tag.slug}/delete/", {})
+        assert resp.status_code == 422
+        body = resp.json()
+        assert len(body["blocked_by"]) == 1
+        tag.refresh_from_db()
+        assert tag.status == "active"
+
+    def test_delete_proceeds_when_referrer_soft_deleted(self, client, user):
+        tag = Tag.objects.create(name="Widebody", slug="widebody", status="active")
+        _, mm = _title_with_model("mm")
+        mm.tags.add(tag)
+        mm.status = "deleted"
+        mm.save(update_fields=["status"])
+
+        client.force_login(user)
+        resp = _post(client, f"/api/tags/{tag.slug}/delete/", {})
+        assert resp.status_code == 200, resp.content
+
+
+@pytest.mark.django_db
+class TestRewardTypeDeleteBlockedByActiveMachineModel:
+    def test_delete_returns_422_blocked_body(self, client, user):
+        rt = RewardType.objects.create(
+            name="Extra Ball", slug="extra-ball", status="active"
+        )
+        _, mm = _title_with_model("mm")
+        mm.reward_types.add(rt)
+
+        client.force_login(user)
+        resp = _post(client, f"/api/reward-types/{rt.slug}/delete/", {})
+        assert resp.status_code == 422
+        body = resp.json()
+        assert len(body["blocked_by"]) == 1
+        rt.refresh_from_db()
+        assert rt.status == "active"
+
+
+# ── Alias-collision on create ───────────────────────────────────────
+
+
+@pytest.mark.django_db
+class TestRewardTypeCreateAliasCollision:
+    """Per RecordCreateDelete.md, aliases must count as results for duplicate
+    prevention — the API must reject a create whose name collides with an
+    existing alias, not just with another entity's canonical name."""
+
+    def test_create_rejects_name_matching_existing_alias(self, client, user):
+        existing = RewardType.objects.create(
+            name="Extra Ball", slug="extra-ball", status="active"
+        )
+        RewardTypeAlias.objects.create(reward_type=existing, value="Shoot Again")
+
+        client.force_login(user)
+        resp = _post(
+            client,
+            "/api/reward-types/",
+            {"name": "Shoot Again", "slug": "shoot-again"},
+        )
+        assert resp.status_code == 422
+        assert "name" in resp.json()["detail"]["field_errors"]
+        assert not RewardType.objects.filter(slug="shoot-again").exists()

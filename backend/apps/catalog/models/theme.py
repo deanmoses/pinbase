@@ -32,6 +32,7 @@ class Theme(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
 
     entity_type = "theme"
     entity_type_plural = "themes"
+    soft_delete_usage_blockers = ("machine_models", "children")
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

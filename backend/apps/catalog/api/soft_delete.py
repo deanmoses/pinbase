@@ -20,6 +20,16 @@ rules (see docs/plans/RecordCreateDelete.md §Cascade Behavior):
 The walker is generic over any entity with ``EntityStatusMixin``. Title is
 the first caller; Model Delete and the rest will plug in by declaring
 ``soft_delete_cascade_relations`` on their models.
+
+Some lifecycle references aren't visible through the reverse-FK pass: M2M
+through-rows (``MachineModelTag``, ``MachineModelTheme``, …) and
+self-referential hierarchy (``Theme.parents``, ``GameplayFeature.parents``)
+hop through an intermediate table that itself has no lifecycle. Models
+that care about those "usage" references declare them explicitly via
+``soft_delete_usage_blockers``, a tuple of reverse-manager names to walk
+for active referrers — closing the gap between "no FK PROTECT breakage
+at the DB" and "no active lifecycle entity still references me at the
+application layer".
 """
 
 from __future__ import annotations
@@ -171,11 +181,29 @@ def _iter_protect_referrers(entity):
         # it's an owned child that rides with parent visibility.
 
 
+def _iter_usage_blockers(entity):
+    """Yield ``(referrer, manager_name)`` for active referrers reachable via
+    ``soft_delete_usage_blockers`` — M2M through-rows and self-ref hierarchy.
+
+    Each manager name must resolve to a reverse manager that supports
+    ``.active()`` (i.e. whose remote model is a ``CatalogQuerySet`` user,
+    via ``EntityStatusMixin``). Yielded referrers are always active.
+    """
+    manager_names: Iterable[str] = getattr(
+        type(entity), "soft_delete_usage_blockers", ()
+    )
+    for manager_name in manager_names:
+        manager = getattr(entity, manager_name)
+        for ref in manager.active():
+            yield ref, manager_name
+
+
 def plan_soft_delete(root) -> SoftDeletePlan:
     """Plan a soft-delete of *root* plus every active cascade child.
 
     Returns both the entities that would receive ``status=deleted`` claims
-    and any active PROTECT referrers that would block the delete.
+    and any active PROTECT or usage-M2M referrers that would block the
+    delete.
     """
     if not _has_status(type(root)):
         raise TypeError(
@@ -187,21 +215,34 @@ def plan_soft_delete(root) -> SoftDeletePlan:
     cascade_keys = {_entity_key(e) for e in cascade}
 
     blockers: list[BlockingReferrer] = []
+    seen_blockers: set[tuple[tuple[str, int], str]] = set()
+
+    def _record(ref, relation: str, target) -> None:
+        key = (_entity_key(ref), relation)
+        if key in seen_blockers:
+            return
+        seen_blockers.add(key)
+        blockers.append(
+            BlockingReferrer(
+                entity_type=_entity_type(ref),
+                pk=ref.pk,
+                name=str(ref),
+                slug=getattr(ref, "slug", None),
+                relation=relation,
+                blocked_target_type=_entity_type(target),
+                blocked_target_slug=getattr(target, "slug", None),
+            )
+        )
+
     for entity in cascade:
         for ref, relation in _iter_protect_referrers(entity):
             if _entity_key(ref) in cascade_keys:
                 continue
-            blockers.append(
-                BlockingReferrer(
-                    entity_type=_entity_type(ref),
-                    pk=ref.pk,
-                    name=str(ref),
-                    slug=getattr(ref, "slug", None),
-                    relation=relation,
-                    blocked_target_type=_entity_type(entity),
-                    blocked_target_slug=getattr(entity, "slug", None),
-                )
-            )
+            _record(ref, relation, entity)
+        for ref, manager_name in _iter_usage_blockers(entity):
+            if _entity_key(ref) in cascade_keys:
+                continue
+            _record(ref, manager_name, entity)
 
     return SoftDeletePlan(entities_to_delete=cascade, blockers=blockers)
 

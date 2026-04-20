@@ -50,6 +50,7 @@ class TaxonomySchema(Schema):
     slug: str
     display_order: int
     description: RichTextSchema = RichTextSchema()
+    aliases: list[str] = []
     sources: list[ClaimSchema] = []
 
 
@@ -59,6 +60,13 @@ class TaxonomySchema(Schema):
 
 
 def _serialize_taxonomy(obj) -> dict:
+    # Only RewardType among the shared-schema taxonomies carries aliases;
+    # Tag / Cabinet / GameFormat / Tech* / Display* don't have an alias
+    # model. ``hasattr`` on the class keeps the serializer uniform without
+    # triggering a lookup query on the alias-less branches.
+    aliases: list[str] = []
+    if hasattr(type(obj), "aliases"):
+        aliases = [a.value for a in obj.aliases.all()]
     return {
         "name": obj.name,
         "slug": obj.slug,
@@ -66,12 +74,16 @@ def _serialize_taxonomy(obj) -> dict:
         "description": _build_rich_text(
             obj, "description", getattr(obj, "active_claims", [])
         ),
+        "aliases": aliases,
         "sources": build_sources(getattr(obj, "active_claims", [])),
     }
 
 
 def _taxonomy_detail_qs(model_class):
-    return model_class.objects.active().prefetch_related(claims_prefetch())
+    prefetches = [claims_prefetch()]
+    if hasattr(model_class, "aliases"):
+        prefetches.append("aliases")
+    return model_class.objects.active().prefetch_related(*prefetches)
 
 
 def _patch_taxonomy(request, model_class, slug, data):
@@ -289,7 +301,9 @@ def _serialize_reward_type_detail(rt) -> dict:
 def list_reward_types(request):
     return [
         _serialize_taxonomy(rt)
-        for rt in RewardType.objects.active().order_by("display_order", "name")
+        for rt in RewardType.objects.active()
+        .prefetch_related("aliases")
+        .order_by("display_order", "name")
     ]
 
 

@@ -1,4 +1,4 @@
-<script lang="ts" generics="T extends { slug: string; name: string }">
+<script lang="ts" generics="T extends { slug: string; name: string; aliases?: string[] }">
 	import type { Snippet } from 'svelte';
 	import PageHeader from './PageHeader.svelte';
 	import SearchBox from './SearchBox.svelte';
@@ -59,7 +59,13 @@
 	let filteredItems = $derived.by(() => {
 		const q = normalizeText(searchQuery.trim());
 		if (!q) return items;
-		return items.filter((item) => normalizeText(item.name).includes(q));
+		// Per RecordCreateDelete.md:115, aliases must count as results for the
+		// duplicate-prevention gate — otherwise a search for an existing alias
+		// would wrongly trigger NoResultsCreatePrompt.
+		return items.filter((item) => {
+			if (normalizeText(item.name).includes(q)) return true;
+			return (item.aliases ?? []).some((alias) => normalizeText(alias).includes(q));
+		});
 	});
 
 	let singularLabel = $derived(

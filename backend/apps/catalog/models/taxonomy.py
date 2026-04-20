@@ -202,6 +202,7 @@ class RewardType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
 
     entity_type = "reward-type"
     entity_type_plural = "reward-types"
+    soft_delete_usage_blockers = ("machine_models",)
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
@@ -263,6 +264,7 @@ class Tag(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
 
     entity_type = "tag"
     entity_type_plural = "tags"
+    soft_delete_usage_blockers = ("machine_models",)
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

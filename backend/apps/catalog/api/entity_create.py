@@ -88,6 +88,22 @@ def validate_name(name: str, *, max_length: int) -> str:
     return name
 
 
+def _resolve_alias_relation(model_cls):
+    """Return ``(alias_model, parent_fk_name)`` if *model_cls* exposes an
+    ``aliases`` reverse manager, else ``None``.
+
+    Catalog alias models inherit from :class:`apps.core.models.AliasBase`
+    (value column + ``related_name="aliases"`` on the parent FK). Using
+    ``_meta.related_objects`` instead of ``getattr`` on the class keeps
+    the lookup robust across model reloads and avoids hardcoding FK
+    field names per entity (``theme``, ``reward_type``, ``feature``, …).
+    """
+    for rel in model_cls._meta.related_objects:
+        if rel.get_accessor_name() == "aliases":
+            return rel.related_model, rel.field.name
+    return None
+
+
 def assert_name_available(
     model_cls,
     name: str,
@@ -110,6 +126,12 @@ def assert_name_available(
 
     *friendly_label* is the noun shown to the user, e.g. "title" or
     "model": "A model named 'Pro' already exists."
+
+    When *model_cls* exposes an ``aliases`` reverse manager (Theme,
+    GameplayFeature, RewardType, …), aliases of active parents also count
+    as collisions — the spec requires aliases to behave like alternate
+    names for duplicate-prevention purposes. See
+    docs/plans/RecordCreateDelete.md:115.
     """
     normalized = normalize(name)
     if not normalized:
@@ -134,6 +156,53 @@ def assert_name_available(
                     )
                 },
             )
+
+    alias_rel = _resolve_alias_relation(model_cls)
+    if alias_rel is None:
+        return
+    alias_model, parent_fk_name = alias_rel
+    alias_qs = alias_model.objects.filter(**{f"{parent_fk_name}__status": "active"})
+    if scope_filter is not None:
+        # Rewrite the scope filter so it applies to the alias's parent.
+        alias_qs = alias_qs.filter(
+            _rewrite_scope_for_alias(scope_filter, parent_fk_name)
+        )
+    for parent_pk, alias_value in alias_qs.values_list(f"{parent_fk_name}_id", "value"):
+        if exclude_pk is not None and parent_pk == exclude_pk:
+            continue
+        if normalize(alias_value) == normalized:
+            raise StructuredValidationError(
+                message="Name collision.",
+                field_errors={
+                    "name": (
+                        f"An alias {alias_value!r} already points at an "
+                        f"existing {friendly_label}. Pick a disambiguating name."
+                    )
+                },
+            )
+
+
+def _rewrite_scope_for_alias(scope_filter: Q, parent_fk_name: str) -> Q:
+    """Prefix each leaf lookup in *scope_filter* with ``{parent_fk_name}__``.
+
+    The caller's ``scope_filter`` targets fields on the parent model
+    (``title_id=...``); when applied against the alias table those same
+    fields live behind the FK to the parent.
+    """
+
+    def _walk(node):
+        new = Q()
+        new.connector = node.connector
+        new.negated = node.negated
+        for child in node.children:
+            if isinstance(child, Q):
+                new.children.append(_walk(child))
+            else:
+                lookup, value = child
+                new.children.append((f"{parent_fk_name}__{lookup}", value))
+        return new
+
+    return _walk(scope_filter)
 
 
 def assert_slug_available(model_cls, slug: str) -> None:
