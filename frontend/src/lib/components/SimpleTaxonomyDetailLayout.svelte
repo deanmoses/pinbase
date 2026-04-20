@@ -16,12 +16,16 @@
 		parentLabel,
 		basePath,
 		saveClaims,
+		deleteHref,
+		createChild,
 		children
 	}: {
 		profile: SimpleTaxonomyEditView;
 		parentLabel: string;
 		basePath: string;
 		saveClaims: SaveSimpleTaxonomyClaims;
+		deleteHref?: string;
+		createChild?: { href: string; label: string };
 		children: Snippet;
 	} = $props();
 
@@ -31,7 +35,7 @@
 	}));
 </script>
 
-<TaxonomyDetailBaseLayout {profile} {parentLabel} {basePath} {sections}>
+<TaxonomyDetailBaseLayout {profile} {parentLabel} {basePath} {sections} {deleteHref} {createChild}>
 	{#snippet editor(key: SimpleTaxonomyEditSectionKey, { ref, onsaved, onerror, ondirtychange })}
 		<SimpleTaxonomyEditorSwitch
 			sectionKey={key}

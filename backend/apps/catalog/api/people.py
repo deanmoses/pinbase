@@ -52,6 +52,7 @@ from .schemas import (
 )
 from .soft_delete import (
     SoftDeleteBlocked,
+    count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
     serialize_blocking_referrer,
@@ -344,25 +345,6 @@ def create_person(request, data: PersonCreateSchema):
 # ---------------------------------------------------------------------------
 
 
-def _count_person_changesets(person: Person) -> int:
-    """Count user ChangeSets with at least one claim on *person*.
-
-    Mirrors ``_count_model_changesets`` — Person has no lifecycle children
-    to roll up, so there's a single entity to aggregate provenance for.
-    """
-    from django.contrib.contenttypes.models import ContentType
-
-    from apps.provenance.models import ChangeSet
-
-    ct = ContentType.objects.get_for_model(Person)
-    return (
-        ChangeSet.objects.filter(user__isnull=False)
-        .filter(claims__content_type=ct, claims__object_id=person.pk)
-        .distinct()
-        .count()
-    )
-
-
 def _active_credit_count(person: Person) -> int:
     """Credits pointing to *person* whose parent Model or Series is active.
 
@@ -399,7 +381,7 @@ def person_delete_preview(request, slug: str):
     plan = plan_soft_delete(person)
     active_credits = _active_credit_count(person)
     is_blocked = plan.is_blocked or active_credits > 0
-    changeset_count = 0 if is_blocked else _count_person_changesets(person)
+    changeset_count = 0 if is_blocked else count_entity_changesets(person)
     return {
         "person_name": person.name,
         "person_slug": person.slug,

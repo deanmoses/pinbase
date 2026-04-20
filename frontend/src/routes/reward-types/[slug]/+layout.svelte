@@ -11,6 +11,7 @@
 	parentLabel="Reward Types"
 	basePath="/reward-types"
 	saveClaims={saveRewardTypeClaims}
+	deleteHref={`/reward-types/${profile.slug}/delete`}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

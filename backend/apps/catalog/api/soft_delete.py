@@ -27,10 +27,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterable
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import models as db_models
 
 from apps.core.models import CatalogModel, EntityStatusMixin
-from apps.provenance.models import ChangeSetAction
+from apps.provenance.models import ChangeSet, ChangeSetAction
 
 from .edit_claims import ClaimSpec, execute_multi_entity_claims
 from .schemas import EditCitationInput
@@ -203,6 +204,27 @@ def plan_soft_delete(root) -> SoftDeletePlan:
             )
 
     return SoftDeletePlan(entities_to_delete=cascade, blockers=blockers)
+
+
+def count_entity_changesets(*entities: CatalogModel) -> int:
+    """Count distinct user ChangeSets with a claim on any of *entities*.
+
+    Variadic so delete-preview endpoints can roll up provenance across a
+    cascade (e.g. Title + its MachineModels) in a single distinct query —
+    summing per-entity counts would double-count any ChangeSet that claims
+    on more than one of them. With a single entity it collapses to the
+    obvious one-entity query.
+    """
+    if not entities:
+        return 0
+    by_ct: dict[ContentType, list[int]] = {}
+    for e in entities:
+        ct = ContentType.objects.get_for_model(type(e))
+        by_ct.setdefault(ct, []).append(e.pk)
+    q = db_models.Q()
+    for ct, pks in by_ct.items():
+        q |= db_models.Q(claims__content_type=ct, claims__object_id__in=pks)
+    return ChangeSet.objects.filter(user__isnull=False).filter(q).distinct().count()
 
 
 class SoftDeleteBlocked(Exception):

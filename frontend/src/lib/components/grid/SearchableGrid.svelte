@@ -5,8 +5,8 @@
 	import ClientFilteredGrid from './ClientFilteredGrid.svelte';
 	import SkeletonCard from '../cards/SkeletonCard.svelte';
 	import { normalizeText } from '$lib/utils';
+	import { SEARCH_THRESHOLD } from './search-threshold';
 
-	const SEARCH_THRESHOLD = 12;
 	const SKELETON_INDICES = Array.from({ length: 12 }, (_, i) => i);
 
 	let {

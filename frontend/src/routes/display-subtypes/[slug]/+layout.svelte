@@ -11,6 +11,7 @@
 	parentLabel="Display Subtypes"
 	basePath="/display-subtypes"
 	saveClaims={saveDisplaySubtypeClaims}
+	deleteHref={`/display-subtypes/${profile.slug}/delete`}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

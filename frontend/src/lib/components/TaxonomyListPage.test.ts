@@ -133,4 +133,53 @@ describe('TaxonomyListPage', () => {
 		expect(body).toContain('Rich introductory content here.');
 		expect(body).not.toContain('subtitle');
 	});
+
+	it('omits search input below SEARCH_THRESHOLD', () => {
+		// 2 items is far below the 12-item threshold.
+		const { body } = render(TaxonomyListPage, {
+			props: {
+				title: 'Widgets',
+				basePath: '/widgets',
+				items: ITEMS,
+				loading: false,
+				error: null,
+				createHref: '/widgets/new'
+			}
+		});
+
+		expect(body).not.toContain('type="search"');
+	});
+
+	it('renders search input at/above SEARCH_THRESHOLD', () => {
+		const many = Array.from({ length: 12 }, (_, i) => ({
+			slug: `w-${i}`,
+			name: `Widget ${i}`
+		}));
+		const { body } = render(TaxonomyListPage, {
+			props: {
+				title: 'Widgets',
+				basePath: '/widgets',
+				items: many,
+				loading: false,
+				error: null,
+				createHref: '/widgets/new'
+			}
+		});
+
+		expect(body).toContain('type="search"');
+	});
+
+	it('does not render create affordances when createHref is absent', () => {
+		const { body } = render(TaxonomyListPage, {
+			props: {
+				title: 'Widgets',
+				basePath: '/widgets',
+				items: ITEMS,
+				loading: false,
+				error: null
+			}
+		});
+
+		expect(body).not.toContain('/widgets/new');
+	});
 });

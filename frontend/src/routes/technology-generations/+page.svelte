@@ -16,4 +16,5 @@
 	items={loader.data}
 	loading={loader.loading}
 	error={loader.error}
+	createHref="/technology-generations/new"
 />

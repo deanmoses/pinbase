@@ -11,6 +11,11 @@
 	parentLabel="Display Types"
 	basePath="/display-types"
 	saveClaims={saveDisplayTypeClaims}
+	deleteHref={`/display-types/${profile.slug}/delete`}
+	createChild={{
+		href: `/display-subtypes/new?parent=${profile.slug}`,
+		label: 'subtype'
+	}}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

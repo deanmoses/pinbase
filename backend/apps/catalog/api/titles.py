@@ -32,6 +32,7 @@ from .entity_create import (
 )
 from .soft_delete import (
     SoftDeleteBlocked,
+    count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
     serialize_blocking_referrer,
@@ -1104,24 +1105,6 @@ def create_model(request, title_slug: str, data: ModelCreateSchema):
 # ---------------------------------------------------------------------------
 
 
-def _count_title_changesets(title, model_pks: list[int]) -> int:
-    """Count user ChangeSets with at least one claim on *title* or *models*.
-
-    Used by the delete-preview endpoint to show the user how much provenance
-    rides along with the Title.
-    """
-    from django.contrib.contenttypes.models import ContentType
-
-    from apps.provenance.models import ChangeSet
-
-    title_ct = ContentType.objects.get_for_model(Title)
-    model_ct = ContentType.objects.get_for_model(MachineModel)
-    q = Q(claims__content_type=title_ct, claims__object_id=title.pk)
-    if model_pks:
-        q |= Q(claims__content_type=model_ct, claims__object_id__in=model_pks)
-    return ChangeSet.objects.filter(user__isnull=False).filter(q).distinct().count()
-
-
 @titles_router.get(
     "/{slug}/delete-preview/",
     auth=django_auth,
@@ -1143,7 +1126,7 @@ def title_delete_preview(request, slug: str):
     # Skip the ChangeSet count query when blocked — the UI hides the impact
     # summary in that branch, so the number is never displayed.
     changeset_count = (
-        0 if plan.is_blocked else _count_title_changesets(title, model_pks)
+        0 if plan.is_blocked else count_entity_changesets(*plan.entities_to_delete)
     )
     return {
         "title_name": title.name,

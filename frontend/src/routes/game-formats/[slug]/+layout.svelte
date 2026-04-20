@@ -11,6 +11,7 @@
 	parentLabel="Game Formats"
 	basePath="/game-formats"
 	saveClaims={saveGameFormatClaims}
+	deleteHref={`/game-formats/${profile.slug}/delete`}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

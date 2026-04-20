@@ -28,6 +28,7 @@ from .edit_claims import (
 )
 from .soft_delete import (
     SoftDeleteBlocked,
+    count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
     serialize_blocking_referrer,
@@ -1042,26 +1043,6 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
 # ---------------------------------------------------------------------------
 
 
-def _count_model_changesets(model) -> int:
-    """Count user ChangeSets with at least one claim on *model*.
-
-    Mirrors ``_count_title_changesets`` but scoped to a single MachineModel —
-    Model Delete has no cascade children, so there's only the one entity to
-    aggregate provenance for.
-    """
-    from django.contrib.contenttypes.models import ContentType
-
-    from apps.provenance.models import ChangeSet
-
-    ct = ContentType.objects.get_for_model(MachineModel)
-    return (
-        ChangeSet.objects.filter(user__isnull=False)
-        .filter(claims__content_type=ct, claims__object_id=model.pk)
-        .distinct()
-        .count()
-    )
-
-
 @models_router.get(
     "/{slug}/delete-preview/",
     auth=django_auth,
@@ -1074,7 +1055,7 @@ def model_delete_preview(request, slug: str):
         MachineModel.objects.active().select_related("title"), slug=slug
     )
     plan = plan_soft_delete(pm)
-    changeset_count = 0 if plan.is_blocked else _count_model_changesets(pm)
+    changeset_count = 0 if plan.is_blocked else count_entity_changesets(pm)
     return {
         "model_name": pm.name,
         "model_slug": pm.slug,

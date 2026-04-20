@@ -11,6 +11,11 @@
 	parentLabel="Technology Generations"
 	basePath="/technology-generations"
 	saveClaims={saveTechnologyGenerationClaims}
+	deleteHref={`/technology-generations/${profile.slug}/delete`}
+	createChild={{
+		href: `/technology-subgenerations/new?parent=${profile.slug}`,
+		label: 'subgeneration'
+	}}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

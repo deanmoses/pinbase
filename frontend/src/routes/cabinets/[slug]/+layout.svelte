@@ -11,6 +11,7 @@
 	parentLabel="Cabinets"
 	basePath="/cabinets"
 	saveClaims={saveCabinetClaims}
+	deleteHref={`/cabinets/${profile.slug}/delete`}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

@@ -55,6 +55,7 @@
 	loading={loader.loading}
 	error={loader.error}
 	headerSnippet={header}
+	createHref="/reward-types/new"
 />
 
 <style>

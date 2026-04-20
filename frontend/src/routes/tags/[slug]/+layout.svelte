@@ -11,6 +11,7 @@
 	parentLabel="Tags"
 	basePath="/tags"
 	saveClaims={saveTagClaims}
+	deleteHref={`/tags/${profile.slug}/delete`}
 >
 	{@render children()}
 </SimpleTaxonomyDetailLayout>

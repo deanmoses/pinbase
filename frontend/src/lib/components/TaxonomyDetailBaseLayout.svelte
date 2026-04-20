@@ -38,6 +38,8 @@
 		immediateEditor,
 		sidebar,
 		editActionContext,
+		deleteHref,
+		createChild,
 		children
 	}: {
 		profile: { name: string; slug: string; description: { text: string } };
@@ -54,6 +56,10 @@
 		 * it navigates to the mobile section route. Auth-gated.
 		 */
 		editActionContext?: EditActionContext<TKey>;
+		/** When set, appends a "Delete X" trailing item to the Edit menu. */
+		deleteHref?: string;
+		/** When set, appends a "New {label}" trailing item to the Edit menu (parent entities only). */
+		createChild?: { href: string; label: string };
 		children: Snippet;
 	} = $props();
 
@@ -105,21 +111,42 @@
 		updateEditQuery(editing);
 	});
 
-	let editSections: EditSectionMenuItem[] = $derived(
-		sections.map((section) =>
-			isMobile
-				? {
-						key: section.key,
-						label: section.label,
-						href: resolveHref(`${basePath}/${slug}/edit/${section.segment}`)
-					}
-				: {
-						key: section.key,
-						label: section.label,
-						onclick: () => (editing = section.key)
-					}
-		)
-	);
+	let editSections: EditSectionMenuItem[] = $derived([
+		...sections.map(
+			(section): EditSectionMenuItem =>
+				isMobile
+					? {
+							key: section.key,
+							label: section.label,
+							href: resolveHref(`${basePath}/${slug}/edit/${section.segment}`)
+						}
+					: {
+							key: section.key,
+							label: section.label,
+							onclick: () => (editing = section.key)
+						}
+		),
+		// Trailing items — always hrefs, mode-agnostic. Create-child before
+		// Delete so the destructive action is last.
+		...(createChild
+			? [
+					{
+						key: 'create-child',
+						label: `New ${createChild.label}`,
+						href: resolveHref(createChild.href)
+					} as EditSectionMenuItem
+				]
+			: []),
+		...(deleteHref
+			? [
+					{
+						key: 'delete',
+						label: `Delete ${profile.name}`,
+						href: resolveHref(deleteHref)
+					} as EditSectionMenuItem
+				]
+			: [])
+	]);
 
 	const editAction: EditActionFn<TKey> = (key) => {
 		if (!auth.isAuthenticated) return undefined;
