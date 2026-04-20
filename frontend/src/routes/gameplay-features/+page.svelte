@@ -24,6 +24,8 @@
 	loading={loader.loading}
 	error={loader.error}
 	rowSnippet={row}
+	createEntityLabel="gameplay feature"
+	createHref="/gameplay-features/new"
 />
 
 <style>

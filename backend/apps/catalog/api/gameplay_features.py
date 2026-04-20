@@ -16,6 +16,7 @@ from .edit_claims import (
     raise_form_error,
     validate_scalar_fields,
 )
+from .entity_crud import register_entity_create, register_entity_delete_restore
 from apps.provenance.helpers import build_sources, claims_prefetch
 
 from .helpers import (
@@ -200,3 +201,23 @@ def patch_gameplay_feature_claims(request, slug: str, data: HierarchyClaimPatchS
 
     feature = get_object_or_404(_detail_qs(), slug=feature.slug)
     return _serialize_detail(feature)
+
+
+# ---------------------------------------------------------------------------
+# Create / delete / restore wiring
+# ---------------------------------------------------------------------------
+
+register_entity_create(
+    gameplay_features_router,
+    GameplayFeature,
+    detail_qs=_detail_qs,
+    serialize_detail=_serialize_detail,
+    response_schema=GameplayFeatureDetailSchema,
+)
+register_entity_delete_restore(
+    gameplay_features_router,
+    GameplayFeature,
+    detail_qs=_detail_qs,
+    serialize_detail=_serialize_detail,
+    response_schema=GameplayFeatureDetailSchema,
+)

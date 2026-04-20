@@ -44,6 +44,7 @@
 	basePath={BASE_PATH}
 	{sections}
 	editActionContext={hierarchicalTaxonomyEditActionContext}
+	deleteHref={`${BASE_PATH}/${profile.slug}/delete`}
 >
 	{#snippet sidebar()}
 		<HierarchicalTaxonomySidebar

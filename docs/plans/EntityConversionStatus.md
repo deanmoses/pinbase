@@ -17,8 +17,8 @@ We've been moving all catalog entities:
 | System                  | ✅            | ❌                        |
 | Series                  | ✅            | ❌                        |
 | Franchise               | ✅            | ❌                        |
-| Theme                   | ✅            | ❌                        |
-| GameplayFeature         | ✅            | ❌                        |
+| Theme                   | ✅            | ✅                        |
+| GameplayFeature         | ✅            | ✅                        |
 | TechnologyGeneration    | ✅            | ✅                        |
 | TechnologySubgeneration | ✅            | ✅                        |
 | DisplayType             | ✅            | ✅                        |

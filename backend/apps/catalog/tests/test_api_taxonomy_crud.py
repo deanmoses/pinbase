@@ -17,12 +17,16 @@ from django.core.cache import cache
 from apps.catalog.models import (
     DisplaySubtype,
     DisplayType,
+    GameplayFeature,
+    GameplayFeatureAlias,
     MachineModel,
     RewardType,
     RewardTypeAlias,
     Tag,
     TechnologyGeneration,
     TechnologySubgeneration,
+    Theme,
+    ThemeAlias,
     Title,
 )
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim
@@ -549,3 +553,165 @@ class TestRewardTypeCreateAliasCollision:
         assert resp.status_code == 422
         assert "name" in resp.json()["detail"]["field_errors"]
         assert not RewardType.objects.filter(slug="shoot-again").exists()
+
+
+# ── Theme: create / delete / restore ────────────────────────────────
+
+
+@pytest.mark.django_db
+class TestThemeCreate:
+    def test_creates_theme_with_three_claims(self, client, user):
+        client.force_login(user)
+        resp = _post(client, "/api/themes/", {"name": "Horror", "slug": "horror"})
+        assert resp.status_code == 201, resp.content
+        body = resp.json()
+        assert body["slug"] == "horror"
+        assert body["name"] == "Horror"
+
+        theme = Theme.objects.get(slug="horror")
+        assert theme.status == "active"
+
+        cs = ChangeSet.objects.get(user=user, action=ChangeSetAction.CREATE)
+        fields = set(
+            Claim.objects.filter(changeset=cs).values_list("field_name", flat=True)
+        )
+        assert fields == {"name", "slug", "status"}
+
+    def test_duplicate_name_rejected(self, client, user):
+        Theme.objects.create(name="Horror", slug="horror-existing", status="active")
+        client.force_login(user)
+        resp = _post(client, "/api/themes/", {"name": "Horror", "slug": "horror-2"})
+        assert resp.status_code == 422
+        assert "name" in resp.json()["detail"]["field_errors"]
+
+    def test_alias_collision_rejected(self, client, user):
+        existing = Theme.objects.create(name="Horror", slug="horror", status="active")
+        ThemeAlias.objects.create(theme=existing, value="Scary")
+
+        client.force_login(user)
+        resp = _post(client, "/api/themes/", {"name": "Scary", "slug": "scary"})
+        assert resp.status_code == 422
+        assert "name" in resp.json()["detail"]["field_errors"]
+        assert not Theme.objects.filter(slug="scary").exists()
+
+
+@pytest.mark.django_db
+class TestThemeDelete:
+    def test_delete_happy_path(self, client, user):
+        theme = Theme.objects.create(name="Horror", slug="horror", status="active")
+        client.force_login(user)
+        resp = _post(client, f"/api/themes/{theme.slug}/delete/", {})
+        assert resp.status_code == 200, resp.content
+        theme.refresh_from_db()
+        assert theme.status == "deleted"
+
+    def test_delete_blocked_by_active_machine_model(self, client, user):
+        theme = Theme.objects.create(name="Horror", slug="horror", status="active")
+        _, mm = _title_with_model("mm")
+        mm.themes.add(theme)
+
+        client.force_login(user)
+        resp = _post(client, f"/api/themes/{theme.slug}/delete/", {})
+        assert resp.status_code == 422
+        assert len(resp.json()["blocked_by"]) == 1
+        theme.refresh_from_db()
+        assert theme.status == "active"
+
+    def test_delete_blocked_by_active_child(self, client, user):
+        parent = Theme.objects.create(name="Horror", slug="horror", status="active")
+        child = Theme.objects.create(name="Slasher", slug="slasher", status="active")
+        child.parents.add(parent)
+
+        client.force_login(user)
+        resp = _post(client, f"/api/themes/{parent.slug}/delete/", {})
+        assert resp.status_code == 422
+        assert any(b["slug"] == "slasher" for b in resp.json()["blocked_by"])
+        parent.refresh_from_db()
+        assert parent.status == "active"
+
+
+@pytest.mark.django_db
+class TestThemeRestore:
+    def test_restore_happy_path(self, client, user):
+        theme = Theme.objects.create(name="Horror", slug="horror", status="deleted")
+        client.force_login(user)
+        resp = _post(client, f"/api/themes/{theme.slug}/restore/", {})
+        assert resp.status_code == 200, resp.content
+        theme.refresh_from_db()
+        assert theme.status == "active"
+
+
+# ── GameplayFeature: create / delete / restore ──────────────────────
+
+
+@pytest.mark.django_db
+class TestGameplayFeatureCreate:
+    def test_creates_feature_with_three_claims(self, client, user):
+        client.force_login(user)
+        resp = _post(
+            client,
+            "/api/gameplay-features/",
+            {"name": "Multiball", "slug": "multiball"},
+        )
+        assert resp.status_code == 201, resp.content
+        feature = GameplayFeature.objects.get(slug="multiball")
+        assert feature.status == "active"
+
+        cs = ChangeSet.objects.get(user=user, action=ChangeSetAction.CREATE)
+        fields = set(
+            Claim.objects.filter(changeset=cs).values_list("field_name", flat=True)
+        )
+        assert fields == {"name", "slug", "status"}
+
+    def test_alias_collision_rejected(self, client, user):
+        existing = GameplayFeature.objects.create(
+            name="Multiball", slug="multiball", status="active"
+        )
+        GameplayFeatureAlias.objects.create(feature=existing, value="Multi Ball")
+
+        client.force_login(user)
+        resp = _post(
+            client,
+            "/api/gameplay-features/",
+            {"name": "Multi Ball", "slug": "multi-ball"},
+        )
+        assert resp.status_code == 422
+        assert "name" in resp.json()["detail"]["field_errors"]
+
+
+@pytest.mark.django_db
+class TestGameplayFeatureDelete:
+    def test_delete_blocked_by_active_machine_model(self, client, user):
+        feature = GameplayFeature.objects.create(
+            name="Multiball", slug="multiball", status="active"
+        )
+        _, mm = _title_with_model("mm")
+        mm.gameplay_features.add(feature)
+
+        client.force_login(user)
+        resp = _post(client, f"/api/gameplay-features/{feature.slug}/delete/", {})
+        assert resp.status_code == 422
+        assert len(resp.json()["blocked_by"]) == 1
+
+    def test_delete_happy_path(self, client, user):
+        feature = GameplayFeature.objects.create(
+            name="Multiball", slug="multiball", status="active"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/gameplay-features/{feature.slug}/delete/", {})
+        assert resp.status_code == 200, resp.content
+        feature.refresh_from_db()
+        assert feature.status == "deleted"
+
+
+@pytest.mark.django_db
+class TestGameplayFeatureRestore:
+    def test_restore_happy_path(self, client, user):
+        feature = GameplayFeature.objects.create(
+            name="Multiball", slug="multiball", status="deleted"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/gameplay-features/{feature.slug}/restore/", {})
+        assert resp.status_code == 200, resp.content
+        feature.refresh_from_db()
+        assert feature.status == "active"

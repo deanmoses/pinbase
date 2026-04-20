@@ -16,6 +16,7 @@ from .edit_claims import (
     raise_form_error,
     validate_scalar_fields,
 )
+from .entity_crud import register_entity_create, register_entity_delete_restore
 from apps.provenance.helpers import build_sources, claims_prefetch
 
 from .helpers import (
@@ -171,3 +172,23 @@ def patch_theme_claims(request, slug: str, data: HierarchyClaimPatchSchema):
 
     theme = get_object_or_404(_detail_qs(), slug=theme.slug)
     return _serialize_detail(theme)
+
+
+# ---------------------------------------------------------------------------
+# Create / delete / restore wiring
+# ---------------------------------------------------------------------------
+
+register_entity_create(
+    themes_router,
+    Theme,
+    detail_qs=_detail_qs,
+    serialize_detail=_serialize_detail,
+    response_schema=ThemeDetailSchema,
+)
+register_entity_delete_restore(
+    themes_router,
+    Theme,
+    detail_qs=_detail_qs,
+    serialize_detail=_serialize_detail,
+    response_schema=ThemeDetailSchema,
+)
