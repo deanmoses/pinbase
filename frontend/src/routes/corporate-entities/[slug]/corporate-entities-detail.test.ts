@@ -68,4 +68,14 @@ describe('corporate-entities detail SSR route', () => {
 
 		expect(body).toContain('Medieval Madness');
 	});
+
+	it('renders the empty-state message when there are no titles', () => {
+		const { body } = render(Page, {
+			props: {
+				data: { corporateEntity: { ...MOCK_DATA, titles: [] } }
+			}
+		});
+
+		expect(body).toContain('No titles listed for this corporate entity.');
+	});
 });

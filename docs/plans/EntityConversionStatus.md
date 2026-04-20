@@ -12,7 +12,7 @@ We've been moving all catalog entities:
 | Title                   | ✅            | ✅                        |
 | MachineModel            | ✅            | ✅                        |
 | Manufacturer            | ✅            | ❌                        |
-| CorporateEntity         | ❌            | ❌                        |
+| CorporateEntity         | ✅            | ❌                        |
 | Person                  | ✅            | ✅                        |
 | System                  | ✅            | ❌                        |
 | Series                  | ✅            | ❌                        |
