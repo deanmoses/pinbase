@@ -3,6 +3,9 @@ export type EditSectionMenuItem = {
 	label: string;
 	href?: string;
 	onclick?: () => void;
+	/** Render a horizontal divider above this item — useful to set off
+	 * destructive actions (e.g. "Delete …") from the section editors. */
+	separatorBefore?: boolean;
 };
 
 /** A labeled dropdown in the page action bar (e.g. "Edit Title", "Edit Model"). */

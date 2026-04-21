@@ -15,8 +15,8 @@ We've been moving all catalog entities:
 | CorporateEntity         | ✅            | ❌                        |
 | Person                  | ✅            | ✅                        |
 | System                  | ✅            | ❌                        |
-| Series                  | ✅            | ❌                        |
-| Franchise               | ✅            | ❌                        |
+| Series                  | ✅            | ✅                        |
+| Franchise               | ✅            | ✅                        |
 | Theme                   | ✅            | ✅                        |
 | GameplayFeature         | ✅            | ✅                        |
 | TechnologyGeneration    | ✅            | ✅                        |

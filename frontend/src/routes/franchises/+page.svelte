@@ -1,97 +1,43 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import client from '$lib/api/client';
 	import { createAsyncLoader } from '$lib/async-loader.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import { pageTitle } from '$lib/constants';
+	import TaxonomyListPage from '$lib/components/TaxonomyListPage.svelte';
 
-	const allFranchises = createAsyncLoader(async () => {
-		const { data } = await client.GET('/api/franchises/all/');
+	const loader = createAsyncLoader(async () => {
+		const { data } = await client.GET('/api/franchises/');
 		return data ?? [];
 	}, []);
 </script>
 
-<svelte:head>
-	<title>{pageTitle('Franchises')}</title>
-	<link rel="preload" as="fetch" href="/api/franchises/all/" crossorigin="anonymous" />
-</svelte:head>
-
-<article>
-	<PageHeader title="Franchises" --page-header-title-mb="0">
-		<p class="subtitle">Licensed and original franchises featured in pinball.</p>
-	</PageHeader>
-
-	{#if allFranchises.loading}
-		<p class="status">Loading...</p>
-	{:else if allFranchises.error}
-		<p class="status error">Failed to load franchises.</p>
-	{:else if allFranchises.data.length === 0}
-		<p class="status">No franchises found.</p>
-	{:else}
-		<ul class="feature-list">
-			{#each allFranchises.data as franchise (franchise.slug)}
-				<li>
-					<a href={resolve(`/franchises/${franchise.slug}`)} class="feature-row">
-						<span class="feature-name">{franchise.name}</span>
-						{#if franchise.title_count}
-							<span class="feature-count">{franchise.title_count}</span>
-						{/if}
-					</a>
-				</li>
-			{/each}
-		</ul>
+{#snippet row(f: (typeof loader.data)[number])}
+	<span class="franchise-name">{f.name}</span>
+	{#if f.title_count}
+		<span class="franchise-count">{f.title_count}</span>
 	{/if}
-</article>
+{/snippet}
+
+<TaxonomyListPage
+	title="Franchises"
+	subtitle="Licensed and original franchises featured in pinball."
+	basePath="/franchises"
+	items={loader.data}
+	loading={loader.loading}
+	error={loader.error}
+	rowSnippet={row}
+	rowStyle="justify-content: space-between; gap: var(--size-4)"
+	createHref="/franchises/new"
+/>
 
 <style>
-	article {
-		max-width: 48rem;
-	}
-
-	.subtitle {
+	.franchise-name {
 		font-size: var(--font-size-2);
-		color: var(--color-text-muted);
-		margin-top: var(--size-2);
-	}
-
-	.feature-list {
-		list-style: none;
-		padding: 0;
-	}
-
-	.feature-row {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		padding: var(--size-3) 0;
-		border-bottom: 1px solid var(--color-border-soft);
-		text-decoration: none;
+		font-weight: 500;
 		color: inherit;
 	}
 
-	.feature-row:hover .feature-name {
-		color: var(--color-accent);
-	}
-
-	.feature-name {
-		font-size: var(--font-size-2);
-		color: var(--color-text-primary);
-		font-weight: 500;
-	}
-
-	.feature-count {
+	.franchise-count {
 		font-size: var(--font-size-1);
 		color: var(--color-text-muted);
-	}
-
-	.status {
-		font-size: var(--font-size-2);
-		color: var(--color-text-muted);
-		padding: var(--size-8) 0;
-		text-align: center;
-	}
-
-	.status.error {
-		color: var(--color-error);
+		flex-shrink: 0;
 	}
 </style>

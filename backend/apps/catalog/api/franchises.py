@@ -14,6 +14,7 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from .edit_claims import execute_claims, plan_scalar_field_claims
+from .entity_crud import register_entity_create, register_entity_delete_restore
 from apps.provenance.helpers import build_sources, claims_prefetch
 
 from .helpers import (
@@ -63,9 +64,9 @@ class FranchiseDetailSchema(Schema):
 franchises_router = Router(tags=["franchises"])
 
 
-@franchises_router.get("/all/", response=list[FranchiseListSchema])
+@franchises_router.get("/", response=list[FranchiseListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_franchises(request):
+def list_franchises(request):
     """Return every franchise with title count (no pagination)."""
     qs = (
         Franchise.objects.active()
@@ -143,3 +144,23 @@ def patch_franchise_claims(request, slug: str, data: ClaimPatchSchema):
 
     franchise = get_object_or_404(_franchise_detail_qs(), slug=franchise.slug)
     return _serialize_franchise_detail(franchise)
+
+
+# ---------------------------------------------------------------------------
+# Create / delete / restore wiring
+# ---------------------------------------------------------------------------
+
+register_entity_create(
+    franchises_router,
+    Franchise,
+    detail_qs=_franchise_detail_qs,
+    serialize_detail=_serialize_franchise_detail,
+    response_schema=FranchiseDetailSchema,
+)
+register_entity_delete_restore(
+    franchises_router,
+    Franchise,
+    detail_qs=_franchise_detail_qs,
+    serialize_detail=_serialize_franchise_detail,
+    response_schema=FranchiseDetailSchema,
+)
