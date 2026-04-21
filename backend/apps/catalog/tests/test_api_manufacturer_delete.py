@@ -229,7 +229,7 @@ class TestUndoDelete:
         cs_id = _post_delete(client, "stern").json()["changeset_id"]
 
         undo = client.post(
-            "/api/edit-history/undo-changeset/",
+            "/api/provenance/undo-changeset/",
             data=json.dumps({"changeset_id": cs_id, "note": "oops"}),
             content_type="application/json",
         )

@@ -1,11 +1,7 @@
 <script lang="ts">
-	import EntityProvenance from '$lib/components/EntityProvenance.svelte';
+	import EntitySources from '$lib/components/EntitySources.svelte';
 
 	let { data } = $props();
 </script>
 
-<EntityProvenance
-	sources={data.corporateEntity.sources}
-	entityType="corporate-entity"
-	entitySlug={data.corporateEntity.slug}
-/>
+<EntitySources sources={data.sources} evidence={data.evidence} />

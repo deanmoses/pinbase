@@ -17,7 +17,7 @@ from ..cache import PEOPLE_ALL_KEY, get_cached_response, set_cached_response
 from .constants import DEFAULT_PAGE_SIZE
 from apps.core.models import active_status_q
 from apps.catalog.naming import normalize_catalog_name
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -40,7 +40,6 @@ from .helpers import (
 )
 from .schemas import (
     ClaimPatchSchema,
-    ClaimSchema,
     PersonCreateSchema,
     PersonDeletePreviewSchema,
     PersonDeleteResponseSchema,
@@ -101,7 +100,6 @@ class PersonDetailSchema(Schema):
     photo_url: str | None = None
     titles: list[PersonTitleSchema]
     uploaded_media: list[UploadedMediaSchema] = []
-    sources: list[ClaimSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +166,6 @@ def _serialize_person_detail(person) -> dict:
         "uploaded_media": _serialize_uploaded_media(
             getattr(person, "all_media", None) or []
         ),
-        "sources": build_sources(getattr(person, "active_claims", [])),
     }
 
 

@@ -13,13 +13,13 @@ from ninja.security import django_auth
 
 from .edit_claims import execute_claims, plan_scalar_field_claims
 from .entity_crud import register_entity_create, register_entity_delete_restore
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from .helpers import (
     _build_rich_text,
     _serialize_title_ref,
 )
-from .schemas import ClaimPatchSchema, ClaimSchema, RichTextSchema, TitleRefSchema
+from .schemas import ClaimPatchSchema, RichTextSchema, TitleRefSchema
 
 from apps.core.licensing import get_minimum_display_rank
 
@@ -42,7 +42,6 @@ class FranchiseDetailSchema(Schema):
     slug: str
     description: RichTextSchema = RichTextSchema()
     titles: list[TitleRefSchema]
-    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +110,6 @@ def _serialize_franchise_detail(franchise) -> dict:
         "titles": [
             _serialize_title_ref(t, min_rank=min_rank) for t in franchise.titles.all()
         ],
-        "sources": build_sources(getattr(franchise, "active_claims", [])),
     }
 
 

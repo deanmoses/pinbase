@@ -327,7 +327,7 @@ class TestAdditionalPatchClaimEndpoints:
         ("path_template", "factory", "field_name", "field_value", "resource_name"),
         PATCH_CASES,
     )
-    def test_creates_claim_changeset_and_sources(
+    def test_creates_claim_changeset(
         self,
         client,
         user,
@@ -349,10 +349,6 @@ class TestAdditionalPatchClaimEndpoints:
         assert resp.status_code == 200, resource_name
         data = resp.json()
         assert data["description"]["text"] == field_value
-        assert any(
-            claim["field_name"] == field_name and claim["is_winner"]
-            for claim in data["sources"]
-        ), resource_name
 
         entity.refresh_from_db()
         assert entity.description == field_value

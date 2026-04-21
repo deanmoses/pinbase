@@ -38,7 +38,7 @@ from .soft_delete import (
     serialize_blocking_referrer,
 )
 from apps.catalog.naming import MAX_CATALOG_NAME_LENGTH, normalize_catalog_name
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -57,7 +57,6 @@ from .helpers import (
 from .machine_models import MachineModelDetailSchema
 from .schemas import (
     BlockingReferrerSchema,
-    ClaimSchema,
     CreditSchema,
     EditCitationInput,
     FacetRef,
@@ -178,7 +177,6 @@ class TitleDetailSchema(Schema):
     related_titles: list[CrossTitleLinkSchema] = []
     media: list[AggregatedMediaSchema] = []
     model_detail: Optional[MachineModelDetailSchema] = None
-    sources: list[ClaimSchema] = []
 
 
 class TitleClaimPatchSchema(Schema):
@@ -610,7 +608,6 @@ def _serialize_title_detail(title) -> dict:
         "related_titles": related_titles,
         "media": media,
         "model_detail": model_detail,
-        "sources": build_sources(getattr(title, "active_claims", [])),
     }
 
 

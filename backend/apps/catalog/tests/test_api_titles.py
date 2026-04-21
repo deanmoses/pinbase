@@ -71,7 +71,6 @@ class TestTitlesAPI:
         data = resp.json()
         assert data["name"] == "Medieval Madness"
         assert len(data["machines"]) == 2
-        assert data["sources"] == []
 
     def test_get_title_detail_excludes_variants(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
@@ -103,10 +102,12 @@ class TestTitlesAPI:
         resp = client.get("/api/pages/title/nonexistent")
         assert resp.status_code == 404
 
-    def test_get_title_detail_includes_sources(self, client, title):
-        resp = client.get(f"/api/pages/title/{title.slug}")
+    def test_get_title_sources_page(self, client, title):
+        resp = client.get(f"/api/pages/sources/title/{title.slug}/")
         assert resp.status_code == 200
-        assert "sources" in resp.json()
+        body = resp.json()
+        assert "sources" in body
+        assert "evidence" in body
 
 
 class TestTitleDetailAggregation:

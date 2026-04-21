@@ -26,13 +26,11 @@ describe('credit-role edit-history SSR route', () => {
 		} as unknown as Parameters<typeof load>[0]);
 
 		expect(result).toEqual({
-			changesets: MOCK_CHANGESETS,
-			entityType: 'credit-role',
-			slug: 'test-role'
+			changesets: MOCK_CHANGESETS
 		});
 		const request = fetch.mock.calls[0]?.[0];
 		expect(request).toBeInstanceOf(Request);
-		expect(request.url).toBe('http://localhost:5173/api/edit-history/credit-role/test-role/');
+		expect(request.url).toBe('http://localhost:5173/api/pages/edit-history/credit-role/test-role/');
 	});
 
 	it('throws on backend failure', async () => {

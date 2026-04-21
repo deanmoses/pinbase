@@ -30,3 +30,17 @@ class RetractionSchema(Schema):
     field_name: str
     claim_key: str
     old_value: object
+
+
+class ClaimSchema(Schema):
+    """A single per-field claim as surfaced to the Sources UI."""
+
+    source_name: Optional[str] = None
+    source_slug: Optional[str] = None
+    user_display: Optional[str] = None  # username for user-attributed claims
+    field_name: str
+    value: object
+    citation: str
+    created_at: str
+    is_winner: bool
+    changeset_note: Optional[str] = None

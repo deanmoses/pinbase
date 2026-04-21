@@ -15,7 +15,7 @@ from ninja.security import django_auth
 
 from .edit_claims import execute_claims, plan_scalar_field_claims
 from .entity_crud import register_entity_create, register_entity_delete_restore
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from .helpers import (
     _build_rich_text,
@@ -25,7 +25,6 @@ from .helpers import (
 )
 from .schemas import (
     ClaimPatchSchema,
-    ClaimSchema,
     CreditSchema,
     RichTextSchema,
     TitleRefSchema,
@@ -54,7 +53,6 @@ class SeriesDetailSchema(Schema):
     description: RichTextSchema = RichTextSchema()
     titles: list[TitleRefSchema]
     credits: list[CreditSchema] = []
-    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +107,6 @@ def _serialize_series_detail(series) -> dict:
             _serialize_title_ref(t, min_rank=min_rank) for t in series.titles.all()
         ],
         "credits": [_serialize_credit(c) for c in series.credits.all()],
-        "sources": build_sources(getattr(series, "active_claims", [])),
     }
 
 

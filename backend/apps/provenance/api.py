@@ -1,6 +1,6 @@
 """API endpoints for the provenance app.
 
-Routers: sources, review, edit_history, pages.
+Routers: sources, review, provenance, pages.
 Auto-discovered via the ``routers`` list convention in config/api.py.
 """
 
@@ -21,22 +21,9 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.citation.models import CitationSource
-from apps.core.entity_types import get_linkable_model
 
 from .models import CitationInstance
 from .page_endpoints import pages_router
-from .schemas import FieldChangeSchema, RetractionSchema
-
-
-class ChangeSetSchema(Schema):
-    """A grouped edit session with per-field diffs."""
-
-    id: int
-    user_display: Optional[str] = None
-    note: str
-    created_at: str
-    changes: list[FieldChangeSchema]
-    retractions: list[RetractionSchema] = []
 
 
 class SourceSchema(Schema):
@@ -156,65 +143,11 @@ def list_review_claims(request):
     return results
 
 
-# ── Edit History (generic, per-entity) ───────────────────────────
+# ── Provenance mutations (revert, undo-changeset) ──────────────────
 
 
-class RevertClaimSchema(Schema):
-    claim_id: int
+class RevertNoteSchema(Schema):
     note: str
-
-
-edit_history_router = Router(tags=["edit-history"])
-
-
-def _resolve_catalog_entity(entity_type: str, slug: str):
-    """Look up a catalog entity by canonical entity_type and slug.
-
-    Returns the entity instance, or a ``Status(404, ...)`` response if the
-    entity type is unknown or the slug doesn't exist.
-    """
-    try:
-        model_class = get_linkable_model(entity_type)
-    except ValueError:
-        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
-    return get_object_or_404(model_class, slug=slug)
-
-
-@edit_history_router.get(
-    "/{entity_type}/{slug}/",
-    response={200: list[ChangeSetSchema], 404: dict},
-)
-@decorate_view(cache_control(no_cache=True))
-def get_edit_history(request, entity_type: str, slug: str):
-    """Return changeset-grouped edit history for any catalog entity."""
-    from .history import build_edit_history
-
-    entity = _resolve_catalog_entity(entity_type, slug)
-    if isinstance(entity, Status):
-        return entity
-    return build_edit_history(entity)
-
-
-@edit_history_router.post(
-    "/{entity_type}/{slug}/revert/",
-    auth=django_auth,
-    response={200: dict, 403: dict, 404: dict, 422: dict},
-    tags=["private"],
-)
-def revert_claim(request, entity_type: str, slug: str, data: RevertClaimSchema):
-    """Revert (deactivate) a single user claim and re-resolve the entity."""
-    from .revert import RevertError, execute_revert
-
-    entity = _resolve_catalog_entity(entity_type, slug)
-    if isinstance(entity, Status):
-        return entity
-    try:
-        execute_revert(
-            entity, claim_id=data.claim_id, user=request.user, note=data.note
-        )
-    except RevertError as exc:
-        return Status(exc.status_code, {"detail": str(exc)})
-    return {"ok": True}
 
 
 class UndoChangeSetSchema(Schema):
@@ -222,11 +155,47 @@ class UndoChangeSetSchema(Schema):
     note: str = ""
 
 
-@edit_history_router.post(
+provenance_router = Router(tags=["provenance", "private"])
+
+
+@provenance_router.post(
+    "/claims/{claim_id}/revert/",
+    auth=django_auth,
+    response={200: dict, 403: dict, 404: dict, 422: dict},
+)
+def revert_claim(request, claim_id: int, data: RevertNoteSchema):
+    """Revert (deactivate) a single user claim and re-resolve its entity.
+
+    The claim carries its own entity reference (``content_type`` +
+    ``object_id``), so we resolve the entity from the claim rather than
+    requiring it in the URL.
+    """
+    from django.core.exceptions import ObjectDoesNotExist
+
+    from .models import Claim
+    from .revert import RevertError, execute_revert
+
+    try:
+        claim = Claim.objects.select_related("content_type").get(pk=claim_id)
+    except Claim.DoesNotExist:
+        return Status(404, {"detail": "Claim not found."})
+
+    try:
+        entity = claim.content_type.get_object_for_this_type(pk=claim.object_id)
+    except ObjectDoesNotExist:
+        return Status(404, {"detail": "Entity for this claim no longer exists."})
+
+    try:
+        execute_revert(entity, claim_id=claim_id, user=request.user, note=data.note)
+    except RevertError as exc:
+        return Status(exc.status_code, {"detail": str(exc)})
+    return {"ok": True}
+
+
+@provenance_router.post(
     "/undo-changeset/",
     auth=django_auth,
     response={200: dict, 403: dict, 404: dict, 422: dict},
-    tags=["private"],
 )
 def undo_changeset(request, data: UndoChangeSetSchema):
     """Atomically invert a DELETE ChangeSet (restore a soft-deleted tree).
@@ -389,7 +358,7 @@ def create_citation_instance(request, data: CitationInstanceCreateIn):
 
 routers = [
     ("/sources/", sources_router),
-    ("/edit-history/", edit_history_router),
+    ("/provenance/", provenance_router),
     ("/pages/", pages_router),
     ("/review/", review_router),
     ("/citation-instances/", citation_instances_router),

@@ -18,7 +18,7 @@ from apps.core.models import active_status_q
 from ..cache import MANUFACTURERS_ALL_KEY, get_cached_response, set_cached_response
 from .constants import DEFAULT_PAGE_SIZE
 from .entity_crud import register_entity_create, register_entity_delete_restore
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from .helpers import (
     _build_rich_text,
@@ -30,7 +30,6 @@ from .helpers import (
 )
 from .schemas import (
     ClaimPatchSchema,
-    ClaimSchema,
     CorporateEntityLocationSchema,
     FacetRef,
     RelatedTitleSchema,
@@ -113,7 +112,6 @@ class ManufacturerDetailSchema(Schema):
     systems: list[SystemSchema]
     persons: list[ManufacturerPersonSchema] = []
     uploaded_media: list[UploadedMediaSchema] = []
-    sources: list[ClaimSchema]
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +184,6 @@ def _serialize_manufacturer_detail(mfr) -> dict:
         "uploaded_media": _serialize_uploaded_media(
             getattr(mfr, "all_media", None) or []
         ),
-        "sources": build_sources(getattr(mfr, "active_claims", [])),
     }
 
 

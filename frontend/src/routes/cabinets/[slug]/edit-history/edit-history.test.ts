@@ -26,13 +26,11 @@ describe('cabinet edit-history SSR route', () => {
 		} as unknown as Parameters<typeof load>[0]);
 
 		expect(result).toEqual({
-			changesets: MOCK_CHANGESETS,
-			entityType: 'cabinet',
-			slug: 'test-entity'
+			changesets: MOCK_CHANGESETS
 		});
 		const request = fetch.mock.calls[0]?.[0];
 		expect(request).toBeInstanceOf(Request);
-		expect(request.url).toBe('http://localhost:5173/api/edit-history/cabinet/test-entity/');
+		expect(request.url).toBe('http://localhost:5173/api/pages/edit-history/cabinet/test-entity/');
 	});
 
 	it('throws on backend failure', async () => {

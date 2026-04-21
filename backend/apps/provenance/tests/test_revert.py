@@ -1,4 +1,4 @@
-"""Tests for per-field claim revert via POST /api/edit-history/{entity_type}/{slug}/revert/."""
+"""Tests for per-field claim revert via POST /api/provenance/claims/{claim_id}/revert/."""
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -10,7 +10,7 @@ from apps.catalog.tests.conftest import make_machine_model
 
 User = get_user_model()
 
-REVERT_URL = "/api/edit-history/model/{slug}/revert/"
+REVERT_URL = "/api/provenance/claims/{claim_id}/revert/"
 
 
 @pytest.fixture
@@ -62,12 +62,12 @@ def _get_active_claim(pm, field_name, user):
     )
 
 
-def _revert(client, slug, claim_id, note):
+def _revert(client, claim_id, note):
     import json
 
     return client.post(
-        REVERT_URL.format(slug=slug),
-        data=json.dumps({"claim_id": claim_id, "note": note}),
+        REVERT_URL.format(claim_id=claim_id),
+        data=json.dumps({"note": note}),
         content_type="application/json",
     )
 
@@ -84,7 +84,7 @@ class TestRevertScalar:
 
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Wrong year")
+        resp = _revert(client, claim.pk, "Wrong year")
 
         assert resp.status_code == 200
         claim.refresh_from_db()
@@ -100,7 +100,7 @@ class TestRevertScalar:
 
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Removing year")
+        resp = _revert(client, claim.pk, "Removing year")
 
         assert resp.status_code == 200
         pm.refresh_from_db()
@@ -119,7 +119,7 @@ class TestRevertPredecessor:
         assert claim.value == 2005
 
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Wrong year")
+        resp = _revert(client, claim.pk, "Wrong year")
         assert resp.status_code == 200
 
         pm.refresh_from_db()
@@ -143,7 +143,7 @@ class TestRevertPredecessor:
         first_claim.save(update_fields=["retracted_by_changeset"])
 
         client.force_login(user)
-        resp = _revert(client, pm.slug, second_claim.pk, "Undo")
+        resp = _revert(client, second_claim.pk, "Undo")
         assert resp.status_code == 200
 
         pm.refresh_from_db()
@@ -159,21 +159,21 @@ class TestRevertPredecessor:
         # Revert 2005 → surfaces 2003
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        _revert(client, pm.slug, claim.pk, "Undo 2005")
+        _revert(client, claim.pk, "Undo 2005")
         pm.refresh_from_db()
         assert pm.year == 2003
 
         # Revert 2003 → surfaces 2001
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        _revert(client, pm.slug, claim.pk, "Undo 2003")
+        _revert(client, claim.pk, "Undo 2003")
         pm.refresh_from_db()
         assert pm.year == 2001
 
         # Revert 2001 → no predecessor, drops to default
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        _revert(client, pm.slug, claim.pk, "Undo 2001")
+        _revert(client, claim.pk, "Undo 2001")
         pm.refresh_from_db()
         assert pm.year is None
 
@@ -201,7 +201,7 @@ class TestRevertNonWinning:
 
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Not needed")
+        resp = _revert(client, claim.pk, "Not needed")
 
         assert resp.status_code == 200
         pm.refresh_from_db()
@@ -218,7 +218,7 @@ class TestRevertAuth:
         _make_user_edit(client, user, pm, {"year": 2005})
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "My mistake")
+        resp = _revert(client, claim.pk, "My mistake")
         assert resp.status_code == 200
 
     def test_revert_others_below_threshold_returns_403(self, client, user, pm, db):
@@ -228,7 +228,7 @@ class TestRevertAuth:
 
         other = User.objects.create_user(username="newbie", password="pw")
         client.force_login(other)
-        resp = _revert(client, pm.slug, claim.pk, "Reverting you")
+        resp = _revert(client, claim.pk, "Reverting you")
         assert resp.status_code == 403
         assert "5 edits" in resp.json()["detail"]
 
@@ -243,11 +243,11 @@ class TestRevertAuth:
             user_changeset(other, note="edit")
 
         client.force_login(other)
-        resp = _revert(client, pm.slug, claim.pk, "Correcting year")
+        resp = _revert(client, claim.pk, "Correcting year")
         assert resp.status_code == 200
 
     def test_unauthenticated_returns_401(self, client, pm):
-        resp = _revert(client, pm.slug, 999, "nope")
+        resp = _revert(client, 999, "nope")
         assert resp.status_code == 401
 
 
@@ -260,7 +260,7 @@ class TestRevertValidation:
         _make_user_edit(client, user, pm, {"year": 2005})
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "")
+        resp = _revert(client, claim.pk, "")
         assert resp.status_code == 422
         assert "note" in resp.json()["detail"].lower()
 
@@ -268,7 +268,7 @@ class TestRevertValidation:
         _make_user_edit(client, user, pm, {"year": 2005})
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "   ")
+        resp = _revert(client, claim.pk, "   ")
         assert resp.status_code == 422
 
     def test_source_claim_returns_422(self, client, user, pm, source):
@@ -283,7 +283,7 @@ class TestRevertValidation:
             is_active=True,
         )
         client.force_login(user)
-        resp = _revert(client, pm.slug, src_claim.pk, "Trying")
+        resp = _revert(client, src_claim.pk, "Trying")
         assert resp.status_code == 422
         assert "source" in resp.json()["detail"].lower()
 
@@ -297,21 +297,31 @@ class TestRevertValidation:
         claim.save(update_fields=["is_active"])
 
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Double revert")
+        resp = _revert(client, claim.pk, "Double revert")
         assert resp.status_code == 422
         assert "inactive" in resp.json()["detail"].lower()
 
-    def test_claim_for_wrong_entity_returns_404(
-        self, client, user, pm, _bootstrap_source, db
-    ):
-        """Claim PK that doesn't belong to the URL entity returns 404."""
-        pm2 = make_machine_model(name="Other", slug="other")
-        Claim.objects.assert_claim(pm2, "name", "Other", source=_bootstrap_source)
-        _make_user_edit(client, user, pm2, {"year": 2000})
-        claim = _get_active_claim(pm2, "year", user)
+    def test_nonexistent_claim_id_returns_404(self, client, user, pm):
+        """A claim id that doesn't exist returns 404."""
+        client.force_login(user)
+        resp = _revert(client, 999_999_999, "Ghost claim")
+        assert resp.status_code == 404
+
+    def test_claim_whose_entity_no_longer_exists_returns_404(self, client, user, pm):
+        """A claim whose target entity row has been hard-deleted returns 404,
+        not a 500. Entities are normally soft-deleted, but defend against
+        the case where admin/cascade has removed the row."""
+        _make_user_edit(client, user, pm, {"year": 2005})
+        claim = _get_active_claim(pm, "year", user)
+
+        # Hard-delete the entity (bypassing soft-delete) so the claim's
+        # object_id points at nothing.
+        from apps.catalog.models import MachineModel
+
+        MachineModel.objects.filter(pk=pm.pk).delete()
 
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Wrong entity")
+        resp = _revert(client, claim.pk, "Orphaned")
         assert resp.status_code == 404
 
 
@@ -330,7 +340,7 @@ class TestRevertMultiUser:
 
         claim = _get_active_claim(pm, "year", user)
         client.force_login(user)
-        resp = _revert(client, pm.slug, claim.pk, "Wrong")
+        resp = _revert(client, claim.pk, "Wrong")
 
         assert resp.status_code == 200
         pm.refresh_from_db()
@@ -350,9 +360,9 @@ class TestRevertInHistory:
         claim = _get_active_claim(pm, "year", user)
 
         client.force_login(user)
-        _revert(client, pm.slug, claim.pk, "Reverting year")
+        _revert(client, claim.pk, "Reverting year")
 
-        resp = client.get(f"/api/edit-history/model/{pm.slug}/")
+        resp = client.get(f"/api/pages/edit-history/model/{pm.slug}/")
         data = resp.json()
 
         # Should have 2 changesets: the revert and the original edit
@@ -375,7 +385,7 @@ class TestEditHistoryClaimMetadata:
         """Edit history includes claim_id, claim_user_id, is_active, is_winning."""
         _make_user_edit(client, user, pm, {"year": 2005})
 
-        resp = client.get(f"/api/edit-history/model/{pm.slug}/")
+        resp = client.get(f"/api/pages/edit-history/model/{pm.slug}/")
         data = resp.json()
         change = data[0]["changes"][0]
 
@@ -390,9 +400,9 @@ class TestEditHistoryClaimMetadata:
         claim = _get_active_claim(pm, "year", user)
 
         client.force_login(user)
-        _revert(client, pm.slug, claim.pk, "Undo")
+        _revert(client, claim.pk, "Undo")
 
-        resp = client.get(f"/api/edit-history/model/{pm.slug}/")
+        resp = client.get(f"/api/pages/edit-history/model/{pm.slug}/")
         data = resp.json()
 
         # Find the original edit changeset (the one with a year change, not the revert)

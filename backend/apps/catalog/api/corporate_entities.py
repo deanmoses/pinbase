@@ -20,7 +20,7 @@ from .edit_claims import (
     validate_scalar_fields,
 )
 from .entity_crud import register_entity_create, register_entity_delete_restore
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from .helpers import (
     _build_rich_text,
@@ -29,7 +29,6 @@ from .helpers import (
 )
 from .manufacturers import manufacturers_router
 from .schemas import (
-    ClaimSchema,
     CorporateEntityClaimPatchSchema,
     CorporateEntityLocationSchema,
     RelatedTitleSchema,
@@ -73,7 +72,6 @@ class CorporateEntityDetailSchema(Schema):
     aliases: list[str] = []
     locations: list[CorporateEntityLocationSchema] = []
     titles: list[RelatedTitleSchema]
-    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +116,6 @@ def _serialize_detail(ce) -> dict:
         "aliases": [a.value for a in ce.aliases.all()],
         "locations": _serialize_locations(ce),
         "titles": _collect_titles(ce.models.all()),
-        "sources": build_sources(getattr(ce, "active_claims", [])),
     }
 
 

@@ -25,8 +25,9 @@ from ninja.responses import Status
 from apps.core.entity_types import get_linkable_model
 
 from .evidence import build_cited_changesets
-from .helpers import claims_prefetch
-from .schemas import FieldChangeSchema, RetractionSchema
+from .helpers import build_sources, claims_prefetch
+from .history import build_edit_history
+from .schemas import ClaimSchema, FieldChangeSchema, RetractionSchema
 
 
 class ChangeSetSummarySchema(Schema):
@@ -85,6 +86,28 @@ class CitedChangeSetSchema(Schema):
     citations: list[CitedChangeSetCitationSchema]
 
 
+class SourcesPageSchema(Schema):
+    """Page model for the per-entity Sources subroute.
+
+    Bundles the sources list (grouped claims) with the cited-edit evidence
+    so the page renders from a single fetch.
+    """
+
+    sources: list[ClaimSchema]
+    evidence: list[CitedChangeSetSchema]
+
+
+class ChangeSetSchema(Schema):
+    """A grouped edit session with per-field diffs."""
+
+    id: int
+    user_display: Optional[str] = None
+    note: str
+    created_at: str
+    changes: list[FieldChangeSchema]
+    retractions: list[RetractionSchema] = []
+
+
 def _parse_aware_datetime(value: str) -> datetime | None:
     """Parse an ISO datetime string, ensuring timezone awareness."""
     from django.utils import timezone as tz
@@ -102,20 +125,44 @@ pages_router = Router(tags=["private"])
 
 
 @pages_router.get(
-    "/evidence/{entity_type}/{slug}/",
-    response={200: list[CitedChangeSetSchema], 404: dict},
+    "/edit-history/{entity_type}/{slug}/",
+    response={200: list[ChangeSetSchema], 404: dict},
 )
-def cited_edit_evidence(request, entity_type: str, slug: str):
-    """Return active cited user edits for the requested entity."""
+@decorate_view(cache_control(no_cache=True))
+def edit_history_page(request, entity_type: str, slug: str):
+    """Return changeset-grouped edit history for any catalog entity."""
     try:
         model_class = get_linkable_model(entity_type)
     except ValueError:
-        return Status(404, {"detail": "Unknown entity type."})
+        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
+    entity = get_object_or_404(model_class, slug=slug)
+    return build_edit_history(entity)
+
+
+@pages_router.get(
+    "/sources/{entity_type}/{slug}/",
+    response={200: SourcesPageSchema, 404: dict},
+)
+@decorate_view(cache_control(no_cache=True))
+def sources_page(request, entity_type: str, slug: str):
+    """Return the sources page model: grouped claims + cited evidence.
+
+    Accepts soft-deleted entities so the provenance record remains
+    inspectable after deletion — matches ``edit_history_page``.
+    """
+    try:
+        model_class = get_linkable_model(entity_type)
+    except ValueError:
+        return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
 
     entity = get_object_or_404(
-        model_class.objects.active().prefetch_related(claims_prefetch()), slug=slug
+        model_class.objects.prefetch_related(claims_prefetch()), slug=slug
     )
-    return build_cited_changesets(getattr(entity, "active_claims", []))
+    active_claims = getattr(entity, "active_claims", [])
+    return {
+        "sources": build_sources(active_claims),
+        "evidence": build_cited_changesets(active_claims),
+    }
 
 
 @pages_router.get("/changes/", response=ChangesListSchema)
