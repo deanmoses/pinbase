@@ -338,7 +338,7 @@ class TestCreditRoleEditHistory:
             content_type="application/json",
         )
 
-        resp = client.get(f"/api/edit-history/credit-role/{role.slug}/")
+        resp = client.get(f"/api/pages/edit-history/credit-role/{role.slug}/")
         assert resp.status_code == 200, resp.content
         body = resp.json()
         assert len(body) == 1

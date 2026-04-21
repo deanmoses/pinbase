@@ -120,7 +120,12 @@ class TestModelsAPI:
         assert data["name"] == "Medieval Madness"
         assert len(data["credits"]) == 1
         assert data["credits"][0]["person"]["name"] == "Pat Lawlor"
-        year_claims = [c for c in data["sources"] if c["field_name"] == "year"]
+
+        sources_resp = client.get(f"/api/pages/sources/model/{machine_model.slug}/")
+        assert sources_resp.status_code == 200
+        year_claims = [
+            c for c in sources_resp.json()["sources"] if c["field_name"] == "year"
+        ]
         assert len(year_claims) == 1
         assert year_claims[0]["source_name"] == "IPDB"
         assert year_claims[0]["is_winner"] is True

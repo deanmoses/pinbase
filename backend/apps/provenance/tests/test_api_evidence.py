@@ -69,17 +69,17 @@ class TestCitedEditEvidence:
         _attach_citation(year_claim, citation_source)
         _attach_citation(desc_claim, citation_source)
 
-        resp = client.get("/api/pages/evidence/title/medieval-madness/")
+        resp = client.get("/api/pages/sources/title/medieval-madness/")
 
         assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 1
-        assert data[0]["note"] == "Documented the flyer"
-        assert set(data[0]["fields"]) == {"description", "name"}
-        assert len(data[0]["citations"]) == 1
-        assert data[0]["citations"][0]["source_name"] == "Williams Flyer"
-        assert data[0]["citations"][0]["locator"] == "p. 2"
-        assert data[0]["citations"][0]["links"] == [
+        evidence = resp.json()["evidence"]
+        assert len(evidence) == 1
+        assert evidence[0]["note"] == "Documented the flyer"
+        assert set(evidence[0]["fields"]) == {"description", "name"}
+        assert len(evidence[0]["citations"]) == 1
+        assert evidence[0]["citations"][0]["source_name"] == "Williams Flyer"
+        assert evidence[0]["citations"][0]["locator"] == "p. 2"
+        assert evidence[0]["citations"][0]["links"] == [
             {"url": "https://example.com/flyer", "label": "Scan"}
         ]
 
@@ -96,10 +96,10 @@ class TestCitedEditEvidence:
         _attach_citation(first_claim, citation_source, locator="p. 3")
         _attach_citation(second_claim, citation_source, locator="p. 3")
 
-        resp = client.get("/api/pages/evidence/title/medieval-madness/")
+        resp = client.get("/api/pages/sources/title/medieval-madness/")
 
         assert resp.status_code == 200
-        assert len(resp.json()[0]["citations"]) == 1
+        assert len(resp.json()["evidence"][0]["citations"]) == 1
 
     def test_omits_uncited_changesets(self, client, user, title, citation_source):
         uncited = user_changeset(user, note="Uncited cleanup")
@@ -112,7 +112,7 @@ class TestCitedEditEvidence:
         )
         _attach_citation(cited_claim, citation_source)
 
-        resp = client.get("/api/pages/evidence/title/medieval-madness/")
+        resp = client.get("/api/pages/sources/title/medieval-madness/")
 
         assert resp.status_code == 200
-        assert [item["note"] for item in resp.json()] == ["Cited update"]
+        assert [item["note"] for item in resp.json()["evidence"]] == ["Cited update"]

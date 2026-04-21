@@ -29,7 +29,7 @@ from .entity_create import (
 )
 from .entity_crud import register_entity_delete_restore
 from apps.catalog.naming import normalize_catalog_name
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 from apps.provenance.rate_limits import CREATE_RATE_LIMIT_SPEC, check_and_record
 
 from .helpers import (
@@ -38,7 +38,6 @@ from .helpers import (
 )
 from .schemas import (
     ClaimPatchSchema,
-    ClaimSchema,
     EditCitationInput,
     Ref,
     RelatedTitleSchema,
@@ -82,7 +81,6 @@ class SystemDetailSchema(Schema):
     technology_subgeneration: Optional[Ref] = None
     titles: list[RelatedTitleSchema]
     sibling_systems: list[SiblingSystemSchema] = []
-    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +167,6 @@ def _serialize_system_detail(system) -> dict:
         ),
         "titles": list(titles.values()),
         "sibling_systems": sibling_systems,
-        "sources": build_sources(getattr(system, "active_claims", [])),
     }
 
 

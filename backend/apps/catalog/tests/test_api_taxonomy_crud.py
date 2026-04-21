@@ -835,7 +835,6 @@ class TestSeriesRestore:
         assert body["slug"] == "eight-ball"
         assert "titles" in body
         assert "credits" in body
-        assert "sources" in body
 
     def test_restore_rejects_active(self, client, user):
         series = Series.objects.create(
@@ -946,7 +945,6 @@ class TestFranchiseRestore:
         body = resp.json()
         assert body["slug"] == "indiana-jones"
         assert "titles" in body
-        assert "sources" in body
 
 
 # ── Franchise list endpoint renamed from /all/ to / ─────────────────

@@ -7,7 +7,6 @@ const MOCK_DATA = {
 	display_order: 10,
 	description: { text: '', html: '', citations: [], attribution: null },
 	aliases: [],
-	sources: [],
 	people: []
 };
 

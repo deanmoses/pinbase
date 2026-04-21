@@ -126,15 +126,6 @@ class TestPatchGameplayFeaturePersistence:
         assert inactive.count() == 1
         assert active.first().value == "Second"
 
-    def test_response_includes_sources(self, client, user, feature):
-        client.force_login(user)
-        resp = _patch(client, feature.slug, {"fields": {"description": "Updated"}})
-        data = resp.json()
-        assert "sources" in data
-        assert any(
-            c["field_name"] == "description" and c["is_winner"] for c in data["sources"]
-        )
-
 
 # ---------------------------------------------------------------------------
 # ChangeSet
@@ -174,7 +165,7 @@ class TestPatchGameplayFeatureChangeSet:
 
     def test_changeset_note_in_sources_response(self, client, user, feature):
         client.force_login(user)
-        resp = _patch(
+        _patch(
             client,
             feature.slug,
             {
@@ -182,9 +173,9 @@ class TestPatchGameplayFeatureChangeSet:
                 "note": "My edit note",
             },
         )
-        data = resp.json()
+        resp = client.get(f"/api/pages/sources/gameplay-feature/{feature.slug}/")
         desc_claim = next(
-            c for c in data["sources"] if c["field_name"] == "description"
+            c for c in resp.json()["sources"] if c["field_name"] == "description"
         )
         assert desc_claim["changeset_note"] == "My edit note"
 

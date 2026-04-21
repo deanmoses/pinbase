@@ -116,10 +116,6 @@ class TestPatchTitleClaims:
         assert data["name"] == "Medieval Madness Remastered"
         assert data["description"]["text"] == "Updated title copy"
         assert data["franchise"]["slug"] == franchise.slug
-        assert any(
-            claim["field_name"] == "description" and claim["is_winner"]
-            for claim in data["sources"]
-        )
 
         title.refresh_from_db()
         assert title.name == "Medieval Madness Remastered"
@@ -247,9 +243,10 @@ class TestPatchTitleClaims:
             },
         )
         assert resp.status_code == 200
+        sources_resp = client.get(f"/api/pages/sources/title/{title.slug}/")
         assert any(
             claim["changeset_note"] == "Editorial cleanup"
-            for claim in resp.json()["sources"]
+            for claim in sources_resp.json()["sources"]
         )
 
     def test_scalar_edit_with_citation_clones_to_created_claim(

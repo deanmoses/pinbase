@@ -18,7 +18,7 @@ from .edit_claims import (
     validate_scalar_fields,
 )
 from .entity_crud import register_entity_create, register_entity_delete_restore
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from .helpers import (
     _build_rich_text,
@@ -26,7 +26,6 @@ from .helpers import (
     _serialize_uploaded_media,
 )
 from .schemas import (
-    ClaimSchema,
     GameplayFeatureSchema,
     HierarchyClaimPatchSchema,
     RichTextSchema,
@@ -56,7 +55,6 @@ class GameplayFeatureDetailSchema(Schema):
     parents: list[GameplayFeatureSchema] = []
     children: list[GameplayFeatureSchema] = []
     uploaded_media: list[UploadedMediaSchema] = []
-    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +87,6 @@ def _serialize_detail(feature) -> dict:
         "uploaded_media": _serialize_uploaded_media(
             getattr(feature, "all_media", None) or []
         ),
-        "sources": build_sources(getattr(feature, "active_claims", [])),
     }
 
 

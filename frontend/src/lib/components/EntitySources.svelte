@@ -1,6 +1,4 @@
 <script lang="ts">
-	import client from '$lib/api/client';
-	import type { CatalogEntityKey } from '$lib/api/catalog-meta';
 	import type { components } from '$lib/api/schema';
 	import UserBadge from './UserBadge.svelte';
 	import SmartDate from './SmartDate.svelte';
@@ -11,42 +9,11 @@
 
 	let {
 		sources,
-		entityType,
-		entitySlug = ''
+		evidence = []
 	}: {
 		sources: Claim[];
-		entityType?: CatalogEntityKey;
-		entitySlug?: string;
+		evidence?: CitedChangeSet[];
 	} = $props();
-
-	let citedChangesets = $state<CitedChangeSet[]>([]);
-
-	$effect(() => {
-		if (!entityType || !entitySlug) {
-			citedChangesets = [];
-			return;
-		}
-
-		let stale = false;
-		client
-			.GET('/api/pages/evidence/{entity_type}/{slug}/', {
-				params: { path: { entity_type: entityType, slug: entitySlug } }
-			})
-			.then(({ data }) => {
-				if (!stale) {
-					citedChangesets = data ?? [];
-				}
-			})
-			.catch(() => {
-				if (!stale) {
-					citedChangesets = [];
-				}
-			});
-
-		return () => {
-			stale = true;
-		};
-	});
 
 	let sourceGroups = $derived(groupSourcesByField(sources));
 
@@ -85,11 +52,11 @@
 		)
 	]}
 	<section class="sources">
-		{#if citedChangesets.length > 0}
+		{#if evidence.length > 0}
 			<section class="evidence">
 				<h2>Evidence</h2>
 				<ol class="changeset-list">
-					{#each citedChangesets as changeset (changeset.id)}
+					{#each evidence as changeset (changeset.id)}
 						<li class="changeset-card">
 							<div class="changeset-header">
 								{#if changeset.user_display}

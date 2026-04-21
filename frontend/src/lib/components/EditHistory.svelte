@@ -12,11 +12,7 @@
 	type ChangeSet = components['schemas']['ChangeSetSchema'];
 	type FieldChange = components['schemas']['FieldChangeSchema'];
 
-	let {
-		changesets,
-		entityType,
-		entitySlug
-	}: { changesets: ChangeSet[]; entityType: string; entitySlug: string } = $props();
+	let { changesets }: { changesets: ChangeSet[] } = $props();
 
 	let revertingClaimId = $state<number | null>(null);
 	let revertNote = $state('');
@@ -104,9 +100,9 @@
 		revertLoading = true;
 		revertError = null;
 
-		const { error } = await client.POST('/api/edit-history/{entity_type}/{slug}/revert/', {
-			params: { path: { entity_type: entityType, slug: entitySlug } },
-			body: { claim_id: revertingClaimId, note: revertNote }
+		const { error } = await client.POST('/api/provenance/claims/{claim_id}/revert/', {
+			params: { path: { claim_id: revertingClaimId } },
+			body: { note: revertNote }
 		});
 
 		revertLoading = false;

@@ -1,7 +1,7 @@
 /**
  * Entity-agnostic client shim for the Undo-ChangeSet endpoint.
  *
- * The backend endpoint ``/api/edit-history/undo-changeset/`` inverts any
+ * The backend endpoint ``/api/provenance/undo-changeset/`` inverts any
  * DELETE ChangeSet atomically, regardless of which entity types it
  * touched. The caller only needs the ChangeSet id and a note, so a single
  * helper is reused across every record-type delete flow (Title, Model, …).
@@ -16,7 +16,7 @@ export type UndoOutcome =
 	| { kind: 'form_error'; message: string };
 
 export async function submitUndoDelete(changesetId: number, note = ''): Promise<UndoOutcome> {
-	const { data, error, response } = await client.POST('/api/edit-history/undo-changeset/', {
+	const { data, error, response } = await client.POST('/api/provenance/undo-changeset/', {
 		body: { changeset_id: changesetId, note }
 	});
 

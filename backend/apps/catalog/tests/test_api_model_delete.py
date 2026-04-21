@@ -361,7 +361,7 @@ class TestUndoDelete:
         cs_id = _post_delete(client, "mm-pro").json()["changeset_id"]
 
         undo = client.post(
-            "/api/edit-history/undo-changeset/",
+            "/api/provenance/undo-changeset/",
             data=json.dumps({"changeset_id": cs_id, "note": "oops"}),
             content_type="application/json",
         )
@@ -379,7 +379,7 @@ class TestUndoDelete:
 
         client.force_login(other)
         resp = client.post(
-            "/api/edit-history/undo-changeset/",
+            "/api/provenance/undo-changeset/",
             data=json.dumps({"changeset_id": cs_id}),
             content_type="application/json",
         )
@@ -395,7 +395,7 @@ class TestUndoDelete:
         _post_restore(client, "mm-pro")
 
         resp = client.post(
-            "/api/edit-history/undo-changeset/",
+            "/api/provenance/undo-changeset/",
             data=json.dumps({"changeset_id": cs_id}),
             content_type="application/json",
         )

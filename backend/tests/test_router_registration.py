@@ -28,7 +28,7 @@ EXPECTED_PREFIXES = {
     "/pages/",
     "/link-types/",
     "/sources/",
-    "/edit-history/",
+    "/provenance/",
     "/review/",
     "/media/",
 }

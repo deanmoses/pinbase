@@ -14,18 +14,6 @@ class Ref(Schema):
     slug: str
 
 
-class ClaimSchema(Schema):
-    source_name: Optional[str] = None
-    source_slug: Optional[str] = None
-    user_display: Optional[str] = None  # username for user-attributed claims
-    field_name: str
-    value: object
-    citation: str
-    created_at: str
-    is_winner: bool
-    changeset_note: Optional[str] = None
-
-
 class EditCitationInput(Schema):
     citation_instance_id: int
 

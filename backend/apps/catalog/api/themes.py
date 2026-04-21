@@ -18,14 +18,13 @@ from .edit_claims import (
     validate_scalar_fields,
 )
 from .entity_crud import register_entity_create, register_entity_delete_restore
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from .helpers import (
     _build_rich_text,
     _serialize_title_machine,
 )
 from .schemas import (
-    ClaimSchema,
     HierarchyClaimPatchSchema,
     RichTextSchema,
     ThemeSchema,
@@ -57,7 +56,6 @@ class ThemeDetailSchema(Schema):
     parents: list[ThemeSchema] = []
     children: list[ThemeSchema] = []
     machines: list[TitleMachineSchema]
-    sources: list[ClaimSchema] = []
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +96,6 @@ def _serialize_detail(theme) -> dict:
             _serialize_title_machine(pm, min_rank=min_rank)
             for pm in theme.machine_models.all()
         ],
-        "sources": build_sources(getattr(theme, "active_claims", [])),
     }
 
 

@@ -11,7 +11,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 
 from ._counts import bulk_title_counts_via_models
 from .edit_claims import execute_claims, plan_scalar_field_claims
@@ -41,7 +41,6 @@ from .helpers import _build_rich_text, _extract_image_urls, _serialize_title_mac
 from .people import PersonGridSchema
 from .schemas import (
     ClaimPatchSchema,
-    ClaimSchema,
     RichTextSchema,
     TitleMachineSchema,
 )
@@ -58,7 +57,6 @@ class TaxonomySchema(Schema):
     display_order: int
     description: RichTextSchema = RichTextSchema()
     aliases: list[str] = []
-    sources: list[ClaimSchema] = []
 
 
 class TaxonomyWithTitleCountSchema(TaxonomySchema):
@@ -94,7 +92,6 @@ def _serialize_taxonomy(obj) -> dict:
             obj, "description", getattr(obj, "active_claims", [])
         ),
         "aliases": aliases,
-        "sources": build_sources(getattr(obj, "active_claims", [])),
     }
 
 

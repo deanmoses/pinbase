@@ -33,7 +33,7 @@ from .soft_delete import (
     plan_soft_delete,
     serialize_blocking_referrer,
 )
-from apps.provenance.helpers import build_sources, claims_prefetch
+from apps.provenance.helpers import claims_prefetch
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -54,7 +54,6 @@ from .helpers import (
 )
 from .schemas import (
     AttributionSchema,
-    ClaimSchema,
     CreditSchema,
     FranchiseRefSchema,
     GameplayFeatureSchema,
@@ -180,7 +179,6 @@ class MachineModelDetailSchema(Schema):
     abbreviations: list[str] = []
     extra_data: dict
     credits: list[CreditSchema]
-    sources: list[ClaimSchema]
     thumbnail_url: Optional[str] = None
     hero_image_url: Optional[str] = None
     image_attribution: Optional[AttributionSchema] = None
@@ -361,7 +359,6 @@ def _serialize_model_detail(pm) -> dict:
             )
             .order_by("claim_key", "-effective_priority", "-created_at")
         )
-    sources = build_sources(active_claims)
 
     all_media = getattr(pm, "all_media", None) or []
     primary_media = [em for em in all_media if em.is_primary]
@@ -457,7 +454,6 @@ def _serialize_model_detail(pm) -> dict:
         "abbreviations": [a.value for a in pm.abbreviations.all()],
         "extra_data": pm.extra_data or {},
         "credits": credits,
-        "sources": sources,
         "thumbnail_url": thumbnail_url,
         "hero_image_url": hero_image_url,
         "image_attribution": image_attribution,
