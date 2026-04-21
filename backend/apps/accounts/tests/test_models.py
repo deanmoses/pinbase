@@ -1,5 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 
 from apps.accounts.models import UserProfile
 
@@ -43,7 +44,7 @@ class TestWorkOSFields:
 
         u2 = User.objects.create_user(username="user2")
         u2.profile.workos_user_id = "user_01ABC"
-        with pytest.raises(Exception):  # IntegrityError
+        with pytest.raises(IntegrityError):
             u2.profile.save()
 
     def test_multiple_null_workos_user_id_allowed(self):

@@ -3,6 +3,7 @@
 from io import StringIO
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 
 from apps.citation.models import CitationSource, CitationSourceLink
@@ -225,7 +226,7 @@ class TestSeedRollsBackOnValidationError:
             },
         ]
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             ensure_citation_sources(sources=bad_seed)
 
         # Nothing should have been created — transaction rolled back
