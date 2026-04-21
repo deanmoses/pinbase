@@ -13,7 +13,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
 
 	const parentSlug = url.searchParams.get('parent');
 	if (!parentSlug) {
-		throw redirect(302, resolve('/display-subtypes'));
+		throw redirect(302, resolve('/display-types'));
 	}
 
 	const listRes = await fetch('/api/display-types/');
@@ -23,7 +23,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
 	const parents = (await listRes.json()) as { slug: string; name: string }[];
 	const parent = parents.find((p) => p.slug === parentSlug);
 	if (!parent) {
-		throw redirect(302, resolve('/display-subtypes'));
+		throw redirect(302, resolve('/display-types'));
 	}
 
 	return {

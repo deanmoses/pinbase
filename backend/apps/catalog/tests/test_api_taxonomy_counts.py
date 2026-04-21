@@ -16,6 +16,8 @@ import pytest
 from apps.catalog.models import (
     Cabinet,
     CreditRole,
+    DisplaySubtype,
+    DisplayType,
     GameplayFeature,
     MachineModel,
     Theme,
@@ -235,3 +237,103 @@ class TestCreditRoleNoCount:
         body = resp.json()
         assert body, "expected at least one credit role"
         assert "title_count" not in body[0]
+
+
+# ---------------------------------------------------------------------------
+# display-types: nested subtypes with their own title_count
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestDisplayTypesNestedSubtypes:
+    """The display-types list endpoint nests subtypes under each type.
+
+    ``/display-subtypes/`` has no list endpoint — subtypes are exposed only
+    through their parent type. Tests cover:
+      - response shape (subtypes present on every type, empty list allowed),
+      - sort order (types and subtypes both by display_order),
+      - title counts on both tiers,
+      - soft-deleted subtypes excluded.
+    """
+
+    def test_subtypes_nested_under_parent_type(self, client):
+        lcd = DisplayType.objects.create(name="LCD", slug="lcd", display_order=4)
+        dmd = DisplayType.objects.create(
+            name="Dot Matrix", slug="dot-matrix", display_order=3
+        )
+        DisplaySubtype.objects.create(
+            name="HD LCD", slug="hd-lcd", display_type=lcd, display_order=2
+        )
+        DisplaySubtype.objects.create(
+            name="Standard LCD", slug="standard-lcd", display_type=lcd, display_order=1
+        )
+        DisplaySubtype.objects.create(
+            name="Plasma DMD",
+            slug="plasma-dmd",
+            display_type=dmd,
+            display_order=1,
+        )
+
+        resp = client.get("/api/display-types/")
+        assert resp.status_code == 200
+        body = resp.json()
+
+        rows = {r["slug"]: r for r in body}
+        assert [s["slug"] for s in rows["lcd"]["subtypes"]] == [
+            "standard-lcd",
+            "hd-lcd",
+        ]
+        assert [s["slug"] for s in rows["dot-matrix"]["subtypes"]] == ["plasma-dmd"]
+
+    def test_types_sorted_by_display_order(self, client):
+        DisplayType.objects.create(name="LCD", slug="lcd", display_order=4)
+        DisplayType.objects.create(
+            name="Dot Matrix", slug="dot-matrix", display_order=3
+        )
+        DisplayType.objects.create(
+            name="Score Reels", slug="score-reels", display_order=1
+        )
+
+        body = client.get("/api/display-types/").json()
+        assert [r["slug"] for r in body] == ["score-reels", "dot-matrix", "lcd"]
+
+    def test_type_with_no_subtypes_returns_empty_list(self, client):
+        DisplayType.objects.create(
+            name="Backglass Lights", slug="backglass-lights", display_order=1
+        )
+
+        body = client.get("/api/display-types/").json()
+        assert body[0]["subtypes"] == []
+
+    def test_soft_deleted_subtype_excluded(self, client):
+        lcd = DisplayType.objects.create(name="LCD", slug="lcd", display_order=1)
+        DisplaySubtype.objects.create(
+            name="HD LCD", slug="hd-lcd", display_type=lcd, display_order=1
+        )
+        DisplaySubtype.objects.create(
+            name="Retired LCD",
+            slug="retired-lcd",
+            display_type=lcd,
+            display_order=2,
+            status=EntityStatus.DELETED,
+        )
+
+        body = client.get("/api/display-types/").json()
+        slugs = [s["slug"] for s in body[0]["subtypes"]]
+        assert slugs == ["hd-lcd"]
+
+    def test_title_count_populated_on_both_tiers(self, client):
+        lcd = DisplayType.objects.create(name="LCD", slug="lcd", display_order=1)
+        hd = DisplaySubtype.objects.create(
+            name="HD LCD", slug="hd-lcd", display_type=lcd, display_order=1
+        )
+        title = _title("Wizard of Oz")
+        mm = _model(title, "Wizard of Oz")
+        mm.display_type = lcd
+        mm.display_subtype = hd
+        mm.save(update_fields=["display_type", "display_subtype"])
+
+        body = client.get("/api/display-types/").json()
+        row = next(r for r in body if r["slug"] == "lcd")
+        assert row["title_count"] == 1
+        assert row["subtypes"][0]["title_count"] == 1

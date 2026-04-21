@@ -16,7 +16,7 @@ export const load: PageLoad = async ({ fetch, params }) => {
 
 	const res = await fetch(`/api/display-subtypes/${params.slug}/delete-preview/`);
 	if (res.status === 404) {
-		throw redirect(302, resolve('/display-subtypes'));
+		throw redirect(302, resolve('/display-types'));
 	}
 	if (!res.ok) {
 		throw new Error(`Failed to load delete preview (${res.status})`);

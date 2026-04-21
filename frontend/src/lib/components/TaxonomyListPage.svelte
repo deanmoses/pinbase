@@ -25,6 +25,14 @@
 		headerSnippet?: Snippet;
 		rowSnippet?: Snippet<[item: T]>;
 		/**
+		 * Optional override for the list rendering. When provided, replaces
+		 * the default `<ul>` of rows with caller-rendered content — useful
+		 * for grouped/hierarchical layouts. The filtered, search-narrowed
+		 * item list is passed in. Header, search, filters, and empty states
+		 * remain handled by this component.
+		 */
+		listSnippet?: Snippet<[items: T[]]>;
+		/**
 		 * When true, the page renders create affordances (auth-gated) pointing
 		 * at `/{entity_type_plural}/new`:
 		 *  - below SEARCH_THRESHOLD: a "+ New {entity}" link in the header
@@ -52,6 +60,7 @@
 		rowStyle,
 		headerSnippet,
 		rowSnippet,
+		listSnippet,
 		canCreate = false,
 		filters,
 		filterFn
@@ -151,6 +160,8 @@
 			{:else}
 				<p class="status">No matching {entityLabel}.</p>
 			{/if}
+		{:else if listSnippet}
+			{@render listSnippet(filteredItems)}
 		{:else}
 			<ul class="item-list">
 				{#each filteredItems as item (item.slug)}

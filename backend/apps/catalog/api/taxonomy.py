@@ -59,6 +59,10 @@ class TaxonomyWithTitleCountSchema(TaxonomySchema):
     title_count: int = 0
 
 
+class DisplayTypeListSchema(TaxonomyWithTitleCountSchema):
+    subtypes: list[TaxonomyWithTitleCountSchema] = []
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -181,12 +185,39 @@ def patch_technology_generation(request, slug: str, data: ClaimPatchSchema):
 display_types_router = Router(tags=["display-types"])
 
 
-@display_types_router.get("/", response=list[TaxonomyWithTitleCountSchema])
+@display_types_router.get("/", response=list[DisplayTypeListSchema])
 @decorate_view(cache_control(no_cache=True))
 def list_display_types(request):
-    return _list_taxonomy_with_counts(
-        DisplayType, "display_type", sort_by_display_order=True
+    types = list(DisplayType.objects.active())
+    subtypes = list(DisplaySubtype.objects.active())
+
+    type_counts = bulk_title_counts_via_models([t.pk for t in types], "display_type")
+    subtype_counts = bulk_title_counts_via_models(
+        [s.pk for s in subtypes], "display_subtype"
     )
+
+    subtypes_by_type: dict[int, list[DisplaySubtype]] = {}
+    for s in subtypes:
+        subtypes_by_type.setdefault(s.display_type_id, []).append(s)
+    for group in subtypes_by_type.values():
+        group.sort(key=lambda s: (s.display_order, s.name.lower()))
+
+    types.sort(key=lambda t: (t.display_order, t.name.lower()))
+
+    return [
+        {
+            **_serialize_taxonomy(t),
+            "title_count": type_counts.get(t.pk, 0),
+            "subtypes": [
+                {
+                    **_serialize_taxonomy(s),
+                    "title_count": subtype_counts.get(s.pk, 0),
+                }
+                for s in subtypes_by_type.get(t.pk, [])
+            ],
+        }
+        for t in types
+    ]
 
 
 @display_types_router.patch(
@@ -225,14 +256,6 @@ def patch_technology_subgeneration(request, slug: str, data: ClaimPatchSchema):
 # ---------------------------------------------------------------------------
 
 display_subtypes_router = Router(tags=["display-subtypes"])
-
-
-@display_subtypes_router.get("/", response=list[TaxonomyWithTitleCountSchema])
-@decorate_view(cache_control(no_cache=True))
-def list_display_subtypes(request):
-    return _list_taxonomy_with_counts(
-        DisplaySubtype, "display_subtype", sort_by_display_order=True
-    )
 
 
 @display_subtypes_router.patch(

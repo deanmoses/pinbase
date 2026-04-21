@@ -8,8 +8,9 @@
 
 <SimpleTaxonomyDetailLayout
 	{profile}
-	parentLabel="Display Subtypes"
+	parentLabel="Display Types"
 	basePath="/display-subtypes"
+	parentHref="/display-types"
 	saveClaims={saveDisplaySubtypeClaims}
 	deleteHref={`/display-subtypes/${profile.slug}/delete`}
 >

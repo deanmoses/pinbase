@@ -34,7 +34,7 @@
 
 	let impact = $derived({
 		items: ['this subtype', pluralize(preview.changeset_count, 'change set')],
-		note: 'You can undo this from the toast that appears on the display subtypes page, or restore the record later from its edit history.'
+		note: 'You can undo this from the toast that appears on the display types page, or restore the record later from its edit history.'
 	});
 </script>
 
@@ -44,7 +44,7 @@
 	{slug}
 	submit={submitDelete}
 	cancelHref={`/display-subtypes/${slug}`}
-	redirectAfterDelete="/display-subtypes"
+	redirectAfterDelete="/display-types"
 	editHistoryHref={`/display-subtypes/${slug}/edit-history`}
 	{parentBreadcrumb}
 	{blocked}

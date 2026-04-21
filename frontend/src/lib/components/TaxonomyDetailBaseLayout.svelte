@@ -33,6 +33,7 @@
 		profile,
 		parentLabel,
 		basePath,
+		parentHref,
 		sections,
 		editor: editorSnippet,
 		immediateEditor,
@@ -45,7 +46,16 @@
 	}: {
 		profile: { name: string; slug: string; description: { text: string } };
 		parentLabel: string;
+		/** Used to construct this entity's own sub-route URLs (edit, sources, etc.). */
 		basePath: string;
+		/**
+		 * Optional override for the parent-link href shown in the page header.
+		 * Defaults to `basePath`. Use this when the entity's list page lives at
+		 * a different URL than its detail routes — e.g. display subtypes are
+		 * listed under `/display-types` but their detail routes remain under
+		 * `/display-subtypes/`.
+		 */
+		parentHref?: string;
 		sections: SectionDef[];
 		editor: Snippet<[TKey, EditorCallbacks]>;
 		immediateEditor?: Snippet;
@@ -188,7 +198,7 @@
 
 	<RecordDetailShell
 		name={profile.name}
-		parentLink={{ text: parentLabel, href: resolveHref(basePath) }}
+		parentLink={{ text: parentLabel, href: resolveHref(parentHref ?? basePath) }}
 		{aliases}
 		{actionBar}
 		{main}
