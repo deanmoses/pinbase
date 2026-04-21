@@ -21,12 +21,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 import urllib.request
 
 from django.core.management.base import BaseCommand
 
 _OPENER = urllib.request.build_opener()
 _OPENER.addheaders = [("User-Agent", "pinbase/1.0")]
+
+_DEFAULT_DEST = os.path.join(tempfile.gettempdir(), "ingest_sources")
 
 # Only download these root-level files from the ingest-sources manifest.
 _NEEDED_FILES = {
@@ -69,8 +72,8 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--dest",
-            default="/tmp/ingest_sources",
-            help="Local directory to download into (default: /tmp/ingest_sources).",
+            default=_DEFAULT_DEST,
+            help=f"Local directory to download into (default: {_DEFAULT_DEST}).",
         )
 
     def handle(self, **options):

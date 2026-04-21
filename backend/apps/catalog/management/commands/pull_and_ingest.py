@@ -12,8 +12,13 @@ Usage (local):
 
 from __future__ import annotations
 
+import os
+import tempfile
+
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+
+_DEFAULT_DEST = os.path.join(tempfile.gettempdir(), "ingest_sources")
 
 
 class Command(BaseCommand):
@@ -22,8 +27,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--dest",
-            default="/tmp/ingest_sources",
-            help="Local directory to download into (default: /tmp/ingest_sources).",
+            default=_DEFAULT_DEST,
+            help=f"Local directory to download into (default: {_DEFAULT_DEST}).",
         )
         parser.add_argument(
             "--dry-run",

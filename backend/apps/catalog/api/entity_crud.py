@@ -43,7 +43,7 @@ from .entity_create import (
 )
 from .schemas import BlockingReferrerSchema
 from .soft_delete import (
-    SoftDeleteBlocked,
+    SoftDeleteBlockedError,
     count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
@@ -203,7 +203,7 @@ def register_entity_delete_restore(
             changeset, deleted = execute_soft_delete(
                 obj, user=request.user, note=data.note, citation=data.citation
             )
-        except SoftDeleteBlocked as exc:
+        except SoftDeleteBlockedError as exc:
             return Status(
                 422,
                 {

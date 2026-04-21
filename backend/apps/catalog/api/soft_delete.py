@@ -268,7 +268,7 @@ def count_entity_changesets(*entities: CatalogModel) -> int:
     return ChangeSet.objects.filter(user__isnull=False).filter(q).distinct().count()
 
 
-class SoftDeleteBlocked(Exception):
+class SoftDeleteBlockedError(Exception):
     """Raised by :func:`execute_soft_delete` when active references block it."""
 
     def __init__(self, blockers: list[BlockingReferrer]):
@@ -285,12 +285,12 @@ def execute_soft_delete(
 ):
     """Soft-delete *root* and all cascade children in one ChangeSet.
 
-    Raises :class:`SoftDeleteBlocked` when an active PROTECT referrer would
+    Raises :class:`SoftDeleteBlockedError` when an active PROTECT referrer would
     be left dangling. Returns ``(changeset, entities_deleted)`` on success.
     """
     plan = plan_soft_delete(root)
     if plan.is_blocked:
-        raise SoftDeleteBlocked(plan.blockers)
+        raise SoftDeleteBlockedError(plan.blockers)
 
     entries = [
         (entity, [ClaimSpec(field_name="status", value="deleted")])

@@ -12,7 +12,7 @@ from django.core.cache import cache
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
     DELETE_RATE_LIMIT_SPEC,
-    RateLimitExceeded,
+    RateLimitExceededError,
     RateLimitSpec,
     check_and_record,
     reset_for_user,
@@ -52,7 +52,7 @@ class TestRateLimits:
     def test_over_limit_raises(self, user):
         for _ in range(SPEC.limit):
             check_and_record(user, SPEC)
-        with pytest.raises(RateLimitExceeded) as exc:
+        with pytest.raises(RateLimitExceededError) as exc:
             check_and_record(user, SPEC)
         assert exc.value.retry_after >= 1
         assert exc.value.bucket == "test"
@@ -66,14 +66,14 @@ class TestRateLimits:
                 check_and_record(user, SPEC)
 
             fake_time.return_value = base + 5
-            with pytest.raises(RateLimitExceeded) as first:
+            with pytest.raises(RateLimitExceededError) as first:
                 check_and_record(user, SPEC)
 
             # 20 more blocked retries spaced 1s apart.
             last = first
             for i in range(1, 21):
                 fake_time.return_value = base + 5 + i
-                with pytest.raises(RateLimitExceeded) as exc:
+                with pytest.raises(RateLimitExceededError) as exc:
                     check_and_record(user, SPEC)
                 last = exc
 
@@ -85,7 +85,7 @@ class TestRateLimits:
         attempt — including those that go on to fail — consumes a slot."""
         for _ in range(SPEC.limit):
             check_and_record(user, SPEC)
-        with pytest.raises(RateLimitExceeded):
+        with pytest.raises(RateLimitExceededError):
             check_and_record(user, SPEC)
 
     def test_window_expiry(self, user):
@@ -111,7 +111,7 @@ class TestRateLimits:
         # Different bucket for the same user is untouched.
         for _ in range(SPEC.limit):
             check_and_record(user, other_spec)
-        with pytest.raises(RateLimitExceeded):
+        with pytest.raises(RateLimitExceededError):
             check_and_record(user, SPEC)
 
     def test_users_are_independent(self, user, db):
@@ -121,7 +121,7 @@ class TestRateLimits:
                 check_and_record(user, SPEC)
             for _ in range(SPEC.limit):
                 check_and_record(other, SPEC)
-            with pytest.raises(RateLimitExceeded):
+            with pytest.raises(RateLimitExceededError):
                 check_and_record(user, SPEC)
         finally:
             reset_for_user(other, SPEC.bucket)
@@ -131,7 +131,7 @@ class TestRateLimits:
             is_authenticated = False
             is_staff = False
 
-        with pytest.raises(RateLimitExceeded):
+        with pytest.raises(RateLimitExceededError):
             check_and_record(Anon(), SPEC)
 
 

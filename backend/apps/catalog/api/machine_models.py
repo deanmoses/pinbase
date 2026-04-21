@@ -89,7 +89,7 @@ from .schemas import (
     TitleMachineSchema,
 )
 from .soft_delete import (
-    SoftDeleteBlocked,
+    SoftDeleteBlockedError,
     count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
@@ -740,43 +740,39 @@ def list_all_models(request):
 
     min_rank = get_minimum_display_rank()
 
-    # Column indices for the values_list below.
-    M_ID = 0
-    M_NAME = 1
-    M_SLUG = 2
-    M_YEAR = 3
-    M_EXTRA_DATA = 4
-    M_MFR_ID = 5
-    M_MFR_NAME = 6
-    M_TECH_GEN_NAME = 7
-    M_DISPLAY_TYPE_NAME = 8
-    M_DISPLAY_SUBTYPE_NAME = 9
-    M_TITLE_SLUG = 10
-    M_SYSTEM_NAME = 11
-    M_CABINET_NAME = 12
-    M_GAME_FORMAT_NAME = 13
-
     rows = list(
         MachineModel.objects.active()
+        .annotate(
+            mfr_id=F("corporate_entity__manufacturer__id"),
+            mfr_name=F("corporate_entity__manufacturer__name"),
+            tech_gen_name=F("technology_generation__name"),
+            display_type_name=F("display_type__name"),
+            display_subtype_name=F("display_subtype__name"),
+            title_slug=F("title__slug"),
+            system_name=F("system__name"),
+            cabinet_name=F("cabinet__name"),
+            game_format_name=F("game_format__name"),
+        )
         .values_list(
             "id",
             "name",
             "slug",
             "year",
             "extra_data",
-            "corporate_entity__manufacturer__id",
-            "corporate_entity__manufacturer__name",
-            "technology_generation__name",
-            "display_type__name",
-            "display_subtype__name",
-            "title__slug",
-            "system__name",
-            "cabinet__name",
-            "game_format__name",
+            "mfr_id",
+            "mfr_name",
+            "tech_gen_name",
+            "display_type_name",
+            "display_subtype_name",
+            "title_slug",
+            "system_name",
+            "cabinet_name",
+            "game_format_name",
+            named=True,
         )
         .order_by("name")
     )
-    model_ids = {r[M_ID] for r in rows}
+    model_ids = {r.id for r in rows}
 
     # --- Bulk M2M queries for search_text ---
     model_themes: dict[int, list[str]] = defaultdict(list)
@@ -848,23 +844,21 @@ def list_all_models(request):
     # --- Assembly ---
     result = []
     for r in rows:
-        mid = r[M_ID]
-        extra_data = r[M_EXTRA_DATA]
-        thumbnail_url, _ = _extract_image_urls(extra_data or {}, min_rank=min_rank)
+        mid = r.id
+        thumbnail_url, _ = _extract_image_urls(r.extra_data or {}, min_rank=min_rank)
 
         # Build search_text from bulk maps
         parts: list[str] = []
-        mfr_id, mfr_name = r[M_MFR_ID], r[M_MFR_NAME]
-        if mfr_name:
-            parts.append(mfr_name)
-            parts.extend(mfr_search_parts.get(mfr_id, []))
+        if r.mfr_name:
+            parts.append(r.mfr_name)
+            parts.extend(mfr_search_parts.get(r.mfr_id, []))
         for name in (
-            r[M_SYSTEM_NAME],
-            r[M_TECH_GEN_NAME],
-            r[M_DISPLAY_TYPE_NAME],
-            r[M_DISPLAY_SUBTYPE_NAME],
-            r[M_CABINET_NAME],
-            r[M_GAME_FORMAT_NAME],
+            r.system_name,
+            r.tech_gen_name,
+            r.display_type_name,
+            r.display_subtype_name,
+            r.cabinet_name,
+            r.game_format_name,
         ):
             if name:
                 parts.append(name)
@@ -876,15 +870,15 @@ def list_all_models(request):
 
         result.append(
             {
-                "name": r[M_NAME],
-                "slug": r[M_SLUG],
-                "year": r[M_YEAR],
-                "manufacturer_name": mfr_name,
-                "technology_generation_name": r[M_TECH_GEN_NAME],
+                "name": r.name,
+                "slug": r.slug,
+                "year": r.year,
+                "manufacturer_name": r.mfr_name,
+                "technology_generation_name": r.tech_gen_name,
                 "thumbnail_url": thumbnail_url,
                 "abbreviations": model_abbrevs.get(mid, []),
                 "search_text": " | ".join(parts) if parts else None,
-                "title_slug": r[M_TITLE_SLUG],
+                "title_slug": r.title_slug,
             }
         )
     return set_cached_response(MODELS_ALL_KEY, result)
@@ -1072,7 +1066,7 @@ def delete_model(request, slug: str, data: ModelDeleteSchema):
         changeset, deleted = execute_soft_delete(
             pm, user=request.user, note=data.note, citation=data.citation
         )
-    except SoftDeleteBlocked as exc:
+    except SoftDeleteBlockedError as exc:
         return Status(
             422,
             {

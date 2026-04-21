@@ -36,7 +36,7 @@ from .constants import (
 _CACHE_TTL_FUDGE_SECONDS = 60
 
 
-class RateLimitExceeded(Exception):
+class RateLimitExceededError(Exception):
     """Raised when a user has exceeded a rate-limit bucket."""
 
     def __init__(self, *, bucket: str, retry_after: int) -> None:
@@ -82,7 +82,7 @@ def check_and_record(user, spec: RateLimitSpec) -> None:
     Staff users bypass the check entirely and nothing is recorded for them.
     """
     if user is None or not user.is_authenticated:
-        raise RateLimitExceeded(bucket=spec.bucket, retry_after=1)
+        raise RateLimitExceededError(bucket=spec.bucket, retry_after=1)
     if user.is_staff:
         return
 
@@ -97,7 +97,7 @@ def check_and_record(user, spec: RateLimitSpec) -> None:
         oldest = min(pruned)
         retry_after = math.ceil(oldest + spec.window_seconds - now)
         cache.set(key, pruned, timeout=spec.window_seconds + _CACHE_TTL_FUDGE_SECONDS)
-        raise RateLimitExceeded(bucket=spec.bucket, retry_after=retry_after)
+        raise RateLimitExceededError(bucket=spec.bucket, retry_after=retry_after)
 
     pruned.append(now)
     cache.set(key, pruned, timeout=spec.window_seconds + _CACHE_TTL_FUDGE_SECONDS)

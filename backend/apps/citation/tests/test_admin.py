@@ -3,12 +3,28 @@
 import pytest
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.forms import inlineformset_factory
 from django.test import RequestFactory
 
 from apps.citation.admin import CitationSourceAdmin
 from apps.citation.models import CitationSource, CitationSourceLink
 
 User = get_user_model()
+
+LinkFormSetCreate = inlineformset_factory(
+    CitationSource,
+    CitationSourceLink,
+    fields=("link_type", "url", "label"),
+    extra=1,
+    can_delete=True,
+)
+LinkFormSetUpdate = inlineformset_factory(
+    CitationSource,
+    CitationSourceLink,
+    fields=("link_type", "url", "label"),
+    extra=0,
+    can_delete=True,
+)
 
 
 @pytest.fixture
@@ -106,15 +122,6 @@ class TestCitationSourceLinkInlineAttribution:
     def test_created_by_set_on_new_link(
         self, admin_instance, request_factory, admin_user, citation_source
     ):
-        from django.forms import inlineformset_factory
-
-        FormSet = inlineformset_factory(
-            CitationSource,
-            CitationSourceLink,
-            fields=("link_type", "url", "label"),
-            extra=1,
-            can_delete=True,
-        )
         data = {
             "links-TOTAL_FORMS": "1",
             "links-INITIAL_FORMS": "0",
@@ -122,7 +129,7 @@ class TestCitationSourceLinkInlineAttribution:
             "links-0-url": "https://example.com",
             "links-0-label": "Example",
         }
-        formset = FormSet(data, instance=citation_source, prefix="links")
+        formset = LinkFormSetCreate(data, instance=citation_source, prefix="links")
         assert formset.is_valid(), formset.errors
 
         request = request_factory.post("/")
@@ -136,8 +143,6 @@ class TestCitationSourceLinkInlineAttribution:
     def test_updated_by_set_on_existing_link(
         self, admin_instance, request_factory, admin_user, citation_source
     ):
-        from django.forms import inlineformset_factory
-
         link = CitationSourceLink.objects.create(
             citation_source=citation_source,
             link_type="homepage",
@@ -146,13 +151,6 @@ class TestCitationSourceLinkInlineAttribution:
         )
         assert link.created_by is None
 
-        FormSet = inlineformset_factory(
-            CitationSource,
-            CitationSourceLink,
-            fields=("link_type", "url", "label"),
-            extra=0,
-            can_delete=True,
-        )
         data = {
             "links-TOTAL_FORMS": "1",
             "links-INITIAL_FORMS": "1",
@@ -161,7 +159,7 @@ class TestCitationSourceLinkInlineAttribution:
             "links-0-url": "https://example.com",
             "links-0-label": "New Label",
         }
-        formset = FormSet(data, instance=citation_source, prefix="links")
+        formset = LinkFormSetUpdate(data, instance=citation_source, prefix="links")
         assert formset.is_valid(), formset.errors
 
         request = request_factory.post("/")

@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from apps.catalog.api.soft_delete import (
-    SoftDeleteBlocked,
+    SoftDeleteBlockedError,
     execute_soft_delete,
     plan_soft_delete,
 )
@@ -269,7 +269,7 @@ class TestExecute:
         pro = _model(target, "target-pro", source=bootstrap_source)
         _model(other, "blocker", variant_of=pro, source=bootstrap_source)
 
-        with pytest.raises(SoftDeleteBlocked) as exc:
+        with pytest.raises(SoftDeleteBlockedError) as exc:
             execute_soft_delete(target, user=user)
         assert exc.value.blockers[0].slug == "blocker"
         target.refresh_from_db()

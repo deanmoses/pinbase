@@ -51,7 +51,7 @@ from .schemas import (
     RelatedTitleSchema,
 )
 from .soft_delete import (
-    SoftDeleteBlocked,
+    SoftDeleteBlockedError,
     count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
@@ -426,7 +426,7 @@ def delete_person(request, slug: str, data: PersonDeleteSchema):
         changeset, deleted = execute_soft_delete(
             person, user=request.user, note=data.note, citation=data.citation
         )
-    except SoftDeleteBlocked as exc:
+    except SoftDeleteBlockedError as exc:
         return Status(
             422,
             {

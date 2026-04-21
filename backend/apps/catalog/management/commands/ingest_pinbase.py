@@ -400,10 +400,10 @@ class Command(BaseCommand):
 
         # Sort: countries first (type order 0), then intermediates (1), then cities (2).
         # Within each tier, sort by location_path so parents always precede children.
-        TYPE_ORDER = {"country": 0, "city": 2}
+        type_order = {"country": 0, "city": 2}
         entries_sorted = sorted(
             entries,
-            key=lambda e: (TYPE_ORDER.get(e["type"], 1), e["location_path"]),
+            key=lambda e: (type_order.get(e["type"], 1), e["location_path"]),
         )
 
         # Pass 1: upsert Location rows (slug + display fields).
@@ -437,7 +437,7 @@ class Command(BaseCommand):
         pending_claims: list[Claim] = []
         alias_by_pk: dict[int, list[str]] = {}
 
-        for obj, entry in zip(objs, entries_sorted):
+        for obj, entry in zip(objs, entries_sorted, strict=True):
             pending_claims.append(
                 Claim.for_object(obj, field_name="slug", value=entry["slug"])
             )
@@ -573,7 +573,7 @@ class Command(BaseCommand):
 
             # Assert claims.
             pending_claims: list[Claim] = []
-            for obj, entry in zip(objs, entries_used):
+            for obj, entry in zip(objs, entries_used, strict=True):
                 pending_claims.append(
                     Claim.for_object(obj, field_name="slug", value=obj.slug)
                 )
@@ -636,7 +636,7 @@ class Command(BaseCommand):
 
         # --- Entity claims ---
         pending_claims: list[Claim] = []
-        for obj, entry in zip(objs, entries):
+        for obj, entry in zip(objs, entries, strict=True):
             pending_claims.append(
                 Claim.for_object(obj, field_name="slug", value=obj.slug)
             )
@@ -754,7 +754,7 @@ class Command(BaseCommand):
 
         # --- Entity claims ---
         pending_claims: list[Claim] = []
-        for obj, entry in zip(objs, entries):
+        for obj, entry in zip(objs, entries, strict=True):
             pending_claims.append(
                 Claim.for_object(obj, field_name="slug", value=obj.slug)
             )
@@ -907,7 +907,7 @@ class Command(BaseCommand):
         )
 
         pending_claims: list[Claim] = []
-        for obj, entry in zip(objs, entries):
+        for obj, entry in zip(objs, entries, strict=True):
             pending_claims.append(
                 Claim.for_object(obj, field_name="slug", value=obj.slug)
             )
@@ -1065,7 +1065,7 @@ class Command(BaseCommand):
 
         # Assert alias claims.
         aliases_by_pk: dict[int, list[str]] = {}
-        for obj, entry in zip(objs, valid_entries):
+        for obj, entry in zip(objs, valid_entries, strict=True):
             entry_aliases = entry.get("aliases", [])
             if entry_aliases:
                 aliases_by_pk[obj.pk] = entry_aliases
@@ -1088,7 +1088,7 @@ class Command(BaseCommand):
         location_claims: list[Claim] = []
         all_ce_pks: set[int] = {obj.pk for obj in objs}
 
-        for obj, entry in zip(objs, valid_entries):
+        for obj, entry in zip(objs, valid_entries, strict=True):
             hq_path = _resolve_ce_location_path(entry, loc_by_path)
             if hq_path:
                 claim_key, value = build_relationship_claim(
@@ -1169,7 +1169,7 @@ class Command(BaseCommand):
         )
 
         pending_claims: list[Claim] = []
-        for obj, entry in zip(objs, entries):
+        for obj, entry in zip(objs, entries, strict=True):
             pending_claims.append(
                 Claim.for_object(obj, field_name="slug", value=obj.slug)
             )
@@ -1342,7 +1342,7 @@ class Command(BaseCommand):
 
         # Assert claims.
         pending_claims: list[Claim] = []
-        for obj, entry in zip(objs, series_entries):
+        for obj, entry in zip(objs, series_entries, strict=True):
             pending_claims.append(
                 Claim.for_object(obj, field_name="slug", value=obj.slug)
             )
@@ -1812,7 +1812,7 @@ class Command(BaseCommand):
         matched = 0
         skipped = 0
 
-        for entry, mm in zip(entries, entry_models):
+        for entry, mm in zip(entries, entry_models, strict=True):
             if mm is None or not mm.pk:
                 skipped += 1
                 continue

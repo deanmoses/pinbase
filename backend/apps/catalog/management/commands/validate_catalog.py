@@ -155,13 +155,13 @@ def check_nameless_persons(result: ValidationResult) -> None:
 
 def check_self_referential_variant(result: ValidationResult) -> None:
     """variant_of and converted_from must not point to self."""
-    self_variant = MachineModel.objects.filter(variant_of=models_F("pk"))
+    self_variant = MachineModel.objects.filter(variant_of=models_f("pk"))
     for pm in self_variant:
         result.error(
             f"Model {pm.name!r} (pk={pm.pk}) has variant_of pointing to itself"
         )
 
-    self_converted = MachineModel.objects.filter(converted_from=models_F("pk"))
+    self_converted = MachineModel.objects.filter(converted_from=models_f("pk"))
     for pm in self_converted:
         result.error(
             f"Model {pm.name!r} (pk={pm.pk}) has converted_from pointing to itself"
@@ -544,7 +544,7 @@ def _get_golden_field(obj, field_name: str):
     return getattr(obj, field_name, None)
 
 
-def models_F(name: str):
+def models_f(name: str):
     """Wrapper to avoid top-level import of F for self-referential lookups."""
     from django.db.models import F
 

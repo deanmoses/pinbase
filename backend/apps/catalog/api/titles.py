@@ -72,7 +72,7 @@ from .schemas import (
     TitleMachineSchema,
 )
 from .soft_delete import (
-    SoftDeleteBlocked,
+    SoftDeleteBlockedError,
     count_entity_changesets,
     execute_soft_delete,
     plan_soft_delete,
@@ -720,23 +720,6 @@ def list_all_titles(request):
         .active()
         .order_by("year", "name")
     )
-    # Column indices for the values_list below.
-    T_ID = 0
-    T_NAME = 1
-    T_SLUG = 2
-    T_MODEL_COUNT = 3
-    T_LATEST_YEAR = 4
-    T_MFR_SLUG = 5
-    T_MFR_NAME = 6
-    T_PRIMARY_YEAR = 7
-    T_PRIMARY_MODEL_ID = 8
-    T_YEAR_MIN = 9
-    T_IPDB_RATING_MAX = 10
-    T_FRANCHISE_SLUG = 11
-    T_FRANCHISE_NAME = 12
-    T_SERIES_SLUG = 13
-    T_SERIES_NAME = 14
-
     title_rows = list(
         Title.objects.active()
         .annotate(
@@ -765,6 +748,10 @@ def list_all_titles(request):
                 "machine_models__ipdb_rating",
                 filter=Q(machine_models__variant_of__isnull=True),
             ),
+            franchise_slug=F("franchise__slug"),
+            franchise_name=F("franchise__name"),
+            series_slug=F("series__slug"),
+            series_name=F("series__name"),
         )
         .values_list(
             "id",
@@ -778,18 +765,17 @@ def list_all_titles(request):
             "primary_model_id",
             "year_min",
             "ipdb_rating_max",
-            "franchise__slug",
-            "franchise__name",
-            "series__slug",
-            "series__name",
+            "franchise_slug",
+            "franchise_name",
+            "series_slug",
+            "series_name",
+            named=True,
         )
         .order_by(F("latest_year").desc(nulls_last=True), "name")
     )
 
     # --- Batch thumbnail fetch ---
-    primary_model_ids = [
-        r[T_PRIMARY_MODEL_ID] for r in title_rows if r[T_PRIMARY_MODEL_ID]
-    ]
+    primary_model_ids = [r.primary_model_id for r in title_rows if r.primary_model_id]
     thumb_data: dict[int, str | None] = {}
     for mid, extra_data in MachineModel.objects.filter(
         id__in=primary_model_ids
@@ -801,7 +787,7 @@ def list_all_titles(request):
             thumb_data[mid] = None
 
     # --- Bulk abbreviations and series ---
-    title_ids = [r[T_ID] for r in title_rows]
+    title_ids = [r.id for r in title_rows]
 
     title_abbrevs: dict[int, list[str]] = defaultdict(list)
     for tid, value in TitleAbbreviation.objects.filter(
@@ -873,30 +859,32 @@ def list_all_titles(request):
     # --- Assembly ---
     result = []
     for r in title_rows:
-        tid = r[T_ID]
+        tid = r.id
         mids = title_model_map.get(tid, [])
 
-        mfr = {"slug": r[T_MFR_SLUG], "name": r[T_MFR_NAME]} if r[T_MFR_SLUG] else None
+        mfr = (
+            {"slug": r.primary_mfr_slug, "name": r.primary_mfr_name}
+            if r.primary_mfr_slug
+            else None
+        )
         franchise = (
-            {"slug": r[T_FRANCHISE_SLUG], "name": r[T_FRANCHISE_NAME]}
-            if r[T_FRANCHISE_SLUG]
+            {"slug": r.franchise_slug, "name": r.franchise_name}
+            if r.franchise_slug
             else None
         )
         series = (
-            {"slug": r[T_SERIES_SLUG], "name": r[T_SERIES_NAME]}
-            if r[T_SERIES_SLUG]
-            else None
+            {"slug": r.series_slug, "name": r.series_name} if r.series_slug else None
         )
 
         result.append(
             {
-                "name": r[T_NAME],
-                "slug": r[T_SLUG],
+                "name": r.name,
+                "slug": r.slug,
                 "abbreviations": title_abbrevs.get(tid, []),
-                "model_count": r[T_MODEL_COUNT],
+                "model_count": r.model_count,
                 "manufacturer": mfr,
-                "year": r[T_PRIMARY_YEAR],
-                "thumbnail_url": thumb_data.get(r[T_PRIMARY_MODEL_ID]),
+                "year": r.primary_year,
+                "thumbnail_url": thumb_data.get(r.primary_model_id),
                 "tech_generations": _dedup_facet_refs(
                     model_tech_gen[mid] for mid in mids if mid in model_tech_gen
                 ),
@@ -927,10 +915,10 @@ def list_all_titles(request):
                 ),
                 "franchise": franchise,
                 "series": series,
-                "year_min": r[T_YEAR_MIN],
-                "year_max": r[T_LATEST_YEAR],
+                "year_min": r.year_min,
+                "year_max": r.latest_year,
                 "ipdb_rating_max": (
-                    float(r[T_IPDB_RATING_MAX]) if r[T_IPDB_RATING_MAX] else None
+                    float(r.ipdb_rating_max) if r.ipdb_rating_max else None
                 ),
             }
         )
@@ -1150,7 +1138,7 @@ def delete_title(request, slug: str, data: TitleDeleteSchema):
         changeset, deleted = execute_soft_delete(
             title, user=request.user, note=data.note, citation=data.citation
         )
-    except SoftDeleteBlocked as exc:
+    except SoftDeleteBlockedError as exc:
         return Status(
             422,
             {
