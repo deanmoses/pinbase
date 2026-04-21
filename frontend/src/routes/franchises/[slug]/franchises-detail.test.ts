@@ -12,7 +12,7 @@ const MOCK_DATA = {
 			name: 'Star Trek TNG',
 			slug: 'star-trek-tng',
 			abbreviations: [],
-			machine_count: 1,
+			model_count: 1,
 			manufacturer_name: 'Williams',
 			year: 1993,
 			thumbnail_url: null

@@ -68,7 +68,7 @@ def _serialize_title_ref(title, *, min_rank: int | None = None) -> dict:
 
     Expects *title* to have prefetched ``machine_models`` (with
     corporate_entity__manufacturer) and ``abbreviations``, plus an
-    annotated ``machine_count``.
+    annotated ``model_count``.
     """
     thumbnail_url = None
     manufacturer_name = None
@@ -88,7 +88,7 @@ def _serialize_title_ref(title, *, min_rank: int | None = None) -> dict:
         "name": title.name,
         "slug": title.slug,
         "abbreviations": [a.value for a in title.abbreviations.all()],
-        "machine_count": title.machine_count,
+        "model_count": title.model_count,
         "manufacturer_name": manufacturer_name,
         "year": year,
         "thumbnail_url": thumbnail_url,

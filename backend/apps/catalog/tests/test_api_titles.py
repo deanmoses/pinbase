@@ -52,7 +52,7 @@ class TestTitlesAPI:
         item = data["items"][0]
         assert item["name"] == "Medieval Madness"
         assert item["abbreviations"] == []
-        assert item["machine_count"] == 2
+        assert item["model_count"] == 2
 
     def test_list_titles_thumbnail(self, client, title_with_machines):
         resp = client.get("/api/titles/")
@@ -62,7 +62,7 @@ class TestTitlesAPI:
     def test_list_titles_empty_title(self, client, title):
         resp = client.get("/api/titles/")
         data = resp.json()
-        assert data["items"][0]["machine_count"] == 0
+        assert data["items"][0]["model_count"] == 0
         assert data["items"][0]["thumbnail_url"] is None
 
     def test_get_title_detail(self, client, title_with_machines):
@@ -87,7 +87,7 @@ class TestTitlesAPI:
         names = [m["name"] for m in data["machines"]]
         assert "Medieval Madness (LE)" not in names
 
-    def test_machine_count_excludes_variants(self, client, title_with_machines):
+    def test_model_count_excludes_variants(self, client, title_with_machines):
         parent = MachineModel.objects.get(name="Medieval Madness")
         make_machine_model(
             name="Medieval Madness (LE)",
@@ -97,7 +97,7 @@ class TestTitlesAPI:
         )
         resp = client.get("/api/titles/")
         data = resp.json()
-        assert data["items"][0]["machine_count"] == 2
+        assert data["items"][0]["model_count"] == 2
 
     def test_get_title_404(self, client, db):
         resp = client.get("/api/pages/title/nonexistent")

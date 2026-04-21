@@ -65,7 +65,7 @@
 				<span class="manufacturer">{system.manufacturer.name}</span>
 			{/if}
 			<span class="count">
-				{system.machine_count} machine{system.machine_count === 1 ? '' : 's'}
+				{system.model_count} model{system.model_count === 1 ? '' : 's'}
 			</span>
 		</span>
 	{/snippet}

@@ -23,7 +23,7 @@ function makeTitle(overrides: Partial<FacetedTitle> = {}): FacetedTitle {
 		name: 'Test Title',
 		slug: 'test-title',
 		abbreviations: ['TT'],
-		machine_count: 1,
+		model_count: 1,
 		tech_generations: [],
 		display_types: [],
 		player_counts: [],

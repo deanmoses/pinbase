@@ -66,7 +66,7 @@ def _series_titles_qs():
     return (
         Title.objects.active()
         .annotate(
-            machine_count=Count(
+            model_count=Count(
                 "machine_models",
                 filter=Q(machine_models__variant_of__isnull=True)
                 & active_status_q("machine_models"),

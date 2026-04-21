@@ -12,7 +12,7 @@ const MOCK_DATA = {
 			name: 'Eight Ball Deluxe',
 			slug: 'eight-ball-deluxe',
 			abbreviations: [],
-			machine_count: 1,
+			model_count: 1,
 			year: 1981,
 			manufacturer_name: 'Bally',
 			thumbnail_url: null

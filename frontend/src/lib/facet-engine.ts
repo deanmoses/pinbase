@@ -18,7 +18,7 @@ export interface FacetedTitle {
 	name: string;
 	slug: string;
 	abbreviations: string[];
-	machine_count: number;
+	model_count: number;
 	manufacturer?: { slug: string; name: string } | null;
 	year?: number | null;
 	thumbnail_url?: string | null;

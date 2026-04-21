@@ -8,7 +8,7 @@ function makeTitle(overrides: Partial<FacetedTitle> = {}): FacetedTitle {
 		name: 'Godzilla',
 		slug: 'godzilla',
 		abbreviations: [],
-		machine_count: 1,
+		model_count: 1,
 		manufacturer: { slug: 'stern', name: 'Stern' },
 		year: 2021,
 		thumbnail_url: null,

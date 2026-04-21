@@ -21,19 +21,19 @@ const SYSTEMS = [
 		name: 'SPIKE',
 		slug: 'spike',
 		manufacturer: { slug: 'stern', name: 'Stern' },
-		machine_count: 42
+		model_count: 42
 	},
 	{
 		name: 'WPC-95',
 		slug: 'wpc-95',
 		manufacturer: { slug: 'williams', name: 'Williams' },
-		machine_count: 30
+		model_count: 30
 	},
 	{
 		name: 'Whitestar',
 		slug: 'whitestar',
 		manufacturer: { slug: 'stern', name: 'Stern' },
-		machine_count: 12
+		model_count: 12
 	}
 ];
 
@@ -50,7 +50,7 @@ describe('systems list route', () => {
 		authMock.isAuthenticated = true;
 	});
 
-	it('renders all systems with manufacturer and machine count', async () => {
+	it('renders all systems with manufacturer and model count', async () => {
 		await renderAndWait();
 		expect(screen.getByText('SPIKE')).toBeInTheDocument();
 		expect(screen.getByText('WPC-95')).toBeInTheDocument();
@@ -58,8 +58,8 @@ describe('systems list route', () => {
 		// Two systems show "Stern" as their row-level manufacturer label
 		// (a third "Stern" lives inside the filter <select> options).
 		expect(screen.getAllByText('Stern').length).toBeGreaterThanOrEqual(2);
-		expect(screen.getByText('42 machines')).toBeInTheDocument();
-		expect(screen.getByText('30 machines')).toBeInTheDocument();
+		expect(screen.getByText('42 models')).toBeInTheDocument();
+		expect(screen.getByText('30 models')).toBeInTheDocument();
 	});
 
 	it('derives manufacturer options from visible systems', async () => {

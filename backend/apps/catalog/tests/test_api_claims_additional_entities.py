@@ -433,7 +433,7 @@ class TestPatchSeriesResponseShape:
                 "name": title.name,
                 "slug": title.slug,
                 "abbreviations": [],
-                "machine_count": 1,
+                "model_count": 1,
                 "manufacturer_name": "Williams",
                 "year": 1981,
                 "thumbnail_url": None,

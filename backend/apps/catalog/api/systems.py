@@ -58,7 +58,7 @@ class SystemListSchema(Schema):
     name: str
     slug: str
     manufacturer: Optional[Ref] = None
-    machine_count: int = 0
+    model_count: int = 0
 
 
 class SystemCreateSchema(Schema):
@@ -188,7 +188,7 @@ def list_all_systems(request):
         System.objects.active()
         .select_related("manufacturer")
         .annotate(
-            machine_count=Count(
+            model_count=Count(
                 "machine_models",
                 filter=Q(machine_models__variant_of__isnull=True)
                 & active_status_q("machine_models"),
@@ -205,7 +205,7 @@ def list_all_systems(request):
                 if s.manufacturer
                 else None
             ),
-            "machine_count": s.machine_count,
+            "model_count": s.model_count,
         }
         for s in qs
     ]
