@@ -14,6 +14,7 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from .edit_claims import execute_claims, plan_scalar_field_claims
+from .entity_crud import register_entity_create, register_entity_delete_restore
 from apps.provenance.helpers import build_sources, claims_prefetch
 
 from .helpers import (
@@ -180,3 +181,23 @@ def patch_series_claims(request, slug: str, data: ClaimPatchSchema):
 
     series = get_object_or_404(_series_detail_qs(), slug=series.slug)
     return _serialize_series_detail(series)
+
+
+# ---------------------------------------------------------------------------
+# Create / delete / restore wiring
+# ---------------------------------------------------------------------------
+
+register_entity_create(
+    series_router,
+    Series,
+    detail_qs=_series_detail_qs,
+    serialize_detail=_serialize_series_detail,
+    response_schema=SeriesDetailSchema,
+)
+register_entity_delete_restore(
+    series_router,
+    Series,
+    detail_qs=_series_detail_qs,
+    serialize_detail=_serialize_series_detail,
+    response_schema=SeriesDetailSchema,
+)

@@ -20,7 +20,7 @@ let cachedSeries: Promise<TitleEditOption[]> | null = null;
 export function fetchFranchiseOptions(): Promise<TitleEditOption[]> {
 	if (!cachedFranchises) {
 		cachedFranchises = client
-			.GET('/api/franchises/all/')
+			.GET('/api/franchises/')
 			.then(({ data }) =>
 				(data ?? []).map((f) => ({ slug: f.slug, label: f.name, count: f.title_count }))
 			)

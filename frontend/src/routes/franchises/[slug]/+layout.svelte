@@ -69,8 +69,8 @@
 		updateEditQuery(editing);
 	});
 
-	let editSections: EditSectionMenuItem[] = $derived(
-		FRANCHISE_EDIT_SECTIONS.map((section) =>
+	let editSections: EditSectionMenuItem[] = $derived([
+		...FRANCHISE_EDIT_SECTIONS.map((section) =>
 			isMobile
 				? {
 						key: section.key,
@@ -82,8 +82,14 @@
 						label: section.label,
 						onclick: () => (editing = section.key)
 					}
-		)
-	);
+		),
+		{
+			key: 'delete-franchise',
+			label: `Delete ${franchise.name}`,
+			href: resolve(`/franchises/${slug}/delete`),
+			separatorBefore: true
+		}
+	]);
 </script>
 
 <MetaTags title={franchise.name} description={metaDescription} url={page.url.href} />

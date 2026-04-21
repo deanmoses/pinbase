@@ -69,8 +69,8 @@
 		updateEditQuery(editing);
 	});
 
-	let editSections: EditSectionMenuItem[] = $derived(
-		SERIES_EDIT_SECTIONS.map((section) =>
+	let editSections: EditSectionMenuItem[] = $derived([
+		...SERIES_EDIT_SECTIONS.map((section) =>
 			isMobile
 				? {
 						key: section.key,
@@ -82,8 +82,14 @@
 						label: section.label,
 						onclick: () => (editing = section.key)
 					}
-		)
-	);
+		),
+		{
+			key: 'delete-series',
+			label: `Delete ${series.name}`,
+			href: resolve(`/series/${slug}/delete`),
+			separatorBefore: true
+		}
+	]);
 </script>
 
 <MetaTags title={series.name} description={metaDescription} url={page.url.href} />

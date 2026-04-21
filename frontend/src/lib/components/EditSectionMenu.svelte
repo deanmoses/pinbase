@@ -24,6 +24,9 @@
 
 <ActionMenu label={label ?? currentLabel} {disabled} {variant}>
 	{#each items as item (item.key)}
+		{#if item.separatorBefore}
+			<hr class="menu-separator" />
+		{/if}
 		<MenuItem
 			href={item.href}
 			onclick={item.onclick}
@@ -34,3 +37,11 @@
 		</MenuItem>
 	{/each}
 </ActionMenu>
+
+<style>
+	.menu-separator {
+		margin: var(--size-1) 0;
+		border: 0;
+		border-top: 1px solid var(--color-border-soft);
+	}
+</style>

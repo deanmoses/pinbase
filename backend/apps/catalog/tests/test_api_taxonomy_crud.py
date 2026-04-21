@@ -17,11 +17,13 @@ from django.core.cache import cache
 from apps.catalog.models import (
     DisplaySubtype,
     DisplayType,
+    Franchise,
     GameplayFeature,
     GameplayFeatureAlias,
     MachineModel,
     RewardType,
     RewardTypeAlias,
+    Series,
     Tag,
     TechnologyGeneration,
     TechnologySubgeneration,
@@ -715,3 +717,252 @@ class TestGameplayFeatureRestore:
         assert resp.status_code == 200, resp.content
         feature.refresh_from_db()
         assert feature.status == "active"
+
+
+# ── Series: create / delete / restore ───────────────────────────────
+
+
+@pytest.mark.django_db
+class TestSeriesCreate:
+    def test_creates_series_with_three_claims(self, client, user):
+        client.force_login(user)
+        resp = _post(
+            client,
+            "/api/series/",
+            {"name": "Eight Ball", "slug": "eight-ball"},
+        )
+        assert resp.status_code == 201, resp.content
+        series = Series.objects.get(slug="eight-ball")
+        assert series.status == "active"
+
+        cs = ChangeSet.objects.get(user=user, action=ChangeSetAction.CREATE)
+        fields = set(
+            Claim.objects.filter(changeset=cs).values_list("field_name", flat=True)
+        )
+        assert fields == {"name", "slug", "status"}
+
+    def test_duplicate_name_rejected(self, client, user):
+        Series.objects.create(name="Eight Ball", slug="eight-ball", status="active")
+        client.force_login(user)
+        resp = _post(
+            client, "/api/series/", {"name": "Eight Ball", "slug": "eight-ball-2"}
+        )
+        assert resp.status_code == 422
+        assert "name" in resp.json()["detail"]["field_errors"]
+
+    def test_duplicate_slug_rejected(self, client, user):
+        Series.objects.create(name="Existing", slug="eight-ball", status="deleted")
+        client.force_login(user)
+        resp = _post(
+            client, "/api/series/", {"name": "Eight Ball", "slug": "eight-ball"}
+        )
+        assert resp.status_code == 422
+        assert "slug" in resp.json()["detail"]["field_errors"]
+
+
+@pytest.mark.django_db
+class TestSeriesDelete:
+    def test_delete_happy_path(self, client, user):
+        series = Series.objects.create(
+            name="Eight Ball", slug="eight-ball", status="active"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/series/{series.slug}/delete/", {})
+        assert resp.status_code == 200, resp.content
+        series.refresh_from_db()
+        assert series.status == "deleted"
+
+    def test_delete_blocked_by_active_title(self, client, user):
+        series = Series.objects.create(
+            name="Eight Ball", slug="eight-ball", status="active"
+        )
+        Title.objects.create(
+            name="Eight Ball", slug="eight-ball-title", status="active", series=series
+        )
+
+        client.force_login(user)
+        resp = _post(client, f"/api/series/{series.slug}/delete/", {})
+        assert resp.status_code == 422
+        assert len(resp.json()["blocked_by"]) == 1
+        series.refresh_from_db()
+        assert series.status == "active"
+
+    def test_delete_proceeds_when_referring_title_soft_deleted(self, client, user):
+        series = Series.objects.create(
+            name="Eight Ball", slug="eight-ball", status="active"
+        )
+        Title.objects.create(
+            name="Eight Ball",
+            slug="eight-ball-title",
+            status="deleted",
+            series=series,
+        )
+
+        client.force_login(user)
+        resp = _post(client, f"/api/series/{series.slug}/delete/", {})
+        assert resp.status_code == 200, resp.content
+        series.refresh_from_db()
+        assert series.status == "deleted"
+
+    def test_preview_counts_create_changeset(self, client, user):
+        """A freshly-created Series carries a CREATE ChangeSet, which the
+        preview must surface so the UI's impact summary isn't silently zero."""
+        client.force_login(user)
+        create_resp = _post(
+            client, "/api/series/", {"name": "Eight Ball", "slug": "eight-ball"}
+        )
+        assert create_resp.status_code == 201
+
+        preview = client.get("/api/series/eight-ball/delete-preview/")
+        assert preview.status_code == 200
+        assert preview.json()["changeset_count"] == 1
+
+
+@pytest.mark.django_db
+class TestSeriesRestore:
+    def test_restore_happy_path(self, client, user):
+        series = Series.objects.create(
+            name="Eight Ball", slug="eight-ball", status="deleted"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/series/{series.slug}/restore/", {})
+        assert resp.status_code == 200, resp.content
+        series.refresh_from_db()
+        assert series.status == "active"
+
+        # Restore returns the full detail shape, not a minimal status echo.
+        body = resp.json()
+        assert body["slug"] == "eight-ball"
+        assert "titles" in body
+        assert "credits" in body
+        assert "sources" in body
+
+    def test_restore_rejects_active(self, client, user):
+        series = Series.objects.create(
+            name="Eight Ball", slug="eight-ball", status="active"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/series/{series.slug}/restore/", {})
+        assert resp.status_code == 422
+
+
+# ── Franchise: create / delete / restore ────────────────────────────
+
+
+@pytest.mark.django_db
+class TestFranchiseCreate:
+    def test_creates_franchise_with_three_claims(self, client, user):
+        client.force_login(user)
+        resp = _post(
+            client,
+            "/api/franchises/",
+            {"name": "Indiana Jones", "slug": "indiana-jones"},
+        )
+        assert resp.status_code == 201, resp.content
+        fr = Franchise.objects.get(slug="indiana-jones")
+        assert fr.status == "active"
+
+        cs = ChangeSet.objects.get(user=user, action=ChangeSetAction.CREATE)
+        fields = set(
+            Claim.objects.filter(changeset=cs).values_list("field_name", flat=True)
+        )
+        assert fields == {"name", "slug", "status"}
+
+    def test_duplicate_name_rejected(self, client, user):
+        Franchise.objects.create(
+            name="Indiana Jones", slug="indiana-jones", status="active"
+        )
+        client.force_login(user)
+        resp = _post(
+            client,
+            "/api/franchises/",
+            {"name": "Indiana Jones", "slug": "indiana-jones-2"},
+        )
+        assert resp.status_code == 422
+        assert "name" in resp.json()["detail"]["field_errors"]
+
+
+@pytest.mark.django_db
+class TestFranchiseDelete:
+    def test_delete_happy_path(self, client, user):
+        fr = Franchise.objects.create(
+            name="Indiana Jones", slug="indiana-jones", status="active"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/franchises/{fr.slug}/delete/", {})
+        assert resp.status_code == 200, resp.content
+        fr.refresh_from_db()
+        assert fr.status == "deleted"
+
+    def test_delete_blocked_by_active_title(self, client, user):
+        fr = Franchise.objects.create(
+            name="Indiana Jones", slug="indiana-jones", status="active"
+        )
+        Title.objects.create(
+            name="Indiana Jones",
+            slug="indy-title",
+            status="active",
+            franchise=fr,
+        )
+
+        client.force_login(user)
+        resp = _post(client, f"/api/franchises/{fr.slug}/delete/", {})
+        assert resp.status_code == 422
+        assert len(resp.json()["blocked_by"]) == 1
+        fr.refresh_from_db()
+        assert fr.status == "active"
+
+    def test_preview_surfaces_blocker_slug(self, client, user):
+        fr = Franchise.objects.create(
+            name="Indiana Jones", slug="indiana-jones", status="active"
+        )
+        Title.objects.create(
+            name="Indiana Jones",
+            slug="indy-title",
+            status="active",
+            franchise=fr,
+        )
+
+        client.force_login(user)
+        resp = client.get(f"/api/franchises/{fr.slug}/delete-preview/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert any(b["slug"] == "indy-title" for b in body["blocked_by"])
+
+
+@pytest.mark.django_db
+class TestFranchiseRestore:
+    def test_restore_happy_path(self, client, user):
+        fr = Franchise.objects.create(
+            name="Indiana Jones", slug="indiana-jones", status="deleted"
+        )
+        client.force_login(user)
+        resp = _post(client, f"/api/franchises/{fr.slug}/restore/", {})
+        assert resp.status_code == 200, resp.content
+        fr.refresh_from_db()
+        assert fr.status == "active"
+
+        # Restore returns the full detail shape, not a minimal status echo.
+        body = resp.json()
+        assert body["slug"] == "indiana-jones"
+        assert "titles" in body
+        assert "sources" in body
+
+
+# ── Franchise list endpoint renamed from /all/ to / ─────────────────
+
+
+@pytest.mark.django_db
+class TestFranchiseList:
+    def test_list_endpoint_at_root(self, client):
+        Franchise.objects.create(
+            name="Indiana Jones", slug="indiana-jones", status="active"
+        )
+        resp = client.get("/api/franchises/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert any(f["slug"] == "indiana-jones" for f in body)
+
+    def test_old_all_path_gone(self, client):
+        resp = client.get("/api/franchises/all/")
+        assert resp.status_code == 404

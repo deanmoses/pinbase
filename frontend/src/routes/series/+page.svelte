@@ -23,6 +23,7 @@
 	error={loader.error}
 	rowSnippet={row}
 	rowStyle="justify-content: space-between; gap: var(--size-4)"
+	createHref="/series/new"
 />
 
 <style>
