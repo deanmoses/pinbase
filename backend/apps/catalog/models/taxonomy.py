@@ -306,12 +306,30 @@ class CreditRole(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
 
     entity_type = "credit-role"
     entity_type_plural = "credit-roles"
+    # Soft-delete is blocked by any active machine or series credited in this
+    # role. Credit itself has no EntityStatusMixin, so we expose two M2M
+    # accessors through Credit and let the generic usage-blocker walker
+    # (soft_delete._iter_usage_blockers) filter each via .active().
+    soft_delete_usage_blockers = ("machine_models", "series_credited")
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]
     )
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
+
+    machine_models = models.ManyToManyField(
+        "MachineModel",
+        through="Credit",
+        through_fields=("role", "model"),
+        related_name="+",
+    )
+    series_credited = models.ManyToManyField(
+        "Series",
+        through="Credit",
+        through_fields=("role", "series"),
+        related_name="+",
+    )
 
     claims = GenericRelation("provenance.Claim")
 

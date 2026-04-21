@@ -53,9 +53,12 @@ from .systems import (
     _serialize_system_detail,
 )
 from .taxonomy import (
+    CreditRoleDetailSchema,
     RewardTypeDetailSchema,
     TaxonomySchema,
+    _credit_role_detail_qs,
     _reward_type_detail_qs,
+    _serialize_credit_role_detail,
     _serialize_reward_type_detail,
     _serialize_taxonomy,
     _taxonomy_detail_qs,
@@ -211,3 +214,14 @@ def technology_subgeneration_detail_page(request, slug: str):
 def reward_type_detail_page(request, slug: str):
     rt = get_object_or_404(_reward_type_detail_qs(), slug=slug)
     return _serialize_reward_type_detail(rt)
+
+
+# ---------------------------------------------------------------------------
+# Credit role (specialized taxonomy: adds ranked people list)
+# ---------------------------------------------------------------------------
+
+
+@pages_router.get("/credit-role/{slug}", response=CreditRoleDetailSchema)
+def credit_role_detail_page(request, slug: str):
+    cr = get_object_or_404(_credit_role_detail_qs(), slug=slug)
+    return _serialize_credit_role_detail(cr)

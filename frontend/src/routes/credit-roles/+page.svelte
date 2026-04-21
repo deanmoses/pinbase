@@ -15,4 +15,5 @@
 	items={loader.data}
 	loading={loader.loading}
 	error={loader.error}
+	canCreate
 />

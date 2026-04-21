@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from itertools import chain
 
-from django.db.models import F, Prefetch
+from django.db.models import Count, F, Prefetch
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -22,11 +22,13 @@ from .entity_crud import (
 
 from ..models import (
     Cabinet,
+    Credit,
     CreditRole,
     DisplaySubtype,
     DisplayType,
     GameFormat,
     MachineModel,
+    Person,
     RewardType,
     Tag,
     TechnologyGeneration,
@@ -35,7 +37,8 @@ from ..models import (
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 
-from .helpers import _build_rich_text, _serialize_title_machine
+from .helpers import _build_rich_text, _extract_image_urls, _serialize_title_machine
+from .people import PersonGridSchema
 from .schemas import (
     ClaimPatchSchema,
     ClaimSchema,
@@ -449,7 +452,116 @@ def patch_tag(request, slug: str, data: ClaimPatchSchema):
 # Credit Roles router
 # ---------------------------------------------------------------------------
 
+
+class CreditRoleDetailSchema(TaxonomySchema):
+    people: list[PersonGridSchema] = []
+
+
 credit_roles_router = Router(tags=["credit-roles"])
+
+
+def _credit_role_people(cr: CreditRole) -> list[dict]:
+    """Rank Persons by distinct active Titles credited in *cr*.
+
+    Titles roll up all MachineModels (parent + variants) so a person credited
+    only on an LE/Pro/Premium still counts toward the title exactly once.
+    Series credits are intentionally excluded from the public rendering; the
+    delete-blocker path covers series via ``soft_delete_usage_blockers``.
+
+    Implemented Credit-side and then fanned out to Person so the SQL stays
+    legible — the Person-side equivalent needs matching ``filter=`` subclauses
+    on outer and annotation scopes, and tends to drift.
+    """
+    ranked = list(
+        Credit.objects.filter(
+            role=cr,
+            model__isnull=False,
+        )
+        .filter(active_status_q("model"))
+        .filter(active_status_q("model__title"))
+        .filter(active_status_q("person"))
+        .values("person")
+        .annotate(credit_count=Count("model__title", distinct=True))
+        .order_by("-credit_count")
+    )
+    if not ranked:
+        return []
+
+    # Preserve rank order while fetching Person rows with alias prefetch.
+    person_ids = [r["person"] for r in ranked]
+    count_by_id = {r["person"]: r["credit_count"] for r in ranked}
+    people_by_id = {
+        p.pk: p
+        for p in Person.objects.filter(pk__in=person_ids).prefetch_related("aliases")
+    }
+
+    # Batch thumbnail per person — newest credited *active* model in this
+    # role with extra_data. Active filters mirror the ranking query so a
+    # person whose only active credit is on a low-profile machine doesn't
+    # end up with a thumbnail from a deleted sibling.
+    person_thumb_model: dict[int, int] = {}
+    for person_id, model_id in (
+        Credit.objects.filter(
+            role=cr,
+            person_id__in=person_ids,
+            model__isnull=False,
+            model__extra_data__isnull=False,
+        )
+        .filter(active_status_q("model"))
+        .filter(active_status_q("model__title"))
+        .order_by(F("model__year").desc(nulls_last=True))
+        .values_list("person_id", "model_id")
+    ):
+        if person_id not in person_thumb_model:
+            person_thumb_model[person_id] = model_id
+    thumb_models = {
+        m.id: m
+        for m in MachineModel.objects.filter(
+            id__in=set(person_thumb_model.values())
+        ).only("id", "extra_data")
+    }
+
+    min_rank = get_minimum_display_rank()
+    out: list[dict] = []
+    for pid in person_ids:
+        person = people_by_id.get(pid)
+        if person is None:
+            continue
+        thumbnail = None
+        tm_id = person_thumb_model.get(pid)
+        tm = thumb_models.get(tm_id) if tm_id else None
+        if tm and tm.extra_data:
+            t, _ = _extract_image_urls(tm.extra_data, min_rank=min_rank)
+            if t:
+                thumbnail = t
+        out.append(
+            {
+                "name": person.name,
+                "slug": person.slug,
+                "aliases": [a.value for a in person.aliases.all()],
+                "credit_count": count_by_id[pid],
+                "thumbnail_url": thumbnail,
+            }
+        )
+    return out
+
+
+def _credit_role_detail_qs():
+    # CreditRole has no alias relation — prefetch claims only.
+    return CreditRole.objects.active().prefetch_related(claims_prefetch())
+
+
+def _serialize_credit_role_detail(cr: CreditRole) -> dict:
+    return {
+        **_serialize_taxonomy(cr),
+        "people": _credit_role_people(cr),
+    }
+
+
+def _serialize_credit_role_detail_no_people(cr: CreditRole) -> dict:
+    # Used by the create response: a just-created role has no credits yet,
+    # so the aggregate query is guaranteed empty. Skip it.
+    return {**_serialize_taxonomy(cr), "people": []}
 
 
 @credit_roles_router.get("/", response=list[TaxonomySchema])
@@ -460,12 +572,30 @@ def list_credit_roles(request):
     ]
 
 
-@credit_roles_router.get("/{slug}", response=TaxonomySchema)
+@credit_roles_router.get("/{slug}", response=CreditRoleDetailSchema)
 @decorate_view(cache_control(no_cache=True))
 def get_credit_role(request, slug: str):
-    return _serialize_taxonomy(
-        get_object_or_404(_taxonomy_detail_qs(CreditRole), slug=slug)
+    return _serialize_credit_role_detail(
+        get_object_or_404(_credit_role_detail_qs(), slug=slug)
     )
+
+
+@credit_roles_router.patch(
+    "/{slug}/claims/",
+    auth=django_auth,
+    response=CreditRoleDetailSchema,
+    tags=["private"],
+)
+def patch_credit_role(request, slug: str, data: ClaimPatchSchema):
+    obj = get_object_or_404(CreditRole.objects.active(), slug=slug)
+    specs = plan_scalar_field_claims(CreditRole, data.fields, entity=obj)
+
+    execute_claims(
+        obj, specs, user=request.user, note=data.note, citation=data.citation
+    )
+
+    cr = get_object_or_404(_credit_role_detail_qs(), slug=obj.slug)
+    return _serialize_credit_role_detail(cr)
 
 
 # ---------------------------------------------------------------------------
@@ -497,6 +627,13 @@ _register_delete_restore(cabinets_router, Cabinet)
 _register_delete_restore(game_formats_router, GameFormat)
 _register_delete_restore(tags_router, Tag)
 _register_delete_restore(reward_types_router, RewardType)
+register_entity_delete_restore(
+    credit_roles_router,
+    CreditRole,
+    detail_qs=_credit_role_detail_qs,
+    serialize_detail=_serialize_credit_role_detail,
+    response_schema=CreditRoleDetailSchema,
+)
 
 # Create — parentless entities on their own router.
 _register_create(technology_generations_router, TechnologyGeneration)
@@ -505,6 +642,13 @@ _register_create(cabinets_router, Cabinet)
 _register_create(game_formats_router, GameFormat)
 _register_create(tags_router, Tag)
 _register_create(reward_types_router, RewardType)
+register_entity_create(
+    credit_roles_router,
+    CreditRole,
+    detail_qs=_credit_role_detail_qs,
+    serialize_detail=_serialize_credit_role_detail_no_people,
+    response_schema=CreditRoleDetailSchema,
+)
 
 # Create — parented entities nested under the parent's router.
 _register_create(

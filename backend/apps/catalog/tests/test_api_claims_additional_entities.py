@@ -149,6 +149,16 @@ def _create_tag():
     return Tag.objects.create(name="Prototype", slug="prototype")
 
 
+def _create_credit_role():
+    # Use a non-canonical name/slug so the test doesn't collide with the
+    # credit-roles fixture that autouses canonical roles in conftest.
+    return CreditRole.objects.create(name="Test Role", slug="test-role")
+
+
+def _create_conflicting_credit_role():
+    return CreditRole.objects.create(name="Other Role", slug="other-role")
+
+
 PATCH_CASES = [
     pytest.param(
         "/api/franchises/{slug}/claims/",
@@ -238,6 +248,14 @@ PATCH_CASES = [
         "tags",
         id="tag",
     ),
+    pytest.param(
+        "/api/credit-roles/{slug}/claims/",
+        _create_credit_role,
+        "description",
+        "Updated credit role copy",
+        "credit-roles",
+        id="credit-role",
+    ),
 ]
 
 SLUG_EDIT_CASES = [
@@ -256,6 +274,14 @@ SLUG_EDIT_CASES = [
         "eight-ball-classics",
         "/api/pages/series/{slug}",
         id="series",
+    ),
+    pytest.param(
+        "/api/credit-roles/{slug}/claims/",
+        _create_credit_role,
+        _create_conflicting_credit_role,
+        "test-role-renamed",
+        "/api/pages/credit-role/{slug}",
+        id="credit-role",
     ),
 ]
 
