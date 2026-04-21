@@ -38,8 +38,8 @@ from apps.catalog.ingestion.vocabulary import (
 )
 from apps.catalog.models import (
     GameplayFeature,
-    Manufacturer,
     MachineModel,
+    Manufacturer,
     RewardType,
     Tag,
 )

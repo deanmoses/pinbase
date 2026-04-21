@@ -13,9 +13,9 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
+from apps.catalog.tests.conftest import make_machine_model
 
 from .conftest import SAMPLE_IMAGES
-from apps.catalog.tests.conftest import make_machine_model
 
 
 class TestTitlesAPI:
@@ -250,8 +250,9 @@ class TestTitleDetailAggregation:
     def test_media_aggregation_union_with_source_model(
         self, client, django_user_model, title
     ):
-        from apps.media.models import EntityMedia, MediaAsset
         from django.contrib.contenttypes.models import ContentType
+
+        from apps.media.models import EntityMedia, MediaAsset
 
         user = django_user_model.objects.create_user(username="u")
         m1 = make_machine_model(name="MM", slug="mm-1", title=title)
@@ -308,8 +309,9 @@ class TestTitleDetailAggregation:
     def test_title_hero_uses_earliest_model_with_backglass_photo(
         self, client, django_user_model, title
     ):
-        from apps.media.models import EntityMedia, MediaAsset
         from django.contrib.contenttypes.models import ContentType
+
+        from apps.media.models import EntityMedia, MediaAsset
         from apps.media.storage import build_public_url, build_storage_key
 
         user = django_user_model.objects.create_user(username="u")

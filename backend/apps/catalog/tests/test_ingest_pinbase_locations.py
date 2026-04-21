@@ -15,7 +15,6 @@ from django.core.management import call_command
 from apps.catalog.models import Location
 from apps.provenance.models import Source
 
-
 PINBASE_SOURCE_SLUG = "pinbase"
 
 

@@ -5,10 +5,10 @@ import pytest
 from apps.catalog.api.helpers import _extract_image_urls
 from apps.catalog.models import Title
 from apps.catalog.resolve import resolve_model
+from apps.catalog.tests.conftest import make_machine_model
 from apps.core.licensing import resolve_effective_license
 from apps.core.models import License
 from apps.provenance.models import Claim, Source, SourceFieldLicense
-from apps.catalog.tests.conftest import make_machine_model
 
 
 @pytest.fixture

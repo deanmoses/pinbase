@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from django.db.models import Count, F, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
@@ -54,8 +52,8 @@ class CorporateEntityListSchema(Schema):
     name: str
     slug: str
     manufacturer: ManufacturerRef
-    year_start: Optional[int] = None
-    year_end: Optional[int] = None
+    year_start: int | None = None
+    year_end: int | None = None
     model_count: int = 0
     locations: list[CorporateEntityLocationSchema] = []
 
@@ -65,8 +63,8 @@ class CorporateEntityDetailSchema(Schema):
     slug: str
     description: RichTextSchema = RichTextSchema()
     manufacturer: ManufacturerRef
-    year_start: Optional[int] = None
-    year_end: Optional[int] = None
+    year_start: int | None = None
+    year_end: int | None = None
     aliases: list[str] = []
     locations: list[CorporateEntityLocationSchema] = []
     titles: list[RelatedTitleSchema]

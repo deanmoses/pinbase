@@ -3,8 +3,8 @@
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 User = get_user_model()
 

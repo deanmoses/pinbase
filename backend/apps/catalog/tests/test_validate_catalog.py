@@ -15,8 +15,8 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 
 def _create_with_empty_name(model_class, **kwargs):

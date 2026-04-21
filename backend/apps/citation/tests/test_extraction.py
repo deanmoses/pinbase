@@ -1,7 +1,6 @@
 """Tests for the extraction module (ISBN classification + Open Library fetch)."""
 
 import json
-import socket
 from http.client import HTTPResponse
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -232,7 +231,7 @@ class TestExtractIsbnPartialFailure:
         mock_cache.get.return_value = None
         mock_urlopen.side_effect = [
             _make_urlopen_response(EDITION_DATA),
-            socket.timeout("timed out"),
+            TimeoutError("timed out"),
         ]
         result = extract_isbn("9780596517748")
         assert result.draft is not None
@@ -313,7 +312,7 @@ class TestExtractIsbnTotalFailure:
     def test_edition_timeout(self, mock_urlopen, mock_cache):
         """Edition urlopen raises socket.timeout → error='timeout'."""
         mock_cache.get.return_value = None
-        mock_urlopen.side_effect = socket.timeout("timed out")
+        mock_urlopen.side_effect = TimeoutError("timed out")
         result = extract_isbn("9780596517748")
         assert result.error == "timeout"
         assert result.draft is None

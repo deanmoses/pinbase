@@ -18,9 +18,9 @@ from apps.catalog.resolve import (
     resolve_machine_models,
     resolve_model,
 )
+from apps.catalog.tests.conftest import make_machine_model
 from apps.core.models import RecordReference, get_claim_fields
 from apps.provenance.models import Claim, Source
-from apps.catalog.tests.conftest import make_machine_model
 
 
 @pytest.fixture

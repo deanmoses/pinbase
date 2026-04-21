@@ -14,8 +14,8 @@ from apps.catalog.ingestion.fandom_wiki import (
     parse_person_pages,
 )
 from apps.catalog.models import Credit, CreditRole, MachineModel, Manufacturer, Person
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
 SAMPLE = f"{FIXTURES}/fandom_sample.json"

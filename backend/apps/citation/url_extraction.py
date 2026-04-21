@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import html.parser
 import logging
-import socket
 from dataclasses import dataclass
 
 from django.core.cache import cache
@@ -168,7 +167,7 @@ def extract_url(url: str) -> ExtractionResult:
         meta = _fetch_page_meta(url)
     except SSRFBlockedError:
         return ExtractionResult(error="blocked")
-    except socket.timeout:
+    except TimeoutError:
         return ExtractionResult(error="timeout")
     except OSError:
         return ExtractionResult(error="timeout")

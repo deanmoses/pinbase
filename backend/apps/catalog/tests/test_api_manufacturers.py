@@ -4,9 +4,9 @@ from apps.catalog.models import (
     ManufacturerAlias,
     Title,
 )
+from apps.catalog.tests.conftest import make_machine_model
 
 from .conftest import SAMPLE_IMAGES
-from apps.catalog.tests.conftest import make_machine_model
 
 
 class TestManufacturersAPI:

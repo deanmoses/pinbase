@@ -22,10 +22,9 @@ from apps.catalog.models import (
     TechnologyGeneration,
     TechnologySubgeneration,
 )
+from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import Claim, IngestRun, Source
 from apps.provenance.test_factories import user_changeset
-from apps.catalog.tests.conftest import make_machine_model
-
 
 # ---------------------------------------------------------------------------
 # Helpers

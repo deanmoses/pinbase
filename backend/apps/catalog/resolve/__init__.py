@@ -24,6 +24,19 @@ from ..models import (
     MachineModel,
     Title,
 )
+from ._dispatch import resolve_after_mutation as resolve_after_mutation  # noqa: F401
+from ._entities import (  # noqa: F401
+    _resolve_bulk as _resolve_bulk,
+)
+from ._entities import (
+    _resolve_single as _resolve_single,
+)
+from ._entities import (
+    resolve_all_entities as resolve_all_entities,
+)
+from ._entities import (
+    resolve_entity as resolve_entity,
+)
 from ._helpers import (
     FKInfo,
     _annotate_priority,
@@ -35,6 +48,7 @@ from ._helpers import (
     resolve_unique_conflicts,
     validate_check_constraints,
 )
+from ._media import resolve_media_attachments as resolve_media_attachments  # noqa: F401
 from ._relationships import (  # noqa: F401
     resolve_all_aliases,
     resolve_all_corporate_entity_locations,
@@ -55,17 +69,6 @@ from ._relationships import (  # noqa: F401
     resolve_theme_aliases,
     resolve_theme_parents,
 )
-
-from ._media import resolve_media_attachments as resolve_media_attachments  # noqa: F401
-
-from ._entities import (  # noqa: F401
-    _resolve_bulk as _resolve_bulk,
-    _resolve_single as _resolve_single,
-    resolve_all_entities as resolve_all_entities,
-    resolve_entity as resolve_entity,
-)
-
-from ._dispatch import resolve_after_mutation as resolve_after_mutation  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -175,20 +178,20 @@ def resolve_machine_models(stdout=None) -> int:
 
     # 0. Resolve entity scalars in dependency order (FK targets first).
     from ..models import (
+        GameplayFeature,
         Location,
         Theme,
-        GameplayFeature,
     )
     from ..models.taxonomy import (
-        TechnologyGeneration,
-        TechnologySubgeneration,
-        DisplayType,
-        DisplaySubtype,
         Cabinet,
+        CreditRole,
+        DisplaySubtype,
+        DisplayType,
         GameFormat,
         RewardType,
         Tag,
-        CreditRole,
+        TechnologyGeneration,
+        TechnologySubgeneration,
     )
 
     resolve_all_entities(Location)

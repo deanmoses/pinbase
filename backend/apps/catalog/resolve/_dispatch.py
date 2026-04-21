@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 
 from django.db import transaction
 
-from ..cache import invalidate_all
 from .._alias_registry import discover_alias_types
+from ..cache import invalidate_all
 
 if TYPE_CHECKING:
     from django.db import models

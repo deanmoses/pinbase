@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -32,9 +31,9 @@ from .schemas import ClaimSchema, FieldChangeSchema, RetractionSchema
 
 class ChangeSetSummarySchema(Schema):
     id: int
-    user_display: Optional[str] = None
+    user_display: str | None = None
     is_ingest: bool = False
-    source_name: Optional[str] = None
+    source_name: str | None = None
     note: str
     created_at: str
     changes_count: int
@@ -46,14 +45,14 @@ class ChangeSetSummarySchema(Schema):
 
 class ChangesListSchema(Schema):
     items: list[ChangeSetSummarySchema]
-    next_cursor: Optional[str] = None
+    next_cursor: str | None = None
 
 
 class ChangeSetDetailSchema(Schema):
     id: int
-    user_display: Optional[str] = None
+    user_display: str | None = None
     is_ingest: bool = False
-    source_name: Optional[str] = None
+    source_name: str | None = None
     note: str
     created_at: str
     entity_href: str
@@ -72,14 +71,14 @@ class CitedChangeSetCitationSchema(Schema):
     source_name: str
     source_type: str
     author: str
-    year: Optional[int] = None
+    year: int | None = None
     locator: str
     links: list[EvidenceLinkSchema] = []
 
 
 class CitedChangeSetSchema(Schema):
     id: int
-    user_display: Optional[str] = None
+    user_display: str | None = None
     note: str
     created_at: str
     fields: list[str]
@@ -101,7 +100,7 @@ class ChangeSetSchema(Schema):
     """A grouped edit session with per-field diffs."""
 
     id: int
-    user_display: Optional[str] = None
+    user_display: str | None = None
     note: str
     created_at: str
     changes: list[FieldChangeSchema]

@@ -20,7 +20,6 @@ from apps.catalog.models import (
 from apps.catalog.resolve._relationships import ALIAS_TYPES, _resolve_aliases
 from apps.provenance.models import Claim, Source
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

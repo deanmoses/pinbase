@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from django.db.models import Count, F, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
@@ -70,7 +68,7 @@ class PersonGridSchema(Schema):
     slug: str
     aliases: list[str] = []
     credit_count: int = 0
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: str | None = None
 
 
 class PersonSchema(Schema):

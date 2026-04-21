@@ -15,6 +15,7 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
+from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import Claim, Source
 from apps.provenance.validation import (
     DIRECT,
@@ -27,8 +28,6 @@ from apps.provenance.validation import (
     validate_fk_claims_batch,
     validate_relationship_claims_batch,
 )
-from apps.catalog.tests.conftest import make_machine_model
-
 
 # ---------------------------------------------------------------------------
 # validate_claim_value
@@ -358,7 +357,7 @@ class TestClassifyClaim:
 
         # Build a minimal identity dict for each namespace.
         for namespace, keys in get_all_namespace_keys().items():
-            identity = {key: "test-value" for key in keys}
+            identity = dict.fromkeys(keys, "test-value")
             claim_key, value = build_relationship_claim(namespace, identity)
 
             # Determine a model class that hosts this namespace. For the

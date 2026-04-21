@@ -34,8 +34,8 @@ application layer".
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as db_models

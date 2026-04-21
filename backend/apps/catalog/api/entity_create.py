@@ -23,7 +23,7 @@ machinery itself (see :mod:`.edit_claims`).
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q

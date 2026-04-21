@@ -20,8 +20,8 @@ from apps.catalog.models import (
     RewardType,
     Theme,
 )
-from apps.provenance.models import Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Source
 
 pytestmark = pytest.mark.django_db
 

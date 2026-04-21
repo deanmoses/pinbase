@@ -11,6 +11,7 @@ from .gameplay_features import gameplay_features_router
 from .locations import locations_router
 from .machine_models import models_router
 from .manufacturers import manufacturers_router
+from .page_endpoints import pages_router
 from .people import people_router
 from .series import series_router
 from .systems import systems_router
@@ -26,7 +27,6 @@ from .taxonomy import (
     technology_subgenerations_router,
 )
 from .themes import themes_router
-from .page_endpoints import pages_router
 from .titles import titles_router
 
 __all__ = [

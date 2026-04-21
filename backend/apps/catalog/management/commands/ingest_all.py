@@ -16,7 +16,6 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-
 from apps.catalog.ingestion.constants import (
     DEFAULT_EXPORT_DIR,
     DEFAULT_IPDB_PATH,

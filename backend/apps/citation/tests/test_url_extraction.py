@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import socket
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -135,7 +134,7 @@ class TestEncoding:
     def test_no_charset_defaults_to_utf8(self, mock_cache, mock_rec, mock_fetch):
         """Content-Type with no charset falls back to UTF-8."""
         mock_cache.get.return_value = None
-        body = "<html><head><title>Ünïcödé</title></head></html>".encode("utf-8")
+        body = "<html><head><title>Ünïcödé</title></head></html>".encode()
         mock_fetch.return_value = FetchResponse(
             status=200,
             headers={"content-type": "text/html"},
@@ -196,7 +195,7 @@ class TestExtractUrlErrors:
     @patch("apps.citation.url_extraction.cache")
     def test_timeout(self, mock_cache, mock_rec, mock_fetch):
         mock_cache.get.return_value = None
-        mock_fetch.side_effect = socket.timeout("timed out")
+        mock_fetch.side_effect = TimeoutError("timed out")
         result = extract_url("https://slow.example.com")
         assert result.error == "timeout"
 

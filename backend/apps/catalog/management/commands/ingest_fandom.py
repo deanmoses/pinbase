@@ -33,8 +33,8 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
+from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.bulk_utils import ManufacturerResolver, generate_unique_slug
-from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.ingestion.fandom_wiki import (
     FandomManufacturer,
     fetch_game_pages,
@@ -44,13 +44,13 @@ from apps.catalog.ingestion.fandom_wiki import (
     parse_manufacturer_pages,
     parse_person_pages,
 )
-from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
-from apps.core.validators import validate_no_mojibake
+from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.models import CreditRole, MachineModel, Manufacturer, Person
 from apps.catalog.resolve import (
     resolve_all_credits,
     resolve_all_entities,
 )
+from apps.core.validators import validate_no_mojibake
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)

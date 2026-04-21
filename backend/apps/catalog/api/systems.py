@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from django.db.models import Count, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
@@ -52,7 +50,7 @@ from .schemas import (
 class SystemListSchema(Schema):
     name: str
     slug: str
-    manufacturer: Optional[Ref] = None
+    manufacturer: Ref | None = None
     model_count: int = 0
 
 
@@ -73,8 +71,8 @@ class SystemDetailSchema(Schema):
     name: str
     slug: str
     description: RichTextSchema = RichTextSchema()
-    manufacturer: Optional[Ref] = None
-    technology_subgeneration: Optional[Ref] = None
+    manufacturer: Ref | None = None
+    technology_subgeneration: Ref | None = None
     titles: list[RelatedTitleSchema]
     sibling_systems: list[SiblingSystemSchema] = []
 

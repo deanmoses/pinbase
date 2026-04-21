@@ -8,9 +8,8 @@ from apps.catalog.claims import (
     make_authoritative_scope,
 )
 from apps.catalog.models import MachineModel, Manufacturer
-from apps.provenance.models import make_claim_key
 from apps.catalog.tests.conftest import make_machine_model
-
+from apps.provenance.models import make_claim_key
 
 # ---------------------------------------------------------------------------
 # make_claim_key (provenance utility)

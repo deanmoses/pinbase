@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 
 from django.db.models import Count, F, Max, Min, OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404
@@ -89,9 +89,9 @@ class TitleListSchema(Schema):
     slug: str
     abbreviations: list[str] = []
     model_count: int = 0
-    manufacturer: Optional[FacetRef] = None
-    year: Optional[int] = None
-    thumbnail_url: Optional[str] = None
+    manufacturer: FacetRef | None = None
+    year: int | None = None
+    thumbnail_url: str | None = None
     # Facet data — aggregated from non-variant models
     tech_generations: list[FacetRef] = []
     display_types: list[FacetRef] = []
@@ -101,11 +101,11 @@ class TitleListSchema(Schema):
     gameplay_features: list[FacetRef] = []
     reward_types: list[FacetRef] = []
     persons: list[FacetRef] = []
-    franchise: Optional[FacetRef] = None
-    series: Optional[FacetRef] = None
-    year_min: Optional[int] = None
-    year_max: Optional[int] = None
-    ipdb_rating_max: Optional[float] = None
+    franchise: FacetRef | None = None
+    series: FacetRef | None = None
+    year_min: int | None = None
+    year_max: int | None = None
+    ipdb_rating_max: float | None = None
 
 
 class ReviewLinkSchema(Schema):
@@ -116,20 +116,20 @@ class ReviewLinkSchema(Schema):
 class AgreedSpecsSchema(Schema):
     """Spec fields where all child models of a title agree on the value."""
 
-    technology_generation: Optional[FacetRef] = None
-    technology_subgeneration: Optional[FacetRef] = None
-    display_type: Optional[FacetRef] = None
-    player_count: Optional[int] = None
-    flipper_count: Optional[int] = None
-    system: Optional[FacetRef] = None
-    cabinet: Optional[FacetRef] = None
-    game_format: Optional[FacetRef] = None
-    display_subtype: Optional[FacetRef] = None
+    technology_generation: FacetRef | None = None
+    technology_subgeneration: FacetRef | None = None
+    display_type: FacetRef | None = None
+    player_count: int | None = None
+    flipper_count: int | None = None
+    system: FacetRef | None = None
+    cabinet: FacetRef | None = None
+    game_format: FacetRef | None = None
+    display_subtype: FacetRef | None = None
     themes: list[ThemeSchema] = []
     gameplay_features: list[GameplayFeatureSchema] = []
     reward_types: list[FacetRef] = []
     tags: list[FacetRef] = []
-    production_quantity: Optional[str] = None
+    production_quantity: str | None = None
 
 
 class CrossTitleLinkSchema(Schema):
@@ -145,9 +145,9 @@ class AggregatedMediaSchema(Schema):
     """A media asset from one of the title's models, with its source model."""
 
     asset_uuid: str
-    category: Optional[str] = None
+    category: str | None = None
     is_primary: bool
-    uploaded_by_username: Optional[str] = None
+    uploaded_by_username: str | None = None
     renditions: MediaRenditionsSchema
     source_model: FacetRef
 
@@ -155,22 +155,22 @@ class AggregatedMediaSchema(Schema):
 class TitleDetailSchema(Schema):
     name: str
     slug: str
-    opdb_id: Optional[str] = None
-    fandom_page_id: Optional[int] = None
+    opdb_id: str | None = None
+    fandom_page_id: int | None = None
     abbreviations: list[str] = []
     description: RichTextSchema = RichTextSchema()
     needs_review: bool = False
     needs_review_notes: str = ""
     review_links: list[ReviewLinkSchema] = []
-    hero_image_url: Optional[str] = None
-    franchise: Optional[FacetRef] = None
+    hero_image_url: str | None = None
+    franchise: FacetRef | None = None
     machines: list[TitleMachineSchema]
-    series: Optional[SeriesRefSchema] = None
+    series: SeriesRefSchema | None = None
     credits: list[CreditSchema] = []
     agreed_specs: AgreedSpecsSchema = AgreedSpecsSchema()
     related_titles: list[CrossTitleLinkSchema] = []
     media: list[AggregatedMediaSchema] = []
-    model_detail: Optional[MachineModelDetailSchema] = None
+    model_detail: MachineModelDetailSchema | None = None
 
 
 class TitleClaimPatchSchema(Schema):

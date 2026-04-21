@@ -17,7 +17,6 @@ from apps.media.storage import build_public_url, build_storage_key
 
 from ..models import GameplayFeature
 
-
 # ---------------------------------------------------------------------------
 # Generic serialization helpers
 # ---------------------------------------------------------------------------

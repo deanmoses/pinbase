@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import Count, F, Prefetch, Q
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.errors import HttpError
 
-from django.db.models import Count, F, Prefetch
-
-from apps.core.models import active_status_q
 from apps.core.licensing import get_minimum_display_rank
+from apps.core.models import active_status_q
 
 from ..cache import LOCATIONS_TREE_KEY
 from ..models import (
@@ -35,7 +31,7 @@ class LocationManufacturerSchema(Schema):
     name: str
     slug: str
     model_count: int = 0
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: str | None = None
 
 
 class LocationChildRef(Schema):

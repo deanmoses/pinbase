@@ -8,10 +8,10 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.catalog.models import Manufacturer
-from apps.provenance.models import ChangeSet, Claim, IngestRun, Source
-from apps.provenance.test_factories import ingest_changeset, user_changeset
-from apps.provenance.pagination import cursor_paginate
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import ChangeSet, Claim, IngestRun, Source
+from apps.provenance.pagination import cursor_paginate
+from apps.provenance.test_factories import ingest_changeset, user_changeset
 
 User = get_user_model()
 

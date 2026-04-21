@@ -9,8 +9,8 @@ from django.core.management import call_command
 
 from apps.catalog.models import MachineModel, Title
 from apps.catalog.resolve import resolve_model
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 
 @pytest.fixture

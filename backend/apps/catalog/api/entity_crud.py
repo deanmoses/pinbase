@@ -15,7 +15,8 @@ stability — consumers already depend on
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -80,8 +81,8 @@ class TaxonomyDeletePreviewSchema(Schema):
     # whose active children would block the delete.
     active_children_count: int = 0
     # Populated on subgen/subtype so the UI can show a parent breadcrumb.
-    parent_name: Optional[str] = None
-    parent_slug: Optional[str] = None
+    parent_name: str | None = None
+    parent_slug: str | None = None
 
 
 class TaxonomyDeleteResponseSchema(Schema):

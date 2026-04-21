@@ -10,15 +10,15 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
-from apps.core.models import get_claim_fields
 from apps.catalog.resolve import (
     _resolve_bulk,
-    resolve_entity,
     resolve_all_themes,
+    resolve_entity,
 )
 from apps.catalog.resolve._relationships import resolve_all_credits
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.core.models import get_claim_fields
+from apps.provenance.models import Claim, Source
 
 
 @pytest.fixture

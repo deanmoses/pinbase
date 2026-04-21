@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from ninja import Schema
 
@@ -74,11 +74,11 @@ class BlockingReferrerSchema(Schema):
     """
 
     entity_type: str
-    slug: Optional[str] = None
+    slug: str | None = None
     name: str
     relation: str
     blocked_target_type: str
-    blocked_target_slug: Optional[str] = None
+    blocked_target_slug: str | None = None
 
 
 class ModelDeleteSchema(Schema):
@@ -173,8 +173,8 @@ class TitleMachineVariantSchema(Schema):
 
     name: str
     slug: str
-    year: Optional[int] = None
-    thumbnail_url: Optional[str] = None
+    year: int | None = None
+    thumbnail_url: str | None = None
 
 
 class TitleMachineSchema(Schema):
@@ -182,10 +182,10 @@ class TitleMachineSchema(Schema):
 
     name: str
     slug: str
-    year: Optional[int] = None
-    manufacturer: Optional[Ref] = None
-    technology_generation_name: Optional[str] = None
-    thumbnail_url: Optional[str] = None
+    year: int | None = None
+    manufacturer: Ref | None = None
+    technology_generation_name: str | None = None
+    thumbnail_url: str | None = None
     variants: list[TitleMachineVariantSchema] = []
 
 
@@ -194,9 +194,9 @@ class RelatedTitleSchema(Schema):
 
     name: str
     slug: str
-    year: Optional[int] = None
-    manufacturer_name: Optional[str] = None
-    thumbnail_url: Optional[str] = None
+    year: int | None = None
+    manufacturer_name: str | None = None
+    thumbnail_url: str | None = None
 
 
 class TitleRefSchema(Schema):
@@ -204,9 +204,9 @@ class TitleRefSchema(Schema):
     slug: str
     abbreviations: list[str] = []
     model_count: int = 0
-    manufacturer_name: Optional[str] = None  # display-only, no paired slug
-    year: Optional[int] = None
-    thumbnail_url: Optional[str] = None
+    manufacturer_name: str | None = None  # display-only, no paired slug
+    year: int | None = None
+    thumbnail_url: str | None = None
 
 
 class SeriesRefSchema(Schema):
@@ -217,7 +217,7 @@ class SeriesRefSchema(Schema):
 class GameplayFeatureSchema(Schema):
     name: str
     slug: str
-    count: Optional[int] = None
+    count: int | None = None
 
 
 class RewardTypeSchema(Schema):

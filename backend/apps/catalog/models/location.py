@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models.functions import Lower
-
-from django.db.models.functions import Now
+from django.db.models.functions import Lower, Now
 
 from apps.core.models import AliasBase, EntityStatusMixin, field_not_blank, status_valid
 from apps.core.validators import validate_no_mojibake

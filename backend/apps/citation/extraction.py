@@ -9,11 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from urllib.parse import urlparse
-import socket
 import time
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from django.core.cache import cache
@@ -132,7 +131,7 @@ def extract_isbn(isbn: str) -> ExtractionResult:
         if exc.code == 404:
             return ExtractionResult(error="not_found")
         return ExtractionResult(error="api_error")
-    except URLError, socket.timeout:
+    except TimeoutError, URLError:
         return ExtractionResult(error="timeout")
     except json.JSONDecodeError, ValueError:
         return ExtractionResult(error="parse_error")

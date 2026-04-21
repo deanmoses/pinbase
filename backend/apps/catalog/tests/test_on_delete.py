@@ -40,7 +40,6 @@ from apps.catalog.models import (
 )
 from apps.catalog.tests.conftest import make_machine_model
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

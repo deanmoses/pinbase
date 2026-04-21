@@ -12,8 +12,8 @@ from apps.catalog.models import (
     Manufacturer,
     Title,
 )
-from apps.provenance.models import ChangeSet, Claim
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import ChangeSet, Claim
 
 User = get_user_model()
 

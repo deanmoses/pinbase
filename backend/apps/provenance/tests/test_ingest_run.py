@@ -1,8 +1,7 @@
 """Tests for IngestRun model and its integration with ChangeSet and Claim."""
 
-from django.utils import timezone
-
 import pytest
+from django.utils import timezone
 
 from apps.catalog.models import Manufacturer
 from apps.provenance.models import Claim, IngestRun, Source

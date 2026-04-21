@@ -11,9 +11,7 @@ from dataclasses import dataclass
 
 from apps.provenance.models import Claim
 
-from ._helpers import _annotate_priority
 from .._alias_registry import discover_alias_types
-
 from ..models import (
     CorporateEntity,
     CorporateEntityLocation,
@@ -32,6 +30,7 @@ from ..models import (
     Title,
     TitleAbbreviation,
 )
+from ._helpers import _annotate_priority
 
 logger = logging.getLogger(__name__)
 

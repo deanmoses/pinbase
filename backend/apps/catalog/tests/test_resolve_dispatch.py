@@ -11,9 +11,8 @@ from apps.catalog.models import (
     Title,
 )
 from apps.catalog.resolve._dispatch import resolve_after_mutation
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
-
+from apps.provenance.models import Claim, Source
 
 # ---------------------------------------------------------------------------
 # Fixtures

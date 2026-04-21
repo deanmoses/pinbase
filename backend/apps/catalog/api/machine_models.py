@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Optional
 
 from django.db.models import Case, F, IntegerField, Prefetch, Q, Value, When
 from django.shortcuts import get_object_or_404
@@ -105,40 +104,40 @@ from .soft_delete import (
 class MachineModelGridSchema(Schema):
     name: str
     slug: str
-    year: Optional[int] = None
-    manufacturer_name: Optional[str] = None
-    technology_generation_name: Optional[str] = None
-    thumbnail_url: Optional[str] = None
+    year: int | None = None
+    manufacturer_name: str | None = None
+    technology_generation_name: str | None = None
+    thumbnail_url: str | None = None
     abbreviations: list[str] = []
-    search_text: Optional[str] = None
-    title_slug: Optional[str] = None
+    search_text: str | None = None
+    title_slug: str | None = None
 
 
 class MachineModelListSchema(Schema):
     name: str
     slug: str
-    manufacturer: Optional[Ref] = None
-    year: Optional[int] = None
-    technology_generation: Optional[Ref] = None
-    display_type: Optional[Ref] = None
-    ipdb_id: Optional[int] = None
-    ipdb_rating: Optional[float] = None
-    pinside_rating: Optional[float] = None
+    manufacturer: Ref | None = None
+    year: int | None = None
+    technology_generation: Ref | None = None
+    display_type: Ref | None = None
+    ipdb_id: int | None = None
+    ipdb_rating: float | None = None
+    pinside_rating: float | None = None
     themes: list[ThemeSchema] = []
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: str | None = None
 
 
 class VariantSchema(Schema):
     name: str
     slug: str
-    year: Optional[int] = None
+    year: int | None = None
     variant_features: list[str] = []
 
 
 class ConversionSchema(Schema):
     name: str
     slug: str
-    year: Optional[int] = None
+    year: int | None = None
 
 
 class ModelRefSchema(Schema):
@@ -146,53 +145,53 @@ class ModelRefSchema(Schema):
 
     name: str
     slug: str
-    year: Optional[int] = None
+    year: int | None = None
 
 
 class MachineModelDetailSchema(Schema):
     name: str
     slug: str
-    manufacturer: Optional[Ref] = None
-    corporate_entity: Optional[Ref] = None
-    year: Optional[int] = None
-    month: Optional[int] = None
-    technology_generation: Optional[Ref] = None
-    technology_subgeneration: Optional[Ref] = None
-    display_type: Optional[Ref] = None
-    player_count: Optional[int] = None
+    manufacturer: Ref | None = None
+    corporate_entity: Ref | None = None
+    year: int | None = None
+    month: int | None = None
+    technology_generation: Ref | None = None
+    technology_subgeneration: Ref | None = None
+    display_type: Ref | None = None
+    player_count: int | None = None
     themes: list[ThemeSchema] = []
     production_quantity: str
-    system: Optional[Ref] = None
-    flipper_count: Optional[int] = None
-    ipdb_id: Optional[int] = None
-    opdb_id: Optional[str] = None
-    pinside_id: Optional[int] = None
-    ipdb_rating: Optional[float] = None
-    pinside_rating: Optional[float] = None
+    system: Ref | None = None
+    flipper_count: int | None = None
+    ipdb_id: int | None = None
+    opdb_id: str | None = None
+    pinside_id: int | None = None
+    ipdb_rating: float | None = None
+    pinside_rating: float | None = None
     description: RichTextSchema = RichTextSchema()
     abbreviations: list[str] = []
     extra_data: dict
     credits: list[CreditSchema]
-    thumbnail_url: Optional[str] = None
-    hero_image_url: Optional[str] = None
-    image_attribution: Optional[AttributionSchema] = None
+    thumbnail_url: str | None = None
+    hero_image_url: str | None = None
+    image_attribution: AttributionSchema | None = None
     uploaded_media: list[UploadedMediaSchema] = []
     variant_features: list[str] = []
     variants: list[VariantSchema] = []
-    title: Optional[Ref] = None
-    cabinet: Optional[Ref] = None
-    game_format: Optional[Ref] = None
-    display_subtype: Optional[Ref] = None
+    title: Ref | None = None
+    cabinet: Ref | None = None
+    game_format: Ref | None = None
+    display_subtype: Ref | None = None
     gameplay_features: list[GameplayFeatureSchema] = []
     tags: list[Ref] = []
     reward_types: list[RewardTypeSchema] = []
-    franchise: Optional[FranchiseRefSchema] = None
-    series: Optional[SeriesRefSchema] = None
-    variant_of: Optional[ModelRefSchema] = None
+    franchise: FranchiseRefSchema | None = None
+    series: SeriesRefSchema | None = None
+    variant_of: ModelRefSchema | None = None
     variant_siblings: list[VariantSchema] = []
-    converted_from: Optional[ModelRefSchema] = None
+    converted_from: ModelRefSchema | None = None
     conversions: list[ConversionSchema] = []
-    remake_of: Optional[ModelRefSchema] = None
+    remake_of: ModelRefSchema | None = None
     remakes: list[ConversionSchema] = []
     title_models: list[TitleMachineSchema] = []
 
@@ -679,9 +678,9 @@ def _build_search_text(pm) -> str:
 class ModelRecentSchema(Schema):
     name: str
     slug: str
-    manufacturer_name: Optional[str] = None
-    year: Optional[int] = None
-    thumbnail_url: Optional[str] = None
+    manufacturer_name: str | None = None
+    year: int | None = None
+    thumbnail_url: str | None = None
 
 
 @models_router.get("/recent/", response=list[ModelRecentSchema])

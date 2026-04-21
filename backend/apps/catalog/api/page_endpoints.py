@@ -12,9 +12,23 @@ from __future__ import annotations
 from django.shortcuts import get_object_or_404
 from ninja import Router
 
+from apps.catalog.models import (
+    Cabinet,
+    DisplaySubtype,
+    DisplayType,
+    GameFormat,
+    Tag,
+    TechnologyGeneration,
+    TechnologySubgeneration,
+)
+
 from .corporate_entities import (
     CorporateEntityDetailSchema,
+)
+from .corporate_entities import (
     _detail_qs as _corp_entity_detail_qs,
+)
+from .corporate_entities import (
     _serialize_detail as _serialize_corp_entity_detail,
 )
 from .franchises import (
@@ -24,7 +38,11 @@ from .franchises import (
 )
 from .gameplay_features import (
     GameplayFeatureDetailSchema,
+)
+from .gameplay_features import (
     _detail_qs as _gf_detail_qs,
+)
+from .gameplay_features import (
     _serialize_detail as _serialize_gf_detail,
 )
 from .machine_models import (
@@ -44,13 +62,13 @@ from .people import (
 )
 from .series import (
     SeriesDetailSchema,
-    _series_detail_qs,
     _serialize_series_detail,
+    _series_detail_qs,
 )
 from .systems import (
     SystemDetailSchema,
-    _system_detail_qs,
     _serialize_system_detail,
+    _system_detail_qs,
 )
 from .taxonomy import (
     CreditRoleDetailSchema,
@@ -65,20 +83,14 @@ from .taxonomy import (
 )
 from .themes import (
     ThemeDetailSchema,
+)
+from .themes import (
     _detail_qs as _theme_detail_qs,
+)
+from .themes import (
     _serialize_detail as _serialize_theme_detail,
 )
 from .titles import TitleDetailSchema, _detail_qs, _serialize_title_detail
-
-from apps.catalog.models import (
-    Cabinet,
-    DisplaySubtype,
-    DisplayType,
-    GameFormat,
-    Tag,
-    TechnologyGeneration,
-    TechnologySubgeneration,
-)
 
 pages_router = Router(tags=["private"])
 

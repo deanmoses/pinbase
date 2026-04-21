@@ -51,7 +51,7 @@ class ClaimManager(models.Manager):
         claim_key: str = "",
         license=None,
         changeset: ChangeSet | None = None,
-    ) -> "Claim":
+    ) -> Claim:
         """Create a claim, deactivating any existing active claim for the same claim_key+author.
 
         ``subject`` can be any model instance (MachineModel, Manufacturer, Person, …).
@@ -122,7 +122,7 @@ class ClaimManager(models.Manager):
     def bulk_assert_claims(
         self,
         source: Source,
-        pending_claims: list["Claim"],
+        pending_claims: list[Claim],
         *,
         sweep_field: str | list[str] = "",
         authoritative_scope: set[tuple[int, int]] | None = None,
@@ -382,7 +382,7 @@ class Claim(models.Model):
     @classmethod
     def for_object(
         cls, obj, *, field_name: str, value, claim_key: str = "", **kwargs
-    ) -> "Claim":
+    ) -> Claim:
         """Construct an unsaved Claim for a model instance.
 
         Derives content_type_id from obj automatically, so callers never need

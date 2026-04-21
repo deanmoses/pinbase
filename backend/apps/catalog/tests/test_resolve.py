@@ -13,13 +13,13 @@ from apps.catalog.models import (
     Title,
 )
 from apps.catalog.resolve import (
+    resolve_all_themes,
     resolve_machine_models,
     resolve_model,
-    resolve_all_themes,
 )
 from apps.catalog.resolve._relationships import resolve_all_corporate_entity_locations
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 
 @pytest.fixture

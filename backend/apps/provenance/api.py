@@ -7,7 +7,6 @@ Auto-discovered via the ``routers`` list convention in config/api.py.
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
@@ -51,9 +50,9 @@ class ReviewClaimSchema(Schema):
     # Canonical hyphenated CatalogModel.entity_type, e.g. "manufacturer".
     subject_type: str
     subject_name: str
-    subject_slug: Optional[str] = None
+    subject_slug: str | None = None
     # Title that this claim created (for group claims).
-    title_slug: Optional[str] = None
+    title_slug: str | None = None
     review_links: list[ReviewLinkSchema] = []
 
 
@@ -225,7 +224,7 @@ class CitationInstanceSchema(Schema):
     id: int
     citation_source_id: int
     citation_source_name: str
-    claim_id: Optional[int] = None
+    claim_id: int | None = None
     locator: str
     created_at: str
 
@@ -236,7 +235,7 @@ class CitationInstanceSchema(Schema):
     auth=django_auth,
 )
 def list_citation_instances(
-    request, source: Optional[int] = None, claim: Optional[int] = None
+    request, source: int | None = None, claim: int | None = None
 ):
     """List Citation Instances, filtered by source and/or claim."""
     if source is None and claim is None:
@@ -272,7 +271,7 @@ class BatchCitationInstanceOut(Schema):
     source_name: str
     source_type: str
     author: str
-    year: Optional[int] = None
+    year: int | None = None
     locator: str
     links: list[BatchCitationLinkOut] = []
 

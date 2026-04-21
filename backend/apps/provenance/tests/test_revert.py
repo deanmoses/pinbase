@@ -4,9 +4,9 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
+from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import ChangeSetAction, Claim, Source
 from apps.provenance.test_factories import user_changeset
-from apps.catalog.tests.conftest import make_machine_model
 
 User = get_user_model()
 

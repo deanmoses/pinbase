@@ -15,8 +15,7 @@ import socket
 import ssl
 import time
 from dataclasses import dataclass
-from urllib.parse import urlparse, urljoin
-
+from urllib.parse import urljoin, urlparse
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -169,7 +168,7 @@ def safe_fetch(url: str, *, timeout: float, max_bytes: int = 65536) -> FetchResp
         # Calculate remaining time budget
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise socket.timeout("wall-clock deadline exceeded")
+            raise TimeoutError("wall-clock deadline exceeded")
         hop_timeout = max(remaining, 0.5)
 
         status, headers, body, redirect_location = _fetch_one(

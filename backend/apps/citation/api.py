@@ -7,25 +7,22 @@ Auto-discovered via the ``routers`` list convention in config/api.py.
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.responses import Status
 from ninja.security import django_auth
+from ninja.throttling import AuthRateThrottle
 from pydantic import field_validator
 
-from ninja.throttling import AuthRateThrottle
-
 from .extraction import classify_input, extract_isbn, normalize_isbn
-from .url_extraction import extract_url
 from .extractors import EXTRACTORS, recognize_url
 from .models import CitationSource, CitationSourceLink
+from .url_extraction import extract_url
 
 # ---------------------------------------------------------------------------
 # Routers
@@ -57,9 +54,9 @@ class CitationSourceSearchSchema(Schema):
     source_type: str
     author: str
     publisher: str
-    year: Optional[int] = None
-    isbn: Optional[str] = None
-    parent_id: Optional[int] = None
+    year: int | None = None
+    isbn: str | None = None
+    parent_id: int | None = None
     has_children: bool = False
     is_abstract: bool = False
     skip_locator: bool = False
@@ -74,13 +71,13 @@ class RecognitionChildSchema(Schema):
 
 class RecognitionSchema(Schema):
     parent: CitationSourceParentSchema
-    child: Optional[RecognitionChildSchema] = None
-    identifier: Optional[str] = None
+    child: RecognitionChildSchema | None = None
+    identifier: str | None = None
 
 
 class SearchResponse(Schema):
     results: list[CitationSourceSearchSchema]
-    recognition: Optional[RecognitionSchema] = None
+    recognition: RecognitionSchema | None = None
 
 
 class CitationSourceCreateSchema(Schema):
@@ -88,16 +85,16 @@ class CitationSourceCreateSchema(Schema):
     source_type: str
     author: str = ""
     publisher: str = ""
-    year: Optional[int] = None
-    month: Optional[int] = None
-    day: Optional[int] = None
+    year: int | None = None
+    month: int | None = None
+    day: int | None = None
     date_note: str = ""
-    isbn: Optional[str] = None
+    isbn: str | None = None
     description: str = ""
-    parent_id: Optional[int] = None
+    parent_id: int | None = None
     identifier: str = ""
     # Optional: atomically create a CitationSourceLink alongside the source.
-    url: Optional[str] = None
+    url: str | None = None
     link_label: str = ""
     link_type: str = "homepage"
 
@@ -109,16 +106,16 @@ class CitationSourceCreateSchema(Schema):
 
 
 class CitationSourceUpdateSchema(Schema):
-    name: Optional[str] = None
-    source_type: Optional[str] = None
-    author: Optional[str] = None
-    publisher: Optional[str] = None
-    year: Optional[int] = None
-    month: Optional[int] = None
-    day: Optional[int] = None
-    date_note: Optional[str] = None
-    isbn: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    source_type: str | None = None
+    author: str | None = None
+    publisher: str | None = None
+    year: int | None = None
+    month: int | None = None
+    day: int | None = None
+    date_note: str | None = None
+    isbn: str | None = None
+    description: str | None = None
 
     @field_validator(*NONNULLABLE_STR_FIELDS, mode="before")
     @classmethod
@@ -142,8 +139,8 @@ class CitationSourceChildSchema(Schema):
     id: int
     name: str
     source_type: str
-    year: Optional[int] = None
-    isbn: Optional[str] = None
+    year: int | None = None
+    isbn: str | None = None
     skip_locator: bool = False
     urls: list[str] = []
 
@@ -161,15 +158,15 @@ class CitationSourceDetailSchema(Schema):
     source_type: str
     author: str
     publisher: str
-    year: Optional[int] = None
-    month: Optional[int] = None
-    day: Optional[int] = None
+    year: int | None = None
+    month: int | None = None
+    day: int | None = None
     date_note: str
-    isbn: Optional[str] = None
+    isbn: str | None = None
     description: str
     identifier_key: str = ""
     skip_locator: bool = False
-    parent: Optional[CitationSourceParentSchema] = None
+    parent: CitationSourceParentSchema | None = None
     links: list[CitationSourceLinkSchema] = []
     children: list[CitationSourceChildSchema] = []
     created_at: str
@@ -183,9 +180,9 @@ class CitationSourceLinkCreateSchema(Schema):
 
 
 class CitationSourceLinkUpdateSchema(Schema):
-    link_type: Optional[str] = None
-    url: Optional[str] = None
-    label: Optional[str] = None
+    link_type: str | None = None
+    url: str | None = None
+    label: str | None = None
 
     @field_validator("label", mode="before")
     @classmethod
@@ -202,9 +199,9 @@ class ExtractDraftSchema(Schema):
     source_type: str
     author: str
     publisher: str
-    year: Optional[int] = None
-    isbn: Optional[str] = None
-    url: Optional[str] = None
+    year: int | None = None
+    isbn: str | None = None
+    url: str | None = None
 
 
 class ExtractMatchSchema(Schema):
@@ -214,9 +211,9 @@ class ExtractMatchSchema(Schema):
 
 
 class ExtractResponseSchema(Schema):
-    draft: Optional[ExtractDraftSchema] = None
-    match: Optional[ExtractMatchSchema] = None
-    error: Optional[str] = None
+    draft: ExtractDraftSchema | None = None
+    match: ExtractMatchSchema | None = None
+    error: str | None = None
     confidence: str = ""
     source_api: str = ""
 

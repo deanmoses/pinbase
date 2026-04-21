@@ -24,8 +24,6 @@ from django.db import transaction
 
 from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
-from apps.core.models import CatalogModel, LinkableModel
-from apps.core.validators import bulk_create_validated
 from apps.catalog.models import (
     Cabinet,
     CorporateEntity,
@@ -60,8 +58,8 @@ from apps.catalog.resolve import (
     resolve_all_tags,
     resolve_all_themes,
     resolve_all_title_abbreviations,
-    resolve_entity,
     resolve_corporate_entity_aliases,
+    resolve_entity,
     resolve_gameplay_feature_aliases,
     resolve_gameplay_feature_parents,
     resolve_manufacturer_aliases,
@@ -70,6 +68,8 @@ from apps.catalog.resolve import (
     resolve_theme_aliases,
     resolve_theme_parents,
 )
+from apps.core.models import CatalogModel, LinkableModel
+from apps.core.validators import bulk_create_validated
 from apps.provenance.models import Claim, Source
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Optional
 
 from django.db.models import Count, F, Max, Min, Prefetch, Q
 from django.shortcuts import get_object_or_404
@@ -58,11 +57,11 @@ class ManufacturerGridSchema(Schema):
     name: str
     slug: str
     model_count: int = 0
-    thumbnail_url: Optional[str] = None
-    search_text: Optional[str] = None
+    thumbnail_url: str | None = None
+    search_text: str | None = None
     locations: list[FacetRef] = []
-    year_min: Optional[int] = None
-    year_max: Optional[int] = None
+    year_min: int | None = None
+    year_max: int | None = None
     persons: list[FacetRef] = []
     tech_generations: list[FacetRef] = []
 

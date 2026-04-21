@@ -7,7 +7,6 @@ from django.urls import URLPattern, URLResolver, path, re_path
 from .admin_views import resolve_view
 from .api import api
 
-
 urlpatterns: list[URLPattern | URLResolver] = [
     path("admin/resolve/", resolve_view, name="admin-resolve"),
     path("admin/", admin.site.urls),

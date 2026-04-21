@@ -26,3 +26,74 @@ dev = [
     "requests>=2.32",
     "ruff>=0.8",
 ]
+
+[tool.ruff]
+target-version = "py314"
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "*/migrations/*",
+    "media",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+]
+
+[tool.ruff.lint]
+# Mirrors flipfix (~/dev/flipfix) so both Django projects share a linting surface.
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "DJ",  # flake8-django
+    "S",   # flake8-bandit (security)
+    "T20", # flake8-print
+]
+ignore = [
+    "E501",  # Line too long — handled by formatter
+    "DJ001", # Avoid nullable CharField — common Django pattern
+    "S101",  # Use of assert — okay in tests (also per-file-ignored below)
+    "S311",  # Use of random — not cryptographic in this app
+
+    # The rules below are temporarily silenced to land the initial sweep as a
+    # mechanical-only change. Each represents a real issue (correctness,
+    # security, or style) and should be re-enabled and fixed in follow-up PRs,
+    # one rule at a time. Do not add to this list without a follow-up.
+    "B007",  # Unused loop variable
+    "B017",  # assertRaises(Exception) too broad
+    "B904",  # raise without `from` inside except
+    "B905",  # zip() without explicit strict=
+    "C401",  # Unnecessary generator in set()
+    "C416",  # Unnecessary comprehension
+    "DJ012", # Django model attribute ordering
+    "N802",  # Function name should be lowercase
+    "N806",  # Variable in function should be lowercase
+    "N818",  # Exception name should end in Error
+    "S104",  # Possible binding to all interfaces
+    "S108",  # Probable hardcoded tmp dir
+    "S310",  # urlopen without allowed-scheme audit
+    "S608",  # Possible SQL injection via string concat
+    "UP031", # Use format specifiers instead of percent format
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*.py" = ["S101", "S106", "S603", "S607"]  # asserts, hardcoded test passwords, subprocess in tests
+"conftest.py" = ["S101"]
+"manage.py" = ["T20"]
+"apps/*/management/commands/*.py" = ["T20", "S603", "S607", "B904"]  # print, subprocess, raise-from in commands
+"scripts/*.py" = ["T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

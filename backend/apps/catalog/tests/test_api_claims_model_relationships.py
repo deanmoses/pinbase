@@ -14,10 +14,10 @@ from apps.catalog.models import (
     Tag,
     Theme,
 )
+from apps.catalog.tests.conftest import make_machine_model
 from apps.citation.models import CitationSource
 from apps.provenance.models import ChangeSet, Claim
 from apps.provenance.test_factories import user_changeset
-from apps.catalog.tests.conftest import make_machine_model
 
 User = get_user_model()
 

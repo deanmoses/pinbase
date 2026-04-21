@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 
 import pytest
-from django.utils.text import slugify
 from django.contrib.auth import get_user_model
+from django.utils.text import slugify
 
 from apps.catalog.models import (
     Cabinet,
@@ -26,10 +26,10 @@ from apps.catalog.models import (
     TechnologySubgeneration,
     Title,
 )
+from apps.catalog.tests.conftest import make_machine_model
 from apps.citation.models import CitationSource
 from apps.provenance.models import ChangeSet, CitationInstance, Claim, Source
 from apps.provenance.test_factories import user_changeset
-from apps.catalog.tests.conftest import make_machine_model
 
 User = get_user_model()
 

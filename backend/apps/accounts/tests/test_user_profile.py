@@ -5,8 +5,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 
 from apps.catalog.models import Manufacturer
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 User = get_user_model()
 

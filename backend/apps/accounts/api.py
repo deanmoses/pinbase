@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import secrets
-from typing import Optional
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
@@ -33,8 +32,8 @@ user_page_router = Router(tags=["private"])
 
 class AuthStatusSchema(Schema):
     is_authenticated: bool
-    id: Optional[int] = None
-    username: Optional[str] = None
+    id: int | None = None
+    username: str | None = None
 
 
 class _ErrorSchema(Schema):

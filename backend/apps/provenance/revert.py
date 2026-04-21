@@ -18,8 +18,8 @@ from __future__ import annotations
 from collections import defaultdict
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import IntegrityError, transaction
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
 from .constants import REVERT_OTHERS_MIN_EDITS
 from .models import ChangeSet, ChangeSetAction, Claim

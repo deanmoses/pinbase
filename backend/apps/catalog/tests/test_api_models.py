@@ -5,10 +5,10 @@ from apps.catalog.models import (
     CreditRole,
     Title,
 )
+from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import Claim
 
 from .conftest import SAMPLE_IMAGES
-from apps.catalog.tests.conftest import make_machine_model
 
 
 class TestModelsAPI:

@@ -6,8 +6,8 @@ import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 
-from apps.core.validators import bulk_create_validated, validate_no_mojibake
 from apps.catalog.tests.conftest import make_machine_model
+from apps.core.validators import bulk_create_validated, validate_no_mojibake
 
 
 class TestValidateNoMojibake:

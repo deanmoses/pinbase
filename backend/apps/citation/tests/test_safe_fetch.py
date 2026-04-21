@@ -15,7 +15,6 @@ from apps.citation.safe_fetch import (
     safe_fetch,
 )
 
-
 # ---------------------------------------------------------------------------
 # IP validation (TDD — these define the security boundary)
 # ---------------------------------------------------------------------------

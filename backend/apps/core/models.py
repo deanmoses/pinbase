@@ -10,7 +10,6 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.functions import Now
 from django.db.models.signals import post_delete
-
 from django.utils.text import slugify
 
 from .validators import validate_no_mojibake as _validate_no_mojibake

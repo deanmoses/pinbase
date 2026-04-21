@@ -21,6 +21,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
+from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.ingestion.person_lookup import build_person_lookup
 from apps.catalog.ingestion.wikidata_sparql import (
     WikidataPerson,
@@ -28,7 +29,6 @@ from apps.catalog.ingestion.wikidata_sparql import (
     parse_sparql_results,
     parse_wikidata_date,
 )
-from apps.catalog.claims import build_relationship_claim, make_authoritative_scope
 from apps.catalog.models import CreditRole, MachineModel, Person
 from apps.catalog.resolve import (
     resolve_all_credits,

@@ -6,8 +6,6 @@ page-oriented changes endpoints (page_endpoints.py).
 
 from __future__ import annotations
 
-from typing import Optional
-
 from ninja import Schema
 
 
@@ -16,13 +14,13 @@ class FieldChangeSchema(Schema):
 
     field_name: str
     claim_key: str
-    old_value: Optional[object] = None
+    old_value: object | None = None
     new_value: object
-    claim_id: Optional[int] = None
-    claim_user_id: Optional[int] = None
-    is_active: Optional[bool] = None
-    is_winning: Optional[bool] = None
-    is_retracted: Optional[bool] = None
+    claim_id: int | None = None
+    claim_user_id: int | None = None
+    is_active: bool | None = None
+    is_winning: bool | None = None
+    is_retracted: bool | None = None
 
 
 class RetractionSchema(Schema):
@@ -35,15 +33,15 @@ class RetractionSchema(Schema):
 class ClaimSchema(Schema):
     """A single per-field claim as surfaced to the Sources UI."""
 
-    source_name: Optional[str] = None
-    source_slug: Optional[str] = None
-    user_display: Optional[str] = None  # username for user-attributed claims
+    source_name: str | None = None
+    source_slug: str | None = None
+    user_display: str | None = None  # username for user-attributed claims
     field_name: str
     value: object
     citation: str
     created_at: str
     is_winner: bool
-    changeset_note: Optional[str] = None
+    changeset_note: str | None = None
 
 
 class EditCitationInput(Schema):
@@ -55,14 +53,14 @@ class EditCitationInput(Schema):
 class AttributionSchema(Schema):
     """License and source attribution for rendered content."""
 
-    license_slug: Optional[str] = None
-    license_name: Optional[str] = None
-    license_url: Optional[str] = None
-    permissiveness_rank: Optional[int] = None
+    license_slug: str | None = None
+    license_name: str | None = None
+    license_url: str | None = None
+    permissiveness_rank: int | None = None
     requires_attribution: bool = False
-    source_name: Optional[str] = None
-    source_url: Optional[str] = None
-    attribution_text: Optional[str] = None
+    source_name: str | None = None
+    source_url: str | None = None
+    attribution_text: str | None = None
 
 
 class InlineCitationLinkSchema(Schema):
@@ -80,7 +78,7 @@ class InlineCitationSchema(Schema):
     source_name: str
     source_type: str
     author: str
-    year: Optional[int] = None
+    year: int | None = None
     locator: str
     links: list[InlineCitationLinkSchema] = []
 
@@ -91,4 +89,4 @@ class RichTextSchema(Schema):
     text: str = ""
     html: str = ""
     citations: list[InlineCitationSchema] = []
-    attribution: Optional[AttributionSchema] = None
+    attribution: AttributionSchema | None = None

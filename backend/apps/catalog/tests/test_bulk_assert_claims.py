@@ -4,8 +4,8 @@ import pytest
 from django.contrib.contenttypes.models import ContentType
 
 from apps.catalog.models import MachineModel, Manufacturer
-from apps.provenance.models import Claim, Source
 from apps.catalog.tests.conftest import make_machine_model
+from apps.provenance.models import Claim, Source
 
 
 @pytest.fixture

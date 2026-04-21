@@ -14,14 +14,14 @@ from apps.catalog.models import (
     Person,
     Title,
 )
+from apps.catalog.models import gameplay_feature as gf_mod
 from apps.catalog.models import machine_model as mm_mod
 from apps.catalog.models import manufacturer as mfr_mod
 from apps.catalog.models import person as person_mod
 from apps.catalog.models import title as title_mod
-from apps.catalog.models import gameplay_feature as gf_mod
 from apps.catalog.models.gameplay_feature import MachineModelGameplayFeature
-from apps.citation.models import CitationSource
 from apps.citation import models as citation_mod
+from apps.citation.models import CitationSource
 
 # (model_class, field_name, module, min_const_name, max_const_name_or_None)
 RANGE_FIELDS = [
