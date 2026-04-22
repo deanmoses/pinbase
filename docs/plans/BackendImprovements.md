@@ -14,8 +14,6 @@ We just added type checking and grandfathered in a lot of errors. The exception 
 
 ## Mid-impact
 
-- **Dependency groups**: [backend/pyproject.toml](../../backend/pyproject.toml) has only a `dev` group — split into `test`, `lint`, `dev` for leaner CI installs.
-- **Gunicorn config**: [scripts/start-production](../../scripts/start-production) hardcodes `--workers 2`. Drive from env, add `--timeout`, `--graceful-timeout`, `--max-requests` for memory hygiene.
 - **`SESSION_SAVE_EVERY_REQUEST = True`** in settings.py writes sessions on every request — fine now, expensive later.
 - **No `django-axes`** or auth-endpoint rate limiting. The custom `provenance.rate_limits` covers API mutations but not login/password endpoints.
 - **No CSP middleware** (`django-csp`). Caddy handles TLS/HSTS, but CSP belongs in the app.
