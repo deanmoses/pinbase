@@ -54,7 +54,7 @@ def citation_source(db):
     return CitationSource.objects.create(name="Williams Flyer", source_type="web")
 
 
-def _patch(client, slug: str, body: dict):
+def _patch(client, slug: str, body: dict[str, object]):
     return client.patch(
         f"/api/titles/{slug}/claims/",
         data=json.dumps(body),

@@ -49,7 +49,7 @@ def citation_source(db):
     )
 
 
-def _patch(client, path: str, body: dict):
+def _patch(client, path: str, body: dict[str, object]):
     return client.patch(
         path,
         data=json.dumps(body),
