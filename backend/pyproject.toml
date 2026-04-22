@@ -20,7 +20,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.3",
     "beautifulsoup4>=4.12",
+    "django-types>=0.23.0",
     "pytest>=8.3",
     "pytest-django>=4.9",
     "requests>=2.32",
@@ -89,3 +91,6 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
+
+# basedpyright config lives at the repo root (../pyrightconfig.json) so the
+# VS Code extension finds it from the workspace root. Do not duplicate here.
