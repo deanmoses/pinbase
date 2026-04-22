@@ -129,7 +129,11 @@ pages_router = Router(tags=["private"])
 )
 @decorate_view(cache_control(no_cache=True))
 def edit_history_page(request, entity_type: str, slug: str):
-    """Return changeset-grouped edit history for any catalog entity."""
+    """Return changeset-grouped edit history for any catalog entity.
+
+    Accepts soft-deleted entities so the provenance record remains
+    inspectable after deletion — matches ``sources_page``.
+    """
     try:
         model_class = get_linkable_model(entity_type)
     except ValueError:

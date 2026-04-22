@@ -6,32 +6,6 @@ Ordered by rough ROI.
 
 ---
 
-## Decide the soft-delete policy for per-entity provenance endpoints
-
-**Problem.** `GET /api/pages/edit-history/{type}/{slug}/` has always returned 200 for soft-deleted entities (no `.active()` filter). `GET /api/pages/sources/{type}/{slug}/` was previously inconsistent — the old `/api/pages/evidence/` predecessor _did_ filter `.active()`. The consolidation refactor made both consistent by dropping `.active()` from sources, but this was a policy call made implicitly, not deliberately.
-
-**Why it matters.** The two camps:
-
-- **"Soft-delete is soft"** — deletion is reversible curation; audit/provenance surfaces should remain inspectable by any caller who knows the slug. The current (post-refactor) behavior.
-- **"Deleted means hidden"** — once deleted, the API shouldn't leak field values via direct URL even to callers who know the slug. Under this policy, _both_ endpoints should filter `.active()`, and the current edit-history behavior is a latent bug.
-
-Normal SvelteKit navigation already gates on the parent `[slug]/+layout.server.ts` (which does filter `.active()` via `/api/pages/{entity}/{slug}`), so human browsing is unaffected either way. The question is about the direct API surface — scrapers, admin tools, future API consumers.
-
-**Shape.**
-
-1. Make a deliberate product call.
-2. Whichever direction, write a regression test for both endpoints asserting the chosen behavior for soft-deleted entities. There is currently no test for either side — the behavior is just whatever the code happens to do.
-3. If "deleted means hidden" wins, add `.active()` back to [sources_page](../../backend/apps/provenance/page_endpoints.py) and add it for the first time to `edit_history_page`.
-
-**Starting points:**
-
-- [backend/apps/provenance/page_endpoints.py](../../backend/apps/provenance/page_endpoints.py) — both endpoints live here
-- No existing test covers this edge case in [backend/apps/provenance/tests/](../../backend/apps/provenance/tests/).
-
-**Risk.** Low. Whichever policy is chosen, the code change is one line per endpoint plus a test.
-
----
-
 ## Drop the prefetch fallback in `_serialize_model_detail`
 
 **Problem.** [machine_models.py:346-361](../../backend/apps/catalog/api/machine_models.py#L346-L361) reads `active_claims` off the prefetched model, and if missing, reconstructs the prefetch queryset inline — with a `Case/When` priority annotation that duplicates the logic in [`claims_prefetch()`](../../backend/apps/provenance/helpers.py). If the priority tiebreak rule in `claims_prefetch()` ever changes, this fallback will silently diverge.
@@ -95,11 +69,3 @@ def resolve_linkable_entity(entity_type: str, slug: str, *, queryset=None):
 - [backend/apps/core/entity_types.py](../../backend/apps/core/entity_types.py) — likely home for the helper
 
 **Risk.** Low. Two call sites, good test coverage.
-
----
-
-## Parity test for edit-history soft-delete behavior
-
-**Problem.** Whatever policy is chosen in the soft-delete follow-up above, there's currently **no test** covering "does GET edit-history for a soft-deleted entity return 200 or 404?" The behavior is whatever the code happens to do.
-
-**Shape.** Covered by the soft-delete follow-up above. Called out separately because even if that product decision ratifies the status quo ("yes, soft-delete is soft, both endpoints return 200"), a regression test is still needed so nobody accidentally changes it later.
