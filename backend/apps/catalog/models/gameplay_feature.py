@@ -41,6 +41,7 @@ class GameplayFeature(
     entity_type_plural = "gameplay-features"
     soft_delete_usage_blockers = ("machine_models", "children")
     MEDIA_CATEGORIES = ["other"]
+    children: models.Manager[GameplayFeature]
 
     name = models.CharField(
         max_length=200, unique=True, validators=[validate_no_mojibake]

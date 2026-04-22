@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Protocol, cast
+
 from django.db.models import Count, F, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
@@ -61,6 +63,10 @@ from .soft_delete import (
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
+
+
+class _AnnotatedPerson(Protocol):
+    credit_count: int
 
 
 class PersonGridSchema(Schema):
@@ -233,7 +239,7 @@ def list_all_people(request):
         if person_id not in person_thumb_model:
             person_thumb_model[person_id] = model_id
     thumb_models = {
-        m.id: m
+        m.pk: m
         for m in MachineModel.objects.filter(
             id__in=set(person_thumb_model.values())
         ).only("id", "extra_data")
@@ -241,8 +247,10 @@ def list_all_people(request):
 
     result = []
     for p in people:
+        annotated_person = cast(_AnnotatedPerson, p)
         thumb = None
-        tm_id = person_thumb_model.get(p.id)
+        person_id = p.pk
+        tm_id = person_thumb_model.get(person_id)
         tm = thumb_models.get(tm_id) if tm_id else None
         if tm and tm.extra_data:
             t, _ = _extract_image_urls(tm.extra_data, min_rank=min_rank)
@@ -253,7 +261,7 @@ def list_all_people(request):
                 "name": p.name,
                 "slug": p.slug,
                 "aliases": [a.value for a in p.aliases.all()],
-                "credit_count": p.credit_count,
+                "credit_count": annotated_person.credit_count,
                 "thumbnail_url": thumb,
             }
         )
