@@ -6,8 +6,6 @@ Auto-discovered via the ``routers`` list convention in config/api.py.
 
 from __future__ import annotations
 
-from typing import Any
-
 from django.db.models import Q
 from django.http import HttpRequest
 from ninja import Router, Schema
@@ -46,7 +44,7 @@ link_types_router = Router(tags=["private"])
 
 
 @link_types_router.get("/", response=list[LinkTypeSchema])
-def list_link_types(request: HttpRequest) -> list[Any]:
+def list_link_types(request: HttpRequest) -> list[dict[str, str]]:
     """Return all link types that support autocomplete, for the type picker."""
     return get_autocomplete_types()
 

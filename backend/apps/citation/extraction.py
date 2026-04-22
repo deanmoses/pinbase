@@ -11,7 +11,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -37,12 +37,16 @@ class ExtractionDraft:
     url: str | None = None  # type-specific — only web drafts
 
 
+class ExtractionMatch(TypedDict):
+    id: int
+    name: str
+    skip_locator: bool
+
+
 @dataclass
 class ExtractionResult:
     draft: ExtractionDraft | None = None
-    match: dict[str, Any] | None = (
-        None  # {"id": int, "name": str, "skip_locator": bool}
-    )
+    match: ExtractionMatch | None = None
     error: str | None = None  # "not_found" | "timeout" | "api_error" | "parse_error"
     confidence: str = ""  # "high" | "low"
     source_api: str = ""  # "openlibrary"
@@ -117,8 +121,8 @@ def extract_isbn(isbn: str) -> ExtractionResult:
     # 2. Cache check
     cache_key = f"extract:v2:isbn:{isbn}"
     cached = cache.get(cache_key)
-    if isinstance(cached, ExtractionResult):
-        return cached
+    if cached is not None:
+        return cast(ExtractionResult, cached)
 
     # 3. Open Library fetch
     deadline = time.monotonic() + _WALL_CLOCK

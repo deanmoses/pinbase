@@ -12,7 +12,7 @@ from uuid import UUID
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
+from django.core.files.storage import Storage, default_storage
 
 from apps.media.constants import STORAGE_PREFIX
 from apps.media.models import MediaRendition
@@ -42,9 +42,9 @@ def build_public_url(storage_key: str) -> str:
     return f"{base}/{storage_key}"
 
 
-def get_media_storage():
+def get_media_storage() -> Storage:
     """Return the configured default storage backend."""
-    return cast(Any, default_storage)
+    return default_storage
 
 
 def upload_to_storage(storage_key: str, data: bytes, content_type: str) -> None:

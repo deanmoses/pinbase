@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Case, F, IntegerField, Prefetch, Q, Value, When
+from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, When
 
 from .models import ChangeSet, Claim
 
@@ -45,7 +45,7 @@ def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
     return winners
 
 
-def build_edit_history(entity: Any) -> list[dict[str, Any]]:
+def build_edit_history(entity: Model) -> list[dict[str, Any]]:
     """Build changeset-grouped edit history with old→new diffs for an entity.
 
     Returns a list of dicts matching ChangeSetSchema, newest first.

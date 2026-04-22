@@ -7,10 +7,11 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 
 from apps.citation.models import CitationSource, CitationSourceLink
+from apps.citation.seed_data.types import SeedSource
 
 # -- Small test-only seed lists ------------------------------------------------
 
-_ONE_FLAT = [
+_ONE_FLAT: list[SeedSource] = [
     {
         "name": "Test Book",
         "source_type": "book",
@@ -22,7 +23,7 @@ _ONE_FLAT = [
     },
 ]
 
-_WITH_HIERARCHY = [
+_WITH_HIERARCHY: list[SeedSource] = [
     {
         "name": "Test Series",
         "source_type": "book",
@@ -52,7 +53,7 @@ _WITH_HIERARCHY = [
     },
 ]
 
-_WITH_LINKS = [
+_WITH_LINKS: list[SeedSource] = [
     {
         "name": "Test Website",
         "source_type": "web",
@@ -214,7 +215,7 @@ class TestSeedRollsBackOnValidationError:
     def test_invalid_data_rolls_back_all(self, db):
         from apps.citation.seeding import ensure_citation_sources
 
-        bad_seed = [
+        bad_seed: list[SeedSource] = [
             {
                 "name": "Good Book",
                 "source_type": "book",
@@ -242,7 +243,7 @@ class TestSeedAmbiguousLookupFails:
         CitationSource.objects.create(name="Ambiguous", source_type="web")
         CitationSource.objects.create(name="Ambiguous", source_type="web")
 
-        seed = [{"name": "Ambiguous", "source_type": "web"}]
+        seed: list[SeedSource] = [{"name": "Ambiguous", "source_type": "web"}]
 
         with pytest.raises(Exception, match=r"[Mm]ultiple"):
             ensure_citation_sources(sources=seed)

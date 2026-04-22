@@ -1,6 +1,8 @@
 """Seed data for book citation sources."""
 
-BOOK_SOURCES: list[dict[str, object]] = [
+from apps.citation.seed_data.types import SeedSource
+
+BOOK_SOURCES: list[SeedSource] = [
     # =====================================================================
     # Multi-edition works (root + children)
     # =====================================================================

@@ -4,7 +4,9 @@ These are publication-level roots only. Individual issues and articles
 will be added as children by contributors.
 """
 
-MAGAZINE_SOURCES: list[dict[str, object]] = [
+from apps.citation.seed_data.types import SeedSource
+
+MAGAZINE_SOURCES: list[SeedSource] = [
     # =====================================================================
     # Pinball-dedicated publications
     # =====================================================================

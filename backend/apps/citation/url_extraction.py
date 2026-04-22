@@ -149,7 +149,7 @@ def extract_url(url: str) -> ExtractionResult:
         return ExtractionResult(
             match={
                 "id": rec.child_id,
-                "name": rec.child_name,
+                "name": rec.child_name or "",
                 "skip_locator": rec.child_skip_locator,
             }
         )

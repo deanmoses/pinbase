@@ -1,6 +1,8 @@
 """Seed data for website citation sources."""
 
-WEBSITE_SOURCES: list[dict[str, object]] = [
+from apps.citation.seed_data.types import SeedSource
+
+WEBSITE_SOURCES: list[SeedSource] = [
     {
         "name": "Internet Pinball Database (IPDB)",
         "source_type": "web",

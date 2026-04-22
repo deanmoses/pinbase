@@ -10,13 +10,13 @@ user) so mistakes fail at call time rather than at constraint time.
 
 from __future__ import annotations
 
-from typing import Any
+from django.contrib.auth.models import User
 
 from .models import ChangeSet, ChangeSetAction, IngestRun
 
 
 def user_changeset(
-    user: Any,
+    user: User,
     *,
     action: ChangeSetAction | str = ChangeSetAction.EDIT,
     note: str = "",

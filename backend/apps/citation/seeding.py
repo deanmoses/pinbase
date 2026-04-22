@@ -8,10 +8,11 @@ from django.core.management.base import CommandError
 from django.db import transaction
 
 from apps.citation.seed_data import SEED_SOURCES as _SEED_SOURCES
+from apps.citation.seed_data.types import SeedSource
 
 
 def ensure_citation_sources(
-    sources: list[dict[str, Any]] | None = None,
+    sources: list[SeedSource] | None = None,
 ) -> dict[str, int]:
     """Seed citation sources. Returns {"created": N, "updated": N, "unchanged": N}.
 
@@ -48,7 +49,7 @@ _SOURCE_FIELDS = frozenset(
 
 
 def _seed_nodes(
-    nodes: list[dict[str, Any]],
+    nodes: list[SeedSource],
     parent: Any,
     counts: dict[str, int],
 ) -> None:
@@ -86,9 +87,9 @@ def _seed_nodes(
             # Compare fields, using parent_id for FK comparison
             defaults = {k: v for k, v in fields.items() if k != "parent"}
             changes = {k: v for k, v in defaults.items() if getattr(obj, k) != v}
-            if fields["parent"] is not None:
-                if obj.parent_id != fields["parent"].pk:
-                    changes["parent"] = fields["parent"]
+            if parent is not None:
+                if obj.parent_id != parent.pk:
+                    changes["parent"] = parent
             elif obj.parent_id is not None:
                 changes["parent"] = None
 
