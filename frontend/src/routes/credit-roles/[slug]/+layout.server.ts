@@ -3,15 +3,15 @@ import { createServerClient } from '$lib/api/server';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ fetch, url, params }) => {
-	const client = createServerClient(fetch, url);
-	const { data, response } = await client.GET('/api/pages/credit-role/{slug}', {
-		params: { path: { slug: params.slug } }
-	});
+  const client = createServerClient(fetch, url);
+  const { data, response } = await client.GET('/api/pages/credit-role/{slug}', {
+    params: { path: { slug: params.slug } },
+  });
 
-	if (!data) {
-		if (response?.status === 404) throw error(404, 'Credit role not found');
-		throw error(response.status || 500, 'Failed to load page');
-	}
+  if (!data) {
+    if (response?.status === 404) throw error(404, 'Credit role not found');
+    throw error(response.status || 500, 'Failed to load page');
+  }
 
-	return { profile: data };
+  return { profile: data };
 };

@@ -1,115 +1,115 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import { diffScalarFields } from '$lib/edit-helpers';
-	import type { SectionEditorProps } from './editor-contract';
-	import {
-		EMPTY_EDIT_OPTIONS,
-		fetchModelEditOptions,
-		type ModelEditOptions
-	} from './model-edit-options';
-	import {
-		saveModelClaims,
-		type FieldErrors,
-		type SaveResult,
-		type SaveMeta
-	} from './save-model-claims';
+  import { untrack } from 'svelte';
+  import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+  import { diffScalarFields } from '$lib/edit-helpers';
+  import type { SectionEditorProps } from './editor-contract';
+  import {
+    EMPTY_EDIT_OPTIONS,
+    fetchModelEditOptions,
+    type ModelEditOptions,
+  } from './model-edit-options';
+  import {
+    saveModelClaims,
+    type FieldErrors,
+    type SaveResult,
+    type SaveMeta,
+  } from './save-model-claims';
 
-	const HIERARCHY_FIELDS = [
-		{ field: 'variant_of', label: 'Variant of' },
-		{ field: 'converted_from', label: 'Converted from' },
-		{ field: 'remake_of', label: 'Remake of' }
-	] as const;
+  const HIERARCHY_FIELDS = [
+    { field: 'variant_of', label: 'Variant of' },
+    { field: 'converted_from', label: 'Converted from' },
+    { field: 'remake_of', label: 'Remake of' },
+  ] as const;
 
-	type HierarchyRef = { slug: string; name?: string } | null | undefined;
+  type HierarchyRef = { slug: string; name?: string } | null | undefined;
 
-	type RelatedModelsModel = {
-		variant_of?: HierarchyRef;
-		converted_from?: HierarchyRef;
-		remake_of?: HierarchyRef;
-	};
+  type RelatedModelsModel = {
+    variant_of?: HierarchyRef;
+    converted_from?: HierarchyRef;
+    remake_of?: HierarchyRef;
+  };
 
-	let {
-		initialData,
-		slug,
-		onsaved,
-		onerror,
-		ondirtychange = () => {}
-	}: SectionEditorProps<RelatedModelsModel> = $props();
+  let {
+    initialData,
+    slug,
+    onsaved,
+    onerror,
+    ondirtychange = () => {},
+  }: SectionEditorProps<RelatedModelsModel> = $props();
 
-	// Flatten nested FK objects to slug strings for form state
-	const original = untrack(() => ({
-		variant_of: initialData.variant_of?.slug ?? '',
-		converted_from: initialData.converted_from?.slug ?? '',
-		remake_of: initialData.remake_of?.slug ?? ''
-	}));
+  // Flatten nested FK objects to slug strings for form state
+  const original = untrack(() => ({
+    variant_of: initialData.variant_of?.slug ?? '',
+    converted_from: initialData.converted_from?.slug ?? '',
+    remake_of: initialData.remake_of?.slug ?? '',
+  }));
 
-	let fieldErrors = $state<FieldErrors>({});
-	let fields = $state({ ...original });
-	let dirty = $derived.by(() => Object.keys(diffScalarFields(fields, original)).length > 0);
+  let fieldErrors = $state<FieldErrors>({});
+  let fields = $state({ ...original });
+  let dirty = $derived.by(() => Object.keys(diffScalarFields(fields, original)).length > 0);
 
-	let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
+  let editOptions = $state<ModelEditOptions>(EMPTY_EDIT_OPTIONS);
 
-	// Filter out the current model from the options list
-	let modelOptions = $derived((editOptions.models ?? []).filter((o) => o.slug !== slug));
+  // Filter out the current model from the options list
+  let modelOptions = $derived((editOptions.models ?? []).filter((o) => o.slug !== slug));
 
-	$effect(() => {
-		fetchModelEditOptions().then((opts) => {
-			editOptions = opts;
-		});
-	});
+  $effect(() => {
+    fetchModelEditOptions().then((opts) => {
+      editOptions = opts;
+    });
+  });
 
-	$effect(() => {
-		ondirtychange(dirty);
-	});
+  $effect(() => {
+    ondirtychange(dirty);
+  });
 
-	export function isDirty(): boolean {
-		return dirty;
-	}
+  export function isDirty(): boolean {
+    return dirty;
+  }
 
-	export async function save(meta?: SaveMeta): Promise<void> {
-		fieldErrors = {};
-		const changed = diffScalarFields(fields, original);
+  export async function save(meta?: SaveMeta): Promise<void> {
+    fieldErrors = {};
+    const changed = diffScalarFields(fields, original);
 
-		if (!dirty) {
-			onsaved();
-			return;
-		}
+    if (!dirty) {
+      onsaved();
+      return;
+    }
 
-		const result: SaveResult = await saveModelClaims(slug, {
-			fields: changed,
-			...meta
-		});
+    const result: SaveResult = await saveModelClaims(slug, {
+      fields: changed,
+      ...meta,
+    });
 
-		if (result.ok) {
-			onsaved();
-		} else {
-			fieldErrors = result.fieldErrors;
-			onerror(
-				Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error
-			);
-		}
-	}
+    if (result.ok) {
+      onsaved();
+    } else {
+      fieldErrors = result.fieldErrors;
+      onerror(
+        Object.keys(result.fieldErrors).length > 0 ? 'Please fix the errors below.' : result.error,
+      );
+    }
+  }
 </script>
 
 <div class="related-models-editor">
-	{#each HIERARCHY_FIELDS as { field, label } (field)}
-		<SearchableSelect
-			{label}
-			options={modelOptions}
-			bind:selected={fields[field]}
-			error={fieldErrors[field] ?? ''}
-			allowZeroCount
-			showCounts={false}
-			placeholder="Search models..."
-		/>
-	{/each}
+  {#each HIERARCHY_FIELDS as { field, label } (field)}
+    <SearchableSelect
+      {label}
+      options={modelOptions}
+      bind:selected={fields[field]}
+      error={fieldErrors[field] ?? ''}
+      allowZeroCount
+      showCounts={false}
+      placeholder="Search models..."
+    />
+  {/each}
 </div>
 
 <style>
-	.related-models-editor {
-		display: flex;
-		flex-direction: column;
-		gap: var(--size-3);
-	}
+  .related-models-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-3);
+  }
 </style>

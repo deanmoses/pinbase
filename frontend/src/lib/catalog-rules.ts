@@ -25,10 +25,10 @@
  * base-model-plus-variants titles.
  */
 export function modelHasTitleOwnedIdentity(model: {
-	title_models: readonly { variants: readonly unknown[] }[];
-	variant_of?: unknown | null;
+  title_models: readonly { variants: readonly unknown[] }[];
+  variant_of?: unknown | null;
 }): boolean {
-	if (model.variant_of) return false;
-	if (model.title_models.length !== 1) return false;
-	return model.title_models[0].variants.length === 0;
+  if (model.variant_of) return false;
+  if (model.title_models.length !== 1) return false;
+  return model.title_models[0].variants.length === 0;
 }

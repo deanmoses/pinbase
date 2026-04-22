@@ -1,0 +1,85 @@
+version: 2
+
+updates:
+  # Python backend — pyproject.toml + uv.lock
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      # Bundle all non-major backend updates into one weekly PR to keep
+      # PR volume manageable. Major bumps still get individual PRs.
+      backend-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Frontend — package.json + pnpm-lock.yaml
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      # Packages that must move together (framework + its ecosystem plugins).
+      svelte:
+        patterns:
+          - "svelte"
+          - "svelte-*"
+          - "@sveltejs/*"
+          - "prettier-plugin-svelte"
+          - "eslint-plugin-svelte"
+      eslint:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@types/eslint"
+          - "typescript-eslint"
+      testing:
+        patterns:
+          - "vitest"
+          - "@testing-library/*"
+          - "jsdom"
+      fortawesome:
+        patterns:
+          - "@fortawesome/*"
+      # Catch-all for remaining non-major updates.
+      frontend-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Dockerfile base images (node, caddy, python)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"

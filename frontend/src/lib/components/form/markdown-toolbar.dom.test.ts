@@ -4,11 +4,11 @@ import { describe, it, expect, vi } from 'vitest';
 import MarkdownTextArea from './MarkdownTextArea.svelte';
 
 vi.mock('$lib/api/link-types', async () => {
-	const f = await import('./link-types-fixtures');
-	return {
-		fetchLinkTypes: vi.fn().mockResolvedValue(f.LINK_TYPES),
-		searchLinkTargets: vi.fn().mockResolvedValue({ results: f.SEARCH_RESULTS })
-	};
+  const f = await import('./link-types-fixtures');
+  return {
+    fetchLinkTypes: vi.fn().mockResolvedValue(f.LINK_TYPES),
+    searchLinkTargets: vi.fn().mockResolvedValue({ results: f.SEARCH_RESULTS }),
+  };
 });
 
 // ---------------------------------------------------------------------------
@@ -16,30 +16,30 @@ vi.mock('$lib/api/link-types', async () => {
 // ---------------------------------------------------------------------------
 
 function renderTextArea(label = 'Description') {
-	return render(MarkdownTextArea, { label });
+  return render(MarkdownTextArea, { label });
 }
 
 function getTextarea() {
-	return screen.getByRole('textbox', { name: /description/i }) as HTMLTextAreaElement;
+  return screen.getByRole('textbox', { name: /description/i }) as HTMLTextAreaElement;
 }
 
 function getToolbarButton(label: string) {
-	return screen.getByRole('button', { name: label });
+  return screen.getByRole('button', { name: label });
 }
 
 /** Set textarea value and selection, then click a toolbar button. */
 async function applyToolbarAction(
-	user: ReturnType<typeof userEvent.setup>,
-	textarea: HTMLTextAreaElement,
-	value: string,
-	selStart: number,
-	selEnd: number,
-	buttonLabel: string
+  user: ReturnType<typeof userEvent.setup>,
+  textarea: HTMLTextAreaElement,
+  value: string,
+  selStart: number,
+  selEnd: number,
+  buttonLabel: string,
 ) {
-	textarea.value = value;
-	textarea.selectionStart = selStart;
-	textarea.selectionEnd = selEnd;
-	await user.click(getToolbarButton(buttonLabel));
+  textarea.value = value;
+  textarea.selectionStart = selStart;
+  textarea.selectionEnd = selEnd;
+  await user.click(getToolbarButton(buttonLabel));
 }
 
 // ---------------------------------------------------------------------------
@@ -47,128 +47,128 @@ async function applyToolbarAction(
 // ---------------------------------------------------------------------------
 
 describe('MarkdownToolbar', () => {
-	it('renders all toolbar buttons', () => {
-		renderTextArea();
-		expect(getToolbarButton('Bold')).toBeInTheDocument();
-		expect(getToolbarButton('Italic')).toBeInTheDocument();
-		expect(getToolbarButton('Link')).toBeInTheDocument();
-		expect(getToolbarButton('Bulleted list')).toBeInTheDocument();
-		expect(getToolbarButton('Numbered list')).toBeInTheDocument();
-		expect(getToolbarButton('Citation')).toBeInTheDocument();
-	});
+  it('renders all toolbar buttons', () => {
+    renderTextArea();
+    expect(getToolbarButton('Bold')).toBeInTheDocument();
+    expect(getToolbarButton('Italic')).toBeInTheDocument();
+    expect(getToolbarButton('Link')).toBeInTheDocument();
+    expect(getToolbarButton('Bulleted list')).toBeInTheDocument();
+    expect(getToolbarButton('Numbered list')).toBeInTheDocument();
+    expect(getToolbarButton('Citation')).toBeInTheDocument();
+  });
 
-	it('has an accessible toolbar role', () => {
-		renderTextArea();
-		expect(screen.getByRole('toolbar', { name: /markdown formatting/i })).toBeInTheDocument();
-	});
+  it('has an accessible toolbar role', () => {
+    renderTextArea();
+    expect(screen.getByRole('toolbar', { name: /markdown formatting/i })).toBeInTheDocument();
+  });
 
-	// -----------------------------------------------------------------------
-	// Bold
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Bold
+  // -----------------------------------------------------------------------
 
-	it('wraps selection with bold markers', async () => {
-		const user = userEvent.setup();
-		renderTextArea();
-		const textarea = getTextarea();
+  it('wraps selection with bold markers', async () => {
+    const user = userEvent.setup();
+    renderTextArea();
+    const textarea = getTextarea();
 
-		await applyToolbarAction(user, textarea, 'hello world', 6, 11, 'Bold');
-		expect(textarea).toHaveValue('hello **world**');
-	});
+    await applyToolbarAction(user, textarea, 'hello world', 6, 11, 'Bold');
+    expect(textarea).toHaveValue('hello **world**');
+  });
 
-	it('inserts empty bold markers with no selection', async () => {
-		const user = userEvent.setup();
-		renderTextArea();
-		const textarea = getTextarea();
+  it('inserts empty bold markers with no selection', async () => {
+    const user = userEvent.setup();
+    renderTextArea();
+    const textarea = getTextarea();
 
-		await applyToolbarAction(user, textarea, 'hello ', 6, 6, 'Bold');
-		expect(textarea).toHaveValue('hello ****');
-	});
+    await applyToolbarAction(user, textarea, 'hello ', 6, 6, 'Bold');
+    expect(textarea).toHaveValue('hello ****');
+  });
 
-	// -----------------------------------------------------------------------
-	// Italic
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Italic
+  // -----------------------------------------------------------------------
 
-	it('wraps selection with italic markers', async () => {
-		const user = userEvent.setup();
-		renderTextArea();
-		const textarea = getTextarea();
+  it('wraps selection with italic markers', async () => {
+    const user = userEvent.setup();
+    renderTextArea();
+    const textarea = getTextarea();
 
-		await applyToolbarAction(user, textarea, 'hello world', 6, 11, 'Italic');
-		expect(textarea).toHaveValue('hello *world*');
-	});
+    await applyToolbarAction(user, textarea, 'hello world', 6, 11, 'Italic');
+    expect(textarea).toHaveValue('hello *world*');
+  });
 
-	// -----------------------------------------------------------------------
-	// Link
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Link
+  // -----------------------------------------------------------------------
 
-	it('opens the wikilink type picker when link is clicked', async () => {
-		renderTextArea();
-		const user = userEvent.setup();
-		const textarea = getTextarea();
+  it('opens the wikilink type picker when link is clicked', async () => {
+    renderTextArea();
+    const user = userEvent.setup();
+    const textarea = getTextarea();
 
-		textarea.focus();
-		await user.click(getToolbarButton('Link'));
+    textarea.focus();
+    await user.click(getToolbarButton('Link'));
 
-		await vi.waitFor(() => {
-			expect(screen.getByText('Insert link')).toBeInTheDocument();
-		});
-	});
+    await vi.waitFor(() => {
+      expect(screen.getByText('Insert link')).toBeInTheDocument();
+    });
+  });
 
-	// -----------------------------------------------------------------------
-	// Bulleted list
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Bulleted list
+  // -----------------------------------------------------------------------
 
-	// -----------------------------------------------------------------------
-	// Bulleted list
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Bulleted list
+  // -----------------------------------------------------------------------
 
-	it('adds bullet prefix to selected lines', async () => {
-		const user = userEvent.setup();
-		renderTextArea();
-		const textarea = getTextarea();
+  it('adds bullet prefix to selected lines', async () => {
+    const user = userEvent.setup();
+    renderTextArea();
+    const textarea = getTextarea();
 
-		await applyToolbarAction(user, textarea, 'alpha\nbeta', 0, 10, 'Bulleted list');
-		expect(textarea).toHaveValue('- alpha\n- beta');
-	});
+    await applyToolbarAction(user, textarea, 'alpha\nbeta', 0, 10, 'Bulleted list');
+    expect(textarea).toHaveValue('- alpha\n- beta');
+  });
 
-	it('removes bullet prefix when already bulleted', async () => {
-		const user = userEvent.setup();
-		renderTextArea();
-		const textarea = getTextarea();
+  it('removes bullet prefix when already bulleted', async () => {
+    const user = userEvent.setup();
+    renderTextArea();
+    const textarea = getTextarea();
 
-		await applyToolbarAction(user, textarea, '- alpha\n- beta', 0, 14, 'Bulleted list');
-		expect(textarea).toHaveValue('alpha\nbeta');
-	});
+    await applyToolbarAction(user, textarea, '- alpha\n- beta', 0, 14, 'Bulleted list');
+    expect(textarea).toHaveValue('alpha\nbeta');
+  });
 
-	// -----------------------------------------------------------------------
-	// Numbered list
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Numbered list
+  // -----------------------------------------------------------------------
 
-	it('adds numbered prefix to selected lines', async () => {
-		const user = userEvent.setup();
-		renderTextArea();
-		const textarea = getTextarea();
+  it('adds numbered prefix to selected lines', async () => {
+    const user = userEvent.setup();
+    renderTextArea();
+    const textarea = getTextarea();
 
-		await applyToolbarAction(user, textarea, 'alpha\nbeta', 0, 10, 'Numbered list');
-		expect(textarea).toHaveValue('1. alpha\n2. beta');
-	});
+    await applyToolbarAction(user, textarea, 'alpha\nbeta', 0, 10, 'Numbered list');
+    expect(textarea).toHaveValue('1. alpha\n2. beta');
+  });
 
-	// -----------------------------------------------------------------------
-	// Citation
-	// -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Citation
+  // -----------------------------------------------------------------------
 
-	it('opens citation flow directly, skipping type picker', async () => {
-		renderTextArea();
-		const user = userEvent.setup();
-		const textarea = getTextarea();
+  it('opens citation flow directly, skipping type picker', async () => {
+    renderTextArea();
+    const user = userEvent.setup();
+    const textarea = getTextarea();
 
-		textarea.focus();
-		await user.click(getToolbarButton('Citation'));
+    textarea.focus();
+    await user.click(getToolbarButton('Citation'));
 
-		// Should skip the type picker ("Insert link") and go straight to citation
-		await vi.waitFor(() => {
-			expect(screen.queryByText('Insert link')).not.toBeInTheDocument();
-			expect(screen.getByText(/search.*source/i)).toBeInTheDocument();
-		});
-	});
+    // Should skip the type picker ("Insert link") and go straight to citation
+    await vi.waitFor(() => {
+      expect(screen.queryByText('Insert link')).not.toBeInTheDocument();
+      expect(screen.getByText(/search.*source/i)).toBeInTheDocument();
+    });
+  });
 });

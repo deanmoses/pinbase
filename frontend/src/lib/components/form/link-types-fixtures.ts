@@ -18,17 +18,17 @@
 import type { LinkType, LinkTarget } from '$lib/api/link-types';
 
 export const LINK_TYPES: LinkType[] = [
-	{ name: 'title', label: 'Title', description: 'Link to a title', flow: 'standard' },
-	{
-		name: 'manufacturer',
-		label: 'Manufacturer',
-		description: 'Link to a manufacturer',
-		flow: 'standard'
-	},
-	{ name: 'cite', label: 'Citation', description: 'Cite a source', flow: 'custom' }
+  { name: 'title', label: 'Title', description: 'Link to a title', flow: 'standard' },
+  {
+    name: 'manufacturer',
+    label: 'Manufacturer',
+    description: 'Link to a manufacturer',
+    flow: 'standard',
+  },
+  { name: 'cite', label: 'Citation', description: 'Cite a source', flow: 'custom' },
 ];
 
 export const SEARCH_RESULTS: LinkTarget[] = [
-	{ ref: 'attack-from-mars', label: 'Attack from Mars' },
-	{ ref: 'medieval-madness', label: 'Medieval Madness' }
+  { ref: 'attack-from-mars', label: 'Attack from Mars' },
+  { ref: 'medieval-madness', label: 'Medieval Madness' },
 ];

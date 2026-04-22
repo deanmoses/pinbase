@@ -10,10 +10,10 @@ import { invalidateAll } from '$app/navigation';
 import client from '$lib/api/client';
 import type { components } from '$lib/api/schema';
 import {
-	parseApiError,
-	type FieldErrors,
-	type SaveMeta,
-	type SaveResult
+  parseApiError,
+  type FieldErrors,
+  type SaveMeta,
+  type SaveResult,
 } from './save-claims-shared';
 
 export { parseApiError };
@@ -27,18 +27,18 @@ type ModelClaimsBody = components['schemas']['ModelClaimPatchSchema'];
  * callers only supply keys they need.
  */
 export type SectionPatchBody = Partial<
-	Pick<
-		ModelClaimsBody,
-		| 'fields'
-		| 'themes'
-		| 'tags'
-		| 'reward_types'
-		| 'gameplay_features'
-		| 'credits'
-		| 'abbreviations'
-		| 'note'
-		| 'citation'
-	>
+  Pick<
+    ModelClaimsBody,
+    | 'fields'
+    | 'themes'
+    | 'tags'
+    | 'reward_types'
+    | 'gameplay_features'
+    | 'credits'
+    | 'abbreviations'
+    | 'note'
+    | 'citation'
+  >
 >;
 
 /**
@@ -46,16 +46,16 @@ export type SectionPatchBody = Partial<
  * Returns `{ ok: true }` on success, or `{ ok: false, error, fieldErrors }` on failure.
  */
 export async function saveModelClaims(slug: string, body: SectionPatchBody): Promise<SaveResult> {
-	const { error } = await client.PATCH('/api/models/{slug}/claims/', {
-		params: { path: { slug } },
-		body: { fields: {}, note: '', ...body }
-	});
+  const { error } = await client.PATCH('/api/models/{slug}/claims/', {
+    params: { path: { slug } },
+    body: { fields: {}, note: '', ...body },
+  });
 
-	if (error) {
-		const parsed = parseApiError(error);
-		return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
-	}
+  if (error) {
+    const parsed = parseApiError(error);
+    return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
+  }
 
-	await invalidateAll();
-	return { ok: true };
+  await invalidateAll();
+  return { ok: true };
 }

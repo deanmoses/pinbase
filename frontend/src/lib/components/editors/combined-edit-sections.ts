@@ -18,43 +18,43 @@ export type SectionTier = 'title' | 'model';
 export type CombinedSectionKey = `${SectionTier}:${string}`;
 
 export type CombinedSectionDef = {
-	key: CombinedSectionKey;
-	tier: SectionTier;
-	segment: string;
-	/** Plain label, used as modal heading (e.g. "Name"). */
-	label: string;
-	/** Label shown in the combined dropdown (disambiguated where title + model collide). */
-	menuLabel: string;
-	showCitation: boolean;
-	showMixedEditWarning: boolean;
-	usesSectionEditorForm: boolean;
+  key: CombinedSectionKey;
+  tier: SectionTier;
+  segment: string;
+  /** Plain label, used as modal heading (e.g. "Name"). */
+  label: string;
+  /** Label shown in the combined dropdown (disambiguated where title + model collide). */
+  menuLabel: string;
+  showCitation: boolean;
+  showMixedEditWarning: boolean;
+  usesSectionEditorForm: boolean;
 };
 
 function toTitleDef(s: TitleEditSectionDef, menuLabel: string): CombinedSectionDef {
-	return {
-		key: `title:${s.key}`,
-		tier: 'title',
-		segment: s.segment,
-		label: s.label,
-		menuLabel,
-		showCitation: s.showCitation,
-		showMixedEditWarning: s.showMixedEditWarning,
-		// All title-tier editors use SectionEditorForm — no immediate-action title editors exist.
-		usesSectionEditorForm: true
-	};
+  return {
+    key: `title:${s.key}`,
+    tier: 'title',
+    segment: s.segment,
+    label: s.label,
+    menuLabel,
+    showCitation: s.showCitation,
+    showMixedEditWarning: s.showMixedEditWarning,
+    // All title-tier editors use SectionEditorForm — no immediate-action title editors exist.
+    usesSectionEditorForm: true,
+  };
 }
 
 function toModelDef(s: ModelEditSectionDef): CombinedSectionDef {
-	return {
-		key: `model:${s.key}`,
-		tier: 'model',
-		segment: s.segment,
-		label: s.label,
-		menuLabel: s.label,
-		showCitation: s.showCitation,
-		showMixedEditWarning: s.showMixedEditWarning,
-		usesSectionEditorForm: s.usesSectionEditorForm
-	};
+  return {
+    key: `model:${s.key}`,
+    tier: 'model',
+    segment: s.segment,
+    label: s.label,
+    menuLabel: s.label,
+    showCitation: s.showCitation,
+    showMixedEditWarning: s.showMixedEditWarning,
+    usesSectionEditorForm: s.usesSectionEditorForm,
+  };
 }
 
 /**
@@ -73,37 +73,37 @@ function toModelDef(s: ModelEditSectionDef): CombinedSectionDef {
  * Multi-model returns the natural title order.
  */
 export function combinedSectionsFor(isSingleModel: boolean): CombinedSectionDef[] {
-	const titleDefs = titleSectionsFor(isSingleModel);
+  const titleDefs = titleSectionsFor(isSingleModel);
 
-	if (!isSingleModel) {
-		return titleDefs.map((s) => toTitleDef(s, s.label));
-	}
+  if (!isSingleModel) {
+    return titleDefs.map((s) => toTitleDef(s, s.label));
+  }
 
-	const titleByKey = new Map(titleDefs.map((s) => [s.key, s]));
-	const modelByKey = new Map(MODEL_EDIT_SECTIONS.map((s) => [s.key, s]));
+  const titleByKey = new Map(titleDefs.map((s) => [s.key, s]));
+  const modelByKey = new Map(MODEL_EDIT_SECTIONS.map((s) => [s.key, s]));
 
-	const requireTitle = (key: TitleEditSectionDef['key']): TitleEditSectionDef => {
-		const s = titleByKey.get(key);
-		if (!s) throw new Error(`TITLE_EDIT_SECTIONS missing required "${key}" entry`);
-		return s;
-	};
-	const requireModel = (key: ModelEditSectionDef['key']): ModelEditSectionDef => {
-		const s = modelByKey.get(key);
-		if (!s) throw new Error(`MODEL_EDIT_SECTIONS missing required "${key}" entry`);
-		return s;
-	};
+  const requireTitle = (key: TitleEditSectionDef['key']): TitleEditSectionDef => {
+    const s = titleByKey.get(key);
+    if (!s) throw new Error(`TITLE_EDIT_SECTIONS missing required "${key}" entry`);
+    return s;
+  };
+  const requireModel = (key: ModelEditSectionDef['key']): ModelEditSectionDef => {
+    const s = modelByKey.get(key);
+    if (!s) throw new Error(`MODEL_EDIT_SECTIONS missing required "${key}" entry`);
+    return s;
+  };
 
-	return [
-		toTitleDef(requireTitle('name'), 'Name'),
-		toModelDef(requireModel('basics')),
-		toModelDef(requireModel('overview')),
-		toTitleDef(requireTitle('franchise'), 'Franchise'),
-		toModelDef(requireModel('technology')),
-		toModelDef(requireModel('features')),
-		toModelDef(requireModel('people')),
-		toModelDef(requireModel('related-models')),
-		toModelDef(requireModel('media')),
-		toModelDef(requireModel('external-data')),
-		toTitleDef(requireTitle('external-data'), 'External Data - Title')
-	];
+  return [
+    toTitleDef(requireTitle('name'), 'Name'),
+    toModelDef(requireModel('basics')),
+    toModelDef(requireModel('overview')),
+    toTitleDef(requireTitle('franchise'), 'Franchise'),
+    toModelDef(requireModel('technology')),
+    toModelDef(requireModel('features')),
+    toModelDef(requireModel('people')),
+    toModelDef(requireModel('related-models')),
+    toModelDef(requireModel('media')),
+    toModelDef(requireModel('external-data')),
+    toTitleDef(requireTitle('external-data'), 'External Data - Title'),
+  ];
 }

@@ -5,13 +5,13 @@
 	bootstrapping the layout. Test-only — do not import from production code.
 -->
 <script lang="ts">
-	import type { ComponentProps } from 'svelte';
-	import { titleAreaEditActionContext } from '$lib/components/editors/edit-action-context';
-	import Page from './+page.svelte';
+  import type { ComponentProps } from 'svelte';
+  import { titleAreaEditActionContext } from '$lib/components/editors/edit-action-context';
+  import Page from './+page.svelte';
 
-	const props: ComponentProps<typeof Page> = $props();
+  const props: ComponentProps<typeof Page> = $props();
 
-	titleAreaEditActionContext.setForTesting(() => undefined);
+  titleAreaEditActionContext.setForTesting(() => undefined);
 </script>
 
 <Page {...props} />

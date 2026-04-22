@@ -1,0 +1,24 @@
+// Knip config. Run manually via `pnpm knip`.
+//
+// NOT wired into CI, and should not be. Knip does not trace type imports from
+// `.svelte` files into `.ts` modules — it reports those exports as unused.
+// The initial cleanup pass removed re-exports that `svelte-check` then flagged
+// as missing (FieldErrors / SaveMeta / SaveResult in save-*-claims.ts
+// consumed by *Editor.svelte). Fine with a human in the loop; fatal under
+// `knip --strict` in CI, which would block legitimate PRs with confusing
+// "unused export" errors.
+//
+// When acting on knip's findings, always run `pnpm check` afterward — it's
+// the only thing that sees the full Svelte-aware graph.
+//
+// Revisit CI gating only if the knip-svelte plugin
+// (https://knip.dev/reference/plugins/svelte) starts tracing types through
+// `.svelte` files. Until then: periodic manual hygiene only.
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // postcss.config.js is loaded by Vite at build time, not imported from src/.
+  "entry": ["postcss.config.js"],
+  // markdownlint-cli2 is invoked by the repo's pre-commit hook
+  // (.pre-commit-config.yaml), which lives outside the JS import graph.
+  "ignoreDependencies": ["markdownlint-cli2"],
+}

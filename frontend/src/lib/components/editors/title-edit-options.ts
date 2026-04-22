@@ -9,40 +9,40 @@
 import client from '$lib/api/client';
 
 export type TitleEditOption = {
-	slug: string;
-	label: string;
-	count: number;
+  slug: string;
+  label: string;
+  count: number;
 };
 
 let cachedFranchises: Promise<TitleEditOption[]> | null = null;
 let cachedSeries: Promise<TitleEditOption[]> | null = null;
 
 export function fetchFranchiseOptions(): Promise<TitleEditOption[]> {
-	if (!cachedFranchises) {
-		cachedFranchises = client
-			.GET('/api/franchises/')
-			.then(({ data }) =>
-				(data ?? []).map((f) => ({ slug: f.slug, label: f.name, count: f.title_count }))
-			)
-			.catch(() => {
-				cachedFranchises = null;
-				return [];
-			});
-	}
-	return cachedFranchises;
+  if (!cachedFranchises) {
+    cachedFranchises = client
+      .GET('/api/franchises/')
+      .then(({ data }) =>
+        (data ?? []).map((f) => ({ slug: f.slug, label: f.name, count: f.title_count })),
+      )
+      .catch(() => {
+        cachedFranchises = null;
+        return [];
+      });
+  }
+  return cachedFranchises;
 }
 
 export function fetchSeriesOptions(): Promise<TitleEditOption[]> {
-	if (!cachedSeries) {
-		cachedSeries = client
-			.GET('/api/series/')
-			.then(({ data }) =>
-				(data ?? []).map((s) => ({ slug: s.slug, label: s.name, count: s.title_count }))
-			)
-			.catch(() => {
-				cachedSeries = null;
-				return [];
-			});
-	}
-	return cachedSeries;
+  if (!cachedSeries) {
+    cachedSeries = client
+      .GET('/api/series/')
+      .then(({ data }) =>
+        (data ?? []).map((s) => ({ slug: s.slug, label: s.name, count: s.title_count })),
+      )
+      .catch(() => {
+        cachedSeries = null;
+        return [];
+      });
+  }
+  return cachedSeries;
 }

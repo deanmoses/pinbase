@@ -1,227 +1,227 @@
 <script lang="ts" generics="TKey extends string">
-	import { untrack, type Snippet } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
-	import { resolveHref } from '$lib/utils';
-	import { SITE_NAME, LAYOUT_BREAKPOINT } from '$lib/constants';
-	import { auth } from '$lib/auth.svelte';
-	import MetaTags from '$lib/components/MetaTags.svelte';
-	import PageActionBar from '$lib/components/PageActionBar.svelte';
-	import RecordDetailShell from '$lib/components/RecordDetailShell.svelte';
-	import SectionEditorHost from '$lib/components/SectionEditorHost.svelte';
-	import { getMenuItemAction, type EditSectionMenuItem } from '$lib/components/edit-section-menu';
-	import type { EditSectionDef } from '$lib/components/editors/edit-section-def';
-	import type {
-		EditActionContext,
-		EditActionFn
-	} from '$lib/components/editors/edit-action-context';
-	import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
-	import { resolveDetailSubrouteMode } from '$lib/detail-subroute-mode';
-	import { isFocusModePath } from '$lib/focus-mode';
-	import { setEntityContext } from '$lib/entity-context';
-	import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
+  import { untrack, type Snippet } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
+  import { resolveHref } from '$lib/utils';
+  import { SITE_NAME, LAYOUT_BREAKPOINT } from '$lib/constants';
+  import { auth } from '$lib/auth.svelte';
+  import MetaTags from '$lib/components/MetaTags.svelte';
+  import PageActionBar from '$lib/components/PageActionBar.svelte';
+  import RecordDetailShell from '$lib/components/RecordDetailShell.svelte';
+  import SectionEditorHost from '$lib/components/SectionEditorHost.svelte';
+  import { getMenuItemAction, type EditSectionMenuItem } from '$lib/components/edit-section-menu';
+  import type { EditSectionDef } from '$lib/components/editors/edit-section-def';
+  import type {
+    EditActionContext,
+    EditActionFn,
+  } from '$lib/components/editors/edit-action-context';
+  import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
+  import { resolveDetailSubrouteMode } from '$lib/detail-subroute-mode';
+  import { isFocusModePath } from '$lib/focus-mode';
+  import { setEntityContext } from '$lib/entity-context';
+  import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
 
-	type SectionDef = EditSectionDef<TKey> & { usesSectionEditorForm: boolean };
+  type SectionDef = EditSectionDef<TKey> & { usesSectionEditorForm: boolean };
 
-	type EditorRefBox = { current: SectionEditorHandle | undefined };
-	type EditorCallbacks = {
-		ref: EditorRefBox;
-		onsaved: () => void;
-		onerror: (msg: string) => void;
-		ondirtychange: (dirty: boolean) => void;
-	};
+  type EditorRefBox = { current: SectionEditorHandle | undefined };
+  type EditorCallbacks = {
+    ref: EditorRefBox;
+    onsaved: () => void;
+    onerror: (msg: string) => void;
+    ondirtychange: (dirty: boolean) => void;
+  };
 
-	let {
-		profile,
-		parentLabel,
-		basePath,
-		parentHref,
-		sections,
-		editor: editorSnippet,
-		immediateEditor,
-		sidebar,
-		aliases = [],
-		editActionContext,
-		deleteHref,
-		createChild,
-		children
-	}: {
-		profile: { name: string; slug: string; description: { text: string } };
-		parentLabel: string;
-		/** Used to construct this entity's own sub-route URLs (edit, sources, etc.). */
-		basePath: string;
-		/**
-		 * Optional override for the parent-link href shown in the page header.
-		 * Defaults to `basePath`. Use this when the entity's list page lives at
-		 * a different URL than its detail routes — e.g. display subtypes are
-		 * listed under `/display-types` but their detail routes remain under
-		 * `/display-subtypes/`.
-		 */
-		parentHref?: string;
-		sections: SectionDef[];
-		editor: Snippet<[TKey, EditorCallbacks]>;
-		immediateEditor?: Snippet;
-		sidebar?: Snippet;
-		aliases?: string[];
-		/**
-		 * Optional context to publish an `editAction(sectionKey)` function the
-		 * detail `+page.svelte` can use for accordion `[edit]` affordances.
-		 * On desktop, the action opens the SectionEditorHost modal; on mobile,
-		 * it navigates to the mobile section route. Auth-gated.
-		 */
-		editActionContext?: EditActionContext<TKey>;
-		/** When set, appends a "Delete X" trailing item to the Edit menu. */
-		deleteHref?: string;
-		/** When set, appends a "New {label}" trailing item to the Edit menu (parent entities only). */
-		createChild?: { href: string; label: string };
-		children: Snippet;
-	} = $props();
+  let {
+    profile,
+    parentLabel,
+    basePath,
+    parentHref,
+    sections,
+    editor: editorSnippet,
+    immediateEditor,
+    sidebar,
+    aliases = [],
+    editActionContext,
+    deleteHref,
+    createChild,
+    children,
+  }: {
+    profile: { name: string; slug: string; description: { text: string } };
+    parentLabel: string;
+    /** Used to construct this entity's own sub-route URLs (edit, sources, etc.). */
+    basePath: string;
+    /**
+     * Optional override for the parent-link href shown in the page header.
+     * Defaults to `basePath`. Use this when the entity's list page lives at
+     * a different URL than its detail routes — e.g. display subtypes are
+     * listed under `/display-types` but their detail routes remain under
+     * `/display-subtypes/`.
+     */
+    parentHref?: string;
+    sections: SectionDef[];
+    editor: Snippet<[TKey, EditorCallbacks]>;
+    immediateEditor?: Snippet;
+    sidebar?: Snippet;
+    aliases?: string[];
+    /**
+     * Optional context to publish an `editAction(sectionKey)` function the
+     * detail `+page.svelte` can use for accordion `[edit]` affordances.
+     * On desktop, the action opens the SectionEditorHost modal; on mobile,
+     * it navigates to the mobile section route. Auth-gated.
+     */
+    editActionContext?: EditActionContext<TKey>;
+    /** When set, appends a "Delete X" trailing item to the Edit menu. */
+    deleteHref?: string;
+    /** When set, appends a "New {label}" trailing item to the Edit menu (parent entities only). */
+    createChild?: { href: string; label: string };
+    children: Snippet;
+  } = $props();
 
-	let slug = $derived(page.params.slug);
+  let slug = $derived(page.params.slug);
 
-	let metaDescription = $derived(profile.description.text || `${profile.name} — ${SITE_NAME}`);
-	let mode = $derived(resolveDetailSubrouteMode(page.url.pathname));
-	let isDetail = $derived(mode === 'detail');
-	let isFocusMode = $derived(isFocusModePath(page.url.pathname));
-	const isMobileFlag = createIsMobileFlag(LAYOUT_BREAKPOINT);
-	let isMobile = $derived(isMobileFlag.current);
-	let editing = $state<TKey | null>(null);
-	let syncEnabled = $derived(!isMobile && !isFocusMode);
-	let lastUrlEditing = $state<TKey | null>(null);
+  let metaDescription = $derived(profile.description.text || `${profile.name} — ${SITE_NAME}`);
+  let mode = $derived(resolveDetailSubrouteMode(page.url.pathname));
+  let isDetail = $derived(mode === 'detail');
+  let isFocusMode = $derived(isFocusModePath(page.url.pathname));
+  const isMobileFlag = createIsMobileFlag(LAYOUT_BREAKPOINT);
+  let isMobile = $derived(isMobileFlag.current);
+  let editing = $state<TKey | null>(null);
+  let syncEnabled = $derived(!isMobile && !isFocusMode);
+  let lastUrlEditing = $state<TKey | null>(null);
 
-	setEntityContext({
-		get name() {
-			return profile.name;
-		},
-		get detailHref() {
-			return resolveHref(`${basePath}/${slug}`);
-		}
-	});
+  setEntityContext({
+    get name() {
+      return profile.name;
+    },
+    get detailHref() {
+      return resolveHref(`${basePath}/${slug}`);
+    },
+  });
 
-	$effect(() => {
-		auth.load();
-	});
+  $effect(() => {
+    auth.load();
+  });
 
-	function updateEditQuery(nextEditing: TKey | null) {
-		const current = page.url.searchParams.get('edit') ?? null;
-		const desired = nextEditing
-			? (sections.find((s) => s.key === nextEditing)?.segment ?? null)
-			: null;
-		if (current === desired) return;
-		const url = new URL(page.url);
-		if (desired) url.searchParams.set('edit', desired);
-		else url.searchParams.delete('edit');
-		goto(`${url.pathname}${url.search}`, { replaceState: true, noScroll: true, keepFocus: true });
-	}
+  function updateEditQuery(nextEditing: TKey | null) {
+    const current = page.url.searchParams.get('edit') ?? null;
+    const desired = nextEditing
+      ? (sections.find((s) => s.key === nextEditing)?.segment ?? null)
+      : null;
+    if (current === desired) return;
+    const url = new URL(page.url);
+    if (desired) url.searchParams.set('edit', desired);
+    else url.searchParams.delete('edit');
+    goto(`${url.pathname}${url.search}`, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
-	function resolveEditingFromUrl(): TKey | null {
-		if (!syncEnabled) return null;
-		const segment = page.url.searchParams.get('edit');
-		const matched = segment ? sections.find((s) => s.segment === segment) : undefined;
-		return matched?.key ?? null;
-	}
+  function resolveEditingFromUrl(): TKey | null {
+    if (!syncEnabled) return null;
+    const segment = page.url.searchParams.get('edit');
+    const matched = segment ? sections.find((s) => s.segment === segment) : undefined;
+    return matched?.key ?? null;
+  }
 
-	// URL → state. Must assign `editing` unconditionally. An `if (editing !==
-	// nextEditing)` guard turns `editing` into a read-dep of this effect,
-	// which re-runs on local writes and reverts the user's click in the same
-	// tick. Same-value $state writes are already no-ops.
-	$effect(() => {
-		const nextEditing = resolveEditingFromUrl();
-		lastUrlEditing = nextEditing;
-		editing = nextEditing;
-	});
+  // URL → state. Must assign `editing` unconditionally. An `if (editing !==
+  // nextEditing)` guard turns `editing` into a read-dep of this effect,
+  // which re-runs on local writes and reverts the user's click in the same
+  // tick. Same-value $state writes are already no-ops.
+  $effect(() => {
+    const nextEditing = resolveEditingFromUrl();
+    lastUrlEditing = nextEditing;
+    editing = nextEditing;
+  });
 
-	$effect(() => {
-		if (!syncEnabled) return;
-		if (editing === lastUrlEditing) return;
-		lastUrlEditing = editing;
-		updateEditQuery(editing);
-	});
+  $effect(() => {
+    if (!syncEnabled) return;
+    if (editing === lastUrlEditing) return;
+    lastUrlEditing = editing;
+    updateEditQuery(editing);
+  });
 
-	let editSections: EditSectionMenuItem[] = $derived([
-		...sections.map(
-			(section): EditSectionMenuItem =>
-				isMobile
-					? {
-							key: section.key,
-							label: section.label,
-							href: resolveHref(`${basePath}/${slug}/edit/${section.segment}`)
-						}
-					: {
-							key: section.key,
-							label: section.label,
-							onclick: () => (editing = section.key)
-						}
-		),
-		// Trailing items — always hrefs, mode-agnostic. Create-child before
-		// Delete so the destructive action is last.
-		...(createChild
-			? [
-					{
-						key: 'create-child',
-						label: `New ${createChild.label}`,
-						href: resolveHref(createChild.href)
-					} as EditSectionMenuItem
-				]
-			: []),
-		...(deleteHref
-			? [
-					{
-						key: 'delete',
-						label: `Delete ${profile.name}`,
-						href: resolveHref(deleteHref),
-						separatorBefore: true
-					} as EditSectionMenuItem
-				]
-			: [])
-	]);
+  let editSections: EditSectionMenuItem[] = $derived([
+    ...sections.map(
+      (section): EditSectionMenuItem =>
+        isMobile
+          ? {
+              key: section.key,
+              label: section.label,
+              href: resolveHref(`${basePath}/${slug}/edit/${section.segment}`),
+            }
+          : {
+              key: section.key,
+              label: section.label,
+              onclick: () => (editing = section.key),
+            },
+    ),
+    // Trailing items — always hrefs, mode-agnostic. Create-child before
+    // Delete so the destructive action is last.
+    ...(createChild
+      ? [
+          {
+            key: 'create-child',
+            label: `New ${createChild.label}`,
+            href: resolveHref(createChild.href),
+          } as EditSectionMenuItem,
+        ]
+      : []),
+    ...(deleteHref
+      ? [
+          {
+            key: 'delete',
+            label: `Delete ${profile.name}`,
+            href: resolveHref(deleteHref),
+            separatorBefore: true,
+          } as EditSectionMenuItem,
+        ]
+      : []),
+  ]);
 
-	const editAction: EditActionFn<TKey> = (key) => {
-		if (!auth.isAuthenticated) return undefined;
-		return getMenuItemAction(editSections, key, (href) => goto(href));
-	};
+  const editAction: EditActionFn<TKey> = (key) => {
+    if (!auth.isAuthenticated) return undefined;
+    return getMenuItemAction(editSections, key, (href) => goto(href));
+  };
 
-	// setContext must run during initialization (not in $effect) for descendants
-	// to see it. The prop's reference is stable for the layout's lifetime, so
-	// `untrack` is correct here — we don't want a reactivity dependency.
-	untrack(() => {
-		if (editActionContext) editActionContext.set(editAction);
-	});
+  // setContext must run during initialization (not in $effect) for descendants
+  // to see it. The prop's reference is stable for the layout's lifetime, so
+  // `untrack` is correct here — we don't want a reactivity dependency.
+  untrack(() => {
+    if (editActionContext) editActionContext.set(editAction);
+  });
 </script>
 
 <MetaTags title={profile.name} description={metaDescription} url={page.url.href} />
 
 {#if isFocusMode}
-	{@render children()}
+  {@render children()}
 {:else}
-	{#snippet actionBar()}
-		<PageActionBar
-			detailHref={isDetail ? undefined : resolveHref(`${basePath}/${slug}`)}
-			editSections={auth.isAuthenticated ? editSections : undefined}
-			historyHref={resolveHref(`${basePath}/${slug}/edit-history`)}
-			sourcesHref={resolveHref(`${basePath}/${slug}/sources`)}
-		/>
-	{/snippet}
+  {#snippet actionBar()}
+    <PageActionBar
+      detailHref={isDetail ? undefined : resolveHref(`${basePath}/${slug}`)}
+      editSections={auth.isAuthenticated ? editSections : undefined}
+      historyHref={resolveHref(`${basePath}/${slug}/edit-history`)}
+      sourcesHref={resolveHref(`${basePath}/${slug}/sources`)}
+    />
+  {/snippet}
 
-	{#snippet main()}
-		{@render children()}
-	{/snippet}
+  {#snippet main()}
+    {@render children()}
+  {/snippet}
 
-	<RecordDetailShell
-		name={profile.name}
-		parentLink={{ text: parentLabel, href: resolveHref(parentHref ?? basePath) }}
-		{aliases}
-		{actionBar}
-		{main}
-		{sidebar}
-		sidebarDesktopOnly={isDetail}
-	/>
+  <RecordDetailShell
+    name={profile.name}
+    parentLink={{ text: parentLabel, href: resolveHref(parentHref ?? basePath) }}
+    {aliases}
+    {actionBar}
+    {main}
+    {sidebar}
+    sidebarDesktopOnly={isDetail}
+  />
 
-	<SectionEditorHost
-		bind:editingKey={editing}
-		{sections}
-		switcherItems={editSections}
-		editor={editorSnippet}
-		{immediateEditor}
-	/>
+  <SectionEditorHost
+    bind:editingKey={editing}
+    {sections}
+    switcherItems={editSections}
+    editor={editorSnippet}
+    {immediateEditor}
+  />
 {/if}

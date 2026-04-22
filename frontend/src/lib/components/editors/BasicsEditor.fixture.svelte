@@ -1,48 +1,48 @@
 <script lang="ts">
-	import BasicsEditor from './BasicsEditor.svelte';
+  import BasicsEditor from './BasicsEditor.svelte';
 
-	type BasicsModel = {
-		year?: number | null;
-		month?: number | null;
-		title?: { slug: string } | null;
-		corporate_entity?: { slug: string } | null;
-	};
+  type BasicsModel = {
+    year?: number | null;
+    month?: number | null;
+    title?: { slug: string } | null;
+    corporate_entity?: { slug: string } | null;
+  };
 
-	let {
-		initialData,
-		slug = 'medieval-madness',
-		slim = false
-	}: {
-		initialData: BasicsModel;
-		slug?: string;
-		slim?: boolean;
-	} = $props();
+  let {
+    initialData,
+    slug = 'medieval-madness',
+    slim = false,
+  }: {
+    initialData: BasicsModel;
+    slug?: string;
+    slim?: boolean;
+  } = $props();
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
 
-	let editorRef:
-		| {
-				save(meta?: unknown): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(meta?: unknown): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 </script>
 
 <BasicsEditor
-	bind:this={editorRef}
-	{initialData}
-	{slug}
-	{slim}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
-	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
+  bind:this={editorRef}
+  {initialData}
+  {slug}
+  {slim}
+  onsaved={() => savedCount++}
+  onerror={(message) => (lastError = message)}
+  ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 

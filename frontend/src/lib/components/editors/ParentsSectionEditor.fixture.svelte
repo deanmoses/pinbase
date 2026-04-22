@@ -1,59 +1,59 @@
 <script lang="ts">
-	import ParentsSectionEditor from './ParentsSectionEditor.svelte';
-	import type { SaveMeta, SaveResult } from './save-claims-shared';
+  import ParentsSectionEditor from './ParentsSectionEditor.svelte';
+  import type { SaveMeta, SaveResult } from './save-claims-shared';
 
-	let {
-		initialData = { parents: [{ slug: 'physical-feature', name: 'Physical Feature' }] },
-		slug = 'pop-bumper',
-		saveResult = { ok: true } as SaveResult,
-		options = [
-			{ slug: 'pop-bumper', label: 'Pop Bumper', count: 50 },
-			{ slug: 'physical-feature', label: 'Physical Feature', count: 100 },
-			{ slug: 'spinner', label: 'Spinner', count: 25 }
-		]
-	}: {
-		initialData?: { parents: { slug: string; name?: string }[] };
-		slug?: string;
-		saveResult?: SaveResult;
-		options?: { slug: string; label: string; count?: number }[];
-	} = $props();
+  let {
+    initialData = { parents: [{ slug: 'physical-feature', name: 'Physical Feature' }] },
+    slug = 'pop-bumper',
+    saveResult = { ok: true } as SaveResult,
+    options = [
+      { slug: 'pop-bumper', label: 'Pop Bumper', count: 50 },
+      { slug: 'physical-feature', label: 'Physical Feature', count: 100 },
+      { slug: 'spinner', label: 'Spinner', count: 25 },
+    ],
+  }: {
+    initialData?: { parents: { slug: string; name?: string }[] };
+    slug?: string;
+    saveResult?: SaveResult;
+    options?: { slug: string; label: string; count?: number }[];
+  } = $props();
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
-	let lastSaveBody = $state<unknown>(null);
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
+  let lastSaveBody = $state<unknown>(null);
 
-	let editorRef:
-		| {
-				save(meta?: SaveMeta): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(meta?: SaveMeta): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 
-	async function save(_slug: string, body: { parents: string[] } & SaveMeta): Promise<SaveResult> {
-		lastSaveBody = body;
-		return saveResult;
-	}
+  async function save(_slug: string, body: { parents: string[] } & SaveMeta): Promise<SaveResult> {
+    lastSaveBody = body;
+    return saveResult;
+  }
 
-	async function optionsLoader() {
-		return options;
-	}
+  async function optionsLoader() {
+    return options;
+  }
 </script>
 
 <ParentsSectionEditor
-	bind:this={editorRef}
-	{initialData}
-	{slug}
-	{save}
-	{optionsLoader}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
-	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
+  bind:this={editorRef}
+  {initialData}
+  {slug}
+  {save}
+  {optionsLoader}
+  onsaved={() => savedCount++}
+  onerror={(message) => (lastError = message)}
+  ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 

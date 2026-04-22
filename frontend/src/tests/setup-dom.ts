@@ -13,12 +13,12 @@ document.execCommand = () => false;
 // module-eval time for a correct first-paint value, so any test that
 // touches a detail layout needs it defined.
 window.matchMedia ??= (() => ({
-	matches: false,
-	addEventListener: () => {},
-	removeEventListener: () => {},
-	addListener: () => {},
-	removeListener: () => {},
-	dispatchEvent: () => false,
-	media: '',
-	onchange: null
+  matches: false,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  addListener: () => {},
+  removeListener: () => {},
+  dispatchEvent: () => false,
+  media: '',
+  onchange: null,
 })) as unknown as typeof window.matchMedia;

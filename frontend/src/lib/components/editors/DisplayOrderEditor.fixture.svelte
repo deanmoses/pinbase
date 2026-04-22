@@ -1,51 +1,51 @@
 <script lang="ts">
-	import DisplayOrderEditor from './DisplayOrderEditor.svelte';
-	import type { SaveMeta, SaveResult } from './save-claims-shared';
+  import DisplayOrderEditor from './DisplayOrderEditor.svelte';
+  import type { SaveMeta, SaveResult } from './save-claims-shared';
 
-	let {
-		initialData = 1 as number | null,
-		slug = 'cabinet-style',
-		saveResult = { ok: true } as SaveResult
-	}: {
-		initialData?: number | null;
-		slug?: string;
-		saveResult?: SaveResult;
-	} = $props();
+  let {
+    initialData = 1 as number | null,
+    slug = 'cabinet-style',
+    saveResult = { ok: true } as SaveResult,
+  }: {
+    initialData?: number | null;
+    slug?: string;
+    saveResult?: SaveResult;
+  } = $props();
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
-	let lastSaveBody = $state<unknown>(null);
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
+  let lastSaveBody = $state<unknown>(null);
 
-	let editorRef:
-		| {
-				save(meta?: SaveMeta): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(meta?: SaveMeta): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 
-	async function save(
-		_slug: string,
-		body: { fields: Partial<{ display_order: string | number }> } & SaveMeta
-	): Promise<SaveResult> {
-		lastSaveBody = body;
-		return saveResult;
-	}
+  async function save(
+    _slug: string,
+    body: { fields: Partial<{ display_order: string | number }> } & SaveMeta,
+  ): Promise<SaveResult> {
+    lastSaveBody = body;
+    return saveResult;
+  }
 </script>
 
 <DisplayOrderEditor
-	bind:this={editorRef}
-	{initialData}
-	{slug}
-	{save}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
-	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
+  bind:this={editorRef}
+  {initialData}
+  {slug}
+  {save}
+  onsaved={() => savedCount++}
+  onerror={(message) => (lastError = message)}
+  ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 

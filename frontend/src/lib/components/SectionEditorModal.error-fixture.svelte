@@ -1,9 +1,9 @@
 <script lang="ts">
-	import SectionEditorModal from './SectionEditorModal.svelte';
+  import SectionEditorModal from './SectionEditorModal.svelte';
 
-	let { error = '' }: { error?: string } = $props();
+  let { error = '' }: { error?: string } = $props();
 </script>
 
 <SectionEditorModal heading="Overview" open={true} {error} onclose={() => {}} onsave={() => {}}>
-	<p>Editor content</p>
+  <p>Editor content</p>
 </SectionEditorModal>

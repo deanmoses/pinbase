@@ -8,7 +8,7 @@
  * `/titles/sources`) must NOT classify as that subroute.
  */
 export function matchDetailSubroute(pathname: string): string | null {
-	const segments = pathname.split('/').filter(Boolean);
-	if (segments.length < 3) return null;
-	return segments[2];
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length < 3) return null;
+  return segments[2];
 }

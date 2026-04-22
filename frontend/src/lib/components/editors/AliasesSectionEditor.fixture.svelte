@@ -1,48 +1,48 @@
 <script lang="ts">
-	import AliasesSectionEditor from './AliasesSectionEditor.svelte';
-	import type { SaveMeta, SaveResult } from './save-claims-shared';
+  import AliasesSectionEditor from './AliasesSectionEditor.svelte';
+  import type { SaveMeta, SaveResult } from './save-claims-shared';
 
-	let {
-		initialData = { aliases: ['Slingshot'] },
-		slug = 'pop-bumper',
-		saveResult = { ok: true } as SaveResult
-	}: {
-		initialData?: { aliases: string[] };
-		slug?: string;
-		saveResult?: SaveResult;
-	} = $props();
+  let {
+    initialData = { aliases: ['Slingshot'] },
+    slug = 'pop-bumper',
+    saveResult = { ok: true } as SaveResult,
+  }: {
+    initialData?: { aliases: string[] };
+    slug?: string;
+    saveResult?: SaveResult;
+  } = $props();
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
-	let lastSaveBody = $state<unknown>(null);
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
+  let lastSaveBody = $state<unknown>(null);
 
-	let editorRef:
-		| {
-				save(meta?: SaveMeta): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(meta?: SaveMeta): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 
-	async function save(_slug: string, body: { aliases: string[] } & SaveMeta): Promise<SaveResult> {
-		lastSaveBody = body;
-		return saveResult;
-	}
+  async function save(_slug: string, body: { aliases: string[] } & SaveMeta): Promise<SaveResult> {
+    lastSaveBody = body;
+    return saveResult;
+  }
 </script>
 
 <AliasesSectionEditor
-	bind:this={editorRef}
-	{initialData}
-	{slug}
-	{save}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
-	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
+  bind:this={editorRef}
+  {initialData}
+  {slug}
+  {save}
+  onsaved={() => savedCount++}
+  onerror={(message) => (lastError = message)}
+  ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 <button type="button" onclick={() => editorRef?.save({ note: 'rationale' })}>Save with note</button>

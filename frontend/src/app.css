@@ -11,12 +11,12 @@
    TYPOGRAPHY
    ======================================== */
 :root {
-	--font-body: 'Lora', serif;
-	--font-mono: var(--font-mono, monospace);
+  --font-body: 'Lora', serif;
+  --font-mono: var(--font-mono, monospace);
 }
 
 html {
-	font-family: var(--font-body);
+  font-family: var(--font-body);
 }
 
 /* ========================================
@@ -24,36 +24,36 @@ html {
    Warm off-white palette (from flipfix)
    ======================================== */
 :root {
-	/* Surfaces */
-	--color-background: #fbf7f0;
-	--color-surface: #ffffff;
-	--color-border: #d1d5db;
-	--color-border-soft: #e7e5e4;
+  /* Surfaces */
+  --color-background: #fbf7f0;
+  --color-surface: #ffffff;
+  --color-border: #d1d5db;
+  --color-border-soft: #e7e5e4;
 
-	/* Text */
-	--color-text-primary: #333333;
-	--color-text-muted: #6b7280;
+  /* Text */
+  --color-text-primary: #333333;
+  --color-text-muted: #6b7280;
 
-	/* Accent */
-	--color-accent: #0078d4;
-	--color-accent-hover: #026ec1;
+  /* Accent */
+  --color-accent: #0078d4;
+  --color-accent-hover: #026ec1;
 
-	/* Semantic */
-	--color-success: #16a34a;
-	--color-error: #dc2626;
-	--color-danger: var(--color-error);
-	--color-warning: #b45309;
-	--color-link: #2563eb;
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-danger: var(--color-error);
+  --color-warning: #b45309;
+  --color-link: #2563eb;
 
-	/* Diff */
-	--color-diff-ins-bg: rgba(22, 163, 74, 0.15);
-	--color-diff-del-bg: rgba(220, 38, 38, 0.15);
+  /* Diff */
+  --color-diff-ins-bg: rgba(22, 163, 74, 0.15);
+  --color-diff-del-bg: rgba(220, 38, 38, 0.15);
 
-	/* Inputs */
-	--color-input-bg: #ffffff;
-	--color-input-border: #d1d5db;
-	--color-input-focus: #0078d4;
-	--color-input-focus-ring: rgba(59, 130, 246, 0.15);
+  /* Inputs */
+  --color-input-bg: #ffffff;
+  --color-input-border: #d1d5db;
+  --color-input-focus: #0078d4;
+  --color-input-focus-ring: rgba(59, 130, 246, 0.15);
 }
 
 /* ========================================
@@ -61,38 +61,38 @@ html {
    Based on VS Code's "Dark Modern": https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json
    ======================================== */
 @media (prefers-color-scheme: dark) {
-	:root {
-		/* Surfaces */
-		--color-background: #1f1f1f;
-		--color-surface: #252525;
-		--color-border: #616161;
-		--color-border-soft: #2b2b2b;
+  :root {
+    /* Surfaces */
+    --color-background: #1f1f1f;
+    --color-surface: #252525;
+    --color-border: #616161;
+    --color-border-soft: #2b2b2b;
 
-		/* Text */
-		--color-text-primary: #cccccc;
-		--color-text-muted: #9ca3af;
+    /* Text */
+    --color-text-primary: #cccccc;
+    --color-text-muted: #9ca3af;
 
-		/* Accent */
-		--color-accent: #0078d4;
-		--color-accent-hover: #026ec1;
+    /* Accent */
+    --color-accent: #0078d4;
+    --color-accent-hover: #026ec1;
 
-		/* Semantic */
-		--color-success: #2ea043;
-		--color-error: #f85149;
-		--color-danger: var(--color-error);
-		--color-warning: #fbbf24;
-		--color-link: #4daafc;
+    /* Semantic */
+    --color-success: #2ea043;
+    --color-error: #f85149;
+    --color-danger: var(--color-error);
+    --color-warning: #fbbf24;
+    --color-link: #4daafc;
 
-		/* Diff */
-		--color-diff-ins-bg: rgba(46, 160, 67, 0.25);
-		--color-diff-del-bg: rgba(248, 81, 73, 0.25);
+    /* Diff */
+    --color-diff-ins-bg: rgba(46, 160, 67, 0.25);
+    --color-diff-del-bg: rgba(248, 81, 73, 0.25);
 
-		/* Inputs */
-		--color-input-bg: #2b2b2b;
-		--color-input-border: #404040;
-		--color-input-focus: #0078d4;
-		--color-input-focus-ring: rgba(0, 120, 212, 0.25);
-	}
+    /* Inputs */
+    --color-input-bg: #2b2b2b;
+    --color-input-border: #404040;
+    --color-input-focus: #0078d4;
+    --color-input-focus-ring: rgba(0, 120, 212, 0.25);
+  }
 }
 
 /* ========================================
@@ -100,22 +100,22 @@ html {
    Override Open Props normalize with our tokens
    ======================================== */
 html {
-	background-color: var(--color-background);
-	color: var(--color-text-primary);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
 }
 
 a {
-	color: var(--color-link);
-	text-decoration: none;
+  color: var(--color-link);
+  text-decoration: none;
 }
 
 a:hover {
-	color: var(--color-accent-hover);
-	text-decoration: underline;
+  color: var(--color-accent-hover);
+  text-decoration: underline;
 }
 
 :where(li, dd, figcaption) {
-	max-inline-size: none;
+  max-inline-size: none;
 }
 
 /* ========================================
@@ -123,81 +123,81 @@ a:hover {
    Whitelist of text-like input types only.
    ======================================== */
 :where(
-	input:not([type]),
-	input[type='text'],
-	input[type='search'],
-	input[type='email'],
-	input[type='url'],
-	input[type='password'],
-	input[type='number'],
-	input[type='tel'],
-	textarea
+  input:not([type]),
+  input[type='text'],
+  input[type='search'],
+  input[type='email'],
+  input[type='url'],
+  input[type='password'],
+  input[type='number'],
+  input[type='tel'],
+  textarea
 ) {
-	width: 100%;
-	padding: var(--size-2) var(--size-3);
-	font-size: var(--font-size-1);
-	font-family: inherit;
-	background-color: var(--color-input-bg);
-	color: var(--color-text-primary);
-	border: 1px solid var(--color-input-border);
-	border-radius: var(--radius-2);
+  width: 100%;
+  padding: var(--size-2) var(--size-3);
+  font-size: var(--font-size-1);
+  font-family: inherit;
+  background-color: var(--color-input-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-2);
 }
 
 :where(textarea) {
-	resize: vertical;
+  resize: vertical;
 }
 
 :where(select) {
-	padding: var(--size-2) var(--size-3);
-	font-size: var(--font-size-1);
-	font-family: inherit;
-	background-color: var(--color-input-bg);
-	color: var(--color-text-primary);
-	border: 1px solid var(--color-input-border);
-	border-radius: var(--radius-2);
+  padding: var(--size-2) var(--size-3);
+  font-size: var(--font-size-1);
+  font-family: inherit;
+  background-color: var(--color-input-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-2);
 }
 
 :where(
-	input:not([type]),
-	input[type='text'],
-	input[type='search'],
-	input[type='email'],
-	input[type='url'],
-	input[type='password'],
-	input[type='number'],
-	input[type='tel'],
-	textarea,
-	select
+  input:not([type]),
+  input[type='text'],
+  input[type='search'],
+  input[type='email'],
+  input[type='url'],
+  input[type='password'],
+  input[type='number'],
+  input[type='tel'],
+  textarea,
+  select
 ):focus {
-	outline: none;
-	border-color: var(--color-input-focus);
-	box-shadow: 0 0 0 3px var(--color-input-focus-ring);
+  outline: none;
+  border-color: var(--color-input-focus);
+  box-shadow: 0 0 0 3px var(--color-input-focus-ring);
 }
 
 :where(input, textarea)::placeholder {
-	color: var(--color-text-muted);
+  color: var(--color-text-muted);
 }
 
 :where(input, textarea, select)[aria-invalid='true'] {
-	border-color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 /* ========================================
    UTILITY
    ======================================== */
 .visually-hidden {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	padding: 0;
-	margin: -1px;
-	overflow: hidden;
-	clip: rect(0, 0, 0, 0);
-	white-space: nowrap;
-	border-width: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 .muted {
-	color: var(--color-text-muted);
-	font-size: var(--font-size-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-0);
 }

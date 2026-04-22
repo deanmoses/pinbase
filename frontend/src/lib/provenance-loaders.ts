@@ -10,39 +10,39 @@ import { createServerClient } from '$lib/api/server';
 import type { CatalogEntityKey } from '$lib/api/catalog-meta';
 
 type LoadEvent = {
-	fetch: typeof fetch;
-	url: URL;
+  fetch: typeof fetch;
+  url: URL;
 };
 
 export async function loadEditHistory(
-	event: LoadEvent,
-	entityType: CatalogEntityKey,
-	slug: string
+  event: LoadEvent,
+  entityType: CatalogEntityKey,
+  slug: string,
 ) {
-	const client = createServerClient(event.fetch, event.url);
-	const { data, response } = await client.GET('/api/pages/edit-history/{entity_type}/{slug}/', {
-		params: { path: { entity_type: entityType, slug } }
-	});
+  const client = createServerClient(event.fetch, event.url);
+  const { data, response } = await client.GET('/api/pages/edit-history/{entity_type}/{slug}/', {
+    params: { path: { entity_type: entityType, slug } },
+  });
 
-	if (!data) {
-		throw error(response.status || 500, 'Failed to load edit history');
-	}
+  if (!data) {
+    throw error(response.status || 500, 'Failed to load edit history');
+  }
 
-	return { changesets: data };
+  return { changesets: data };
 }
 
 export async function loadSources(event: LoadEvent, entityType: CatalogEntityKey, slug: string) {
-	const client = createServerClient(event.fetch, event.url);
-	const { data, response } = await client.GET('/api/pages/sources/{entity_type}/{slug}/', {
-		params: { path: { entity_type: entityType, slug } }
-	});
+  const client = createServerClient(event.fetch, event.url);
+  const { data, response } = await client.GET('/api/pages/sources/{entity_type}/{slug}/', {
+    params: { path: { entity_type: entityType, slug } },
+  });
 
-	if (!data) {
-		throw error(response.status || 500, 'Failed to load sources');
-	}
+  if (!data) {
+    throw error(response.status || 500, 'Failed to load sources');
+  }
 
-	return {
-		sources: data.sources,
-		evidence: data.evidence
-	};
+  return {
+    sources: data.sources,
+    evidence: data.evidence,
+  };
 }

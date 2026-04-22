@@ -14,32 +14,32 @@
  * result is silently discarded.
  */
 export function createDebouncedSearch<T>(
-	fetchFn: (query: string) => Promise<T>,
-	onResults: (results: T) => void,
-	delay: number = 200
+  fetchFn: (query: string) => Promise<T>,
+  onResults: (results: T) => void,
+  delay: number = 200,
 ) {
-	let generation = 0;
-	let timer: ReturnType<typeof setTimeout> | undefined;
+  let generation = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
-	return {
-		search(query: string) {
-			clearTimeout(timer);
-			const gen = ++generation;
-			const run = async () => {
-				const results = await fetchFn(query);
-				if (gen === generation) onResults(results);
-			};
-			if (query) {
-				timer = setTimeout(run, delay);
-			} else {
-				run();
-			}
-		},
-		cancel() {
-			clearTimeout(timer);
-			generation++;
-		}
-	};
+  return {
+    search(query: string) {
+      clearTimeout(timer);
+      const gen = ++generation;
+      const run = async () => {
+        const results = await fetchFn(query);
+        if (gen === generation) onResults(results);
+      };
+      if (query) {
+        timer = setTimeout(run, delay);
+      } else {
+        run();
+      }
+    },
+    cancel() {
+      clearTimeout(timer);
+      generation++;
+    },
+  };
 }
 
 /**
@@ -52,13 +52,13 @@ export function createDebouncedSearch<T>(
  *   "The Encyclopedia of Pinball — 1996"
  */
 export function formatCitationResult(source: {
-	name: string;
-	author: string;
-	year?: number | null;
+  name: string;
+  author: string;
+  year?: number | null;
 }): string {
-	const detail: string[] = [];
-	if (source.author) detail.push(source.author);
-	if (source.year != null) detail.push(String(source.year));
-	if (detail.length === 0) return source.name;
-	return `${source.name} \u2014 ${detail.join(', ')}`;
+  const detail: string[] = [];
+  if (source.author) detail.push(source.author);
+  if (source.year != null) detail.push(String(source.year));
+  if (detail.length === 0) return source.name;
+  return `${source.name} \u2014 ${detail.join(', ')}`;
 }

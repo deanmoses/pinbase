@@ -10,15 +10,15 @@ import type { InlineCitation } from './citation-tooltip';
  * Used by ReferencesSection to render one entry per unique reference number.
  */
 export function deduplicateCitations(citations: InlineCitation[]): InlineCitation[] {
-	const seen = new Set<number>();
-	const result: InlineCitation[] = [];
-	for (const cite of citations) {
-		if (!seen.has(cite.index)) {
-			seen.add(cite.index);
-			result.push(cite);
-		}
-	}
-	return result;
+  const seen = new Set<number>();
+  const result: InlineCitation[] = [];
+  for (const cite of citations) {
+    if (!seen.has(cite.index)) {
+      seen.add(cite.index);
+      result.push(cite);
+    }
+  }
+  return result;
 }
 
 /**
@@ -26,25 +26,25 @@ export function deduplicateCitations(citations: InlineCitation[]): InlineCitatio
  * Used by CitationTooltip to populate its data from props instead of fetching.
  */
 export function buildCitationMap(citations: InlineCitation[]): Map<number, InlineCitation> {
-	const map = new Map<number, InlineCitation>();
-	for (const cite of citations) {
-		map.set(cite.id, cite);
-	}
-	return map;
+  const map = new Map<number, InlineCitation>();
+  for (const cite of citations) {
+    map.set(cite.id, cite);
+  }
+  return map;
 }
 
 /**
  * Find a reference entry element by its index within a container.
  */
 export function findRefEntry(container: Element, index: number): Element | null {
-	return container.querySelector(`[data-ref-index="${index}"]`);
+  return container.querySelector(`[data-ref-index="${index}"]`);
 }
 
 /**
  * Find the first inline citation marker with a given index within a container.
  */
 export function findFirstInlineMarker(container: Element, index: number): Element | null {
-	return container.querySelector(`sup[data-cite-index="${index}"]`);
+  return container.querySelector(`sup[data-cite-index="${index}"]`);
 }
 
 const highlightTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
@@ -55,17 +55,17 @@ const highlightTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
  * same element before starting a new one.
  */
 export function scrollToAndHighlight(element: Element): void {
-	element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-	const existing = highlightTimers.get(element);
-	if (existing != null) clearTimeout(existing);
+  const existing = highlightTimers.get(element);
+  if (existing != null) clearTimeout(existing);
 
-	element.classList.add('cite-highlight');
-	highlightTimers.set(
-		element,
-		setTimeout(() => {
-			element.classList.remove('cite-highlight');
-			highlightTimers.delete(element);
-		}, 1500)
-	);
+  element.classList.add('cite-highlight');
+  highlightTimers.set(
+    element,
+    setTimeout(() => {
+      element.classList.remove('cite-highlight');
+      highlightTimers.delete(element);
+    }, 1500),
+  );
 }

@@ -9,24 +9,24 @@
 import { emptyFilterState, filterTitles, type FacetedTitle } from '$lib/facet-engine';
 
 export interface CreatePromptInputs {
-	titles: FacetedTitle[];
-	query: string;
-	isAuthenticated: boolean;
+  titles: FacetedTitle[];
+  query: string;
+  isAuthenticated: boolean;
 }
 
 export interface CreatePromptDecision {
-	show: boolean;
-	query: string;
+  show: boolean;
+  query: string;
 }
 
 export function decideCreatePrompt(inputs: CreatePromptInputs): CreatePromptDecision {
-	const q = inputs.query.trim();
-	if (!q) return { show: false, query: '' };
-	if (!inputs.isAuthenticated) return { show: false, query: q };
+  const q = inputs.query.trim();
+  if (!q) return { show: false, query: '' };
+  if (!inputs.isAuthenticated) return { show: false, query: q };
 
-	const queryOnlyMatches = filterTitles(inputs.titles, {
-		...emptyFilterState(),
-		query: q
-	});
-	return { show: queryOnlyMatches.length === 0, query: q };
+  const queryOnlyMatches = filterTitles(inputs.titles, {
+    ...emptyFilterState(),
+    query: q,
+  });
+  return { show: queryOnlyMatches.length === 0, query: q };
 }

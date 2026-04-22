@@ -23,16 +23,16 @@ const FOCUS_SUBROUTES_NESTED = new Set(['edit']);
 const FOCUS_SUBROUTES_TERMINAL = new Set(['delete', 'edit-history', 'sources']);
 
 export function isFocusModePath(pathname: string): boolean {
-	const segments = pathname.split('/').filter(Boolean);
-	if (segments.length === 0) return false;
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 0) return false;
 
-	if (segments[segments.length - 1] === 'new') return true;
+  if (segments[segments.length - 1] === 'new') return true;
 
-	const subroute = matchDetailSubroute(pathname);
-	if (!subroute) return false;
+  const subroute = matchDetailSubroute(pathname);
+  if (!subroute) return false;
 
-	if (FOCUS_SUBROUTES_NESTED.has(subroute)) return true;
-	if (FOCUS_SUBROUTES_TERMINAL.has(subroute) && segments.length === 3) return true;
+  if (FOCUS_SUBROUTES_NESTED.has(subroute)) return true;
+  if (FOCUS_SUBROUTES_TERMINAL.has(subroute) && segments.length === 3) return true;
 
-	return false;
+  return false;
 }

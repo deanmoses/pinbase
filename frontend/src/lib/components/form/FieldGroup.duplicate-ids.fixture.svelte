@@ -1,8 +1,8 @@
 <script lang="ts">
-	import NumberField from './NumberField.svelte';
+  import NumberField from './NumberField.svelte';
 
-	let first = $state('');
-	let second = $state('');
+  let first = $state('');
+  let second = $state('');
 </script>
 
 <NumberField label="Year" bind:value={first} />

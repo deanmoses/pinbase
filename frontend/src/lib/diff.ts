@@ -1,8 +1,8 @@
 import { diffWordsWithSpace } from 'diff';
 
 export type DiffSegment = {
-	text: string;
-	type: 'added' | 'removed' | 'unchanged';
+  text: string;
+  type: 'added' | 'removed' | 'unchanged';
 };
 
 /**
@@ -12,9 +12,9 @@ export type DiffSegment = {
  * like added paragraph breaks are visible in the output.
  */
 export function computeWordDiff(oldText: string, newText: string): DiffSegment[] {
-	const changes = diffWordsWithSpace(oldText, newText);
-	return changes.map((c) => ({
-		text: c.value,
-		type: c.added ? 'added' : c.removed ? 'removed' : 'unchanged'
-	}));
+  const changes = diffWordsWithSpace(oldText, newText);
+  return changes.map((c) => ({
+    text: c.value,
+    type: c.added ? 'added' : c.removed ? 'removed' : 'unchanged',
+  }));
 }

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
-	import { defaultHierarchicalTaxonomySectionSegment } from '$lib/components/editors/hierarchical-taxonomy-edit-sections';
+  import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
+  import { defaultHierarchicalTaxonomySectionSegment } from '$lib/components/editors/hierarchical-taxonomy-edit-sections';
 </script>
 
 <EditRedirectFallback
-	basePath="/gameplay-features"
-	defaultSegment={defaultHierarchicalTaxonomySectionSegment()}
+  basePath="/gameplay-features"
+  defaultSegment={defaultHierarchicalTaxonomySectionSegment()}
 />

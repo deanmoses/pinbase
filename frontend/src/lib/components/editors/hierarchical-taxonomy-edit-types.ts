@@ -8,20 +8,20 @@ type RichTextSchema = components['schemas']['RichTextSchema'];
  * the fields the hierarchical-taxonomy section editors consume.
  */
 export type HierarchicalTaxonomyEditView = {
-	name: string;
-	slug: string;
-	description: RichTextSchema;
-	parents: { name: string; slug: string }[];
-	aliases: string[];
+  name: string;
+  slug: string;
+  description: RichTextSchema;
+  parents: { name: string; slug: string }[];
+  aliases: string[];
 };
 
 type ClaimsBody = components['schemas']['HierarchyClaimPatchSchema'];
 
 export type HierarchicalTaxonomySectionPatchBody = Partial<
-	Pick<ClaimsBody, 'fields' | 'parents' | 'aliases' | 'note' | 'citation'>
+  Pick<ClaimsBody, 'fields' | 'parents' | 'aliases' | 'note' | 'citation'>
 >;
 
 export type SaveHierarchicalTaxonomyClaims = (
-	slug: string,
-	body: HierarchicalTaxonomySectionPatchBody
+  slug: string,
+  body: HierarchicalTaxonomySectionPatchBody,
 ) => Promise<SaveResult>;

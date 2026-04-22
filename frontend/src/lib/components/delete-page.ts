@@ -8,17 +8,17 @@ import type { BlockingReferrer } from '$lib/delete-flow';
 export type ParentBreadcrumb = { text: string; href: string };
 
 export type BlockedState =
-	| { kind: 'message'; lead: string }
-	| {
-			kind: 'referrers';
-			lead: string;
-			referrers: BlockingReferrer[];
-			renderReferrerHref?: (r: BlockingReferrer) => string | null;
-			renderReferrerHint: (r: BlockingReferrer) => string;
-			footer?: string;
-	  };
+  | { kind: 'message'; lead: string }
+  | {
+      kind: 'referrers';
+      lead: string;
+      referrers: BlockingReferrer[];
+      renderReferrerHref?: (r: BlockingReferrer) => string | null;
+      renderReferrerHint: (r: BlockingReferrer) => string;
+      footer?: string;
+    };
 
 export type ImpactState = {
-	items: string[];
-	note: string;
+  items: string[];
+  note: string;
 };

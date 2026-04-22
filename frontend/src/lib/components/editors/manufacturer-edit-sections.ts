@@ -3,48 +3,48 @@ import type { EditSectionDef } from './edit-section-def';
 export type ManufacturerEditSectionKey = 'name' | 'description' | 'basics';
 
 export type ManufacturerEditSectionDef = EditSectionDef<ManufacturerEditSectionKey> & {
-	usesSectionEditorForm: boolean;
+  usesSectionEditorForm: boolean;
 };
 
 export const MANUFACTURER_EDIT_SECTIONS: ManufacturerEditSectionDef[] = [
-	{
-		key: 'name',
-		segment: 'name',
-		label: 'Name',
-		showCitation: true,
-		showMixedEditWarning: false,
-		usesSectionEditorForm: true
-	},
-	{
-		key: 'description',
-		segment: 'description',
-		label: 'Description',
-		showCitation: false,
-		showMixedEditWarning: false,
-		usesSectionEditorForm: true
-	},
-	{
-		key: 'basics',
-		segment: 'basics',
-		label: 'Basics',
-		showCitation: true,
-		showMixedEditWarning: true,
-		usesSectionEditorForm: true
-	}
+  {
+    key: 'name',
+    segment: 'name',
+    label: 'Name',
+    showCitation: true,
+    showMixedEditWarning: false,
+    usesSectionEditorForm: true,
+  },
+  {
+    key: 'description',
+    segment: 'description',
+    label: 'Description',
+    showCitation: false,
+    showMixedEditWarning: false,
+    usesSectionEditorForm: true,
+  },
+  {
+    key: 'basics',
+    segment: 'basics',
+    label: 'Basics',
+    showCitation: true,
+    showMixedEditWarning: true,
+    usesSectionEditorForm: true,
+  },
 ];
 
 export function findManufacturerSectionBySegment(
-	segment: string
+  segment: string,
 ): ManufacturerEditSectionDef | undefined {
-	return MANUFACTURER_EDIT_SECTIONS.find((section) => section.segment === segment);
+  return MANUFACTURER_EDIT_SECTIONS.find((section) => section.segment === segment);
 }
 
 export function findManufacturerSectionByKey(
-	key: ManufacturerEditSectionKey
+  key: ManufacturerEditSectionKey,
 ): ManufacturerEditSectionDef | undefined {
-	return MANUFACTURER_EDIT_SECTIONS.find((section) => section.key === key);
+  return MANUFACTURER_EDIT_SECTIONS.find((section) => section.key === key);
 }
 
 export function defaultManufacturerSectionSegment(): string {
-	return 'name';
+  return 'name';
 }

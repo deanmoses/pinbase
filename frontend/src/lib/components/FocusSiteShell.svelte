@@ -1,16 +1,16 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+  import type { Snippet } from 'svelte';
 
-	let { children }: { children: Snippet } = $props();
+  let { children }: { children: Snippet } = $props();
 </script>
 
 <main class="focus-content">
-	{@render children()}
+  {@render children()}
 </main>
 
 <style>
-	.focus-content {
-		flex: 1;
-		width: 100%;
-	}
+  .focus-content {
+    flex: 1;
+    width: 100%;
+  }
 </style>

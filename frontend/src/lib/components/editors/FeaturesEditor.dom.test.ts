@@ -5,156 +5,156 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import FeaturesEditorFixture from './FeaturesEditor.fixture.svelte';
 
 const { GET, PATCH } = vi.hoisted(() => ({
-	GET: vi.fn(),
-	PATCH: vi.fn()
+  GET: vi.fn(),
+  PATCH: vi.fn(),
 }));
 
 const { invalidateAll } = vi.hoisted(() => ({
-	invalidateAll: vi.fn()
+  invalidateAll: vi.fn(),
 }));
 
 vi.mock('$lib/api/client', () => ({
-	default: { GET, PATCH }
+  default: { GET, PATCH },
 }));
 
 vi.mock('$app/navigation', () => ({
-	invalidateAll
+  invalidateAll,
 }));
 
 const EDIT_OPTIONS = {
-	data: {
-		themes: [
-			{ slug: 'medieval', label: 'Medieval' },
-			{ slug: 'fantasy', label: 'Fantasy' }
-		],
-		tags: [
-			{ slug: 'classic', label: 'Classic' },
-			{ slug: 'widebody', label: 'Widebody' }
-		],
-		reward_types: [
-			{ slug: 'replay', label: 'Replay' },
-			{ slug: 'extra-ball', label: 'Extra Ball' }
-		],
-		gameplay_features: [
-			{ slug: 'multiball', label: 'Multiball' },
-			{ slug: 'ramps', label: 'Ramps' }
-		],
-		cabinets: [
-			{ slug: 'standard', label: 'Standard' },
-			{ slug: 'widebody', label: 'Widebody' }
-		],
-		game_formats: [
-			{ slug: 'pinball-machine', label: 'Pinball Machine' },
-			{ slug: 'arcade-video', label: 'Arcade Video' }
-		]
-	}
+  data: {
+    themes: [
+      { slug: 'medieval', label: 'Medieval' },
+      { slug: 'fantasy', label: 'Fantasy' },
+    ],
+    tags: [
+      { slug: 'classic', label: 'Classic' },
+      { slug: 'widebody', label: 'Widebody' },
+    ],
+    reward_types: [
+      { slug: 'replay', label: 'Replay' },
+      { slug: 'extra-ball', label: 'Extra Ball' },
+    ],
+    gameplay_features: [
+      { slug: 'multiball', label: 'Multiball' },
+      { slug: 'ramps', label: 'Ramps' },
+    ],
+    cabinets: [
+      { slug: 'standard', label: 'Standard' },
+      { slug: 'widebody', label: 'Widebody' },
+    ],
+    game_formats: [
+      { slug: 'pinball-machine', label: 'Pinball Machine' },
+      { slug: 'arcade-video', label: 'Arcade Video' },
+    ],
+  },
 };
 
 const FIELD_CONSTRAINTS = {
-	data: {
-		player_count: { min: 1, max: 6, step: 1 },
-		flipper_count: { min: 0, max: 8, step: 1 }
-	}
+  data: {
+    player_count: { min: 1, max: 6, step: 1 },
+    flipper_count: { min: 0, max: 8, step: 1 },
+  },
 };
 
 const INITIAL_MODEL = {
-	themes: [{ slug: 'medieval' }],
-	tags: [{ slug: 'classic' }],
-	reward_types: [{ slug: 'replay' }],
-	gameplay_features: [{ slug: 'multiball', count: 3 }],
-	game_format: { slug: 'pinball-machine' },
-	cabinet: { slug: 'standard' },
-	player_count: 4,
-	flipper_count: 2,
-	production_quantity: '4016'
+  themes: [{ slug: 'medieval' }],
+  tags: [{ slug: 'classic' }],
+  reward_types: [{ slug: 'replay' }],
+  gameplay_features: [{ slug: 'multiball', count: 3 }],
+  game_format: { slug: 'pinball-machine' },
+  cabinet: { slug: 'standard' },
+  player_count: 4,
+  flipper_count: 2,
+  production_quantity: '4016',
 };
 
 describe('FeaturesEditor dirty-state contract', () => {
-	beforeEach(() => {
-		GET.mockReset();
-		PATCH.mockReset();
-		invalidateAll.mockReset();
-		GET.mockImplementation(async (path: string) => {
-			if (path === '/api/models/edit-options/') return EDIT_OPTIONS;
-			if (path === '/api/field-constraints/{entity_type}') return FIELD_CONSTRAINTS;
-			throw new Error(`Unexpected GET ${path}`);
-		});
-	});
+  beforeEach(() => {
+    GET.mockReset();
+    PATCH.mockReset();
+    invalidateAll.mockReset();
+    GET.mockImplementation(async (path: string) => {
+      if (path === '/api/models/edit-options/') return EDIT_OPTIONS;
+      if (path === '/api/field-constraints/{entity_type}') return FIELD_CONSTRAINTS;
+      throw new Error(`Unexpected GET ${path}`);
+    });
+  });
 
-	it('rejects save when a feature has a count but no slug', async () => {
-		PATCH.mockResolvedValue({ data: {}, error: undefined });
-		invalidateAll.mockResolvedValue(undefined);
-		const user = userEvent.setup();
-		render(FeaturesEditorFixture, {
-			props: { initialData: INITIAL_MODEL }
-		});
+  it('rejects save when a feature has a count but no slug', async () => {
+    PATCH.mockResolvedValue({ data: {}, error: undefined });
+    invalidateAll.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(FeaturesEditorFixture, {
+      props: { initialData: INITIAL_MODEL },
+    });
 
-		// Clear the gameplay feature slug (click the × button on that row's SearchableSelect)
-		const gameplayFieldset = screen.getByRole('group', { name: 'Gameplay Features' });
-		const clearBtn = within(gameplayFieldset).getByRole('button', { name: 'Clear selection' });
-		await user.click(clearBtn);
+    // Clear the gameplay feature slug (click the × button on that row's SearchableSelect)
+    const gameplayFieldset = screen.getByRole('group', { name: 'Gameplay Features' });
+    const clearBtn = within(gameplayFieldset).getByRole('button', { name: 'Clear selection' });
+    await user.click(clearBtn);
 
-		// The row now has count=3 but no slug — save should reject
-		await user.click(screen.getByRole('button', { name: 'Save' }));
-		expect(screen.getByTestId('last-error')).not.toHaveTextContent('');
-		expect(PATCH).not.toHaveBeenCalled();
-	});
+    // The row now has count=3 but no slug — save should reject
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByTestId('last-error')).not.toHaveTextContent('');
+    expect(PATCH).not.toHaveBeenCalled();
+  });
 
-	it('reports clean state initially and dirty state after editing', async () => {
-		const user = userEvent.setup();
-		render(FeaturesEditorFixture, {
-			props: { initialData: INITIAL_MODEL }
-		});
+  it('reports clean state initially and dirty state after editing', async () => {
+    const user = userEvent.setup();
+    render(FeaturesEditorFixture, {
+      props: { initialData: INITIAL_MODEL },
+    });
 
-		expect(screen.getByTestId('dirty-callback')).toHaveTextContent('false');
+    expect(screen.getByTestId('dirty-callback')).toHaveTextContent('false');
 
-		await user.click(screen.getByRole('button', { name: 'Check dirty' }));
-		expect(screen.getByTestId('dirty-handle')).toHaveTextContent('false');
+    await user.click(screen.getByRole('button', { name: 'Check dirty' }));
+    expect(screen.getByTestId('dirty-handle')).toHaveTextContent('false');
 
-		await user.click(screen.getByRole('button', { name: '×' }));
+    await user.click(screen.getByRole('button', { name: '×' }));
 
-		expect(screen.getByTestId('dirty-callback')).toHaveTextContent('true');
+    expect(screen.getByTestId('dirty-callback')).toHaveTextContent('true');
 
-		await user.click(screen.getByRole('button', { name: 'Check dirty' }));
-		expect(screen.getByTestId('dirty-handle')).toHaveTextContent('true');
-	});
+    await user.click(screen.getByRole('button', { name: 'Check dirty' }));
+    expect(screen.getByTestId('dirty-handle')).toHaveTextContent('true');
+  });
 
-	it('changing only player_count PATCHes just that scalar, no M2Ms', async () => {
-		PATCH.mockResolvedValue({ data: {}, error: undefined });
-		const user = userEvent.setup();
-		render(FeaturesEditorFixture, {
-			props: { initialData: INITIAL_MODEL }
-		});
+  it('changing only player_count PATCHes just that scalar, no M2Ms', async () => {
+    PATCH.mockResolvedValue({ data: {}, error: undefined });
+    const user = userEvent.setup();
+    render(FeaturesEditorFixture, {
+      props: { initialData: INITIAL_MODEL },
+    });
 
-		const playersInput = screen.getByLabelText('Players');
-		await user.clear(playersInput);
-		await user.type(playersInput, '6');
+    const playersInput = screen.getByLabelText('Players');
+    await user.clear(playersInput);
+    await user.type(playersInput, '6');
 
-		await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
-		expect(PATCH).toHaveBeenCalledOnce();
-		expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
-			params: { path: { slug: 'medieval-madness' } },
-			body: { fields: { player_count: 6 }, note: '' }
-		});
-	});
+    expect(PATCH).toHaveBeenCalledOnce();
+    expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
+      params: { path: { slug: 'medieval-madness' } },
+      body: { fields: { player_count: 6 }, note: '' },
+    });
+  });
 
-	it('changing only a theme PATCHes just themes, no scalars', async () => {
-		PATCH.mockResolvedValue({ data: {}, error: undefined });
-		const user = userEvent.setup();
-		render(FeaturesEditorFixture, {
-			props: { initialData: INITIAL_MODEL }
-		});
+  it('changing only a theme PATCHes just themes, no scalars', async () => {
+    PATCH.mockResolvedValue({ data: {}, error: undefined });
+    const user = userEvent.setup();
+    render(FeaturesEditorFixture, {
+      props: { initialData: INITIAL_MODEL },
+    });
 
-		await user.click(screen.getByRole('combobox', { name: 'Themes' }));
-		await user.click(await screen.findByRole('option', { name: 'Fantasy' }));
+    await user.click(screen.getByRole('combobox', { name: 'Themes' }));
+    await user.click(await screen.findByRole('option', { name: 'Fantasy' }));
 
-		await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
-		expect(PATCH).toHaveBeenCalledOnce();
-		expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
-			params: { path: { slug: 'medieval-madness' } },
-			body: { themes: ['medieval', 'fantasy'], note: '' }
-		});
-	});
+    expect(PATCH).toHaveBeenCalledOnce();
+    expect(PATCH).toHaveBeenCalledWith('/api/models/{slug}/claims/', {
+      params: { path: { slug: 'medieval-madness' } },
+      body: { themes: ['medieval', 'fantasy'], note: '' },
+    });
+  });
 });

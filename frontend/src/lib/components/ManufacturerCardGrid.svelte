@@ -1,28 +1,28 @@
 <script lang="ts">
-	import ClientFilteredGrid from '$lib/components/grid/ClientFilteredGrid.svelte';
-	import ManufacturerCard from '$lib/components/cards/ManufacturerCard.svelte';
+  import ClientFilteredGrid from '$lib/components/grid/ClientFilteredGrid.svelte';
+  import ManufacturerCard from '$lib/components/cards/ManufacturerCard.svelte';
 
-	let {
-		manufacturers,
-		showCount = true
-	}: {
-		manufacturers: {
-			name: string;
-			slug: string;
-			model_count: number;
-			thumbnail_url?: string | null;
-		}[];
-		showCount?: boolean;
-	} = $props();
+  let {
+    manufacturers,
+    showCount = true,
+  }: {
+    manufacturers: {
+      name: string;
+      slug: string;
+      model_count: number;
+      thumbnail_url?: string | null;
+    }[];
+    showCount?: boolean;
+  } = $props();
 </script>
 
 <ClientFilteredGrid items={manufacturers} entityName="manufacturer" {showCount}>
-	{#snippet children(mfr)}
-		<ManufacturerCard
-			slug={mfr.slug}
-			name={mfr.name}
-			thumbnailUrl={mfr.thumbnail_url}
-			modelCount={mfr.model_count}
-		/>
-	{/snippet}
+  {#snippet children(mfr)}
+    <ManufacturerCard
+      slug={mfr.slug}
+      name={mfr.name}
+      thumbnailUrl={mfr.thumbnail_url}
+      modelCount={mfr.model_count}
+    />
+  {/snippet}
 </ClientFilteredGrid>

@@ -11,20 +11,20 @@ import { getContext, setContext } from 'svelte';
  * must re-read `title.name`).
  */
 export type EntityContext = {
-	readonly name: string;
-	readonly detailHref: string;
+  readonly name: string;
+  readonly detailHref: string;
 };
 
 const ENTITY_CONTEXT_KEY = Symbol('entity');
 
 export function setEntityContext(context: EntityContext): void {
-	setContext(ENTITY_CONTEXT_KEY, context);
+  setContext(ENTITY_CONTEXT_KEY, context);
 }
 
 export function getEntityContext(): EntityContext {
-	const context = getContext<EntityContext | undefined>(ENTITY_CONTEXT_KEY);
-	if (!context) {
-		throw new Error('entity context missing — must be rendered inside an entity [slug] layout');
-	}
-	return context;
+  const context = getContext<EntityContext | undefined>(ENTITY_CONTEXT_KEY);
+  if (!context) {
+    throw new Error('entity context missing — must be rendered inside an entity [slug] layout');
+  }
+  return context;
 }

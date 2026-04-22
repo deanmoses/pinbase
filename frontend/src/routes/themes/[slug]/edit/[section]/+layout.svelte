@@ -1,22 +1,22 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
-	import TaxonomyEditSectionLayoutBase from '$lib/components/TaxonomyEditSectionLayoutBase.svelte';
-	import {
-		defaultHierarchicalTaxonomySectionSegment,
-		HIERARCHICAL_TAXONOMY_EDIT_SECTIONS
-	} from '$lib/components/editors/hierarchical-taxonomy-edit-sections';
+  import type { Snippet } from 'svelte';
+  import TaxonomyEditSectionLayoutBase from '$lib/components/TaxonomyEditSectionLayoutBase.svelte';
+  import {
+    defaultHierarchicalTaxonomySectionSegment,
+    HIERARCHICAL_TAXONOMY_EDIT_SECTIONS,
+  } from '$lib/components/editors/hierarchical-taxonomy-edit-sections';
 
-	let { children }: { children: Snippet } = $props();
+  let { children }: { children: Snippet } = $props();
 
-	const sections = HIERARCHICAL_TAXONOMY_EDIT_SECTIONS.map((section) =>
-		section.key === 'parents' ? { ...section, label: 'Parent Themes' } : section
-	);
+  const sections = HIERARCHICAL_TAXONOMY_EDIT_SECTIONS.map((section) =>
+    section.key === 'parents' ? { ...section, label: 'Parent Themes' } : section,
+  );
 </script>
 
 <TaxonomyEditSectionLayoutBase
-	basePath="/themes"
-	{sections}
-	defaultSegment={defaultHierarchicalTaxonomySectionSegment()}
+  basePath="/themes"
+  {sections}
+  defaultSegment={defaultHierarchicalTaxonomySectionSegment()}
 >
-	{@render children()}
+  {@render children()}
 </TaxonomyEditSectionLayoutBase>

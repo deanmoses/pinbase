@@ -1,49 +1,49 @@
 <script lang="ts">
-	import type { components } from '$lib/api/schema';
-	import PeopleEditor from './PeopleEditor.svelte';
+  import type { components } from '$lib/api/schema';
+  import PeopleEditor from './PeopleEditor.svelte';
 
-	type Credit = components['schemas']['CreditSchema'];
+  type Credit = components['schemas']['CreditSchema'];
 
-	let {
-		initialData = [],
-		slug = 'medieval-madness'
-	}: {
-		initialData?: Credit[];
-		slug?: string;
-	} = $props();
+  let {
+    initialData = [],
+    slug = 'medieval-madness',
+  }: {
+    initialData?: Credit[];
+    slug?: string;
+  } = $props();
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
 
-	let editorRef:
-		| {
-				save(meta?: unknown): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(meta?: unknown): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 
-	function handleSaved() {
-		savedCount++;
-	}
+  function handleSaved() {
+    savedCount++;
+  }
 
-	function handleError(msg: string) {
-		lastError = msg;
-	}
+  function handleError(msg: string) {
+    lastError = msg;
+  }
 </script>
 
 <PeopleEditor
-	bind:this={editorRef}
-	{initialData}
-	{slug}
-	onsaved={handleSaved}
-	onerror={handleError}
-	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
+  bind:this={editorRef}
+  {initialData}
+  {slug}
+  onsaved={handleSaved}
+  onerror={handleError}
+  ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 

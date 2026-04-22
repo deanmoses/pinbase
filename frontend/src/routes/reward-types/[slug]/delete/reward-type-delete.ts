@@ -4,5 +4,5 @@ import type { components } from '$lib/api/schema';
 export type DeleteResponse = components['schemas']['TaxonomyDeleteResponseSchema'];
 
 export const submitDelete = createDeleteSubmitter<DeleteResponse>(
-	'/api/reward-types/{slug}/delete/'
+  '/api/reward-types/{slug}/delete/',
 );

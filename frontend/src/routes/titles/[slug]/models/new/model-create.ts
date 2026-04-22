@@ -16,8 +16,8 @@
 import { slugifyForCatalog } from '$lib/create-form';
 
 export function slugifyForModel(name: string, titleSlug: string): string {
-	const base = slugifyForCatalog(name);
-	if (!base) return '';
-	if (base === titleSlug || base.startsWith(`${titleSlug}-`)) return base;
-	return `${titleSlug}-${base}`;
+  const base = slugifyForCatalog(name);
+  if (!base) return '';
+  if (base === titleSlug || base.startsWith(`${titleSlug}-`)) return base;
+  return `${titleSlug}-${base}`;
 }

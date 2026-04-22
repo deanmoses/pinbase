@@ -8,7 +8,7 @@ import fixture from '../../../docs/fixtures/normalize_catalog_name_cases.json';
 const CASES = fixture.cases as [string, string][];
 
 describe('normalizeCatalogName', () => {
-	it.each(CASES)('normalizes %j → %j', (raw, expected) => {
-		expect(normalizeCatalogName(raw)).toBe(expected);
-	});
+  it.each(CASES)('normalizes %j → %j', (raw, expected) => {
+    expect(normalizeCatalogName(raw)).toBe(expected);
+  });
 });

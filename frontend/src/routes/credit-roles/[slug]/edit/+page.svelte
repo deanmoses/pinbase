@@ -1,9 +1,9 @@
 <script lang="ts">
-	import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
-	import { defaultSimpleTaxonomySectionSegment } from '$lib/components/editors/simple-taxonomy-edit-sections';
+  import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
+  import { defaultSimpleTaxonomySectionSegment } from '$lib/components/editors/simple-taxonomy-edit-sections';
 </script>
 
 <EditRedirectFallback
-	basePath="/credit-roles"
-	defaultSegment={defaultSimpleTaxonomySectionSegment()}
+  basePath="/credit-roles"
+  defaultSegment={defaultSimpleTaxonomySectionSegment()}
 />

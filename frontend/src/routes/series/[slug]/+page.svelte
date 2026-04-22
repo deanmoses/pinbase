@@ -1,18 +1,18 @@
 <script lang="ts">
-	import AttributionLine from '$lib/components/AttributionLine.svelte';
-	import CreditsList from '$lib/components/CreditsList.svelte';
-	import Markdown from '$lib/components/Markdown.svelte';
-	import TitleList from '$lib/components/TitleList.svelte';
+  import AttributionLine from '$lib/components/AttributionLine.svelte';
+  import CreditsList from '$lib/components/CreditsList.svelte';
+  import Markdown from '$lib/components/Markdown.svelte';
+  import TitleList from '$lib/components/TitleList.svelte';
 
-	let { data } = $props();
-	let series = $derived(data.series);
+  let { data } = $props();
+  let series = $derived(data.series);
 </script>
 
 {#if series.description?.html}
-	<section class="description">
-		<Markdown html={series.description.html} citations={series.description.citations ?? []} />
-		<AttributionLine attribution={series.description.attribution} />
-	</section>
+  <section class="description">
+    <Markdown html={series.description.html} citations={series.description.citations ?? []} />
+    <AttributionLine attribution={series.description.attribution} />
+  </section>
 {/if}
 
 <TitleList titles={series.titles} emptyMessage="No titles in this series." />
@@ -20,7 +20,7 @@
 <CreditsList credits={series.credits} />
 
 <style>
-	.description {
-		margin-bottom: var(--size-6);
-	}
+  .description {
+    margin-bottom: var(--size-6);
+  }
 </style>

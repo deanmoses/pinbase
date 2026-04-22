@@ -9,51 +9,51 @@ import type { PersonEditSectionKey } from './person-edit-sections';
 export type EditActionFn<TKey extends string> = (key: TKey) => (() => void) | undefined;
 
 export type EditActionContext<TKey extends string> = {
-	set: (fn: EditActionFn<TKey>) => void;
-	get: () => EditActionFn<TKey>;
-	setForTesting: (fn: EditActionFn<TKey>) => void;
+  set: (fn: EditActionFn<TKey>) => void;
+  get: () => EditActionFn<TKey>;
+  setForTesting: (fn: EditActionFn<TKey>) => void;
 };
 
 function createEditActionContext<TKey extends string>(
-	name: string,
-	missingMessage: string
+  name: string,
+  missingMessage: string,
 ): EditActionContext<TKey> {
-	const key = Symbol(name);
+  const key = Symbol(name);
 
-	return {
-		set(fn) {
-			setContext(key, fn);
-		},
-		get() {
-			const fn = getContext<EditActionFn<TKey> | undefined>(key);
-			if (!fn) throw new Error(missingMessage);
-			return fn;
-		},
-		setForTesting(fn) {
-			setContext<EditActionFn<TKey>>(key, fn);
-		}
-	};
+  return {
+    set(fn) {
+      setContext(key, fn);
+    },
+    get() {
+      const fn = getContext<EditActionFn<TKey> | undefined>(key);
+      if (!fn) throw new Error(missingMessage);
+      return fn;
+    },
+    setForTesting(fn) {
+      setContext<EditActionFn<TKey>>(key, fn);
+    },
+  };
 }
 
 export const modelEditActionContext = createEditActionContext<ModelEditSectionKey>(
-	'modelEditAction',
-	'modelEditAction context missing — must be rendered inside the model layout'
+  'modelEditAction',
+  'modelEditAction context missing — must be rendered inside the model layout',
 );
 
 export const manufacturerEditActionContext = createEditActionContext<ManufacturerEditSectionKey>(
-	'manufacturerEditAction',
-	'manufacturerEditAction context missing — must be rendered inside the manufacturer layout'
+  'manufacturerEditAction',
+  'manufacturerEditAction context missing — must be rendered inside the manufacturer layout',
 );
 
 export const corporateEntityEditActionContext =
-	createEditActionContext<CorporateEntityEditSectionKey>(
-		'corporateEntityEditAction',
-		'corporateEntityEditAction context missing — must be rendered inside the corporate-entity layout'
-	);
+  createEditActionContext<CorporateEntityEditSectionKey>(
+    'corporateEntityEditAction',
+    'corporateEntityEditAction context missing — must be rendered inside the corporate-entity layout',
+  );
 
 export const personEditActionContext = createEditActionContext<PersonEditSectionKey>(
-	'personEditAction',
-	'personEditAction context missing — must be rendered inside the person layout'
+  'personEditAction',
+  'personEditAction context missing — must be rendered inside the person layout',
 );
 
 /**
@@ -62,8 +62,8 @@ export const personEditActionContext = createEditActionContext<PersonEditSection
  * 'model:overview').
  */
 export const titleAreaEditActionContext = createEditActionContext<CombinedSectionKey>(
-	'titleAreaEditAction',
-	'titleAreaEditAction context missing — must be rendered inside the title layout'
+  'titleAreaEditAction',
+  'titleAreaEditAction context missing — must be rendered inside the title layout',
 );
 
 /**
@@ -75,7 +75,7 @@ export const titleAreaEditActionContext = createEditActionContext<CombinedSectio
  * renders the Media accordion.
  */
 export const hierarchicalTaxonomyEditActionContext =
-	createEditActionContext<HierarchicalTaxonomyEditSectionKey>(
-		'hierarchicalTaxonomyEditAction',
-		'hierarchicalTaxonomyEditAction context missing — must be rendered inside the gameplay-features or themes layout'
-	);
+  createEditActionContext<HierarchicalTaxonomyEditSectionKey>(
+    'hierarchicalTaxonomyEditAction',
+    'hierarchicalTaxonomyEditAction context missing — must be rendered inside the gameplay-features or themes layout',
+  );

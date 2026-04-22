@@ -7,60 +7,60 @@ import { onMount } from 'svelte';
  * to fetch subsequent pages, appending results to the accumulated `items`.
  */
 export function createPaginatedLoader<T>(
-	fetchPage: (page: number) => Promise<{ items: T[]; count: number }>
+  fetchPage: (page: number) => Promise<{ items: T[]; count: number }>,
 ) {
-	let items = $state<T[]>([]);
-	let count = $state(0);
-	let loading = $state(true);
-	let loadingMore = $state(false);
-	let error = $state<string | null>(null);
-	let nextPage = $state(1);
-	let hasMore = $state(true);
+  let items = $state<T[]>([]);
+  let count = $state(0);
+  let loading = $state(true);
+  let loadingMore = $state(false);
+  let error = $state<string | null>(null);
+  let nextPage = $state(1);
+  let hasMore = $state(true);
 
-	async function fetchNextPage() {
-		try {
-			const result = await fetchPage(nextPage);
-			items = [...items, ...result.items];
-			count = result.count;
-			nextPage += 1;
-			hasMore = items.length < result.count;
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to load data';
-		}
-	}
+  async function fetchNextPage() {
+    try {
+      const result = await fetchPage(nextPage);
+      items = [...items, ...result.items];
+      count = result.count;
+      nextPage += 1;
+      hasMore = items.length < result.count;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to load data';
+    }
+  }
 
-	onMount(async () => {
-		await fetchNextPage();
-		loading = false;
-	});
+  onMount(async () => {
+    await fetchNextPage();
+    loading = false;
+  });
 
-	function loadMore() {
-		if (loadingMore || !hasMore) return;
-		loadingMore = true;
-		fetchNextPage().finally(() => {
-			loadingMore = false;
-		});
-	}
+  function loadMore() {
+    if (loadingMore || !hasMore) return;
+    loadingMore = true;
+    fetchNextPage().finally(() => {
+      loadingMore = false;
+    });
+  }
 
-	return {
-		get items() {
-			return items;
-		},
-		get count() {
-			return count;
-		},
-		get loading() {
-			return loading;
-		},
-		get loadingMore() {
-			return loadingMore;
-		},
-		get error() {
-			return error;
-		},
-		get hasMore() {
-			return hasMore;
-		},
-		loadMore
-	};
+  return {
+    get items() {
+      return items;
+    },
+    get count() {
+      return count;
+    },
+    get loading() {
+      return loading;
+    },
+    get loadingMore() {
+      return loadingMore;
+    },
+    get error() {
+      return error;
+    },
+    get hasMore() {
+      return hasMore;
+    },
+    loadMore,
+  };
 }

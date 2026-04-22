@@ -1,43 +1,43 @@
 <script lang="ts">
-	import TitleExternalDataEditor from './TitleExternalDataEditor.svelte';
+  import TitleExternalDataEditor from './TitleExternalDataEditor.svelte';
 
-	type ExternalDataTitle = {
-		opdb_id?: string | null;
-		fandom_page_id?: number | null;
-	};
+  type ExternalDataTitle = {
+    opdb_id?: string | null;
+    fandom_page_id?: number | null;
+  };
 
-	let {
-		initialData,
-		slug = 'addams-family'
-	}: {
-		initialData: ExternalDataTitle;
-		slug?: string;
-	} = $props();
+  let {
+    initialData,
+    slug = 'addams-family',
+  }: {
+    initialData: ExternalDataTitle;
+    slug?: string;
+  } = $props();
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
 
-	let editorRef:
-		| {
-				save(meta?: unknown): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(meta?: unknown): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 </script>
 
 <TitleExternalDataEditor
-	bind:this={editorRef}
-	{initialData}
-	{slug}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
-	ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
+  bind:this={editorRef}
+  {initialData}
+  {slug}
+  onsaved={() => savedCount++}
+  onerror={(message) => (lastError = message)}
+  ondirtychange={(dirty) => (dirtyFromCallback = dirty)}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 

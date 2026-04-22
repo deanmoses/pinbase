@@ -22,12 +22,12 @@ import { parseApiError } from '$lib/components/editors/save-claims-shared';
  * reason — see ``$lib/naming.ts``.
  */
 export function slugifyForCatalog(raw: string): string {
-	return raw
-		.normalize('NFKD')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.replace(/-{2,}/g, '-');
+  return raw
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
 }
 
 /**
@@ -44,23 +44,23 @@ export function slugifyForCatalog(raw: string): string {
  * used.
  */
 export function reconcileSlug(opts: {
-	name: string;
-	slug: string;
-	syncedSlug: string;
-	projectedSlug?: string;
+  name: string;
+  slug: string;
+  syncedSlug: string;
+  projectedSlug?: string;
 }): { slug: string; syncedSlug: string } {
-	const next = opts.projectedSlug ?? slugifyForCatalog(opts.name);
-	if (opts.slug === opts.syncedSlug && opts.slug !== next) {
-		return { slug: next, syncedSlug: next };
-	}
-	return { slug: opts.slug, syncedSlug: opts.syncedSlug };
+  const next = opts.projectedSlug ?? slugifyForCatalog(opts.name);
+  if (opts.slug === opts.syncedSlug && opts.slug !== next) {
+    return { slug: next, syncedSlug: next };
+  }
+  return { slug: opts.slug, syncedSlug: opts.syncedSlug };
 }
 
 export type CreateOutcome<T extends { slug: string }> =
-	| { kind: 'ok'; slug: string; data: T }
-	| { kind: 'rate_limited'; retryAfterSeconds: number; message: string }
-	| { kind: 'field_errors'; fieldErrors: Record<string, string>; message: string }
-	| { kind: 'form_error'; message: string };
+  | { kind: 'ok'; slug: string; data: T }
+  | { kind: 'rate_limited'; retryAfterSeconds: number; message: string }
+  | { kind: 'field_errors'; fieldErrors: Record<string, string>; message: string }
+  | { kind: 'form_error'; message: string };
 
 /**
  * Classify the result of a create POST into a shape the UI can render.
@@ -70,27 +70,27 @@ export type CreateOutcome<T extends { slug: string }> =
  * needs is that the response body has a ``slug`` string.
  */
 export function classifyCreateResponse<T extends { slug: string }>(args: {
-	data: T | undefined;
-	error: unknown;
-	response: { status: number; headers: Headers };
+  data: T | undefined;
+  error: unknown;
+  response: { status: number; headers: Headers };
 }): CreateOutcome<T> {
-	if (args.response.status === 429) {
-		const retryAfter = Number(args.response.headers.get('Retry-After') ?? '3600');
-		const mins = Math.max(1, Math.ceil(retryAfter / 60));
-		return {
-			kind: 'rate_limited',
-			retryAfterSeconds: retryAfter,
-			message: `You've reached the create limit. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`
-		};
-	}
+  if (args.response.status === 429) {
+    const retryAfter = Number(args.response.headers.get('Retry-After') ?? '3600');
+    const mins = Math.max(1, Math.ceil(retryAfter / 60));
+    return {
+      kind: 'rate_limited',
+      retryAfterSeconds: retryAfter,
+      message: `You've reached the create limit. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`,
+    };
+  }
 
-	if (args.error || !args.data) {
-		const parsed = parseApiError(args.error);
-		if (Object.keys(parsed.fieldErrors).length > 0) {
-			return { kind: 'field_errors', fieldErrors: parsed.fieldErrors, message: parsed.message };
-		}
-		return { kind: 'form_error', message: parsed.message || 'Could not create record.' };
-	}
+  if (args.error || !args.data) {
+    const parsed = parseApiError(args.error);
+    if (Object.keys(parsed.fieldErrors).length > 0) {
+      return { kind: 'field_errors', fieldErrors: parsed.fieldErrors, message: parsed.message };
+    }
+    return { kind: 'form_error', message: parsed.message || 'Could not create record.' };
+  }
 
-	return { kind: 'ok', slug: args.data.slug, data: args.data };
+  return { kind: 'ok', slug: args.data.slug, data: args.data };
 }

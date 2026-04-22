@@ -10,19 +10,19 @@ type RichTextSchema = components['schemas']['RichTextSchema'];
  * view without picking the "right" schema.
  */
 export type SimpleTaxonomyEditView = {
-	name: string;
-	slug: string;
-	description: RichTextSchema;
-	display_order: number | null;
+  name: string;
+  slug: string;
+  description: RichTextSchema;
+  display_order: number | null;
 };
 
 type ClaimsBody = components['schemas']['ClaimPatchSchema'];
 
 export type SimpleTaxonomySectionPatchBody = Partial<
-	Pick<ClaimsBody, 'fields' | 'note' | 'citation'>
+  Pick<ClaimsBody, 'fields' | 'note' | 'citation'>
 >;
 
 export type SaveSimpleTaxonomyClaims = (
-	slug: string,
-	body: SimpleTaxonomySectionPatchBody
+  slug: string,
+  body: SimpleTaxonomySectionPatchBody,
 ) => Promise<SaveResult>;

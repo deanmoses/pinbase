@@ -10,23 +10,23 @@ import { parseApiError, type SaveResult } from './save-claims-shared';
 type TitleClaimsBody = components['schemas']['TitleClaimPatchSchema'];
 
 export type TitleSectionPatchBody = Partial<
-	Pick<TitleClaimsBody, 'fields' | 'abbreviations' | 'note' | 'citation'>
+  Pick<TitleClaimsBody, 'fields' | 'abbreviations' | 'note' | 'citation'>
 >;
 
 export async function saveTitleClaims(
-	slug: string,
-	body: TitleSectionPatchBody
+  slug: string,
+  body: TitleSectionPatchBody,
 ): Promise<SaveResult> {
-	const { error } = await client.PATCH('/api/titles/{slug}/claims/', {
-		params: { path: { slug } },
-		body: { fields: {}, note: '', ...body }
-	});
+  const { error } = await client.PATCH('/api/titles/{slug}/claims/', {
+    params: { path: { slug } },
+    body: { fields: {}, note: '', ...body },
+  });
 
-	if (error) {
-		const parsed = parseApiError(error);
-		return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
-	}
+  if (error) {
+    const parsed = parseApiError(error);
+    return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
+  }
 
-	await invalidateAll();
-	return { ok: true };
+  await invalidateAll();
+  return { ok: true };
 }

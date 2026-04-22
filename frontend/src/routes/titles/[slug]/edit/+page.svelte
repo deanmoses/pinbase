@@ -1,10 +1,10 @@
 <script lang="ts">
-	import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
-	import { defaultTitleSectionSegment } from '$lib/components/editors/title-edit-sections';
+  import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
+  import { defaultTitleSectionSegment } from '$lib/components/editors/title-edit-sections';
 
-	let { data } = $props();
-	let isSingleModel = $derived(!!data.title.model_detail);
-	let defaultSegment = $derived(defaultTitleSectionSegment(isSingleModel));
+  let { data } = $props();
+  let isSingleModel = $derived(!!data.title.model_detail);
+  let defaultSegment = $derived(defaultTitleSectionSegment(isSingleModel));
 </script>
 
 <EditRedirectFallback basePath="/titles" {defaultSegment} />

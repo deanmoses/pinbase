@@ -10,18 +10,18 @@
  * treats NaN and '' as equivalent, and maps '' → null for cleared fields.
  */
 export function diffScalarFields<T extends Record<string, unknown>>(
-	current: T,
-	original: T
+  current: T,
+  original: T,
 ): Record<string, unknown> {
-	const changed: Record<string, unknown> = {};
-	for (const key of Object.keys(current) as (keyof T & string)[]) {
-		let val: unknown = current[key];
-		if (typeof val === 'number' && isNaN(val)) val = '';
-		if (String(val) !== String(original[key])) {
-			changed[key] = val === '' ? null : val;
-		}
-	}
-	return changed;
+  const changed: Record<string, unknown> = {};
+  for (const key of Object.keys(current) as (keyof T & string)[]) {
+    let val: unknown = current[key];
+    if (typeof val === 'number' && isNaN(val)) val = '';
+    if (String(val) !== String(original[key])) {
+      changed[key] = val === '' ? null : val;
+    }
+  }
+  return changed;
 }
 
 /**
@@ -29,9 +29,9 @@ export function diffScalarFields<T extends Record<string, unknown>>(
  * Order-independent (both sides sorted before comparison).
  */
 export function slugSetChanged(current: string[], original: { slug: string }[]): boolean {
-	const a = [...current].sort();
-	const b = original.map((o) => o.slug).sort();
-	return JSON.stringify(a) !== JSON.stringify(b);
+  const a = [...current].sort();
+  const b = original.map((o) => o.slug).sort();
+  return JSON.stringify(a) !== JSON.stringify(b);
 }
 
 /**
@@ -39,9 +39,9 @@ export function slugSetChanged(current: string[], original: { slug: string }[]):
  * Used for aliases, abbreviations, and similar string lists.
  */
 export function stringSetChanged(current: string[], original: string[]): boolean {
-	const a = [...current].sort();
-	const b = [...original].sort();
-	return JSON.stringify(a) !== JSON.stringify(b);
+  const a = [...current].sort();
+  const b = [...original].sort();
+  return JSON.stringify(a) !== JSON.stringify(b);
 }
 
 /**
@@ -50,13 +50,13 @@ export function stringSetChanged(current: string[], original: string[]): boolean
  * Order-independent (both sides sorted before comparison).
  */
 export function creditsChanged(
-	current: { person_slug: string; role: string }[],
-	original: { person: { slug: string }; role: string }[]
+  current: { person_slug: string; role: string }[],
+  original: { person: { slug: string }; role: string }[],
 ): boolean {
-	const orig = original.map((c) => `${c.person.slug}:${c.role}`).sort();
-	const curr = current
-		.filter((c) => c.person_slug && c.role)
-		.map((c) => `${c.person_slug}:${c.role}`)
-		.sort();
-	return JSON.stringify(orig) !== JSON.stringify(curr);
+  const orig = original.map((c) => `${c.person.slug}:${c.role}`).sort();
+  const curr = current
+    .filter((c) => c.person_slug && c.role)
+    .map((c) => `${c.person_slug}:${c.role}`)
+    .sort();
+  return JSON.stringify(orig) !== JSON.stringify(curr);
 }

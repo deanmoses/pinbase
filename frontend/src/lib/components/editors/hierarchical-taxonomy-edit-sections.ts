@@ -1,16 +1,16 @@
 import type { EditSectionDef } from './edit-section-def';
 
 export type HierarchicalTaxonomyEditSectionKey =
-	| 'name'
-	| 'description'
-	| 'aliases'
-	| 'parents'
-	| 'media';
+  | 'name'
+  | 'description'
+  | 'aliases'
+  | 'parents'
+  | 'media';
 
 export type HierarchicalTaxonomyEditSectionDef =
-	EditSectionDef<HierarchicalTaxonomyEditSectionKey> & {
-		usesSectionEditorForm: boolean;
-	};
+  EditSectionDef<HierarchicalTaxonomyEditSectionKey> & {
+    usesSectionEditorForm: boolean;
+  };
 
 /**
  * Base sections for hierarchical taxonomies (gameplay-features, themes).
@@ -22,49 +22,49 @@ export type HierarchicalTaxonomyEditSectionDef =
  * concatenates MEDIA_SECTION; themes ignores it.
  */
 export const HIERARCHICAL_TAXONOMY_EDIT_SECTIONS: HierarchicalTaxonomyEditSectionDef[] = [
-	{
-		key: 'name',
-		segment: 'name',
-		label: 'Name',
-		showCitation: true,
-		showMixedEditWarning: false,
-		usesSectionEditorForm: true
-	},
-	{
-		key: 'description',
-		segment: 'description',
-		label: 'Description',
-		showCitation: false,
-		showMixedEditWarning: false,
-		usesSectionEditorForm: true
-	},
-	{
-		key: 'aliases',
-		segment: 'aliases',
-		label: 'Aliases',
-		showCitation: true,
-		showMixedEditWarning: false,
-		usesSectionEditorForm: true
-	},
-	{
-		key: 'parents',
-		segment: 'parents',
-		label: 'Parents',
-		showCitation: true,
-		showMixedEditWarning: false,
-		usesSectionEditorForm: true
-	}
+  {
+    key: 'name',
+    segment: 'name',
+    label: 'Name',
+    showCitation: true,
+    showMixedEditWarning: false,
+    usesSectionEditorForm: true,
+  },
+  {
+    key: 'description',
+    segment: 'description',
+    label: 'Description',
+    showCitation: false,
+    showMixedEditWarning: false,
+    usesSectionEditorForm: true,
+  },
+  {
+    key: 'aliases',
+    segment: 'aliases',
+    label: 'Aliases',
+    showCitation: true,
+    showMixedEditWarning: false,
+    usesSectionEditorForm: true,
+  },
+  {
+    key: 'parents',
+    segment: 'parents',
+    label: 'Parents',
+    showCitation: true,
+    showMixedEditWarning: false,
+    usesSectionEditorForm: true,
+  },
 ];
 
 export const MEDIA_SECTION: HierarchicalTaxonomyEditSectionDef = {
-	key: 'media',
-	segment: 'media',
-	label: 'Media',
-	showCitation: false,
-	showMixedEditWarning: false,
-	usesSectionEditorForm: false
+  key: 'media',
+  segment: 'media',
+  label: 'Media',
+  showCitation: false,
+  showMixedEditWarning: false,
+  usesSectionEditorForm: false,
 };
 
 export function defaultHierarchicalTaxonomySectionSegment(): string {
-	return 'name';
+  return 'name';
 }

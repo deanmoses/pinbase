@@ -1,82 +1,82 @@
 <script lang="ts">
-	import client from '$lib/api/client';
-	import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
-	import AccordionSection from '$lib/components/AccordionSection.svelte';
-	import AttributionLine from '$lib/components/AttributionLine.svelte';
-	import HierarchicalTaxonomyChildrenAccordion from '$lib/components/HierarchicalTaxonomyChildrenAccordion.svelte';
-	import HierarchicalTaxonomyMobileMetaBar from '$lib/components/HierarchicalTaxonomyMobileMetaBar.svelte';
-	import MachineCard from '$lib/components/cards/MachineCard.svelte';
-	import Markdown from '$lib/components/Markdown.svelte';
-	import MediaGrid from '$lib/components/media/MediaGrid.svelte';
-	import PaginatedSection from '$lib/components/grid/PaginatedSection.svelte';
-	import { hierarchicalTaxonomyEditActionContext } from '$lib/components/editors/edit-action-context';
-	import { displayAliasesFor } from '$lib/hierarchy-edit';
-	import { createPaginatedLoader } from '$lib/paginated-loader.svelte';
+  import client from '$lib/api/client';
+  import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
+  import AccordionSection from '$lib/components/AccordionSection.svelte';
+  import AttributionLine from '$lib/components/AttributionLine.svelte';
+  import HierarchicalTaxonomyChildrenAccordion from '$lib/components/HierarchicalTaxonomyChildrenAccordion.svelte';
+  import HierarchicalTaxonomyMobileMetaBar from '$lib/components/HierarchicalTaxonomyMobileMetaBar.svelte';
+  import MachineCard from '$lib/components/cards/MachineCard.svelte';
+  import Markdown from '$lib/components/Markdown.svelte';
+  import MediaGrid from '$lib/components/media/MediaGrid.svelte';
+  import PaginatedSection from '$lib/components/grid/PaginatedSection.svelte';
+  import { hierarchicalTaxonomyEditActionContext } from '$lib/components/editors/edit-action-context';
+  import { displayAliasesFor } from '$lib/hierarchy-edit';
+  import { createPaginatedLoader } from '$lib/paginated-loader.svelte';
 
-	let { data } = $props();
-	let profile = $derived(data.profile);
+  let { data } = $props();
+  let profile = $derived(data.profile);
 
-	const editAction = hierarchicalTaxonomyEditActionContext.get();
+  const editAction = hierarchicalTaxonomyEditActionContext.get();
 
-	let displayAliases = $derived(displayAliasesFor(profile.name, profile.aliases ?? []));
-	let mediaHeading = $derived(`Media (${profile.uploaded_media?.length ?? 0})`);
+  let displayAliases = $derived(displayAliasesFor(profile.name, profile.aliases ?? []));
+  let mediaHeading = $derived(`Media (${profile.uploaded_media?.length ?? 0})`);
 
-	const machines = createPaginatedLoader(async (page) => {
-		const { data: result } = await client.GET('/api/models/', {
-			params: { query: { feature: profile.slug, page } }
-		});
-		return result ?? { items: [], count: 0 };
-	});
+  const machines = createPaginatedLoader(async (page) => {
+    const { data: result } = await client.GET('/api/models/', {
+      params: { query: { feature: profile.slug, page } },
+    });
+    return result ?? { items: [], count: 0 };
+  });
 </script>
 
 {#if profile.description?.html}
-	<section class="description">
-		<Markdown html={profile.description.html} citations={profile.description.citations ?? []} />
-		<AttributionLine attribution={profile.description.attribution} />
-	</section>
+  <section class="description">
+    <Markdown html={profile.description.html} citations={profile.description.citations ?? []} />
+    <AttributionLine attribution={profile.description.attribution} />
+  </section>
 {/if}
 
 <HierarchicalTaxonomyMobileMetaBar
-	basePath="/gameplay-features"
-	parents={profile.parents ?? []}
-	aliases={displayAliases}
-	parentLabel="Type of"
+  basePath="/gameplay-features"
+  parents={profile.parents ?? []}
+  aliases={displayAliases}
+  parentLabel="Type of"
 />
 
 <HierarchicalTaxonomyChildrenAccordion
-	basePath="/gameplay-features"
-	children={profile.children ?? []}
-	heading="Subtypes"
+  basePath="/gameplay-features"
+  children={profile.children ?? []}
+  heading="Subtypes"
 />
 
 {#if (profile.uploaded_media?.length ?? 0) > 0}
-	<AccordionSection heading={mediaHeading} onEdit={editAction('media')}>
-		<MediaGrid
-			media={profile.uploaded_media ?? []}
-			categories={[...MEDIA_CATEGORIES['gameplay-feature']]}
-			canEdit={false}
-		/>
-	</AccordionSection>
+  <AccordionSection heading={mediaHeading} onEdit={editAction('media')}>
+    <MediaGrid
+      media={profile.uploaded_media ?? []}
+      categories={[...MEDIA_CATEGORIES['gameplay-feature']]}
+      canEdit={false}
+    />
+  </AccordionSection>
 {/if}
 
 <PaginatedSection
-	loader={machines}
-	heading="Machines"
-	emptyMessage="No machines with this feature."
+  loader={machines}
+  heading="Machines"
+  emptyMessage="No machines with this feature."
 >
-	{#snippet children(machine)}
-		<MachineCard
-			slug={machine.slug}
-			name={machine.name}
-			thumbnailUrl={machine.thumbnail_url}
-			manufacturerName={machine.manufacturer?.name}
-			year={machine.year}
-		/>
-	{/snippet}
+  {#snippet children(machine)}
+    <MachineCard
+      slug={machine.slug}
+      name={machine.name}
+      thumbnailUrl={machine.thumbnail_url}
+      manufacturerName={machine.manufacturer?.name}
+      year={machine.year}
+    />
+  {/snippet}
 </PaginatedSection>
 
 <style>
-	.description {
-		margin-bottom: var(--size-6);
-	}
+  .description {
+    margin-bottom: var(--size-6);
+  }
 </style>

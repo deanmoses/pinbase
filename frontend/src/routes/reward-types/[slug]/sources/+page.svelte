@@ -1,7 +1,7 @@
 <script lang="ts">
-	import EntitySources from '$lib/components/EntitySources.svelte';
+  import EntitySources from '$lib/components/EntitySources.svelte';
 
-	let { data } = $props();
+  let { data } = $props();
 </script>
 
 <EntitySources sources={data.sources} evidence={data.evidence} />

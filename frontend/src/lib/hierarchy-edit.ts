@@ -8,9 +8,9 @@
  * collapse a trailing 's' (so "pop-bumpers" and "Pop Bumper" collide).
  */
 function normalizeAliasForFilter(s: string): string {
-	let n = s.toLowerCase().replace(/-/g, '').replace(/ /g, '');
-	if (n.endsWith('s')) n = n.slice(0, -1);
-	return n;
+  let n = s.toLowerCase().replace(/-/g, '').replace(/ /g, '');
+  if (n.endsWith('s')) n = n.slice(0, -1);
+  return n;
 }
 
 /**
@@ -19,6 +19,6 @@ function normalizeAliasForFilter(s: string): string {
  * never shows a value the user already sees in the heading.
  */
 export function displayAliasesFor(name: string, aliases: string[]): string[] {
-	const canonical = normalizeAliasForFilter(name);
-	return aliases.filter((a) => normalizeAliasForFilter(a) !== canonical);
+  const canonical = normalizeAliasForFilter(name);
+  return aliases.filter((a) => normalizeAliasForFilter(a) !== canonical);
 }

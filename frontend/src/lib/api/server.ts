@@ -17,6 +17,6 @@ import { env } from '$env/dynamic/private';
 import { createApiClient } from './client';
 
 export function createServerClient(fetchImpl: typeof fetch, url: URL) {
-	const baseUrl = env.INTERNAL_API_BASE_URL?.trim() || url.origin;
-	return createApiClient(fetchImpl, baseUrl);
+  const baseUrl = env.INTERNAL_API_BASE_URL?.trim() || url.origin;
+  return createApiClient(fetchImpl, baseUrl);
 }

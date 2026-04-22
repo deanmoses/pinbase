@@ -4,15 +4,15 @@ import { describe, expect, it } from 'vitest';
 import Harness from './sources-page.test-harness.svelte';
 
 describe('title sources page', () => {
-	it('wraps EntitySources in FocusContentShell with back link to detail and a Sources heading', () => {
-		const { body } = render(Harness, {
-			props: { data: { sources: [], evidence: [] } }
-		});
+  it('wraps EntitySources in FocusContentShell with back link to detail and a Sources heading', () => {
+    const { body } = render(Harness, {
+      props: { data: { sources: [], evidence: [] } },
+    });
 
-		expect(body).toContain('href="/titles/medieval-madness"');
-		expect(body).toContain('Back');
-		expect(body).toContain('<h1>Sources</h1>');
-		// EntitySources empty-state passes through.
-		expect(body.toLowerCase()).toContain('no source data recorded yet');
-	});
+    expect(body).toContain('href="/titles/medieval-madness"');
+    expect(body).toContain('Back');
+    expect(body).toContain('<h1>Sources</h1>');
+    // EntitySources empty-state passes through.
+    expect(body.toLowerCase()).toContain('no source data recorded yet');
+  });
 });

@@ -1,55 +1,55 @@
 <script lang="ts">
-	import AttributionLine from '$lib/components/AttributionLine.svelte';
-	import Markdown from '$lib/components/Markdown.svelte';
-	import ClientFilteredGrid from '$lib/components/grid/ClientFilteredGrid.svelte';
-	import MachineCard from '$lib/components/cards/MachineCard.svelte';
+  import AttributionLine from '$lib/components/AttributionLine.svelte';
+  import Markdown from '$lib/components/Markdown.svelte';
+  import ClientFilteredGrid from '$lib/components/grid/ClientFilteredGrid.svelte';
+  import MachineCard from '$lib/components/cards/MachineCard.svelte';
 
-	let { data } = $props();
-	let profile = $derived(data.profile);
+  let { data } = $props();
+  let profile = $derived(data.profile);
 </script>
 
 {#if profile.description?.html}
-	<section class="description">
-		<Markdown html={profile.description.html} citations={profile.description.citations ?? []} />
-		<AttributionLine attribution={profile.description.attribution} />
-	</section>
+  <section class="description">
+    <Markdown html={profile.description.html} citations={profile.description.citations ?? []} />
+    <AttributionLine attribution={profile.description.attribution} />
+  </section>
 {/if}
 
 {#if profile.machines.length === 0}
-	<p class="empty">No machines with this reward type.</p>
+  <p class="empty">No machines with this reward type.</p>
 {:else}
-	<section>
-		<h2>Machines ({profile.machines.length})</h2>
-		<ClientFilteredGrid items={profile.machines} showCount={false}>
-			{#snippet children(machine)}
-				<MachineCard
-					slug={machine.slug}
-					name={machine.name}
-					thumbnailUrl={machine.thumbnail_url}
-					manufacturerName={machine.manufacturer?.name}
-					year={machine.year}
-				/>
-			{/snippet}
-		</ClientFilteredGrid>
-	</section>
+  <section>
+    <h2>Machines ({profile.machines.length})</h2>
+    <ClientFilteredGrid items={profile.machines} showCount={false}>
+      {#snippet children(machine)}
+        <MachineCard
+          slug={machine.slug}
+          name={machine.name}
+          thumbnailUrl={machine.thumbnail_url}
+          manufacturerName={machine.manufacturer?.name}
+          year={machine.year}
+        />
+      {/snippet}
+    </ClientFilteredGrid>
+  </section>
 {/if}
 
 <style>
-	.description {
-		margin-bottom: var(--size-6);
-	}
+  .description {
+    margin-bottom: var(--size-6);
+  }
 
-	h2 {
-		font-size: var(--font-size-3);
-		font-weight: 600;
-		color: var(--color-text-primary);
-		margin-bottom: var(--size-3);
-	}
+  h2 {
+    font-size: var(--font-size-3);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--size-3);
+  }
 
-	.empty {
-		color: var(--color-text-muted);
-		font-size: var(--font-size-2);
-		padding: var(--size-8) 0;
-		text-align: center;
-	}
+  .empty {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2);
+    padding: var(--size-8) 0;
+    text-align: center;
+  }
 </style>

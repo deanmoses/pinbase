@@ -7,20 +7,20 @@ let count = 0;
 let previousOverflow = '';
 
 export function acquireScrollLock(): () => void {
-	if (count === 0) {
-		previousOverflow = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
-	}
-	count++;
+  if (count === 0) {
+    previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  count++;
 
-	let released = false;
-	return function release() {
-		if (released) return;
-		released = true;
-		count--;
-		if (count === 0) {
-			document.body.style.overflow = previousOverflow;
-			previousOverflow = '';
-		}
-	};
+  let released = false;
+  return function release() {
+    if (released) return;
+    released = true;
+    count--;
+    if (count === 0) {
+      document.body.style.overflow = previousOverflow;
+      previousOverflow = '';
+    }
+  };
 }

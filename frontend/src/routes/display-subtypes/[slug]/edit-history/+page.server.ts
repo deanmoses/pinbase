@@ -2,4 +2,4 @@ import type { PageServerLoad } from './$types';
 import { loadEditHistory } from '$lib/provenance-loaders';
 
 export const load: PageServerLoad = (event) =>
-	loadEditHistory(event, 'display-subtype', event.params.slug);
+  loadEditHistory(event, 'display-subtype', event.params.slug);

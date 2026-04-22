@@ -11,29 +11,29 @@ import client from '$lib/api/client';
 import { parseApiError } from '$lib/components/editors/save-claims-shared';
 
 export type UndoOutcome =
-	| { kind: 'ok'; changesetId: number }
-	| { kind: 'superseded'; message: string }
-	| { kind: 'form_error'; message: string };
+  | { kind: 'ok'; changesetId: number }
+  | { kind: 'superseded'; message: string }
+  | { kind: 'form_error'; message: string };
 
 export async function submitUndoDelete(changesetId: number, note = ''): Promise<UndoOutcome> {
-	const { data, error, response } = await client.POST('/api/changesets/{changeset_id}/undo/', {
-		params: { path: { changeset_id: changesetId } },
-		body: { note }
-	});
+  const { data, error, response } = await client.POST('/api/changesets/{changeset_id}/undo/', {
+    params: { path: { changeset_id: changesetId } },
+    body: { note },
+  });
 
-	if (response.status === 422) {
-		// The most common 422 from undo is "not the latest action anymore".
-		return {
-			kind: 'superseded',
-			message: "This delete is no longer the latest action — can't undo automatically."
-		};
-	}
+  if (response.status === 422) {
+    // The most common 422 from undo is "not the latest action anymore".
+    return {
+      kind: 'superseded',
+      message: "This delete is no longer the latest action — can't undo automatically.",
+    };
+  }
 
-	if (error || !data) {
-		const parsed = parseApiError(error);
-		return { kind: 'form_error', message: parsed.message || 'Undo failed.' };
-	}
+  if (error || !data) {
+    const parsed = parseApiError(error);
+    return { kind: 'form_error', message: parsed.message || 'Undo failed.' };
+  }
 
-	const cs = (data as { changeset_id?: number }).changeset_id;
-	return { kind: 'ok', changesetId: cs ?? changesetId };
+  const cs = (data as { changeset_id?: number }).changeset_id;
+  return { kind: 'ok', changesetId: cs ?? changesetId };
 }

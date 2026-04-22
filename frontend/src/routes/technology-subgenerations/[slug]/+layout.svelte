@@ -1,18 +1,18 @@
 <script lang="ts">
-	import SimpleTaxonomyDetailLayout from '$lib/components/SimpleTaxonomyDetailLayout.svelte';
-	import { saveTechnologySubgenerationClaims } from './save-technology-subgeneration-claims';
+  import SimpleTaxonomyDetailLayout from '$lib/components/SimpleTaxonomyDetailLayout.svelte';
+  import { saveTechnologySubgenerationClaims } from './save-technology-subgeneration-claims';
 
-	let { data, children } = $props();
-	let profile = $derived(data.profile);
+  let { data, children } = $props();
+  let profile = $derived(data.profile);
 </script>
 
 <SimpleTaxonomyDetailLayout
-	{profile}
-	parentLabel="Technology Generations"
-	basePath="/technology-subgenerations"
-	parentHref="/technology-generations"
-	saveClaims={saveTechnologySubgenerationClaims}
-	deleteHref={`/technology-subgenerations/${profile.slug}/delete`}
+  {profile}
+  parentLabel="Technology Generations"
+  basePath="/technology-subgenerations"
+  parentHref="/technology-generations"
+  saveClaims={saveTechnologySubgenerationClaims}
+  deleteHref={`/technology-subgenerations/${profile.slug}/delete`}
 >
-	{@render children()}
+  {@render children()}
 </SimpleTaxonomyDetailLayout>

@@ -1,42 +1,42 @@
 <script lang="ts">
-	import DescriptionEditor from './DescriptionEditor.svelte';
-	import type { SaveResult } from './save-claims-shared';
+  import DescriptionEditor from './DescriptionEditor.svelte';
+  import type { SaveResult } from './save-claims-shared';
 
-	let dirtyFromCallback = $state(false);
-	let dirtyFromHandle = $state('unknown');
-	let savedCount = $state(0);
-	let lastError = $state('');
-	let lastSaveBody = $state<unknown>(null);
+  let dirtyFromCallback = $state(false);
+  let dirtyFromHandle = $state('unknown');
+  let savedCount = $state(0);
+  let lastError = $state('');
+  let lastSaveBody = $state<unknown>(null);
 
-	let editorRef:
-		| {
-				save(): Promise<void>;
-				isDirty(): boolean;
-		  }
-		| undefined = $state();
+  let editorRef:
+    | {
+        save(): Promise<void>;
+        isDirty(): boolean;
+      }
+    | undefined = $state();
 
-	function handleDirtyChange(dirty: boolean) {
-		dirtyFromCallback = dirty;
-	}
+  function handleDirtyChange(dirty: boolean) {
+    dirtyFromCallback = dirty;
+  }
 
-	async function save(_slug: string, body: unknown): Promise<SaveResult> {
-		lastSaveBody = body;
-		return { ok: true };
-	}
+  async function save(_slug: string, body: unknown): Promise<SaveResult> {
+    lastSaveBody = body;
+    return { ok: true };
+  }
 </script>
 
 <DescriptionEditor
-	bind:this={editorRef}
-	initialData="Original description"
-	slug="medieval-madness"
-	{save}
-	onsaved={() => savedCount++}
-	onerror={(message) => (lastError = message)}
-	ondirtychange={handleDirtyChange}
+  bind:this={editorRef}
+  initialData="Original description"
+  slug="medieval-madness"
+  {save}
+  onsaved={() => savedCount++}
+  onerror={(message) => (lastError = message)}
+  ondirtychange={handleDirtyChange}
 />
 
 <button type="button" onclick={() => (dirtyFromHandle = String(editorRef?.isDirty() ?? false))}>
-	Check dirty
+  Check dirty
 </button>
 <button type="button" onclick={() => editorRef?.save()}>Save</button>
 
