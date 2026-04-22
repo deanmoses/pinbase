@@ -160,66 +160,12 @@
                 }
             }
         ],
-        "./backend/apps/catalog/tests/test_entity_crud_registrar.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 28,
-                    "endColumn": 45,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 28,
-                    "endColumn": 45,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./backend/apps/catalog/tests/test_ingest_pinbase_locations.py": [
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 31,
-                    "endColumn": 38,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 57,
-                    "endColumn": 64,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./backend/apps/catalog/tests/test_models.py": [
             {
                 "code": "reportAttributeAccessIssue",
                 "range": {
                     "startColumn": 73,
                     "endColumn": 83,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./backend/apps/catalog/tests/test_resolve_bulk.py": [
-            {
-                "code": "reportOptionalMemberAccess",
-                "range": {
-                    "startColumn": 28,
-                    "endColumn": 39,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportOptionalMemberAccess",
-                "range": {
-                    "startColumn": 28,
-                    "endColumn": 37,
                     "lineCount": 1
                 }
             }
@@ -274,48 +220,12 @@
                 }
             }
         ],
-        "./backend/apps/core/tests/test_markdown.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 36,
-                    "endColumn": 40,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 15,
-                    "endColumn": 55,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./backend/apps/media/processing.py": [
             {
                 "code": "reportReturnType",
                 "range": {
                     "startColumn": 54,
                     "endColumn": 61,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./backend/apps/media/storage.py": [
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 38,
-                    "endColumn": 46,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 9,
-                    "endColumn": 21,
                     "lineCount": 1
                 }
             }
@@ -340,48 +250,12 @@
                 }
             }
         ],
-        "./backend/apps/provenance/tests/test_changes.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 67,
-                    "endColumn": 73,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 61,
-                    "endColumn": 67,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./backend/apps/provenance/tests/test_ingest_run.py": [
             {
                 "code": "reportAttributeAccessIssue",
                 "range": {
                     "startColumn": 19,
                     "endColumn": 29,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./backend/apps/provenance/validation.py": [
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 50,
-                    "endColumn": 61,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 30,
                     "lineCount": 1
                 }
             }
@@ -402,24 +276,6 @@
                 "range": {
                     "startColumn": 0,
                     "endColumn": 42,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./backend/config/urls.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 24,
-                    "endColumn": 37,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 24,
-                    "endColumn": 37,
                     "lineCount": 1
                 }
             }
