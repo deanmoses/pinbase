@@ -27,9 +27,6 @@ apps/catalog/ingestion/opdb/records.py:0: error: Missing type arguments for gene
 apps/catalog/ingestion/opdb/records.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/catalog/ingestion/ipdb/records.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/catalog/ingestion/ipdb/records.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/core/validators.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/core/validators.py:0: error: Call to untyped function "validate_no_mojibake" in typed context  [no-untyped-call]
-apps/core/validators.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/core/models.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/core/models.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/core/models.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -46,7 +43,6 @@ apps/core/markdown_links.py:0: error: Function is missing a type annotation for 
 apps/media/models.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/media/models.py:0: note: Use "-> None" if function does not return a value
 apps/provenance/validation.py:0: error: Item "ForeignObjectRel" of "Field[Any, Any] | ForeignObjectRel" has no attribute "validators"  [union-attr]
-apps/provenance/validation.py:0: error: Call to untyped function "validate_no_mojibake" in typed context  [no-untyped-call]
 apps/provenance/validation.py:0: error: Item "ForeignObjectRel" of "Field[Any, Any] | ForeignObjectRel" has no attribute "blank"  [union-attr]
 apps/provenance/validation.py:0: error: Item "ForeignObjectRel" of "Field[Any, Any] | ForeignObjectRel" has no attribute "to_python"  [union-attr]
 apps/provenance/validation.py:0: error: Item "ForeignObjectRel" of "Field[Any, Any] | ForeignObjectRel" has no attribute "validators"  [union-attr]
@@ -302,51 +298,37 @@ apps/catalog/management/commands/ingest_pinbase.py:0: error: Missing type argume
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
+apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
+apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "resolve_entity" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "_ingest_titles_body" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Incompatible types in assignment (expression has type "set[tuple[int, int]]", target has type "list[str]")  [assignment]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
-apps/catalog/management/commands/ingest_pinbase.py:0: error: Call to untyped function "bulk_create_validated" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_fandom.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_fandom.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/catalog/management/commands/ingest_fandom.py:0: error: Call to untyped function "validate_no_mojibake" in typed context  [no-untyped-call]
 apps/catalog/management/commands/ingest_fandom.py:0: error: Incompatible types in assignment (expression has type "str | None", variable has type "str")  [assignment]
 apps/catalog/ingestion/opdb/adapter.py:0: error: Argument 4 to "PlannedClaimAssert" has incompatible type "**dict[str, int]"; expected "str"  [arg-type]
 apps/catalog/ingestion/opdb/adapter.py:0: error: Argument 4 to "PlannedClaimAssert" has incompatible type "**dict[str, int]"; expected "str | None"  [arg-type]
