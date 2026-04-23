@@ -87,10 +87,6 @@ ignore = [
 "scripts/*.py" = ["T201"]
 "**/__init__.py" = ["F401"]  # re-exports from barrel modules are the whole point of __init__.py
 # ANN401 grandfathering
-"apps/catalog/apps.py" = ["ANN401"]
-"apps/catalog/signals.py" = ["ANN401"]
-"apps/catalog/ingestion/**" = ["ANN401"]
-"apps/catalog/management/**" = ["ANN401"]
 "apps/catalog/tests/**" = ["ANN401"]  # tests stay grandfathered; source is clean
 "config/**" = ["ANN401"]
 

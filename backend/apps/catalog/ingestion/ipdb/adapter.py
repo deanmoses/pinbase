@@ -123,11 +123,12 @@ class MatchResult:
 class CreditQueueEntry(NamedTuple):
     """A credit extracted from one IPDB record, pending person resolution.
 
-    ``target`` is the ``{"content_type_id", "object_id"}`` kwargs dict that
-    identifies the MachineModel receiving the credit claim.
+    ``content_type_id`` / ``object_id`` identify the MachineModel that
+    will receive the credit claim once the person row resolves.
     """
 
-    target: dict[str, int]
+    content_type_id: int
+    object_id: int
     name: str
     role_slug: str
 
@@ -311,7 +312,7 @@ def build_ipdb_plan(
             if not raw:
                 continue
             for name in parse_credit_string(raw):
-                credit_queue.append(CreditQueueEntry(target, name, role))
+                credit_queue.append(CreditQueueEntry(ct_mm, mr.model.pk, name, role))
 
         # Queue themes.
         if mr.record.theme:
@@ -779,7 +780,8 @@ def _process_credits(
                     relationship_namespace="credit",
                     identity={"role": role_pk},
                     identity_refs={"person": person_handle},
-                    **entry.target,
+                    content_type_id=entry.content_type_id,
+                    object_id=entry.object_id,
                 )
             )
         else:
@@ -794,7 +796,8 @@ def _process_credits(
                     field_name="credit",
                     claim_key=claim_key,
                     value=value,
-                    **entry.target,
+                    content_type_id=entry.content_type_id,
+                    object_id=entry.object_id,
                 )
             )
 
@@ -886,15 +889,15 @@ def _process_gameplay_features(
 ) -> None:
     """Build gameplay feature relationship claims (pre-seeded, no creation)."""
     for mm_target, pairs in queue:
-        for slug, count in pairs:
-            pk = feature_slug_to_pk.get(slug)
+        for pair in pairs:
+            pk = feature_slug_to_pk.get(pair.slug)
             if pk is None:
                 continue
             claim_key, value = build_relationship_claim(
                 "gameplay_feature", {"gameplay_feature": pk}
             )
-            if count is not None:
-                value["count"] = count
+            if pair.repeats is not None:
+                value["count"] = pair.repeats
             plan.assertions.append(
                 PlannedClaimAssert(
                     field_name="gameplay_feature",

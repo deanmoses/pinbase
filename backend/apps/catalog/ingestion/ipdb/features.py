@@ -15,11 +15,14 @@ class GameplayFeaturePair(NamedTuple):
     """A gameplay-feature slug paired with its optional repeat count.
 
     Counts come from IPDB's ``Feature (N)`` syntax; narrative-pattern
-    matches and multiball variants leave count as ``None``.
+    matches and multiball variants leave the count as ``None``. The
+    field is named ``repeats`` rather than ``count`` to avoid shadowing
+    ``tuple.count``.
     """
 
     slug: str
-    count: int | None
+    repeats: int | None
+
 
 # ---------------------------------------------------------------------------
 # Theme parsing
@@ -274,7 +277,7 @@ def extract_ipdb_gameplay_features(
     # If a specific n-ball-multiball variant was found, suppress the generic
     # "multiball" slug — the hierarchy already links variants to the parent.
     if any(s.endswith("-ball-multiball") for s in seen) and _MULTIBALL_SLUG in seen:
-        pairs = [(s, c) for s, c in pairs if s != _MULTIBALL_SLUG]
+        pairs = [pair for pair in pairs if pair.slug != _MULTIBALL_SLUG]
         seen.discard(_MULTIBALL_SLUG)
 
     return pairs, unmatched

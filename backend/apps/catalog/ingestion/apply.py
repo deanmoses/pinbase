@@ -118,8 +118,9 @@ class PlannedClaimAssert:
     """
 
     field_name: str
-    # ``value`` is the raw JSONField payload — scalar, dict, list, or null.
-    value: Any = None  # noqa: ANN401 - claim value is arbitrary JSON
+    # ``value`` is the raw JSONField payload — scalar, dict, list, or null;
+    # genuinely arbitrary, so the type stays open.
+    value: Any = None
     claim_key: str = ""
     citation: str = ""
     content_type_id: int | None = None

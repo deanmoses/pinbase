@@ -423,6 +423,8 @@ def check_credits_without_matching_claims(result: ValidationResult) -> None:
 
     stale_count = 0
     for credit in Credit.objects.filter(model__isnull=False):
+        # filter excludes null model_id; the assertion narrows for mypy.
+        assert credit.model_id is not None
         key = _CreditKey(credit.model_id, credit.person_id, credit.role_id)
         if key not in claimed:
             stale_count += 1
