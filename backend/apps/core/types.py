@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+# JSON request/response body for test-client helpers. Endpoint-specific
+# shapes are validated at the API boundary by Django-Ninja schemas; the
+# value type stays ``object`` so callers can pass arbitrary dict literals
+# without per-endpoint TypedDicts.
+type JsonBody = dict[str, object]
+
 
 class EntityKey(NamedTuple):
     """Hashable reference to a catalog entity via content-type + object id.

@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
 from apps.catalog.models import MachineModel, Title
+from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim, Source
 
 User = get_user_model()
@@ -77,7 +78,7 @@ def _make_model(
     return m
 
 
-def _post_delete(client, slug: str, body: dict[str, object] | None = None):
+def _post_delete(client, slug: str, body: JsonBody | None = None):
     return client.post(
         f"/api/models/{slug}/delete/",
         data=json.dumps(body or {}),
@@ -85,7 +86,7 @@ def _post_delete(client, slug: str, body: dict[str, object] | None = None):
     )
 
 
-def _post_restore(client, slug: str, body: dict[str, object] | None = None):
+def _post_restore(client, slug: str, body: JsonBody | None = None):
     return client.post(
         f"/api/models/{slug}/restore/",
         data=json.dumps(body or {}),

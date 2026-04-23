@@ -6,6 +6,7 @@ from django.core.management import call_command
 from apps.catalog.ingestion.wikidata_sparql import parse_wikidata_date
 from apps.catalog.models import Credit, CreditRole, MachineModel, Person
 from apps.catalog.tests.conftest import make_machine_model
+from apps.core.types import JsonBody
 from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
@@ -197,7 +198,7 @@ class TestFromDumpEmpty:
         import json
         import tempfile
 
-        empty: dict[str, object] = {"results": {"bindings": []}}
+        empty: JsonBody = {"results": {"bindings": []}}
         data = {"persons": empty, "bio": empty, "credits": empty}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(data, f)
