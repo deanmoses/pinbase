@@ -43,6 +43,9 @@ class ReviewClaimSchema(Schema):
     id: int
     source_name: str
     field_name: str
+    # ``value`` is the raw JSONField payload of a claim — scalar, dict, list,
+    # or null depending on the field — and stays ``object`` for the same
+    # reason the shared schemas in ``schemas.py`` do.
     value: object
     needs_review_notes: str
     created_at: str

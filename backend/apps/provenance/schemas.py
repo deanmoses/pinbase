@@ -2,6 +2,11 @@
 
 These schemas are used by both the edit-history endpoints (api.py) and the
 page-oriented changes endpoints (page_endpoints.py).
+
+Claim payloads are stored as JSON (``Claim.value`` is a ``JSONField``), so
+``old_value`` / ``new_value`` / ``value`` fields are typed as ``object`` —
+they carry scalars, dicts, lists, or null depending on the claim kind, and
+the catalog-level schema is what actually constrains each field's shape.
 """
 
 from __future__ import annotations

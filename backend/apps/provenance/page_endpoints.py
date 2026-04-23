@@ -150,7 +150,17 @@ def edit_history_page(
     except ValueError:
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
     entity = get_object_or_404(model_class, slug=slug)
-    return [ChangeSetSchema(**row) for row in build_edit_history(entity)]
+    return [
+        ChangeSetSchema(
+            id=row["id"],
+            user_display=row["user_display"],
+            note=row["note"],
+            created_at=row["created_at"],
+            changes=[FieldChangeSchema(**c) for c in row["changes"]],
+            retractions=[RetractionSchema(**r) for r in row["retractions"]],
+        )
+        for row in build_edit_history(entity)
+    ]
 
 
 @pages_router.get(
@@ -180,8 +190,25 @@ def sources_page(
     claims = active_claims(entity)
     sources = [ClaimSchema(**source) for source in build_sources(claims)]
     evidence = [
-        CitedChangeSetSchema(**changeset)
-        for changeset in build_cited_changesets(claims)
+        CitedChangeSetSchema(
+            id=row["id"],
+            user_display=row["user_display"],
+            note=row["note"],
+            created_at=row["created_at"],
+            fields=row["fields"],
+            citations=[
+                CitedChangeSetCitationSchema(
+                    source_name=c["source_name"],
+                    source_type=c["source_type"],
+                    author=c["author"],
+                    year=c["year"],
+                    locator=c["locator"],
+                    links=[EvidenceLinkSchema(**link) for link in c["links"]],
+                )
+                for c in row["citations"]
+            ],
+        )
+        for row in build_cited_changesets(claims)
     ]
     return SourcesPageSchema(
         sources=sources,

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.apps import AppConfig
 
+if TYPE_CHECKING:
+    from apps.provenance.models import CitationInstance
 
-def _format_citation_link(obj: Any, index: int, base_url: str, plain_text: bool) -> str:
+
+def _format_citation_link(
+    obj: CitationInstance | None, index: int, base_url: str, plain_text: bool
+) -> str:
     """Render a citation marker as a superscript footnote number."""
     if obj is None:
         return "[?]" if plain_text else "<sup>[?]</sup>"
@@ -17,7 +22,10 @@ def _format_citation_link(obj: Any, index: int, base_url: str, plain_text: bool)
     )
 
 
-def _collect_citation_metadata(obj: Any, index: int) -> dict[str, Any]:
+# Return is dict[str, Any] (not a TypedDict) because LinkType.collect_metadata
+# is typed as ``Callable[[Any, int], dict]`` in apps.core.markdown_links; a
+# TypedDict isn't assignable to a bare ``dict`` parameter under strict mypy.
+def _collect_citation_metadata(obj: CitationInstance, index: int) -> dict[str, Any]:
     """Collect structured metadata for a citation instance.
 
     Called by core's render pipeline via the collect_metadata callback.

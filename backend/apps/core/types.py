@@ -14,3 +14,16 @@ class EntityKey(NamedTuple):
 
     content_type_id: int
     object_id: int
+
+
+class ClaimIdentity(NamedTuple):
+    """Hashable identity of a claim on an entity.
+
+    Matches the ``(content_type, object_id, claim_key)`` uniqueness scope
+    used by provenance writes and catalog ingest when deduplicating
+    pending claims or joining against existing active rows.
+    """
+
+    content_type_id: int
+    object_id: int
+    claim_key: str

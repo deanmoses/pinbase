@@ -13,10 +13,13 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models
+
+if TYPE_CHECKING:
+    from apps.provenance.models import Claim
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +56,7 @@ def classify_claim(
     model_class: type[models.Model],
     field_name: str,
     claim_key: str,
-    value: Any,
+    value: Any,  # noqa: ANN401 - claim value is arbitrary JSON (scalar/dict/list/null)
     *,
     claim_fields: dict[str, str] | None = None,
 ) -> str:
@@ -109,9 +112,9 @@ def _has_extra_data(model_class: type[models.Model]) -> bool:
 
 def validate_claim_value(
     field_name: str,
-    value: Any,
+    value: Any,  # noqa: ANN401 - claim value is arbitrary JSON (scalar/dict/list/null)
     model_class: type[models.Model],
-) -> Any:
+) -> Any:  # noqa: ANN401 - returns the (possibly coerced) claim value, same shape as input
     """Validate and possibly transform a scalar claim value.
 
     Returns the (possibly transformed) value on success.
@@ -187,8 +190,8 @@ def validate_claim_value(
 
 
 def validate_claims_batch(
-    pending_claims: list,
-) -> tuple[list, int]:
+    pending_claims: list[Claim],
+) -> tuple[list[Claim], int]:
     """Validate claims in batch mode. Returns ``(valid_claims, rejected_count)``.
 
     Invalid claims are logged and removed from the list.
@@ -207,9 +210,9 @@ def validate_claims_batch(
 
     from apps.core.models import get_claim_fields
 
-    rejected: list = []
-    fk_claims: list[tuple] = []  # (claim, model_class) pairs
-    rel_claims: list = []  # relationship claims
+    rejected: list[Claim] = []
+    fk_claims: list[tuple[Claim, type[models.Model]]] = []
+    rel_claims: list[Claim] = []
 
     # Cache model_class and claim_fields per content_type_id.
     model_cache: dict[int, type[models.Model]] = {}
@@ -290,22 +293,27 @@ def validate_claims_batch(
 
 
 def validate_fk_claims_batch(
-    fk_claims: list[tuple],
-) -> list:
+    fk_claims: list[tuple[Claim, type[models.Model]]],
+) -> list[Claim]:
     """Batch-validate FK scalar claims. Returns list of rejected claims.
 
     Groups claims by ``(model_class, field_name)``, then issues one query
     per group to check target existence. Mirrors the ``claim_fk_lookups``
     convention from the resolver.
     """
-    groups: dict[tuple, list[tuple]] = defaultdict(list)
+    groups: dict[
+        tuple[type[models.Model], str], list[tuple[Claim, type[models.Model]]]
+    ] = defaultdict(list)
     for claim, model_class in fk_claims:
         groups[(model_class, claim.field_name)].append((claim, model_class))
 
-    rejected: list = []
+    rejected: list[Claim] = []
     for (model_class, field_name), group in groups.items():
         field = model_class._meta.get_field(field_name)
         target_model = field.related_model
+        assert isinstance(target_model, type)
+        assert issubclass(target_model, models.Model)
+        target_manager = target_model._default_manager
         fk_lookups_map = getattr(model_class, "claim_fk_lookups", {})
         lookup_key = fk_lookups_map.get(field_name, "slug")
 
@@ -321,7 +329,7 @@ def validate_fk_claims_batch(
             continue
 
         existing = set(
-            target_model.objects.filter(**{f"{lookup_key}__in": slugs}).values_list(
+            target_manager.filter(**{f"{lookup_key}__in": slugs}).values_list(
                 lookup_key, flat=True
             )
         )
@@ -347,8 +355,8 @@ def validate_fk_claims_batch(
 
 
 def validate_relationship_claims_batch(
-    rel_claims: list,
-) -> list:
+    rel_claims: list[Claim],
+) -> list[Claim]:
     """Batch-validate relationship claim targets. Returns list of rejected claims.
 
     Groups claims by ``(namespace, value_key)``, then issues one existence
@@ -363,7 +371,7 @@ def validate_relationship_claims_batch(
         return []
 
     # (namespace, value_key) → [(claim, ref_value), ...]
-    groups: dict[tuple[str, str], list[tuple]] = defaultdict(list)
+    groups: dict[tuple[str, str], list[tuple[Claim, object]]] = defaultdict(list)
     # Track which (namespace, value_key) → (target_model, lookup_field)
     group_meta: dict[tuple[str, str], tuple[type[models.Model], str]] = {}
 
@@ -387,7 +395,7 @@ def validate_relationship_claims_batch(
                 if key not in group_meta:
                     group_meta[key] = (target_model, lookup_field)
 
-    rejected: list = []
+    rejected: list[Claim] = []
     rejected_ids: set[int] = set()
 
     for key, group in groups.items():

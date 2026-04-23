@@ -64,7 +64,13 @@ class Source(TimeStampedModel):
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args: Any, **kwargs: Any) -> None:
+    # Django's Model.save signature is owned by the framework; the override
+    # only adds slug autofill before delegating upstream.
+    def save(
+        self,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
         if not self.slug:
             self.slug = unique_slug(self, self.name, "source")
         super().save(*args, **kwargs)

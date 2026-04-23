@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.db import models
 from django.db.models.functions import Now
 
@@ -54,7 +56,13 @@ class CitationInstance(models.Model):
         loc = f" @ {self.locator}" if self.locator else ""
         return f"Citation: {self.citation_source_id}{loc}"
 
-    def save(self, *args: object, **kwargs: object) -> None:
+    # Django's Model.save signature is owned by the framework; the override
+    # only enforces immutability before delegating upstream.
+    def save(
+        self,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
         if self.pk is not None:
             raise ValueError(
                 "CitationInstance is immutable. Create a new instance instead."

@@ -3,12 +3,48 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any
+from typing import Any, TypedDict
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, When
 
 from .models import ChangeSet, Claim
+
+
+class FieldChange(TypedDict):
+    """One field change within a ChangeSet; mirrors ``FieldChangeSchema``."""
+
+    field_name: str
+    claim_key: str
+    # old/new values are claim payloads (arbitrary JSON: scalar, dict, list, null).
+    old_value: Any
+    new_value: Any
+    claim_id: int
+    claim_user_id: int | None
+    is_active: bool
+    is_winning: bool
+    is_retracted: bool
+
+
+class Retraction(TypedDict):
+    """One retracted claim recorded on a ChangeSet; mirrors ``RetractionSchema``."""
+
+    claim_id: int
+    field_name: str
+    claim_key: str
+    # old_value is the retracted claim's stored payload (arbitrary JSON).
+    old_value: Any
+
+
+class ChangeSetHistory(TypedDict):
+    """One changeset with its changes and retractions for the edit-history page."""
+
+    id: int
+    user_display: str | None
+    note: str
+    created_at: str
+    changes: list[FieldChange]
+    retractions: list[Retraction]
 
 
 def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
@@ -45,7 +81,7 @@ def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
     return winners
 
 
-def build_edit_history(entity: Model) -> list[dict[str, Any]]:
+def build_edit_history(entity: Model) -> list[ChangeSetHistory]:
     """Build changeset-grouped edit history with old→new diffs for an entity.
 
     Returns a list of dicts matching ChangeSetSchema, newest first.
@@ -103,9 +139,9 @@ def build_edit_history(entity: Model) -> list[dict[str, Any]]:
     winning_ids = _compute_winning_claim_ids(ct, entity.pk)
 
     # 4. Build response.
-    result: list[dict[str, Any]] = []
+    result: list[ChangeSetHistory] = []
     for cs in changesets:
-        changes: list[dict[str, Any]] = []
+        changes: list[FieldChange] = []
         for claim in cs.claims.all():
             chain = (
                 history.get((claim.claim_key, claim.user_id), [])
@@ -131,7 +167,7 @@ def build_edit_history(entity: Model) -> list[dict[str, Any]]:
                 }
             )
 
-        retractions = [
+        retractions: list[Retraction] = [
             {
                 "claim_id": c.pk,
                 "field_name": c.field_name,

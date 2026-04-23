@@ -3,15 +3,33 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 from django.db import models
-from django.db.models import Case, F, IntegerField, Prefetch, Value, When
+from django.db.models import Case, F, IntegerField, Prefetch, QuerySet, Value, When
 
 from .models import CitationInstance, Claim
 
 
-def claims_prefetch(to_attr: str = "active_claims") -> Any:
+class SourceRow(TypedDict):
+    """Serialized per-claim entry matching ``ClaimSchema`` in schemas.py."""
+
+    source_name: str | None
+    source_slug: str | None
+    user_display: str | None
+    field_name: str
+    # Claim values are arbitrary JSON (scalar, dict, list, null) by design;
+    # the schema serializes them as ``object`` for the same reason.
+    value: Any
+    citation: str
+    created_at: str
+    is_winner: bool
+    changeset_note: str | None
+
+
+def claims_prefetch(
+    to_attr: str = "active_claims",
+) -> Prefetch[str, QuerySet[Claim], str]:
     """Return a Prefetch for active claims with priority annotation."""
     return Prefetch(
         "claims",
@@ -68,14 +86,14 @@ def citation_instances(claim: Claim) -> list[CitationInstance]:
     return cast(list[CitationInstance], instances)
 
 
-def build_sources(claims: Iterable[Any]) -> list[dict[str, Any]]:
+def build_sources(claims: Iterable[Claim]) -> list[SourceRow]:
     """Serialize pre-fetched active claims into the sources list format.
 
     Claims should be ordered by claim_key, -priority, -created_at. The first
     claim seen per claim_key is marked as the winner.
     """
     winners: set[str] = set()
-    sources: list[dict[str, Any]] = []
+    sources: list[SourceRow] = []
     for claim in claims:
         is_winner = claim.claim_key not in winners
         if is_winner:
