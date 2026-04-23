@@ -1,12 +1,12 @@
 # Mypy Fixing
 
-The mypy baseline (`backend/mypy-baseline.txt`) has 710 entries. ~82% are three error classes:
+## Context
 
-- `no-untyped-def` — 337
-- `type-arg` — 128 (bare `dict` / `list` / `set`)
-- `no-untyped-call` — 114 (caller penalized because the callee is untyped)
+We recently introduced mypy and grandfathered in a lot of exceptions in backend/mypy-baseline.txt. This is the plan to attack them.
 
-Hotspots are concentrated: `apps/catalog/api/*` dominates, followed by `catalog/management/commands/ingest_pinbase.py` (47), `citation/api.py` (38), and `catalog/ingestion/opdb/adapter.py` (30). Fix patterns, not baseline lines.
+## Status
+
+Steps 1–2 complete. Step 3 is next.
 
 ## Running mypy
 
@@ -25,7 +25,9 @@ Hotspots are concentrated: `apps/catalog/api/*` dominates, followed by `catalog/
 - **Ratchet via the baseline, not per-module strictness.** `strict = true` is already global in [backend/pyproject.toml](backend/pyproject.toml); the only per-module levers are _relaxations_, and the enforceable direction is removing them. Concretely: (a) shrink `mypy-baseline.txt` monotonically and fail CI on new entries (`mypy-baseline --fail-on-new-error` or equivalent); (b) as `apps.*.api.*` packages clean up, narrow or remove the `disallow_untyped_decorators = false` relaxation at [pyproject.toml:136](backend/pyproject.toml#L136).
 - **Re-run `make api-gen` after any Ninja endpoint retyping.** Annotated return types change the generated OpenAPI schema and therefore `frontend/src/lib/api/schema.d.ts`. Run the frontend typecheck too, not just pytest.
 
-## Idiom for serialization helpers: return Schema, not `dict`
+## Idioms
+
+### Idiom for serialization helpers: return Schema, not `dict`
 
 In a Django + Ninja app, the Ninja `Schema` (Pydantic v2) is the canonical data shape — for request/response validation _and_ for in-process typing. Serialization helpers should **return Schema instances**, not dicts that later get re-validated against the same Schema.
 
@@ -33,10 +35,11 @@ In a Django + Ninja app, the Ninja `Schema` (Pydantic v2) is the canonical data 
 - **No Schema exists yet for this shape → add one.** Two duplicated shapes (a TypedDict and a Schema) is a worse outcome than one Schema used everywhere.
 - **Truly free-form `JSONField` bags → `JsonData` from [apps/core/types.py](backend/apps/core/types.py).** Only `extra_data` qualifies. `JsonData = Mapping[str, object]` — `object` (not `Any`) forces `isinstance`-narrowing at use sites, which is correct for JSON. `Mapping` (covariant) is needed because dict literals with specific value types aren't subtypes of the invariant `dict[str, object]`. Use `JsonBody` (the `dict` form) only for test-client write bodies.
 - **Exception: cached-bytes hot paths.** Endpoints that build the input to `set_cached_response` (e.g. `list_all_titles`, `list_all_models`) persist JSON bytes; the dict _is_ the cached form. Building Schemas only to `model_dump()` them back is the round-trip the cache exists to avoid. Keep these few helpers dict-returning, type the local as `list[dict[str, Any]]`, and leave a comment naming the cache contract. The Schema for the same shape still applies to the non-cached sibling endpoint.
+  - **Cached-endpoint return type:** `get_cached_response()` returns `HttpResponse | None`, so the endpoint's return annotation must be `HttpResponse | list[dict[str, Any]]` (not just the list). Mixing `return response` (HttpResponse) and `return result` (list) in one function otherwise fails mypy.
 
 `TypedDict` is the fallback for code that can't or won't use Pydantic. In a Ninja app, Pydantic is already present — use it.
 
-## Idiom for `Any`: four categories, only one is valid
+### Idiom for `Any`: four categories, only one is valid
 
 Writing `Any` means "don't type-check this." Default to never. When tempted, classify which of these it is:
 
@@ -47,7 +50,7 @@ Writing `Any` means "don't type-check this." Default to never. When tempted, cla
 
 Rule: if you're about to write `Any` and it's not #3, find the real type.
 
-## Idioms for introspection-heavy code
+### Idioms for introspection-heavy code
 
 For code that operates on a generic `type[Model]` (resolvers, validators, management commands):
 
@@ -55,7 +58,7 @@ For code that operates on a generic `type[Model]` (resolvers, validators, manage
 - **Narrow `type[Model] | Literal['self']`** with `assert isinstance(target_model, type) and issubclass(target_model, models.Model)`. At runtime `"self"` is already resolved by `_meta.get_field()`; the union is a django-stubs artifact.
 - **Narrow `Field | ForeignObjectRel`** with `isinstance(field, models.Field)`. `ForeignObjectRel` lacks `validators`, `blank`, `to_python`, `choices`.
 
-## Idiom for generics over heterogeneous model classes
+### Idiom for generics over heterogeneous model classes
 
 When a helper is generic over N concrete model classes that share a Schema shape but _don't_ share a base class carrying the fields / custom manager (e.g. the 9 taxonomy models share `name` / `slug` / `display_order` / `CatalogManager` but inherit them from different mixins):
 
@@ -64,61 +67,110 @@ When a helper is generic over N concrete model classes that share a Schema shape
 - **Narrow with `isinstance`, not `hasattr` + `getattr`.** When one arm of the union has a reverse relation the others don't (e.g. only `RewardType` has `aliases`), `if isinstance(obj, RewardType): obj.aliases.all()` type-checks cleanly. The `hasattr` + `getattr(obj, "attr")` spelling trips ruff's B009.
 - **The speculative fix is a shared abstract base.** Introducing a `TaxonomyBase` mixin with the shared fields and manager would let a bound TypeVar work and eliminate the noqas. Not in-scope for any step of this plan — revisit only if multiple future helpers need the same shape or the entity-type registry consolidation lands.
 
-## Idiom for Schema/dict boundaries during migration
+### Idiom for Schema/dict boundaries during migration
 
 When a helper transitions from returning `dict` to returning `Schema`, but the converse boundary still returns `dict` — either a shared callback registrar consumed by untyped callers, or a cross-step callee whose own conversion is scheduled later:
 
 - **Wrap at the boundary, not the callee.**
-  - Schema-side calling dict-side: `Schema.model_validate(callee_dict(...))` at the call site. (Step 1 titles.py → step 2 machine_models.py used this for `MachineModelDetailSchema.model_validate(_serialize_model_detail(pm))`.)
+  - Schema-side calling dict-side: `Schema.model_validate(callee_dict(...))` at the call site. (Step 1 titles.py used this for `MachineModelDetailSchema.model_validate(_serialize_model_detail(pm))`, pending Step 3.1's removal of the bridge.)
   - Dict-side calling Schema-side: `serialize_detail=lambda obj: _serialize_taxonomy(obj).model_dump()` confines the round-trip to the single call site.
   - Either way, tightening the shared callback type or callee return ripples into every untyped consumer, ballooning the current step's scope.
 - **Flag the wrapper as tech debt.** A comment naming the later step that will remove the bridge keeps the intent visible. Don't silently leave the `.model_dump()` / `.model_validate()` hop in place once the boundary is tightened.
 
-## Idiom for narrowing optional FK fields
+### Idiom for narrowing optional FK fields
 
 `obj.fk_id is not None` (column read, no DB hit) and `obj.fk is not None` (related-object dereference, may hit the DB) **are not equivalent**. Don't swap one for the other to satisfy mypy.
 
 - The original guard is usually `obj.fk_id is not None` because callers don't want the related fetch.
 - To narrow the related object for mypy without changing semantics, bind a local and assert: `parent = obj.fk; assert parent is not None`. The `_id` check guarantees the assert holds; the local lets mypy track the narrowing through the rest of the block.
 
-## Step 1 — Keystone helpers in `catalog/api`
+## Step 1: keystone helpers in `catalog/api` - DONE
 
 Type the shared helpers before their callers. Expect the `no-untyped-call` count to drop noticeably as a side effect.
 
 - [apps/catalog/api/taxonomy.py](backend/apps/catalog/api/taxonomy.py) — **done** (58 → 2; the 2 remaining are pre-existing `Cannot infer type of lambda` on default-arg-captured lambdas in the `_register_*` wrappers).
-- [apps/catalog/api/titles.py](backend/apps/catalog/api/titles.py) — **done** (51 → 0). Two `MachineModelDetailSchema.model_validate(_serialize_model_detail(...))` bridges remain; remove when step 2 converts `_serialize_model_detail` to return the Schema. `_serialize_model_detail` and `_model_detail_qs` in [machine_models.py](backend/apps/catalog/api/machine_models.py) were minimally typed (return `dict[str, Any]` and `QuerySet[MachineModel]`) as cross-file callee unblocks — the full Schema conversion is step 2 work.
+- [apps/catalog/api/titles.py](backend/apps/catalog/api/titles.py) — **done** (51 → 0). Two `MachineModelDetailSchema.model_validate(_serialize_model_detail(...))` bridges remain; remove when Step 3.1 converts `_serialize_model_detail` to return the Schema. `_serialize_model_detail` and `_model_detail_qs` in [machine_models.py](backend/apps/catalog/api/machine_models.py) were minimally typed (return `dict[str, Any]` and `QuerySet[MachineModel]`) as cross-file callee unblocks — the full Schema conversion is Step 3.1 work.
 
 Return Schema instances (see idiom above). Add schemas for shapes that don't have one yet.
 
-## Step 2 — rest of `catalog/api`
+## Step 2: `catalog/api` signatures - DONE
 
 With taxonomy + titles done, the rest of the package falls into two groups. Order matters: shared-helper modules first (callee-before-caller), then endpoint-only files. Run `make api-gen` + frontend typecheck after each batch.
 
-**2a — shared helpers** (not endpoint files; expose the keystone helpers every endpoint in the package calls — `execute_claims`, `plan_*`, `assert_*`, `serialize_blocking_referrer`, `execute_soft_delete`):
+### Step 2.1: shared helper signatures - DONE
 
-`edit_claims.py` (17) → `soft_delete.py` (17) → `entity_create.py` (11) → `entity_crud.py` (17).
+(not endpoint files; expose the keystone helpers every endpoint in the package calls — `execute_claims`, `plan_*`, `assert_*`, `serialize_blocking_referrer`, `execute_soft_delete`).
 
-Typing these first means the 2b sweep collects `no-untyped-call` reductions for free.
+`edit_claims.py` (17 → 0) → `soft_delete.py` (17 → 0) → `entity_create.py` (11 → 0) → `entity_crud.py` (17 → 0).
 
-**2b — endpoint signatures** (`request: HttpRequest`, explicit Schema return types):
+Typing these first means the step 2.2 sweep collects `no-untyped-call` reductions for free.
 
-`systems.py` (12) → `manufacturers.py` (11) → `series.py` (10) → `locations.py` (20) → `people.py` (20) → `machine_models.py` (34) → `page_endpoints.py` (46).
+### Step 2.2: endpoint signatures - DONE
 
-`machine_models.py` is sequenced before `page_endpoints.py` for two reasons: (a) it carries the titles.py → step-2 bridges (`MachineModelDetailSchema.model_validate(_serialize_model_detail(...))`) which step 2 should remove, not perpetuate; (b) `page_endpoints.py` imports `_serialize_model_detail` / `_model_detail_qs` from it, so typing machine_models first unblocks the largest file the same way it unblocked titles.
+(`request: HttpRequest`, explicit Schema return types)
 
-**Land a shared `ErrorDetailSchema` during 2b.** Almost every endpoint file declares `response={..., 422: dict, 404: dict}` with bodies like `{"detail": "..."}` or `{"detail": "...", "blocked_by": [...]}`. Define `ErrorDetailSchema` and `SoftDeleteBlockedSchema` once, replace the `dict` declarations as each file is swept. Cheaper to do during the same touch than to revisit; also removes the lazy-`Any` placeholders that titles.py left behind (`422: dict[str, Any]`, etc.).
+`systems.py` (12 → 0) → `manufacturers.py` (11 → 0) → `series.py` (10 → 0) → `locations.py` (20 → 0) → `people.py` (20 → 0) → `machine_models.py` (34 → 0) → `page_endpoints.py` (46 → 0).
 
-When the package is clean, shrink `mypy-baseline.txt` to drop its entries and (if feasible) narrow the `apps.*.api.*` decorator relaxation.
+`machine_models.py` was sequenced before `page_endpoints.py` for two reasons: (a) it carries the titles.py bridges (`MachineModelDetailSchema.model_validate(_serialize_model_detail(...))`) which Step 3.1 will remove; (b) `page_endpoints.py` imports `_serialize_model_detail` / `_model_detail_qs` from it, so typing machine_models first unblocks the largest file the same way it unblocked titles.
 
-## Step 3 — `citation/api` and `provenance/api`
+Baseline: 710 → 377 (~47% reduction). Commit: `e7b8204f`.
 
-Same pattern — helpers first, endpoints after, `make api-gen` between batches. Smaller scopes (38 + 15 entries); should go quickly after step 2's muscle memory.
+## Step 3: close out `catalog/api`
 
-## Step 4 — `catalog/resolve/*`
+Order: Schema-return conversion (3.1) before error-schema swap (3.2) because 3.1 is unblocked while 3.2 needs a design decision. Step 4 (tech-debt cleanup) is independent and can land any time. Step 5 (decorator-relaxation narrowing) is the final milestone and is gated on Step 3.
+
+### Step 3.1: Convert `_serialize_model_detail` to return Schema
+
+Step 1's deferred work. Two bridges in [titles.py](backend/apps/catalog/api/titles.py) still read `MachineModelDetailSchema.model_validate(_serialize_model_detail(pm))`; they must be removed, not left to rot. `_serialize_model_detail` is currently typed `-> dict[str, Any]` as a minimal-touch unblock. Flip the return to the Schema, drop the two `model_validate` wrappers in titles.py, and re-run `make api-gen` + frontend check.
+
+**Done when:** `_serialize_model_detail` returns `MachineModelDetailSchema`, the two `model_validate` wrappers are gone from titles.py, `./scripts/mypy` stays clean, and frontend typecheck passes.
+
+### Step 3.2: Swap `422` / `404` dict responses to shared error schemas
+
+`ErrorDetailSchema` and `SoftDeleteBlockedSchema` are defined in [schemas.py](backend/apps/catalog/api/schemas.py) (commit `e7b8204f`) but not yet referenced. Sites to update:
+
+- [entity_crud.py:238](backend/apps/catalog/api/entity_crud.py#L238), [:276](backend/apps/catalog/api/entity_crud.py#L276)
+- [machine_models.py:1036](backend/apps/catalog/api/machine_models.py#L1036), [:1079](backend/apps/catalog/api/machine_models.py#L1079)
+- [people.py:399](backend/apps/catalog/api/people.py#L399), [:459](backend/apps/catalog/api/people.py#L459)
+- [titles.py:1148](backend/apps/catalog/api/titles.py#L1148), [:1195](backend/apps/catalog/api/titles.py#L1195) (these use `422: dict[str, Any]`, lazy-`Any` placeholders to clear)
+
+**Precondition: `SoftDeleteBlockedSchema` doesn't fit `delete_person`.** That endpoint returns `active_credit_count`, not `active_children_count` (Credits aren't lifecycle children — see the `_active_credit_count` docstring in [people.py](backend/apps/catalog/api/people.py)). Resolve before the swap by either:
+
+- Generalizing the schema field to `active_referrer_count: int` and updating the `delete_model` / `entity_crud._delete` payloads to match, or
+- Keeping `SoftDeleteBlockedSchema` as-is for the cascade-child case and adding `PersonSoftDeleteBlockedSchema` for the credit case.
+
+The frontend's [delete-flow.ts classifier](frontend/src/lib/delete-flow.ts) keys off `blocked_by` being a present array; any rename needs a coordinated frontend change.
+
+**Done when:** no `catalog/api` endpoint declares `422: dict` / `404: dict` / `422: dict[str, Any]`, `./scripts/mypy` stays clean, frontend typecheck passes.
+
+## Step 4: Clean up tech debt from the Step 2 signature sweep
+
+Quality regressions introduced to clear the baseline quickly. Independent of Steps 3 / 5 — can land any time, but should not normalize.
+
+- **`_Entity = Any` is wider than its justification.** The alias in [edit_claims.py](backend/apps/catalog/api/edit_claims.py) is used for `plan_parent_claims`, `plan_alias_claims`, `plan_gameplay_feature_claims`, `plan_credit_claims`, `plan_abbreviation_claims`. Only the first two are genuinely cross-model. The last three are effectively MachineModel-only (or MachineModel | Title for abbreviations) and should use concrete types so "wrong entity passed" is caught at the call site. The module comment claims idiom #3 justification — real for the cross-model cases, lazy-`Any` (idiom #1) for the single-model ones.
+- **`cast(Any, user)` widens past what the runtime guarantees.** Two call sites in `execute_claims` / `execute_multi_entity_claims`. `_UserLike = AbstractBaseUser | AnonymousUser` matches what `request.user` returns, but `ChangeSet.user` is NOT NULL and `AnonymousUser.pk` is `None`. Every caller is behind `auth=django_auth`, so an anonymous user can't actually reach these helpers in prod — this is type-level laxity, not a latent bug. Tighten by narrowing with `assert not isinstance(user, AnonymousUser)` at entry and dropping `AnonymousUser` from `_UserLike`.
+- **`cur: Any` loop-variable pattern.** Three spots — [manufacturers.py:219](backend/apps/catalog/api/manufacturers.py#L219), [machine_models.py:631](backend/apps/catalog/api/machine_models.py#L631), [locations.py:122](backend/apps/catalog/api/locations.py#L122) — use `cur: Any = cel.location` to sidestep the reassignment to `.parent` (`Location | None`). Correct fix is `cur: Location | None = cel.location`, which preserves `.location_path` / `.name` / `.parent` typing inside the loop.
+- **`list[Any]` return on `list_manufacturers` / `list_people`.** Regression from `list[dict[str, Any]]` caused by `.values(...)` returning a mypy TypedDict that doesn't structurally match. Restore the dict annotation and cast the return if needed.
+- **`entity_crud.py` casts `model_cls` to `Any` four times** for `.entity_type` / `.active()`. Tightening the registrar params from `type[Model]` to `type[CatalogModel]` eliminates all four casts and restores type info on the manager.
+- **`create_view: Callable[..., Any]`** in `register_entity_create` was the minimal assignment-incompatibility fix but discards signature info on the eventual `router.post(...)(create_view)` call.
+
+**Done when:** every bullet above is resolved or explicitly closed with a "won't fix, because..." note in this doc. No baseline-count criterion — these items don't all surface as baseline entries.
+
+## Step 5: narrow `apps.*.api.*` decorator relaxation
+
+Gated on Step 3. With `catalog/api` signatures typed and error schemas swapped, `disallow_untyped_decorators = false` at [pyproject.toml:136](backend/pyproject.toml#L136) can likely be scoped to just the files that still pay the cost, or removed for `catalog/api` entirely. Measure the fallout before flipping.
+
+**Done when:** the `apps.*.api.*` override at [pyproject.toml:136](backend/pyproject.toml#L136) is either removed, scoped to a narrower path, or kept with an inline comment naming the specific files that still need it and why.
+
+## Step 6: `citation/api` and `provenance/api`
+
+Same pattern as Step 2 — helpers first, endpoints after, `make api-gen` between batches. Smaller scopes (38 + 15 entries); should go quickly after Step 2's muscle memory.
+
+## Step 7: `catalog/resolve/*`
 
 Refactor tuple-heavy resolver code into `dataclass` / `TypedDict` where state is being unpacked inconsistently. Apply the idioms above for remaining `attr-defined` / `union-attr` noise.
 
-## Step 5 — Ingestion and management commands
+## Step 8: Ingestion and management commands
 
 Grouped because they share patterns (external I/O, command runners, bare dicts from JSON parsing):
 
@@ -128,8 +180,9 @@ Grouped because they share patterns (external I/O, command runners, bare dicts f
 - [catalog/management/commands/validate_catalog.py](backend/apps/catalog/management/commands/validate_catalog.py) (17)
 - remaining ingestion + media tail
 
+Ordering of Steps 6 / 7 / 8 is not fixed; re-plan when Steps 3–5 are complete.
+
 ## Process
 
 - `strict = true` is already global, so the enforcement surface is the baseline itself plus removing relaxations.
 - Fail CI on new baseline entries and shrink the file monotonically as each step lands.
-- As `apps.*.api.*` cleans up, narrow or remove the `disallow_untyped_decorators = false` relaxation at [pyproject.toml:136](backend/pyproject.toml#L136).
