@@ -28,6 +28,7 @@ from apps.catalog.models import (
 )
 from apps.catalog.tests.conftest import make_machine_model
 from apps.citation.models import CitationSource
+from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, CitationInstance, Claim, Source
 from apps.provenance.test_factories import user_changeset
 
@@ -49,7 +50,7 @@ def citation_source(db):
     )
 
 
-def _patch(client, path: str, body: dict[str, object]):
+def _patch(client, path: str, body: JsonBody):
     return client.patch(
         path,
         data=json.dumps(body),

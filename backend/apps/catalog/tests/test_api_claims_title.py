@@ -12,6 +12,7 @@ from apps.catalog.models import Franchise, Title
 from apps.catalog.resolve import resolve_all_entities
 from apps.catalog.resolve._relationships import resolve_all_title_abbreviations
 from apps.citation.models import CitationSource
+from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, Claim, Source
 from apps.provenance.test_factories import user_changeset
 
@@ -54,7 +55,7 @@ def citation_source(db):
     return CitationSource.objects.create(name="Williams Flyer", source_type="web")
 
 
-def _patch(client, slug: str, body: dict[str, object]):
+def _patch(client, slug: str, body: JsonBody):
     return client.patch(
         f"/api/titles/{slug}/claims/",
         data=json.dumps(body),
