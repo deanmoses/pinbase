@@ -38,6 +38,7 @@ from ..models import (
     Title,
     TitleAbbreviation,
 )
+from ._typing import CreditKey, SlugName
 from .constants import DEFAULT_PAGE_SIZE
 from .edit_claims import (
     ClaimSpec,
@@ -179,6 +180,8 @@ class TitleDetailSchema(Schema):
 
 
 class TitleClaimPatchSchema(Schema):
+    # See schemas.ClaimPatchSchema.fields — polymorphic per claim field,
+    # validated downstream by ``validate_claim_value``.
     fields: dict[str, Any] = {}
     abbreviations: list[str] | None = None
     note: str = ""
@@ -546,11 +549,11 @@ def _serialize_title_detail(title) -> dict:
 
     # Credits that appear on every model (intersection, not union).
     credit_sets = []
-    credit_data: dict[tuple[str, str], dict] = {}
+    credit_data: dict[CreditKey, dict] = {}
     for pm in model_objs:
-        model_keys: set[tuple[str, str]] = set()
+        model_keys: set[CreditKey] = set()
         for c in pm.credits.all():
-            key = (c.person.slug, c.role.slug)
+            key = CreditKey(c.person.slug, c.role.slug)
             model_keys.add(key)
             credit_data.setdefault(key, _serialize_credit(c))
         credit_sets.append(model_keys)
@@ -802,35 +805,35 @@ def list_all_titles(request):
         title_model_map[title_id].append(model_id)
         model_ids.add(model_id)
 
-    model_tech_gen: dict[int, tuple[str, str]] = {}
+    model_tech_gen: dict[int, SlugName] = {}
     for mid, slug, name in model_qs.filter(
         technology_generation__isnull=False
     ).values_list("id", "technology_generation__slug", "technology_generation__name"):
-        model_tech_gen[mid] = (slug, name)
+        model_tech_gen[mid] = SlugName(slug, name)
 
-    model_display: dict[int, tuple[str, str]] = {}
+    model_display: dict[int, SlugName] = {}
     for mid, slug, name in model_qs.filter(display_type__isnull=False).values_list(
         "id", "display_type__slug", "display_type__name"
     ):
-        model_display[mid] = (slug, name)
+        model_display[mid] = SlugName(slug, name)
 
-    model_system: dict[int, tuple[str, str]] = {}
+    model_system: dict[int, SlugName] = {}
     for mid, slug, name in model_qs.filter(system__isnull=False).values_list(
         "id", "system__slug", "system__name"
     ):
-        model_system[mid] = (slug, name)
+        model_system[mid] = SlugName(slug, name)
 
     model_player_count: dict[int, int | None] = {}
     for mid, pc in model_qs.values_list("id", "player_count"):
         model_player_count[mid] = pc
 
-    model_themes: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    model_themes: dict[int, list[SlugName]] = defaultdict(list)
     for mid, slug, name in MachineModel.themes.through.objects.filter(
         machinemodel_id__in=model_ids
     ).values_list("machinemodel_id", "theme__slug", "theme__name"):
-        model_themes[mid].append((slug, name))
+        model_themes[mid].append(SlugName(slug, name))
 
-    model_gf: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    model_gf: dict[int, list[SlugName]] = defaultdict(list)
     for mid, slug, name in MachineModel.gameplay_features.through.objects.filter(
         machinemodel_id__in=model_ids
     ).values_list(
@@ -838,19 +841,19 @@ def list_all_titles(request):
         "gameplayfeature__slug",
         "gameplayfeature__name",
     ):
-        model_gf[mid].append((slug, name))
+        model_gf[mid].append(SlugName(slug, name))
 
-    model_rt: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    model_rt: dict[int, list[SlugName]] = defaultdict(list)
     for mid, slug, name in MachineModel.reward_types.through.objects.filter(
         machinemodel_id__in=model_ids
     ).values_list("machinemodel_id", "rewardtype__slug", "rewardtype__name"):
-        model_rt[mid].append((slug, name))
+        model_rt[mid].append(SlugName(slug, name))
 
-    model_persons: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    model_persons: dict[int, list[SlugName]] = defaultdict(list)
     for mid, slug, name in Credit.objects.filter(model_id__in=model_ids).values_list(
         "model_id", "person__slug", "person__name"
     ):
-        model_persons[mid].append((slug, name))
+        model_persons[mid].append(SlugName(slug, name))
 
     # --- Assembly ---
     result = []

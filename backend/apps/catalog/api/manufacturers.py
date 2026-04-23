@@ -31,7 +31,7 @@ from ..models import (
     ManufacturerAlias,
     System,
 )
-from ._typing import HasModelCount, HasYearRange
+from ._typing import HasModelCount, HasYearRange, SlugName
 from .constants import DEFAULT_PAGE_SIZE
 from .edit_claims import execute_claims, plan_scalar_field_claims
 from .entity_crud import register_entity_create, register_entity_delete_restore
@@ -378,7 +378,7 @@ def list_all_manufacturers(request):
                 mfr_location_refs[mid][path] = name
 
     # Tech generations per manufacturer (via models)
-    mfr_tech_gens: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    mfr_tech_gens: dict[int, list[SlugName]] = defaultdict(list)
     for mfr_id, tg_slug, tg_name in (
         MachineModel.objects.active()
         .filter(
@@ -393,10 +393,10 @@ def list_all_manufacturers(request):
         )
         .distinct()
     ):
-        mfr_tech_gens[mfr_id].append((tg_slug, tg_name))
+        mfr_tech_gens[mfr_id].append(SlugName(tg_slug, tg_name))
 
     # Persons per manufacturer (via model credits)
-    mfr_persons: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    mfr_persons: dict[int, list[SlugName]] = defaultdict(list)
     for mfr_id, p_slug, p_name in (
         Credit.objects.filter(
             model__variant_of__isnull=True,
@@ -409,7 +409,7 @@ def list_all_manufacturers(request):
         )
         .distinct()
     ):
-        mfr_persons[mfr_id].append((p_slug, p_name))
+        mfr_persons[mfr_id].append(SlugName(p_slug, p_name))
 
     # --- Assembly ---
     result = []

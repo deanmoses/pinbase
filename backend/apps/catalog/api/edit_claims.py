@@ -23,6 +23,7 @@ from apps.provenance.schemas import EditCitationInput
 from apps.provenance.validation import validate_claim_value
 
 from ..resolve import resolve_after_mutation
+from ._typing import CreditKey, CreditPkKey
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,9 @@ class ClaimSpec:
     """A planned claim to be written — separates diffing from execution."""
 
     field_name: str
+    # Claim values are intentionally polymorphic (str | int | bool | dict for
+    # relationship claims | None); ``object`` is the accurate type, and
+    # consumers narrow per field_name before persisting.
     value: object
     claim_key: str = ""
 
@@ -575,7 +579,9 @@ def plan_credit_claims(
 
     Raises HttpError 422 on invalid input.
     """
-    raw_desired = [(credit.person_slug, credit.role) for credit in desired_credits]
+    raw_desired = [
+        CreditKey(credit.person_slug, credit.role) for credit in desired_credits
+    ]
 
     if raw_desired:
         desired_person_slugs = {p for p, _ in raw_desired}
@@ -610,26 +616,26 @@ def plan_credit_claims(
                 "slug", "pk"
             )
         )
-        desired_pks: set[tuple[int, int]] = {
-            (person_slug_to_pk[p], role_slug_to_pk[r]) for p, r in desired
+        desired_pks: set[CreditPkKey] = {
+            CreditPkKey(person_slug_to_pk[p], role_slug_to_pk[r]) for p, r in desired
         }
     else:
         desired_pks = set()
 
     # Current state from prefetched credits (by PK).
-    current_pks: set[tuple[int, int]] = set()
+    current_pks: set[CreditPkKey] = set()
     for credit in entity.credits.all():
-        current_pks.add((credit.person_id, credit.role_id))
+        current_pks.add(CreditPkKey(credit.person_id, credit.role_id))
 
     return build_credit_claim_specs(current_pks, desired_pks)
 
 
 def normalize_credit_inputs(
-    desired_credits: list[tuple[str, str]],
+    desired_credits: list[CreditKey],
     *,
     available_people: set[str] | None = None,
     available_roles: set[str] | None = None,
-) -> set[tuple[str, str]]:
+) -> set[CreditKey]:
     """Normalize credits into unique (person_slug, role_slug) pairs.
 
     When available slug sets are provided, unknown people or roles are rejected
@@ -639,9 +645,9 @@ def normalize_credit_inputs(
     can display them inline on the corresponding row.
     """
     errors = ValidationErrors()
-    desired: set[tuple[str, str]] = set()
+    desired: set[CreditKey] = set()
     for person_slug, role in desired_credits:
-        pair = (person_slug, role)
+        pair = CreditKey(person_slug, role)
         if pair in desired:
             errors.add_field(f"credits.{person_slug}:{role}", "Duplicate credit.")
             continue
@@ -672,8 +678,8 @@ def normalize_credit_inputs(
 
 
 def build_credit_claim_specs(
-    current: set[tuple[int, int]],
-    desired: set[tuple[int, int]],
+    current: set[CreditPkKey],
+    desired: set[CreditPkKey],
 ) -> list[ClaimSpec]:
     """Build diff-based ClaimSpecs for credit relationship changes."""
     specs: list[ClaimSpec] = []

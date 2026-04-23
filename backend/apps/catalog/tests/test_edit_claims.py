@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from apps.catalog.api._typing import CreditKey, CreditPkKey
 from apps.catalog.api.edit_claims import (
     FieldConstraint,
     StructuredValidationError,
@@ -219,7 +220,10 @@ class TestNormalizeCreditInputs:
     def test_rejects_duplicate_pair(self):
         with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
-                [("pat-lawlor", "design"), ("pat-lawlor", "design")]
+                [
+                    CreditKey("pat-lawlor", "design"),
+                    CreditKey("pat-lawlor", "design"),
+                ]
             )
         assert exc_info.value.field_errors == {
             "credits.pat-lawlor:design": "Duplicate credit.",
@@ -228,7 +232,7 @@ class TestNormalizeCreditInputs:
     def test_rejects_unknown_person(self):
         with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
-                [("pat-lawlor", "design")],
+                [CreditKey("pat-lawlor", "design")],
                 available_people={"john-youssi"},
                 available_roles={"design"},
             )
@@ -239,7 +243,7 @@ class TestNormalizeCreditInputs:
     def test_rejects_unknown_role(self):
         with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
-                [("pat-lawlor", "design")],
+                [CreditKey("pat-lawlor", "design")],
                 available_people={"pat-lawlor"},
                 available_roles={"software"},
             )
@@ -250,7 +254,10 @@ class TestNormalizeCreditInputs:
     def test_duplicate_error_not_clobbered_by_unknown_person(self):
         with pytest.raises(StructuredValidationError) as exc_info:
             normalize_credit_inputs(
-                [("pat-lawlor", "design"), ("pat-lawlor", "design")],
+                [
+                    CreditKey("pat-lawlor", "design"),
+                    CreditKey("pat-lawlor", "design"),
+                ],
                 available_people={"john-youssi"},
                 available_roles={"design"},
             )
@@ -260,21 +267,24 @@ class TestNormalizeCreditInputs:
 
     def test_allows_same_person_with_different_roles(self):
         desired = normalize_credit_inputs(
-            [("pat-lawlor", "design"), ("pat-lawlor", "software")],
+            [
+                CreditKey("pat-lawlor", "design"),
+                CreditKey("pat-lawlor", "software"),
+            ],
             available_people={"pat-lawlor"},
             available_roles={"design", "software"},
         )
         assert desired == {
-            ("pat-lawlor", "design"),
-            ("pat-lawlor", "software"),
+            CreditKey("pat-lawlor", "design"),
+            CreditKey("pat-lawlor", "software"),
         }
 
 
 class TestBuildCreditClaimSpecs:
     def test_builds_add_and_remove_specs(self):
         specs = build_credit_claim_specs(
-            current={(100, 200)},
-            desired={(101, 201)},
+            current={CreditPkKey(100, 200)},
+            desired={CreditPkKey(101, 201)},
         )
         by_key = {spec.claim_key: spec for spec in specs}
         assert set(by_key) == {
@@ -286,8 +296,8 @@ class TestBuildCreditClaimSpecs:
 
     def test_skips_unchanged_specs(self):
         specs = build_credit_claim_specs(
-            current={(101, 201)},
-            desired={(101, 201)},
+            current={CreditPkKey(101, 201)},
+            desired={CreditPkKey(101, 201)},
         )
         assert specs == []
 
