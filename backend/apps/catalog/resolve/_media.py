@@ -304,4 +304,3 @@ def resolve_media_attachments(
         EntityMedia.objects.bulk_update(
             list(rows.values()), ["category", "is_primary"], batch_size=2000
         )
-

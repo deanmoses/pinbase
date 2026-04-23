@@ -226,4 +226,3 @@ def _call_custom_resolver(spec: CustomDispatchSpec, entity_pk: int) -> None:
 
     func = getattr(_relationships, spec.resolver_function_name)
     func(**{spec.id_kwarg_name: {entity_pk}})
-

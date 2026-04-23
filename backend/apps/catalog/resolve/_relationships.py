@@ -909,4 +909,3 @@ def resolve_all_corporate_entity_locations(
         deleted = CorporateEntityLocation.objects.filter(pk__in=stale_pks).delete()[0]
 
     return {"created": created, "deleted": deleted}
-
