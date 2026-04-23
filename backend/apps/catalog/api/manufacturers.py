@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import cast
+from typing import Any, cast
 
-from django.db.models import Count, F, Max, Min, Prefetch, Q
+from django.db.models import Count, F, Max, Min, Prefetch, Q, QuerySet
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -112,7 +113,7 @@ class ManufacturerDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_manufacturer_detail(mfr) -> dict:
+def _serialize_manufacturer_detail(mfr: Manufacturer) -> dict[str, Any]:
     """Serialize a Manufacturer into the detail response dict.
 
     Expects *mfr* to have been fetched with prefetch_related for entities,
@@ -120,7 +121,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
     """
 
     # Collect persons with roles and compute year range across entities.
-    person_roles: dict[str, dict] = {}  # slug -> {name, roles set}
+    person_roles: dict[str, dict[str, Any]] = {}  # slug -> {name, roles set}
     year_starts: list[int] = []
     year_ends: list[int] = []
 
@@ -176,7 +177,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
     }
 
 
-def _manufacturer_qs():
+def _manufacturer_qs() -> QuerySet[Manufacturer]:
     return Manufacturer.objects.active().prefetch_related(
         Prefetch(
             "entities",
@@ -205,7 +206,9 @@ def _manufacturer_qs():
     )
 
 
-def _build_location_refs(entities) -> list[dict]:
+def _build_location_refs(
+    entities: list[CorporateEntity],
+) -> list[dict[str, str]]:
     """Build location Refs for each location and all its ancestors.
 
     Uses location_path as the slug so refs are globally unique and stable.
@@ -213,11 +216,11 @@ def _build_location_refs(entities) -> list[dict]:
     refs: dict[str, str] = {}  # location_path -> name
     for entity in entities:
         for cel in entity.locations.all():
-            loc = cel.location
-            while loc is not None:
-                if loc.location_path not in refs:
-                    refs[loc.location_path] = loc.name
-                loc = loc.parent
+            cur: Any = cel.location
+            while cur is not None:
+                if cur.location_path not in refs:
+                    refs[cur.location_path] = cur.name
+                cur = cur.parent
     return [{"slug": path, "name": name} for path, name in refs.items()]
 
 
@@ -230,7 +233,7 @@ manufacturers_router = Router(tags=["manufacturers"])
 
 @manufacturers_router.get("/", response=list[ManufacturerSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_manufacturers(request):
+def list_manufacturers(request: HttpRequest) -> list[Any]:
     return list(
         Manufacturer.objects.active()
         .annotate(
@@ -246,7 +249,9 @@ def list_manufacturers(request):
 
 @manufacturers_router.get("/all/", response=list[ManufacturerGridSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_manufacturers(request):
+def list_all_manufacturers(
+    request: HttpRequest,
+) -> HttpResponse | list[dict[str, Any]]:
     """Return every manufacturer with facet data for client-side filtering.
 
     Performance-critical: uses bulk queries and lookup maps instead of
@@ -458,7 +463,9 @@ def list_all_manufacturers(request):
     response=ManufacturerDetailSchema,
     tags=["private"],
 )
-def patch_manufacturer_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_manufacturer_claims(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> dict[str, Any]:
     """Assert per-field claims from the authenticated user, then re-resolve."""
     mfr = get_object_or_404(Manufacturer.objects.active(), slug=slug)
 

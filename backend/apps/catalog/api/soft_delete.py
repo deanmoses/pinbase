@@ -34,9 +34,11 @@ application layer".
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
+from typing import Any, cast
 
+from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as db_models
 
@@ -45,6 +47,8 @@ from apps.provenance.models import ChangeSet, ChangeSetAction
 from apps.provenance.schemas import EditCitationInput
 
 from .edit_claims import ClaimSpec, execute_multi_entity_claims
+
+_UserLike = AbstractBaseUser | AnonymousUser
 
 
 @dataclass(frozen=True)
@@ -60,7 +64,7 @@ class BlockingReferrer:
     blocked_target_slug: str | None
 
 
-def serialize_blocking_referrer(ref: BlockingReferrer) -> dict:
+def serialize_blocking_referrer(ref: BlockingReferrer) -> dict[str, object]:
     """Wire format for :class:`BlockingReferrer` used by delete API responses."""
     return {
         "entity_type": ref.entity_type,
@@ -81,7 +85,7 @@ class SoftDeletePlan:
     ordered list to receive ``status=deleted`` claims in a single ChangeSet.
     """
 
-    entities_to_delete: list = field(default_factory=list)
+    entities_to_delete: list[CatalogModel] = field(default_factory=list)
     blockers: list[BlockingReferrer] = field(default_factory=list)
 
     @property
@@ -93,7 +97,7 @@ def _has_status(model_class: type[db_models.Model]) -> bool:
     return issubclass(model_class, EntityStatusMixin)
 
 
-def _is_active(entity) -> bool:
+def _is_active(entity: db_models.Model) -> bool:
     """An entity is active unless its resolved ``status`` is ``deleted``.
 
     Null status is treated as active (matches ``CatalogQuerySet.active``).
@@ -102,7 +106,7 @@ def _is_active(entity) -> bool:
     return status != "deleted"
 
 
-def _entity_type(entity) -> str:
+def _entity_type(entity: db_models.Model) -> str:
     """Canonical hyphenated entity_type for wire-format serialization.
 
     All soft-delete roots and blockers are CatalogModel subclasses today.
@@ -118,19 +122,19 @@ def _entity_type(entity) -> str:
     return cls.entity_type
 
 
-def _entity_key(entity) -> tuple[str, int]:
+def _entity_key(entity: db_models.Model) -> tuple[str, int]:
     return (entity._meta.label_lower, entity.pk)
 
 
-def _cascade_targets(root) -> list:
+def _cascade_targets(root: db_models.Model) -> list[CatalogModel]:
     """Walk ``soft_delete_cascade_relations`` to produce the ordered cascade.
 
     Deterministic order (parent before children, siblings by pk) so the
     resulting ChangeSet replays identically in tests.
     """
-    result: list = []
+    result: list[CatalogModel] = []
     seen: set[tuple[str, int]] = set()
-    stack: list = [root]
+    stack: list[CatalogModel] = [cast(CatalogModel, root)]
     while stack:
         entity = stack.pop(0)
         key = _entity_key(entity)
@@ -148,7 +152,9 @@ def _cascade_targets(root) -> list:
     return result
 
 
-def _iter_protect_referrers(entity):
+def _iter_protect_referrers(
+    entity: db_models.Model,
+) -> Iterator[tuple[db_models.Model, str]]:
     """Yield ``(referrer, relation_name)`` for active PROTECT referrers.
 
     Only referrers whose model has ``EntityStatusMixin`` count — PROTECT
@@ -160,14 +166,23 @@ def _iter_protect_referrers(entity):
             continue
         if not (rel.one_to_many or rel.one_to_one):
             continue
+        # One/many-to-one auto-created = ForeignObjectRel carrying the
+        # remote ForeignKey via ``.field``.
+        assert isinstance(rel, db_models.ForeignObjectRel)
         remote_field = rel.field  # ForeignKey on the remote model
         on_delete = remote_field.remote_field.on_delete
         if on_delete is db_models.PROTECT:
             remote_model = rel.related_model
+            assert isinstance(remote_model, type)
+            assert issubclass(remote_model, db_models.Model)
             if not _has_status(remote_model):
                 continue
             fk_name = remote_field.name
-            qs = remote_model.objects.active().filter(**{fk_name: entity})
+            qs = (
+                cast(Any, remote_model)
+                ._default_manager.active()
+                .filter(**{fk_name: entity})
+            )
             for ref in qs:
                 yield ref, fk_name
         elif on_delete in (db_models.SET_NULL, db_models.SET_DEFAULT):
@@ -181,7 +196,9 @@ def _iter_protect_referrers(entity):
         # it's an owned child that rides with parent visibility.
 
 
-def _iter_usage_blockers(entity):
+def _iter_usage_blockers(
+    entity: db_models.Model,
+) -> Iterator[tuple[db_models.Model, str]]:
     """Yield ``(referrer, manager_name)`` for active referrers reachable via
     ``soft_delete_usage_blockers`` — M2M through-rows and self-ref hierarchy.
 
@@ -198,7 +215,7 @@ def _iter_usage_blockers(entity):
             yield ref, manager_name
 
 
-def plan_soft_delete(root) -> SoftDeletePlan:
+def plan_soft_delete(root: db_models.Model) -> SoftDeletePlan:
     """Plan a soft-delete of *root* plus every active cascade child.
 
     Returns both the entities that would receive ``status=deleted`` claims
@@ -217,7 +234,7 @@ def plan_soft_delete(root) -> SoftDeletePlan:
     blockers: list[BlockingReferrer] = []
     seen_blockers: set[tuple[tuple[str, int], str]] = set()
 
-    def _record(ref, relation: str, target) -> None:
+    def _record(ref: db_models.Model, relation: str, target: db_models.Model) -> None:
         key = (_entity_key(ref), relation)
         if key in seen_blockers:
             return
@@ -271,18 +288,18 @@ def count_entity_changesets(*entities: CatalogModel) -> int:
 class SoftDeleteBlockedError(Exception):
     """Raised by :func:`execute_soft_delete` when active references block it."""
 
-    def __init__(self, blockers: list[BlockingReferrer]):
+    def __init__(self, blockers: list[BlockingReferrer]) -> None:
         self.blockers = blockers
         super().__init__(f"Blocked by {len(blockers)} active reference(s).")
 
 
 def execute_soft_delete(
-    root,
+    root: db_models.Model,
     *,
-    user,
+    user: _UserLike,
     note: str = "",
     citation: EditCitationInput | None = None,
-):
+) -> tuple[ChangeSet | None, list[CatalogModel]]:
     """Soft-delete *root* and all cascade children in one ChangeSet.
 
     Raises :class:`SoftDeleteBlockedError` when an active PROTECT referrer would

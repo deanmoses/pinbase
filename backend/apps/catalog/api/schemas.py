@@ -16,6 +16,18 @@ class Ref(Schema):
     slug: str
 
 
+class ErrorDetailSchema(Schema):
+    """Plain 422 / 404 / 409 error body: just a ``detail`` string.
+
+    The shared shape used for non-structured failures across catalog endpoints.
+    Structured 422s (with ``field_errors`` / ``form_errors``) come from
+    :class:`apps.catalog.api.edit_claims.StructuredValidationError` and have
+    their own wire format; this schema covers the simpler "detail only" case.
+    """
+
+    detail: str
+
+
 class ClaimPatchSchema(Schema):
     # ``fields`` maps claim-field name → new value. Values are polymorphic per
     # field (str, int, bool, slug string for FK-backed claims, None) and are
@@ -85,6 +97,20 @@ class BlockingReferrerSchema(Schema):
     relation: str
     blocked_target_type: str
     blocked_target_slug: str | None = None
+
+
+class SoftDeleteBlockedSchema(Schema):
+    """422 response from delete endpoints when active referrers block.
+
+    ``blocked_by`` is empty (list, not null) when the block comes from an
+    active-children count rather than PROTECT referrers — the frontend's
+    delete-flow classifier relies on ``blocked_by`` being present as an array
+    to recognise a blocked outcome.
+    """
+
+    detail: str
+    blocked_by: list[BlockingReferrerSchema] = []
+    active_children_count: int = 0
 
 
 class ModelDeleteSchema(Schema):

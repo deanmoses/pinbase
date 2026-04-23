@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
-from django.db.models import Count, F, Prefetch, Q
+from django.db import models
+from django.db.models import Count, F, Prefetch, Q, QuerySet
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -103,7 +105,7 @@ class PersonDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_person_detail(person) -> dict:
+def _serialize_person_detail(person: Person) -> dict[str, Any]:
     """Serialize a Person into the detail response dict.
 
     Expects *person* to have been fetched with prefetch_related for credits
@@ -111,7 +113,7 @@ def _serialize_person_detail(person) -> dict:
     (to_attr="active_claims").
     """
     min_rank = get_minimum_display_rank()
-    titles: dict[str, dict] = {}
+    titles: dict[str, dict[str, Any]] = {}
     for c in person.credits.all():
         if c.model is None or c.model.title is None:
             continue
@@ -161,7 +163,7 @@ def _serialize_person_detail(person) -> dict:
     }
 
 
-def _person_qs():
+def _person_qs() -> QuerySet[Person]:
     return Person.objects.active().prefetch_related(
         Prefetch(
             "credits",
@@ -185,7 +187,7 @@ people_router = Router(tags=["people"])
 
 @people_router.get("/", response=list[PersonSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_people(request):
+def list_people(request: HttpRequest) -> list[Any]:
     return list(
         Person.objects.active()
         .annotate(credit_count=Count("credits"))
@@ -196,7 +198,9 @@ def list_people(request):
 
 @people_router.get("/all/", response=list[PersonGridSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_people(request):
+def list_all_people(
+    request: HttpRequest,
+) -> HttpResponse | list[dict[str, Any]]:
     """Return every person with credit count and thumbnail.
 
     Uses a bulk query to find the newest credited model per person for
@@ -235,7 +239,7 @@ def list_all_people(request):
         ).only("id", "extra_data")
     }
 
-    result = []
+    result: list[dict[str, Any]] = []
     for p in people:
         thumb = None
         person_id = p.pk
@@ -260,7 +264,9 @@ def list_all_people(request):
 @people_router.patch(
     "/{slug}/claims/", auth=django_auth, response=PersonDetailSchema, tags=["private"]
 )
-def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_person_claims(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> dict[str, Any]:
     """Assert per-field claims from the authenticated user, then re-resolve."""
     person = get_object_or_404(Person.objects.active(), slug=slug)
 
@@ -285,7 +291,9 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
     response={201: PersonDetailSchema},
     tags=["private"],
 )
-def create_person(request, data: PersonCreateSchema):
+def create_person(
+    request: HttpRequest, data: PersonCreateSchema
+) -> Status[dict[str, Any]]:
     """Create a new Person from a user-supplied name and slug.
 
     Mirrors ``create_title``: writes a user ChangeSet with ``action=create``
@@ -304,9 +312,10 @@ def create_person(request, data: PersonCreateSchema):
     # would let over-long names pass validation and fail at DB insert,
     # which create_entity_with_claims would then misreport as a slug
     # collision.
-    name = validate_name(
-        data.name, max_length=Person._meta.get_field("name").max_length
-    )
+    name_field = Person._meta.get_field("name")
+    assert isinstance(name_field, models.Field)
+    assert name_field.max_length is not None
+    name = validate_name(data.name, max_length=name_field.max_length)
     slug = validate_slug_format(data.slug)
     assert_name_available(
         Person,
@@ -368,7 +377,7 @@ def _active_credit_count(person: Person) -> int:
     response=PersonDeletePreviewSchema,
     tags=["private"],
 )
-def person_delete_preview(request, slug: str):
+def person_delete_preview(request: HttpRequest, slug: str) -> dict[str, Any]:
     """Return the impact summary used by the delete confirmation screen."""
     person = get_object_or_404(Person.objects.active(), slug=slug)
     plan = plan_soft_delete(person)
@@ -390,7 +399,9 @@ def person_delete_preview(request, slug: str):
     response={200: PersonDeleteResponseSchema, 422: dict},
     tags=["private"],
 )
-def delete_person(request, slug: str, data: PersonDeleteSchema):
+def delete_person(
+    request: HttpRequest, slug: str, data: PersonDeleteSchema
+) -> dict[str, Any] | Status[dict[str, Any]]:
     """Soft-delete a Person.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -448,7 +459,9 @@ def delete_person(request, slug: str, data: PersonDeleteSchema):
     response={200: PersonDetailSchema, 422: dict, 404: dict},
     tags=["private"],
 )
-def restore_person(request, slug: str, data: PersonRestoreSchema):
+def restore_person(
+    request: HttpRequest, slug: str, data: PersonRestoreSchema
+) -> dict[str, Any] | Status[dict[str, Any]]:
     """Write a fresh ``status=active`` claim on a soft-deleted Person.
 
     Shares the ``create`` rate-limit bucket (Restore is semantically a

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
-from django.db.models import Count, F, Max, Prefetch, Q
+from django.db import models
+from django.db.models import Count, F, Max, Prefetch, Q, QuerySet
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -85,7 +87,7 @@ class SystemDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _system_detail_qs():
+def _system_detail_qs() -> QuerySet[System]:
     return (
         System.objects.active()
         .select_related("manufacturer", "technology_subgeneration")
@@ -102,9 +104,9 @@ def _system_detail_qs():
     )
 
 
-def _serialize_system_detail(system) -> dict:
+def _serialize_system_detail(system: System) -> dict[str, Any]:
     min_rank = get_minimum_display_rank()
-    titles: dict[str, dict] = {}
+    titles: dict[str, dict[str, Any]] = {}
     for m in system.machine_models.all():
         if m.title is None:
             continue
@@ -174,7 +176,7 @@ systems_router = Router(tags=["systems"])
 
 @systems_router.get("/all/", response=list[SystemListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_systems(request):
+def list_all_systems(request: HttpRequest) -> list[dict[str, Any]]:
     """Return every system with machine count (no pagination)."""
     qs = (
         System.objects.active()
@@ -206,7 +208,9 @@ def list_all_systems(request):
 @systems_router.patch(
     "/{slug}/claims/", auth=django_auth, response=SystemDetailSchema, tags=["private"]
 )
-def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_system_claims(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> dict[str, Any]:
     """Assert per-field claims from the authenticated user, then re-resolve."""
     system = get_object_or_404(System.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(System, data.fields, entity=system)
@@ -230,7 +234,9 @@ def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
     response={201: SystemDetailSchema},
     tags=["private"],
 )
-def create_system(request, data: SystemCreateSchema):
+def create_system(
+    request: HttpRequest, data: SystemCreateSchema
+) -> Status[dict[str, Any]]:
     """Create a new System.
 
     Required fields: ``name``, ``slug``, ``manufacturer_slug``. Optional
@@ -243,8 +249,10 @@ def create_system(request, data: SystemCreateSchema):
     """
     check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
-    name_max = System._meta.get_field("name").max_length
-    name = validate_name(data.name, max_length=name_max)
+    name_field = System._meta.get_field("name")
+    assert isinstance(name_field, models.Field)
+    assert name_field.max_length is not None
+    name = validate_name(data.name, max_length=name_field.max_length)
     slug = validate_slug_format(data.slug)
 
     manufacturer_slug = (data.manufacturer_slug or "").strip()

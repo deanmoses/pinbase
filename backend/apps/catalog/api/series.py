@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, Prefetch, Q, QuerySet
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -58,7 +59,7 @@ class SeriesDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _series_titles_qs():
+def _series_titles_qs() -> QuerySet[Title]:
     return (
         Title.objects.active()
         .annotate(
@@ -81,11 +82,11 @@ def _series_titles_qs():
     )
 
 
-def _series_credits_qs():
+def _series_credits_qs() -> QuerySet[Credit]:
     return Credit.objects.filter(series__isnull=False).select_related("person", "role")
 
 
-def _series_detail_qs():
+def _series_detail_qs() -> QuerySet[Series]:
     return Series.objects.active().prefetch_related(
         Prefetch("titles", queryset=_series_titles_qs()),
         Prefetch("credits", queryset=_series_credits_qs()),
@@ -93,7 +94,7 @@ def _series_detail_qs():
     )
 
 
-def _serialize_series_detail(series: Series) -> dict:
+def _serialize_series_detail(series: Series) -> dict[str, Any]:
     min_rank = get_minimum_display_rank()
     return {
         "name": series.name,
@@ -115,7 +116,7 @@ series_router = Router(tags=["series"])
 
 @series_router.get("/", response=list[SeriesListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_series(request):
+def list_series(request: HttpRequest) -> list[dict[str, Any]]:
     """Return all series with title count and thumbnail."""
     qs = (
         Series.objects.active()
@@ -133,7 +134,7 @@ def list_series(request):
         )
     )
     min_rank = get_minimum_display_rank()
-    result = []
+    result: list[dict[str, Any]] = []
     for s in qs:
         thumb = None
         for title in s.titles.all():
@@ -159,7 +160,9 @@ def list_series(request):
 @series_router.patch(
     "/{slug}/claims/", auth=django_auth, response=SeriesDetailSchema, tags=["private"]
 )
-def patch_series_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_series_claims(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> dict[str, Any]:
     """Assert per-field claims from the authenticated user, then re-resolve."""
     series = get_object_or_404(Series.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(Series, data.fields, entity=series)

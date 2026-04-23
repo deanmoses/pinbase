@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 from django.db.models import F, Prefetch, Q, QuerySet
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -212,7 +213,7 @@ def _build_model_list_qs(
     year_max: int | None = None,
     person: str = "",
     ordering: str = "-year",
-):
+) -> QuerySet[MachineModel]:
     qs = (
         MachineModel.objects.active()
         .select_related(
@@ -283,7 +284,9 @@ def _build_model_list_qs(
     return qs
 
 
-def _serialize_model_list(pm, *, min_rank: int | None = None) -> dict:
+def _serialize_model_list(
+    pm: MachineModel, *, min_rank: int | None = None
+) -> dict[str, Any]:
     thumbnail_url, _ = _extract_image_urls(
         pm.extra_data or {}, primary_media(pm), min_rank=min_rank
     )
@@ -580,7 +583,7 @@ models_router = Router(tags=["models"])
 @models_router.get("/", response=list[MachineModelListSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
 def list_models(
-    request,
+    request: HttpRequest,
     manufacturer: str = "",
     type: str = "",
     subgeneration: str = "",
@@ -595,7 +598,7 @@ def list_models(
     year_max: int | None = None,
     person: str = "",
     ordering: str = "-year",
-):
+) -> list[dict[str, Any]]:
     qs = _build_model_list_qs(
         manufacturer=manufacturer,
         type=type,
@@ -616,7 +619,7 @@ def list_models(
     return [_serialize_model_list(pm, min_rank=min_rank) for pm in qs]
 
 
-def _build_search_text(pm) -> str:
+def _build_search_text(pm: MachineModel) -> str:
     """Build a pipe-separated search text from all related entity names."""
     parts: list[str] = []
     if pm.corporate_entity and pm.corporate_entity.manufacturer:
@@ -625,11 +628,11 @@ def _build_search_text(pm) -> str:
         for entity in mfr.entities.all():
             parts.append(entity.name)
             for cel in entity.locations.all():
-                loc = cel.location
-                while loc is not None:
-                    if loc.name:
-                        parts.append(loc.name)
-                    loc = loc.parent
+                cur: Any = cel.location
+                while cur is not None:
+                    if cur.name:
+                        parts.append(cur.name)
+                    cur = cur.parent
     if pm.system:
         parts.append(pm.system.name)
     if pm.technology_generation:
@@ -665,7 +668,7 @@ class ModelRecentSchema(Schema):
 
 @models_router.get("/recent/", response=list[ModelRecentSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_recent_models(request):
+def list_recent_models(request: HttpRequest) -> list[dict[str, Any]]:
     """Return the 3 newest non-variant models, one per title."""
     qs = (
         MachineModel.objects.active()
@@ -678,7 +681,7 @@ def list_recent_models(request):
         )[:20]  # generous LIMIT — we only need 3 unique titles
     )
     min_rank = get_minimum_display_rank()
-    results = []
+    results: list[dict[str, Any]] = []
     seen_titles: set[int | None] = set()
     for m in qs:
         title_id = m.title_id
@@ -706,7 +709,9 @@ def list_recent_models(request):
 
 @models_router.get("/all/", response=list[MachineModelGridSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_models(request):
+def list_all_models(
+    request: HttpRequest,
+) -> HttpResponse | list[dict[str, Any]]:
     """Return every model (including variants) for client-side search/grid.
 
     Performance-critical: serializes ~7k models with search_text built from
@@ -822,7 +827,7 @@ def list_all_models(request):
                 mfr_search_parts[mfr_id].append(n)
 
     # --- Assembly ---
-    result = []
+    result: list[dict[str, Any]] = []
     for r in rows:
         mid = r.id
         thumbnail_url, _ = _extract_image_urls(r.extra_data or {}, min_rank=min_rank)
@@ -866,10 +871,10 @@ def list_all_models(request):
 
 @models_router.get("/edit-options/", response=ModelEditOptionsSchema)
 @decorate_view(cache_control(no_cache=True))
-def get_model_edit_options(request):
+def get_model_edit_options(request: HttpRequest) -> dict[str, Any]:
     """Return all dropdown options for the MachineModel edit form."""
 
-    def _opts(qs):
+    def _opts(qs: QuerySet[Any]) -> list[dict[str, str]]:
         return [{"slug": obj.slug, "label": obj.name} for obj in qs]
 
     return {
@@ -921,7 +926,9 @@ _SELF_REF_FIELDS = frozenset({"variant_of", "converted_from", "remake_of"})
     response=MachineModelDetailSchema,
     tags=["private"],
 )
-def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
+def patch_model_claims(
+    request: HttpRequest, slug: str, data: ModelClaimPatchSchema
+) -> dict[str, Any]:
     """Assert per-field claims from the authenticated user, then re-resolve the model."""
     pm = get_object_or_404(
         MachineModel.objects.active().prefetch_related(
@@ -1006,7 +1013,7 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
     response=ModelDeletePreviewSchema,
     tags=["private"],
 )
-def model_delete_preview(request, slug: str):
+def model_delete_preview(request: HttpRequest, slug: str) -> dict[str, Any]:
     """Return the impact summary used by the delete confirmation screen."""
     pm = get_object_or_404(
         MachineModel.objects.active().select_related("title"), slug=slug
@@ -1029,7 +1036,9 @@ def model_delete_preview(request, slug: str):
     response={200: ModelDeleteResponseSchema, 422: dict},
     tags=["private"],
 )
-def delete_model(request, slug: str, data: ModelDeleteSchema):
+def delete_model(
+    request: HttpRequest, slug: str, data: ModelDeleteSchema
+) -> dict[str, Any] | Status[dict[str, Any]]:
     """Soft-delete a MachineModel.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1070,7 +1079,9 @@ def delete_model(request, slug: str, data: ModelDeleteSchema):
     response={200: MachineModelDetailSchema, 422: dict, 404: dict},
     tags=["private"],
 )
-def restore_model(request, slug: str, data: ModelRestoreSchema):
+def restore_model(
+    request: HttpRequest, slug: str, data: ModelRestoreSchema
+) -> dict[str, Any] | Status[dict[str, Any]]:
     """Write a fresh ``status=active`` claim on a soft-deleted Model.
 
     This is the "Restore" path (distinct from Undo, which inverts a specific

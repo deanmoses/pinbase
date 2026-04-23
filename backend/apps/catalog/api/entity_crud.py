@@ -16,9 +16,11 @@ stability — consumers already depend on
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
+from django.db import models as db_models
 from django.db.models import Model, Q
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 from ninja.responses import Status
@@ -104,12 +106,12 @@ class TaxonomyDeleteResponseSchema(Schema):
 
 
 DetailQsFn = Callable[[], Any]
-SerializeFn = Callable[[Any], dict]
+SerializeFn = Callable[[Any], dict[str, Any]]
 
 
 def register_entity_delete_restore(
     router: Router,
-    model_cls,
+    model_cls: type[Model],
     *,
     detail_qs: DetailQsFn,
     serialize_detail: SerializeFn,
@@ -133,11 +135,13 @@ def register_entity_delete_restore(
       parent name / slug and restore refuses while the parent is deleted.
     """
     entity_label = model_cls.__name__
-    friendly = model_cls.entity_type.replace("-", " ")
+    friendly = cast(str, cast(Any, model_cls).entity_type).replace("-", " ")
     friendly_sentence = friendly.capitalize()
 
-    def _delete_preview(request, slug: str):
-        obj = get_object_or_404(model_cls.objects.active(), slug=slug)
+    def _delete_preview(request: HttpRequest, slug: str) -> dict[str, Any]:
+        obj = get_object_or_404(
+            cast(Any, model_cls)._default_manager.active(), slug=slug
+        )
         plan = plan_soft_delete(obj)
 
         active_children = 0
@@ -172,10 +176,14 @@ def register_entity_delete_restore(
         tags=["private"],
     )(_delete_preview)
 
-    def _delete(request, slug: str, data: TaxonomyDeleteSchema):
+    def _delete(
+        request: HttpRequest, slug: str, data: TaxonomyDeleteSchema
+    ) -> dict[str, Any] | Status[Any]:
         check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
-        obj = get_object_or_404(model_cls.objects.active(), slug=slug)
+        obj = get_object_or_404(
+            cast(Any, model_cls)._default_manager.active(), slug=slug
+        )
 
         if child_related_name is not None:
             active_children = getattr(obj, child_related_name).active().count()
@@ -222,7 +230,9 @@ def register_entity_delete_restore(
 
         return {
             "changeset_id": changeset.pk,
-            "affected_slugs": [e.slug for e in deleted if isinstance(e, model_cls)],
+            "affected_slugs": [
+                cast(Any, e).slug for e in deleted if isinstance(e, model_cls)
+            ],
         }
 
     _delete.__name__ = f"{entity_label.lower()}_delete"
@@ -233,12 +243,14 @@ def register_entity_delete_restore(
         tags=["private"],
     )(_delete)
 
-    def _restore(request, slug: str, data: TaxonomyRestoreSchema):
+    def _restore(
+        request: HttpRequest, slug: str, data: TaxonomyRestoreSchema
+    ) -> dict[str, Any] | Status[Any]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
         # Bypass .active() — we're looking for soft-deleted rows.
         obj = get_object_or_404(model_cls, slug=slug)
-        if obj.status != "deleted":
+        if cast(Any, obj).status != "deleted":
             return Status(422, {"detail": f"{friendly_sentence} is not deleted."})
 
         if parent_field is not None:
@@ -272,7 +284,7 @@ def register_entity_delete_restore(
 
 def register_entity_create(
     router: Router,
-    model_cls,
+    model_cls: type[Model],
     *,
     detail_qs: DetailQsFn,
     serialize_detail: SerializeFn,
@@ -318,10 +330,17 @@ def register_entity_create(
         )
 
     entity_label = model_cls.__name__
-    name_max = model_cls._meta.get_field("name").max_length
-    friendly = model_cls.entity_type.replace("-", " ")
+    name_field = model_cls._meta.get_field("name")
+    assert isinstance(name_field, db_models.Field)
+    name_max = name_field.max_length
+    assert name_max is not None
+    friendly = cast(str, cast(Any, model_cls).entity_type).replace("-", " ")
 
-    def _do_create(request, data: TaxonomyCreateSchema, parent=None):
+    def _do_create(
+        request: HttpRequest,
+        data: TaxonomyCreateSchema,
+        parent: Model | None = None,
+    ) -> Status[Any]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
         name = validate_name(data.name, max_length=name_max)
@@ -341,7 +360,7 @@ def register_entity_create(
         )
         assert_slug_available(model_cls, slug)
 
-        row_kwargs: dict = {"name": name, "slug": slug, "status": "active"}
+        row_kwargs: dict[str, Any] = {"name": name, "slug": slug, "status": "active"}
         claim_specs = [
             ClaimSpec(field_name="name", value=name),
             ClaimSpec(field_name="slug", value=slug),
@@ -351,7 +370,9 @@ def register_entity_create(
             assert parent_field is not None
             row_kwargs[parent_field] = parent
             # FK claim value is the parent's slug string.
-            claim_specs.append(ClaimSpec(field_name=parent_field, value=parent.slug))
+            claim_specs.append(
+                ClaimSpec(field_name=parent_field, value=cast(Any, parent).slug)
+            )
 
         create_entity_with_claims(
             model_cls,
@@ -368,17 +389,22 @@ def register_entity_create(
     if parented:
         assert parent_model is not None
 
-        def _create_parented(request, parent_slug: str, data: TaxonomyCreateSchema):
-            # django-stubs doesn't expose .objects on abstract type[Model], and
-            # the concrete manager here adds a custom .active() filter.
-            parent = get_object_or_404(parent_model.objects.active(), slug=parent_slug)  # type: ignore[attr-defined]
+        def _create_parented(
+            request: HttpRequest, parent_slug: str, data: TaxonomyCreateSchema
+        ) -> Status[Any]:
+            # django-stubs doesn't expose ``.active()`` on the base manager.
+            parent = get_object_or_404(
+                cast(Any, parent_model)._default_manager.active(), slug=parent_slug
+            )
             return _do_create(request, data, parent=parent)
 
         path = f"/{{parent_slug}}/{route_suffix}/"
-        create_view = _create_parented
+        create_view: Callable[..., Any] = _create_parented
     else:
 
-        def _create_unparented(request, data: TaxonomyCreateSchema):
+        def _create_unparented(
+            request: HttpRequest, data: TaxonomyCreateSchema
+        ) -> Status[Any]:
             return _do_create(request, data)
 
         path = "/"
