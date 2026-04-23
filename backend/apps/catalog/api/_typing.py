@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar
-
-from django.db import models
-
-TModel = TypeVar("TModel", bound=models.Model)
+from typing import Protocol
 
 
 class HasModelCount(Protocol):
@@ -24,7 +20,3 @@ class HasTitleCount(Protocol):
 
 class HasCreditCount(Protocol):
     credit_count: int
-
-
-class HasRelatedTitles(Protocol[TModel]):
-    titles: models.Manager[TModel]

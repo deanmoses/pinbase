@@ -16,8 +16,9 @@ from ninja.security import django_auth
 from apps.catalog.naming import normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -145,9 +146,7 @@ def _serialize_person_detail(person) -> dict:
     return {
         "name": person.name,
         "slug": person.slug,
-        "description": _build_rich_text(
-            person, "description", getattr(person, "active_claims", [])
-        ),
+        "description": _build_rich_text(person, "description", active_claims(person)),
         "birth_year": person.birth_year,
         "birth_month": person.birth_month,
         "birth_day": person.birth_day,
@@ -158,9 +157,7 @@ def _serialize_person_detail(person) -> dict:
         "nationality": person.nationality,
         "photo_url": person.photo_url,
         "titles": list(titles.values()),
-        "uploaded_media": _serialize_uploaded_media(
-            getattr(person, "all_media", None) or []
-        ),
+        "uploaded_media": _serialize_uploaded_media(all_media(person)),
     }
 
 

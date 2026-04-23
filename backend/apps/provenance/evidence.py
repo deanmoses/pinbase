@@ -5,16 +5,18 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from .helpers import citation_instances
 
-def build_cited_changesets(active_claims: Iterable[Any]) -> list[dict[str, Any]]:
+
+def build_cited_changesets(claims: Iterable[Any]) -> list[dict[str, Any]]:
     """Serialize active user changesets that have attached citation instances."""
     grouped: dict[int, dict[str, Any]] = {}
 
-    for claim in active_claims:
+    for claim in claims:
         if claim.changeset_id is None or claim.user_id is None:
             continue
 
-        claim_citations = getattr(claim, "prefetched_citation_instances", [])
+        claim_citations = citation_instances(claim)
         if not claim_citations:
             continue
 

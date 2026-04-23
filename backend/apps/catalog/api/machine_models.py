@@ -14,9 +14,10 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
+from apps.media.helpers import all_media, primary_media
 from apps.media.models import EntityMedia
 from apps.media.schemas import UploadedMediaSchema
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -288,9 +289,8 @@ def _build_model_list_qs(
 
 
 def _serialize_model_list(pm, *, min_rank: int | None = None) -> dict:
-    primary_media = getattr(pm, "primary_media", None)
     thumbnail_url, _ = _extract_image_urls(
-        pm.extra_data or {}, primary_media, min_rank=min_rank
+        pm.extra_data or {}, primary_media(pm), min_rank=min_rank
     )
     mfr = (
         pm.corporate_entity.manufacturer
@@ -336,23 +336,16 @@ def _serialize_model_detail(pm) -> dict:
 
     credits = [_serialize_credit(c) for c in pm.credits.all()]
 
-    active_claims = getattr(pm, "active_claims", None)
-    if active_claims is None:
-        raise RuntimeError(
-            "_serialize_model_detail requires claims_prefetch() on the queryset; "
-            "active_claims attribute missing."
-        )
+    claims = active_claims(pm)
 
-    all_media = getattr(pm, "all_media", None) or []
-    primary_media = [em for em in all_media if em.is_primary]
+    media = all_media(pm)
+    primary = [em for em in media if em.is_primary]
     thumbnail_url, hero_image_url = _extract_image_urls(
-        pm.extra_data or {}, primary_media or None, min_rank=min_rank
+        pm.extra_data or {}, primary or None, min_rank=min_rank
     )
-    image_attribution = _extract_image_attribution(
-        pm.extra_data or {}, primary_media or None
-    )
-    uploaded_media = _serialize_uploaded_media(all_media)
-    description = _build_rich_text(pm, "description", active_claims)
+    image_attribution = _extract_image_attribution(pm.extra_data or {}, primary or None)
+    uploaded_media = _serialize_uploaded_media(media)
+    description = _build_rich_text(pm, "description", claims)
     variant_features = _extract_variant_features(pm.extra_data or {})
 
     variants = [

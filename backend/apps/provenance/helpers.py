@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, cast
 
+from django.db import models
 from django.db.models import Case, F, IntegerField, Prefetch, Value, When
 
 from .models import CitationInstance, Claim
@@ -39,7 +40,35 @@ def claims_prefetch(to_attr: str = "active_claims") -> Any:
     )
 
 
-def build_sources(active_claims: Iterable[Any]) -> list[dict[str, Any]]:
+def active_claims(entity: models.Model) -> list[Claim]:
+    """Return the list of active claims prefetched onto *entity*.
+
+    Raises AssertionError if the queryset wasn't set up with
+    ``claims_prefetch()``.
+    """
+    claims = getattr(entity, "active_claims", None)
+    if claims is None:
+        raise AssertionError(
+            f"{type(entity).__name__} was not loaded via claims_prefetch()"
+        )
+    return cast(list[Claim], claims)
+
+
+def citation_instances(claim: Claim) -> list[CitationInstance]:
+    """Return the list of citation instances prefetched onto *claim*.
+
+    Raises AssertionError if the claim wasn't loaded via ``claims_prefetch()``.
+    """
+    instances = getattr(claim, "prefetched_citation_instances", None)
+    if instances is None:
+        raise AssertionError(
+            "Claim was not loaded via claims_prefetch(); "
+            "prefetched_citation_instances is missing."
+        )
+    return cast(list[CitationInstance], instances)
+
+
+def build_sources(claims: Iterable[Any]) -> list[dict[str, Any]]:
     """Serialize pre-fetched active claims into the sources list format.
 
     Claims should be ordered by claim_key, -priority, -created_at. The first
@@ -47,7 +76,7 @@ def build_sources(active_claims: Iterable[Any]) -> list[dict[str, Any]]:
     """
     winners: set[str] = set()
     sources: list[dict[str, Any]] = []
-    for claim in active_claims:
+    for claim in claims:
         is_winner = claim.claim_key not in winners
         if is_winner:
             winners.add(claim.claim_key)

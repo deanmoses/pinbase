@@ -13,12 +13,11 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
-from apps.provenance.typing import HasActiveClaims
 
 from ..models import Credit, MachineModel, Series, Title
-from ._typing import HasRelatedTitles, HasTitleCount
+from ._typing import HasTitleCount
 from .edit_claims import execute_claims, plan_scalar_field_claims
 from .entity_crud import register_entity_create, register_entity_delete_restore
 from .helpers import (
@@ -94,19 +93,14 @@ def _series_detail_qs():
     )
 
 
-def _serialize_series_detail(series) -> dict:
+def _serialize_series_detail(series: Series) -> dict:
     min_rank = get_minimum_display_rank()
-    series_with_claims = cast(HasActiveClaims, series)
-    series_with_titles = cast(HasRelatedTitles[Title], series)
     return {
         "name": series.name,
         "slug": series.slug,
-        "description": _build_rich_text(
-            series, "description", series_with_claims.active_claims
-        ),
+        "description": _build_rich_text(series, "description", active_claims(series)),
         "titles": [
-            _serialize_title_ref(t, min_rank=min_rank)
-            for t in series_with_titles.titles.all()
+            _serialize_title_ref(t, min_rank=min_rank) for t in series.titles.all()
         ],
         "credits": [_serialize_credit(c) for c in series.credits.all()],
     }
@@ -141,9 +135,8 @@ def list_series(request):
     min_rank = get_minimum_display_rank()
     result = []
     for s in qs:
-        series_with_titles = cast(HasRelatedTitles[Title], s)
         thumb = None
-        for title in series_with_titles.titles.all():
+        for title in s.titles.all():
             for pm in title.machine_models.all():
                 t, _ = _extract_image_urls(pm.extra_data or {}, min_rank=min_rank)
                 if t:

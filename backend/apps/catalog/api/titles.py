@@ -18,9 +18,10 @@ from ninja.security import django_auth
 from apps.catalog.naming import MAX_CATALOG_NAME_LENGTH, normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.media.helpers import all_media
 from apps.media.schemas import MediaRenditionsSchema
 from apps.media.storage import build_public_url, build_storage_key
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -486,9 +487,8 @@ def _collect_aggregated_media(models) -> list[dict]:
     the source model each item came from."""
     items: list[dict] = []
     for m in models:
-        media_list = getattr(m, "all_media", None) or []
         source_ref = {"slug": m.slug, "name": m.name}
-        for em in media_list:
+        for em in all_media(m):
             items.append(
                 {
                     "asset_uuid": str(em.asset.uuid),
@@ -518,8 +518,7 @@ def _select_title_hero_image_url(models, *, min_rank: int) -> str | None:
     uploaded backglass exists on any model.
     """
     for model in models:
-        all_media = getattr(model, "all_media", None) or []
-        backglass_media = [em for em in all_media if em.category == "backglass"]
+        backglass_media = [em for em in all_media(model) if em.category == "backglass"]
         if backglass_media:
             primary_backglass = [em for em in backglass_media if em.is_primary]
             chosen = primary_backglass[0] if primary_backglass else backglass_media[0]
@@ -577,9 +576,7 @@ def _serialize_title_detail(title) -> dict:
         pm = _model_detail_qs().get(slug=machines[0]["slug"])
         model_detail = _serialize_model_detail(pm)
 
-    description = _build_rich_text(
-        title, "description", getattr(title, "active_claims", [])
-    )
+    description = _build_rich_text(title, "description", active_claims(title))
 
     return {
         "name": title.name,

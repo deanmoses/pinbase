@@ -15,8 +15,9 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
 from ..cache import MANUFACTURERS_ALL_KEY, get_cached_response, set_cached_response
@@ -151,9 +152,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
     return {
         "name": mfr.name,
         "slug": mfr.slug,
-        "description": _build_rich_text(
-            mfr, "description", getattr(mfr, "active_claims", [])
-        ),
+        "description": _build_rich_text(mfr, "description", active_claims(mfr)),
         "year_start": min(year_starts) if year_starts else None,
         "year_end": max(year_ends) if year_ends else None,
         "logo_url": mfr.logo_url,
@@ -173,9 +172,7 @@ def _serialize_manufacturer_detail(mfr) -> dict:
         ),
         "systems": [{"name": s.name, "slug": s.slug} for s in mfr.systems.all()],
         "persons": persons,
-        "uploaded_media": _serialize_uploaded_media(
-            getattr(mfr, "all_media", None) or []
-        ),
+        "uploaded_media": _serialize_uploaded_media(all_media(mfr)),
     }
 
 

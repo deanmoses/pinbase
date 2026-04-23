@@ -13,12 +13,11 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
-from apps.provenance.typing import HasActiveClaims
 
 from ..models import Franchise, MachineModel, Title
-from ._typing import HasRelatedTitles, HasTitleCount
+from ._typing import HasTitleCount
 from .edit_claims import execute_claims, plan_scalar_field_claims
 from .entity_crud import register_entity_create, register_entity_delete_restore
 from .helpers import (
@@ -100,19 +99,16 @@ def _franchise_detail_qs():
     )
 
 
-def _serialize_franchise_detail(franchise) -> dict:
+def _serialize_franchise_detail(franchise: Franchise) -> dict:
     min_rank = get_minimum_display_rank()
-    franchise_with_claims = cast(HasActiveClaims, franchise)
-    franchise_with_titles = cast(HasRelatedTitles[Title], franchise)
     return {
         "name": franchise.name,
         "slug": franchise.slug,
         "description": _build_rich_text(
-            franchise, "description", franchise_with_claims.active_claims
+            franchise, "description", active_claims(franchise)
         ),
         "titles": [
-            _serialize_title_ref(t, min_rank=min_rank)
-            for t in franchise_with_titles.titles.all()
+            _serialize_title_ref(t, min_rank=min_rank) for t in franchise.titles.all()
         ],
     }
 

@@ -12,9 +12,8 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from apps.core.models import active_status_q
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
-from apps.provenance.typing import HasActiveClaims
 
 from ..models import (
     CorporateEntity,
@@ -107,9 +106,7 @@ def _serialize_detail(ce) -> dict:
     return {
         "name": ce.name,
         "slug": ce.slug,
-        "description": _build_rich_text(
-            ce, "description", cast(HasActiveClaims, ce).active_claims
-        ),
+        "description": _build_rich_text(ce, "description", active_claims(ce)),
         "manufacturer": {"name": ce.manufacturer.name, "slug": ce.manufacturer.slug},
         "year_start": ce.year_start,
         "year_end": ce.year_end,

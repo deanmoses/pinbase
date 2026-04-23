@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
@@ -11,10 +9,10 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
+from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
-from apps.provenance.typing import HasActiveClaims
 
 from ..models import GameplayFeature
 from ._counts import bulk_title_counts_via_models
@@ -78,17 +76,13 @@ def _serialize_detail(feature) -> dict:
     return {
         "name": feature.name,
         "slug": feature.slug,
-        "description": _build_rich_text(
-            feature, "description", cast(HasActiveClaims, feature).active_claims
-        ),
+        "description": _build_rich_text(feature, "description", active_claims(feature)),
         "aliases": [a.value for a in feature.aliases.all()],
         "parents": [{"name": p.name, "slug": p.slug} for p in feature.parents.all()],
         "children": [
             {"name": c.name, "slug": c.slug} for c in feature.children.order_by("name")
         ],
-        "uploaded_media": _serialize_uploaded_media(
-            getattr(feature, "all_media", None) or []
-        ),
+        "uploaded_media": _serialize_uploaded_media(all_media(feature)),
     }
 
 

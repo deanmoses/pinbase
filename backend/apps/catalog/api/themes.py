@@ -10,7 +10,7 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
 from ..models import MachineModel, Theme
@@ -82,9 +82,7 @@ def _serialize_detail(theme) -> dict:
     return {
         "name": theme.name,
         "slug": theme.slug,
-        "description": _build_rich_text(
-            theme, "description", getattr(theme, "active_claims", [])
-        ),
+        "description": _build_rich_text(theme, "description", active_claims(theme)),
         "aliases": [a.value for a in theme.aliases.all()],
         "parents": [{"name": t.name, "slug": t.slug} for t in theme.parents.all()],
         "children": [

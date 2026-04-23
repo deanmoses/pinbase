@@ -85,8 +85,13 @@ def _serialize_taxonomy(obj) -> dict:
         "name": obj.name,
         "slug": obj.slug,
         "display_order": obj.display_order,
+        # Dual-use serializer: called from list endpoints (no claims prefetch)
+        # and detail endpoints (claims_prefetch applied). `getattr` with None
+        # lets _build_rich_text skip attribution for list callers; detail
+        # callers get full attribution. Don't replace with active_claims() —
+        # it would raise on the list path.
         "description": _build_rich_text(
-            obj, "description", getattr(obj, "active_claims", [])
+            obj, "description", getattr(obj, "active_claims", None)
         ),
         "aliases": aliases,
     }

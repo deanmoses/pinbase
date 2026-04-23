@@ -15,10 +15,9 @@ from ninja.security import django_auth
 from apps.catalog.naming import normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
-from apps.provenance.helpers import claims_prefetch
+from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.rate_limits import CREATE_RATE_LIMIT_SPEC, check_and_record
 from apps.provenance.schemas import EditCitationInput, RichTextSchema
-from apps.provenance.typing import HasActiveClaims
 
 from ..models import MachineModel, Manufacturer, System
 from ._typing import HasModelCount
@@ -147,9 +146,7 @@ def _serialize_system_detail(system) -> dict:
     return {
         "name": system.name,
         "slug": system.slug,
-        "description": _build_rich_text(
-            system, "description", cast(HasActiveClaims, system).active_claims
-        ),
+        "description": _build_rich_text(system, "description", active_claims(system)),
         "manufacturer": (
             {"name": system.manufacturer.name, "slug": system.manufacturer.slug}
             if system.manufacturer
