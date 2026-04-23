@@ -6,7 +6,10 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.catalog.ingestion.ipdb.features import extract_ipdb_gameplay_features
+from apps.catalog.ingestion.ipdb.features import (
+    extract_ipdb_gameplay_features,
+    parse_ipdb_themes,
+)
 from apps.catalog.models import (
     Credit,
     MachineModel,
@@ -653,3 +656,48 @@ class TestExtractIpdbGameplayFeatures:
         assert counts["pop-bumpers"] == 3
         assert counts["spinning-targets"] == 1
         assert counts["3-ball-multiball"] is None
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for parse_ipdb_themes
+# ---------------------------------------------------------------------------
+
+
+class TestParseIpdbThemes:
+    """Whole-string match before splitting.
+
+    Catalog theme names or aliases may legitimately contain ``, `` or `` - ``.
+    The parser must consult the name_lookup for a whole-string match before
+    falling through to IPDB's `` - ``/``, `` split convention.
+    """
+
+    def test_ipdb_4117_comma_in_theme_name(self):
+        # IpdbId 4117 (Explorer, Nordamatic, 1976): pindata theme name
+        # contains commas — must not split.
+        raw = "Land, Air, and Space Exploration"
+        lookup = {
+            "land, air, and space exploration": "land-air-and-space-exploration",
+        }
+        assert parse_ipdb_themes(raw, lookup) == ["land-air-and-space-exploration"]
+
+    def test_whole_string_match_is_case_and_whitespace_insensitive(self):
+        raw = "land,  AIR, and space  exploration"
+        lookup = {
+            "land, air, and space exploration": "land-air-and-space-exploration",
+        }
+        assert parse_ipdb_themes(raw, lookup) == ["land-air-and-space-exploration"]
+
+    def test_alias_match(self):
+        raw = "LASE"
+        lookup = {"lase": "land-air-and-space-exploration"}
+        assert parse_ipdb_themes(raw, lookup) == ["land-air-and-space-exploration"]
+
+    def test_fall_through_splits_on_hyphen_and_comma(self):
+        assert parse_ipdb_themes("Fantasy - Adventure", {}) == [
+            "fantasy",
+            "adventure",
+        ]
+        assert parse_ipdb_themes("Sports, Baseball", {}) == ["sports", "baseball"]
+
+    def test_fall_through_applies_ipdb_tag_map(self):
+        assert parse_ipdb_themes("Basebal", {}) == ["baseball"]
