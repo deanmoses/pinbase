@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 
-from django.db.models import F, Prefetch, Q
+from django.db.models import F, Prefetch, Q, QuerySet
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -320,7 +321,7 @@ def _serialize_model_list(pm, *, min_rank: int | None = None) -> dict:
     }
 
 
-def _serialize_model_detail(pm) -> dict:
+def _serialize_model_detail(pm: MachineModel) -> dict[str, Any]:
     """Serialize a MachineModel into the detail response dict.
 
     Expects *pm* to have been fetched with prefetch_related for credits
@@ -353,8 +354,10 @@ def _serialize_model_detail(pm) -> dict:
     ]
 
     # Build sibling variants: other variants of the same parent.
-    variant_siblings = []
+    variant_siblings: list[dict[str, Any]] = []
     if pm.variant_of_id is not None:
+        parent = pm.variant_of
+        assert parent is not None  # narrowed by variant_of_id check above
         variant_siblings = [
             {
                 "name": sib.name,
@@ -362,7 +365,7 @@ def _serialize_model_detail(pm) -> dict:
                 "year": sib.year,
                 "variant_features": _extract_variant_features(sib.extra_data or {}),
             }
-            for sib in pm.variant_of.variants.all()
+            for sib in parent.variants.all()
             if sib.pk != pm.pk
         ]
 
@@ -509,7 +512,7 @@ def _serialize_model_detail(pm) -> dict:
     }
 
 
-def _model_detail_qs():
+def _model_detail_qs() -> QuerySet[MachineModel]:
     """Return the queryset used for model detail / patch endpoints."""
     return (
         MachineModel.objects.active()

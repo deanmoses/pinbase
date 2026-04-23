@@ -32,6 +32,7 @@ In a Django + Ninja app, the Ninja `Schema` (Pydantic v2) is the canonical data 
 - **Schema-shaped output → return the Schema instance.** Pydantic v2 construction is microseconds; the "runtime cost" concern is not real.
 - **No Schema exists yet for this shape → add one.** Two duplicated shapes (a TypedDict and a Schema) is a worse outcome than one Schema used everywhere.
 - **Truly free-form `JSONField` bags → `JsonData` from [apps/core/types.py](backend/apps/core/types.py).** Only `extra_data` qualifies. `JsonData = Mapping[str, object]` — `object` (not `Any`) forces `isinstance`-narrowing at use sites, which is correct for JSON. `Mapping` (covariant) is needed because dict literals with specific value types aren't subtypes of the invariant `dict[str, object]`. Use `JsonBody` (the `dict` form) only for test-client write bodies.
+- **Exception: cached-bytes hot paths.** Endpoints that build the input to `set_cached_response` (e.g. `list_all_titles`, `list_all_models`) persist JSON bytes; the dict _is_ the cached form. Building Schemas only to `model_dump()` them back is the round-trip the cache exists to avoid. Keep these few helpers dict-returning, type the local as `list[dict[str, Any]]`, and leave a comment naming the cache contract. The Schema for the same shape still applies to the non-cached sibling endpoint.
 
 `TypedDict` is the fallback for code that can't or won't use Pydantic. In a Ninja app, Pydantic is already present — use it.
 
@@ -65,25 +66,47 @@ When a helper is generic over N concrete model classes that share a Schema shape
 
 ## Idiom for Schema/dict boundaries during migration
 
-When a helper transitions from returning `dict` to returning `Schema`, but an existing callback boundary (`Callable[[Any], dict]` stored in a shared registrar) is consumed by untyped callers elsewhere in the tree:
+When a helper transitions from returning `dict` to returning `Schema`, but the converse boundary still returns `dict` — either a shared callback registrar consumed by untyped callers, or a cross-step callee whose own conversion is scheduled later:
 
-- **Wrap at the boundary, not the callback type.** `serialize_detail=lambda obj: _serialize_taxonomy(obj).model_dump()` confines the dict round-trip to the single call site. Tightening the shared `SerializeFn` to `Callable[[Any], Schema]` ripples into every untyped caller of the registrar, ballooning the current step's scope.
-- **Flag the wrapper as tech debt.** A comment naming the later step that will tighten the callback type keeps the intent visible. Don't silently leave the `.model_dump()` hop in place once the registrar is typed.
+- **Wrap at the boundary, not the callee.**
+  - Schema-side calling dict-side: `Schema.model_validate(callee_dict(...))` at the call site. (Step 1 titles.py → step 2 machine_models.py used this for `MachineModelDetailSchema.model_validate(_serialize_model_detail(pm))`.)
+  - Dict-side calling Schema-side: `serialize_detail=lambda obj: _serialize_taxonomy(obj).model_dump()` confines the round-trip to the single call site.
+  - Either way, tightening the shared callback type or callee return ripples into every untyped consumer, ballooning the current step's scope.
+- **Flag the wrapper as tech debt.** A comment naming the later step that will remove the bridge keeps the intent visible. Don't silently leave the `.model_dump()` / `.model_validate()` hop in place once the boundary is tightened.
+
+## Idiom for narrowing optional FK fields
+
+`obj.fk_id is not None` (column read, no DB hit) and `obj.fk is not None` (related-object dereference, may hit the DB) **are not equivalent**. Don't swap one for the other to satisfy mypy.
+
+- The original guard is usually `obj.fk_id is not None` because callers don't want the related fetch.
+- To narrow the related object for mypy without changing semantics, bind a local and assert: `parent = obj.fk; assert parent is not None`. The `_id` check guarantees the assert holds; the local lets mypy track the narrowing through the rest of the block.
 
 ## Step 1 — Keystone helpers in `catalog/api`
 
 Type the shared helpers before their callers. Expect the `no-untyped-call` count to drop noticeably as a side effect.
 
 - [apps/catalog/api/taxonomy.py](backend/apps/catalog/api/taxonomy.py) — **done** (58 → 2; the 2 remaining are pre-existing `Cannot infer type of lambda` on default-arg-captured lambdas in the `_register_*` wrappers).
-- [apps/catalog/api/titles.py](backend/apps/catalog/api/titles.py) (51 entries)
+- [apps/catalog/api/titles.py](backend/apps/catalog/api/titles.py) — **done** (51 → 0). Two `MachineModelDetailSchema.model_validate(_serialize_model_detail(...))` bridges remain; remove when step 2 converts `_serialize_model_detail` to return the Schema. `_serialize_model_detail` and `_model_detail_qs` in [machine_models.py](backend/apps/catalog/api/machine_models.py) were minimally typed (return `dict[str, Any]` and `QuerySet[MachineModel]`) as cross-file callee unblocks — the full Schema conversion is step 2 work.
 
 Return Schema instances (see idiom above). Add schemas for shapes that don't have one yet.
 
-## Step 2 — `catalog/api` endpoint signatures
+## Step 2 — rest of `catalog/api`
 
-With helpers typed, sweep endpoint signatures: `request: HttpRequest`, explicit return types (schema classes, not `dict`). Run `make api-gen` + frontend typecheck after each batch.
+With taxonomy + titles done, the rest of the package falls into two groups. Order matters: shared-helper modules first (callee-before-caller), then endpoint-only files. Run `make api-gen` + frontend typecheck after each batch.
 
-Batch by file, smallest first to build confidence: `systems.py`, `manufacturers.py`, `series.py`, `locations.py`, `people.py`, `entity_create.py`, `entity_crud.py`, `edit_claims.py`, `soft_delete.py`, `machine_models.py`, `page_endpoints.py`.
+**2a — shared helpers** (not endpoint files; expose the keystone helpers every endpoint in the package calls — `execute_claims`, `plan_*`, `assert_*`, `serialize_blocking_referrer`, `execute_soft_delete`):
+
+`edit_claims.py` (17) → `soft_delete.py` (17) → `entity_create.py` (11) → `entity_crud.py` (17).
+
+Typing these first means the 2b sweep collects `no-untyped-call` reductions for free.
+
+**2b — endpoint signatures** (`request: HttpRequest`, explicit Schema return types):
+
+`systems.py` (12) → `manufacturers.py` (11) → `series.py` (10) → `locations.py` (20) → `people.py` (20) → `machine_models.py` (34) → `page_endpoints.py` (46).
+
+`machine_models.py` is sequenced before `page_endpoints.py` for two reasons: (a) it carries the titles.py → step-2 bridges (`MachineModelDetailSchema.model_validate(_serialize_model_detail(...))`) which step 2 should remove, not perpetuate; (b) `page_endpoints.py` imports `_serialize_model_detail` / `_model_detail_qs` from it, so typing machine_models first unblocks the largest file the same way it unblocked titles.
+
+**Land a shared `ErrorDetailSchema` during 2b.** Almost every endpoint file declares `response={..., 422: dict, 404: dict}` with bodies like `{"detail": "..."}` or `{"detail": "...", "blocked_by": [...]}`. Define `ErrorDetailSchema` and `SoftDeleteBlockedSchema` once, replace the `dict` declarations as each file is swept. Cheaper to do during the same touch than to revisit; also removes the lazy-`Any` placeholders that titles.py left behind (`422: dict[str, Any]`, etc.).
 
 When the package is clean, shrink `mypy-baseline.txt` to drop its entries and (if feasible) narrow the `apps.*.api.*` decorator relaxation.
 
