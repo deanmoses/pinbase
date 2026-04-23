@@ -13,12 +13,41 @@
 #
 # Localhost Claude Code sessions skip the ``uv self update`` + Python
 # install — those mutate global tooling we don't own.
-set -euo pipefail
+#
+# Emits one ``[step] elapsed=Ns`` line per stage plus a final total so
+# SessionStart banner output makes failures (timeout, nonzero exit) visible
+# instead of silent.  An ERR trap reports which step failed on the way out.
+# The per-hook timeout in .claude/settings.json (600s) has to stay
+# comfortably above the worst cold-start total — bump both together if
+# cold-start totals creep toward it.
+set -eEuo pipefail
+
+script_start=$SECONDS
+current_step="startup"
+trap 'echo "[session-start-backend] FAILED step=${current_step} elapsed=$((SECONDS - script_start))s exit=$?"' ERR
+
+run_step() {
+  local name=$1
+  shift
+  current_step=$name
+  local t0=$SECONDS
+  "$@"
+  echo "[session-start-backend] ${name} elapsed=$((SECONDS - t0))s"
+}
 
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
-  uv self update
-  uv python install 3.14
+  run_step "uv-self-update" uv self update
+  run_step "uv-python-install" uv python install 3.14
 fi
 
-( cd backend && uv sync )
-( cd backend && uv run python manage.py migrate --no-input ) || true
+run_step "uv-sync" bash -c 'cd backend && uv sync'
+
+# Migrations aren't a hard dependency for session startup — a migration
+# error shouldn't wedge the whole hook — so run without the ERR trap.
+current_step="migrate"
+migrate_start=$SECONDS
+( cd backend && uv run python manage.py migrate --no-input ) || \
+  echo "[session-start-backend] migrate FAILED (non-fatal) elapsed=$((SECONDS - migrate_start))s"
+echo "[session-start-backend] migrate elapsed=$((SECONDS - migrate_start))s"
+
+echo "[session-start-backend] done total=$((SECONDS - script_start))s"

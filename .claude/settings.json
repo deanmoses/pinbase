@@ -47,7 +47,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/session-start-backend.sh"
+            "command": "bash .claude/hooks/session-start-backend.sh",
+            "timeout": 600
           },
           {
             "type": "command",
