@@ -88,8 +88,6 @@ Before any chunk work, one PR lands two repo-wide changes to `backend/pyproject.
 
 No mypy change in Phase 0 or Phase 2 — see Phase 2 for why the ratchet is ruff-only.
 
-**Landing the seed PR iteratively.** The seed list is complete when `ruff check` passes. If ruff fires on a path not yet in the seed list, add that chunk's glob and retry. Don't try to enumerate every chunk up front — let `ruff check` tell you what's missing.
-
 ### Phase 1: the smells
 
 Run these from the repo root. Current counts against `main` in parentheses.
@@ -167,6 +165,10 @@ rg -oN --type py --no-filename 'tuple\[[^\]]+\]' backend/ \
 Nine shapes exceed the ≥3 threshold; the top four are: `tuple[int, int]` ×22, `tuple[str, str]` ×17, `tuple[int, str]` ×13, `tuple[int, int, str]` ×6 (the last spanning `provenance/models/claim.py`, `catalog/resolve/_media.py`, `catalog/ingestion/apply.py`).
 
 **Fix:** for each shape with ≥3 occurrences, define one NamedTuple in a shared location (typically `apps/<app>/types.py` if the uses are app-local, or `apps/core/types.py` if cross-app), import it everywhere the shape was used. Find all use sites with `rg -l --type py 'tuple\[int, int, str\]' backend/`. Skip shapes where the occurrences are semantically unrelated (e.g. two unrelated functions both happen to return `tuple[int, int]` for totally different reasons) — those get distinct NamedTuples, not a shared one.
+
+**A type alias is not a fix.** `type EntityKey = tuple[int, int]` reads cleanly in signatures but leaves callers doing `key[0]`/`key[1]` — the label-less positional access is the actual smell, and the alias just renames the container. Only a NamedTuple (or equivalent structure with named fields) clears this smell. If the follow-up grep still shows bare-tuple indexing at call sites, the fix was cosmetic.
+
+**Prefer NamedTuple over a parallel TypedDict ref.** When a TypedDict exists only as an entity reference whose keys exactly match a NamedTuple's fields (e.g. `{"content_type_id": int, "object_id": int}` alongside `EntityKey`), collapse them into the NamedTuple — it's hashable so it can double as a dict key, and eliminating the parallel types removes the "construct-a-dict-here, index-a-tuple-there" asymmetry at call sites.
 
 **Cross-chunk ownership.** Cross-app NamedTuples live in `apps/core/types.py`. The first session to touch a cross-app shape creates the NamedTuple there and migrates its chunk's call sites; later chunks import from `apps/core/types.py` rather than redefining. Before creating a new NamedTuple there, read `apps/core/types.py` end-to-end — the intent is to catch a prior session that introduced the same shape under a different name (`ModelField` vs `FieldSpec` vs `AliasType` could all be `tuple[type, str]`). If you find an existing NamedTuple whose field types match the shape you were about to introduce, import it instead. If `apps/core/types.py` doesn't exist yet, your session is the first to need it — create it with a short module docstring ("cross-app shared types") and add your NamedTuple.
 

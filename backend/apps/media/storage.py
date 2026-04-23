@@ -7,7 +7,7 @@ Nothing about storage paths is stored in the database.
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import NamedTuple
 from uuid import UUID
 
 from django.conf import settings
@@ -47,6 +47,17 @@ def get_media_storage() -> Storage:
     return default_storage
 
 
+class _TypedContentFile(ContentFile[bytes]):
+    """ContentFile that advertises a content_type attribute.
+
+    django-storages' S3Boto3Storage forwards ``file.content_type`` to S3
+    as the object's Content-Type when the attribute is present. Declaring
+    it on a subclass lets us set it without a cast.
+    """
+
+    content_type: str
+
+
 def upload_to_storage(storage_key: str, data: bytes, content_type: str) -> None:
     """Write bytes to storage at the given key.
 
@@ -57,21 +68,26 @@ def upload_to_storage(storage_key: str, data: bytes, content_type: str) -> None:
     between the DB and storage.
     """
     storage = get_media_storage()
-    file = ContentFile(data, name=storage_key)
-    content_file = cast(Any, file)
-    content_file.content_type = content_type
-    actual_key = storage.save(storage_key, content_file)
+    file = _TypedContentFile(data, name=storage_key)
+    file.content_type = content_type
+    actual_key = storage.save(storage_key, file)
     if actual_key != storage_key:
         storage.delete(actual_key)
         msg = f"Storage key mismatch: expected {storage_key}, got {actual_key}"
         raise RuntimeError(msg)
 
 
-_MAGIC_SIGNATURES: list[tuple[bytes, int, str]] = [
-    (b"\xff\xd8\xff", 0, "image/jpeg"),
-    (b"\x89PNG", 0, "image/png"),
-    (b"WEBP", 8, "image/webp"),  # RIFF....WEBP
-    (b"ftypavif", 4, "image/avif"),  # ISOBMFF ftyp box
+class MagicSignature(NamedTuple):
+    signature: bytes
+    offset: int
+    mime_type: str
+
+
+_MAGIC_SIGNATURES: list[MagicSignature] = [
+    MagicSignature(b"\xff\xd8\xff", 0, "image/jpeg"),
+    MagicSignature(b"\x89PNG", 0, "image/png"),
+    MagicSignature(b"WEBP", 8, "image/webp"),  # RIFF....WEBP
+    MagicSignature(b"ftypavif", 4, "image/avif"),  # ISOBMFF ftyp box
 ]
 
 
@@ -82,9 +98,9 @@ def sniff_image_content_type(data: bytes) -> str | None:
     media serving view where extensionless storage keys prevent
     Django's default Content-Type guessing.
     """
-    for signature, offset, mime_type in _MAGIC_SIGNATURES:
-        if data[offset : offset + len(signature)] == signature:
-            return mime_type
+    for sig in _MAGIC_SIGNATURES:
+        if data[sig.offset : sig.offset + len(sig.signature)] == sig.signature:
+            return sig.mime_type
     return None
 
 
