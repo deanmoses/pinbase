@@ -28,14 +28,32 @@ IPDB_TAG_MAP: dict[str, list[str]] = {
 }
 
 
-def parse_ipdb_themes(raw_theme: str) -> list[str]:
+_THEME_WS_RE = re.compile(r"\s+")
+
+
+def normalize_theme_key(s: str) -> str:
+    """Normalize a theme name/alias for case- and whitespace-insensitive lookup."""
+    return _THEME_WS_RE.sub(" ", s.strip()).lower()
+
+
+def parse_ipdb_themes(raw_theme: str, name_lookup: dict[str, str]) -> list[str]:
     """Split an IPDB theme string and return canonical theme slugs.
 
-    Splits on `` - `` (and ``, `` for comma-delimited entries), looks up
-    each token in IPDB_TAG_MAP (or slugifies if unmapped), and returns
-    deduplicated slugs.
+    First checks whether the whole raw string matches a known pindata theme
+    name or alias verbatim (case- and whitespace-insensitive via
+    ``normalize_theme_key``); if so, emits that slug and skips splitting.
+    This handles canonical names that legitimately contain ``, `` or `` - ``
+    (e.g. "Land, Air, and Space Exploration").
+
+    Otherwise splits on `` - `` (and ``, `` for comma-delimited entries),
+    looks up each token in IPDB_TAG_MAP (or slugifies if unmapped), and
+    returns deduplicated slugs.
     """
     from django.utils.text import slugify
+
+    whole = name_lookup.get(normalize_theme_key(raw_theme))
+    if whole:
+        return [whole]
 
     tags: list[str] = []
     for part in raw_theme.split(" - "):

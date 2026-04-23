@@ -38,6 +38,7 @@ from apps.catalog.ingestion.ipdb.features import (
     extract_ipdb_gameplay_features,
     extract_ipdb_reward_types,
     load_mpu_to_system_slug,
+    normalize_theme_key,
     parse_ipdb_themes,
     validate_narrative_slugs,
 )
@@ -190,7 +191,13 @@ def build_ipdb_plan(
     person_slugs: set[str] = set(Person.objects.values_list("slug", flat=True))
 
     # Theme lookup.
-    theme_by_slug: dict[str, Theme] = {t.slug: t for t in Theme.objects.all()}
+    themes_qs = list(Theme.objects.prefetch_related("aliases").all())
+    theme_by_slug: dict[str, Theme] = {t.slug: t for t in themes_qs}
+    theme_name_lookup: dict[str, str] = {}
+    for _t in themes_qs:
+        theme_name_lookup[normalize_theme_key(_t.name)] = _t.slug
+        for _alias in _t.aliases.all():
+            theme_name_lookup.setdefault(normalize_theme_key(_alias.value), _t.slug)
 
     # Build the plan.
     plan = IngestPlan(
@@ -301,7 +308,9 @@ def build_ipdb_plan(
 
         # Queue themes.
         if mr.record.theme:
-            theme_slugs = parse_ipdb_themes(unescape(mr.record.theme))
+            theme_slugs = parse_ipdb_themes(
+                unescape(mr.record.theme), theme_name_lookup
+            )
             if theme_slugs:
                 theme_queue.append((target, theme_slugs))
 
