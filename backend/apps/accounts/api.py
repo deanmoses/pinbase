@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
@@ -22,11 +22,8 @@ from django.shortcuts import get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
 from ninja import Router, Schema
 
-from apps.provenance.entity_resolution import (
-    EntityKey,
-    EntityRef,
-    batch_resolve_entities,
-)
+from apps.core.types import EntityKey
+from apps.provenance.entity_resolution import batch_resolve_entities
 from apps.provenance.models import ChangeSet, Claim
 
 from .models import UserProfile
@@ -86,7 +83,9 @@ class WorkOSUser(Protocol):
     last_name: str | None
 
 
-class EntityContributionRow(EntityRef):
+class EntityContributionRow(TypedDict):
+    content_type_id: int
+    object_id: int
     edit_count: int
     last_edited_at: datetime
 
@@ -265,8 +264,7 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
     entity_rows: list[EntityContributionRow] = []
     for row in raw_entity_rows:
         last_edited_at = row["last_edited_at"]
-        if not isinstance(last_edited_at, datetime):
-            continue
+        assert isinstance(last_edited_at, datetime)
         entity_rows.append(
             {
                 "content_type_id": int(row["content_type_id"]),
@@ -276,11 +274,13 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
             }
         )
 
-    resolved = batch_resolve_entities(entity_rows)
+    resolved = batch_resolve_entities(
+        [EntityKey(row["content_type_id"], row["object_id"]) for row in entity_rows]
+    )
 
     entities_edited: list[EntityContributionSchema] = []
     for row in entity_rows:
-        meta = resolved.get((row["content_type_id"], row["object_id"]))
+        meta = resolved.get(EntityKey(row["content_type_id"], row["object_id"]))
         if not meta:
             continue
         entities_edited.append(
@@ -299,18 +299,18 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
         .order_by("-created_at")[:50]
     )
 
-    cs_entity_refs: list[EntityRef] = []
+    cs_entity_keys: list[EntityKey] = []
     cs_first_claim: dict[int, EntityKey] = {}
     for cs in recent_changesets:
         prefetched_claims = cs.claims.all()
         if prefetched_claims:
             c = prefetched_claims[0]
             assert cs.pk is not None
-            key = (c.content_type_id, c.object_id)
+            key = EntityKey(c.content_type_id, c.object_id)
             cs_first_claim[cs.pk] = key
-            cs_entity_refs.append({"content_type_id": key[0], "object_id": key[1]})
+            cs_entity_keys.append(key)
 
-    cs_resolved = batch_resolve_entities(cs_entity_refs)
+    cs_resolved = batch_resolve_entities(cs_entity_keys)
 
     recent_edits: list[UserChangeSetSchema] = []
     for cs in recent_changesets:

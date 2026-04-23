@@ -23,8 +23,9 @@ from ninja.decorators import decorate_view
 from ninja.responses import Status
 
 from apps.core.entity_types import get_linkable_model
+from apps.core.types import EntityKey
 
-from .entity_resolution import EntityKey, EntityRef, batch_resolve_entities
+from .entity_resolution import batch_resolve_entities
 from .evidence import build_cited_changesets
 from .helpers import active_claims, build_sources, claims_prefetch
 from .history import build_edit_history
@@ -254,7 +255,7 @@ def list_changes(
     changesets, next_cursor = cursor_paginate(qs, cursor, limit)
 
     # Batch-resolve entity metadata.
-    entity_refs: list[EntityRef] = []
+    entity_keys: list[EntityKey] = []
     cs_entity_map: dict[int, EntityKey] = {}
     for cs in changesets:
         claims = cs.claims.all()
@@ -262,11 +263,11 @@ def list_changes(
         first = next(iter(claims), None) or next(iter(retracted), None)
         if first:
             assert cs.pk is not None
-            key = (first.content_type_id, first.object_id)
+            key = EntityKey(first.content_type_id, first.object_id)
             cs_entity_map[cs.pk] = key
-            entity_refs.append({"content_type_id": key[0], "object_id": key[1]})
+            entity_keys.append(key)
 
-    resolved = batch_resolve_entities(entity_refs)
+    resolved = batch_resolve_entities(entity_keys)
 
     items: list[ChangeSetSummarySchema] = []
     for cs in changesets:
@@ -330,9 +331,9 @@ def change_detail(
     obj_id = first.object_id
 
     # Resolve entity metadata.
-    entity_refs: list[EntityRef] = [{"content_type_id": ct_id, "object_id": obj_id}]
-    meta_map = batch_resolve_entities(entity_refs)
-    meta = meta_map.get((ct_id, obj_id))
+    entity_key = EntityKey(ct_id, obj_id)
+    meta_map = batch_resolve_entities([entity_key])
+    meta = meta_map.get(entity_key)
     if not meta:
         return Status(404, {"detail": "Entity no longer exists."})
 

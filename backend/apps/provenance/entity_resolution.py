@@ -12,19 +12,13 @@ from typing import TypedDict
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-
-class EntityRef(TypedDict):
-    content_type_id: int
-    object_id: int
+from apps.core.types import EntityKey
 
 
 class ResolvedEntityMeta(TypedDict):
     href: str
     name: str
     type_label: str
-
-
-type EntityKey = tuple[int, int]
 
 
 def resolve_entity_href(
@@ -39,18 +33,17 @@ def resolve_entity_href(
 
 
 def batch_resolve_entities(
-    entity_rows: Sequence[EntityRef],
+    entity_keys: Sequence[EntityKey],
 ) -> dict[EntityKey, ResolvedEntityMeta]:
-    """Resolve entity metadata from (content_type_id, object_id) pairs.
+    """Resolve entity metadata from a sequence of ``EntityKey`` refs.
 
-    Returns a dict mapping (content_type_id, object_id) to
-    {"href": str, "name": str, "type_label": str}, skipping unresolvable
-    entities.
+    Returns a dict mapping each ``EntityKey`` to its resolved metadata,
+    skipping entries whose content type or object cannot be resolved.
     """
     # Group by content_type_id, deduplicating object_ids
     by_ct: dict[int, set[int]] = defaultdict(set)
-    for row in entity_rows:
-        by_ct[row["content_type_id"]].add(row["object_id"])
+    for key in entity_keys:
+        by_ct[key.content_type_id].add(key.object_id)
 
     resolved: dict[EntityKey, ResolvedEntityMeta] = {}
     for ct_id, obj_ids in by_ct.items():
@@ -65,7 +58,7 @@ def batch_resolve_entities(
             if href is None:
                 continue
             name = getattr(entity, "name", None)
-            resolved[(ct_id, obj_id)] = {
+            resolved[EntityKey(ct_id, obj_id)] = {
                 "href": href,
                 "name": name if isinstance(name, str) else str(entity),
                 "type_label": type_label,
