@@ -190,13 +190,16 @@ people_router = Router(tags=["people"])
 
 @people_router.get("/", response=list[PersonSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_people(request: HttpRequest) -> list[Any]:
-    return list(
-        Person.objects.active()
+def list_people(request: HttpRequest) -> list[PersonSchema]:
+    return [
+        PersonSchema(
+            name=row["name"], slug=row["slug"], credit_count=row["credit_count"]
+        )
+        for row in Person.objects.active()
         .annotate(credit_count=Count("credits"))
         .order_by("name")
         .values("name", "slug", "credit_count")
-    )
+    ]
 
 
 @people_router.get("/all/", response=list[PersonGridSchema])

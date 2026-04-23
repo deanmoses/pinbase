@@ -27,6 +27,7 @@ from ..models import (
     CorporateEntityAlias,
     CorporateEntityLocation,
     Credit,
+    Location,
     MachineModel,
     Manufacturer,
     ManufacturerAlias,
@@ -216,7 +217,7 @@ def _build_location_refs(
     refs: dict[str, str] = {}  # location_path -> name
     for entity in entities:
         for cel in entity.locations.all():
-            cur: Any = cel.location
+            cur: Location | None = cel.location
             while cur is not None:
                 if cur.location_path not in refs:
                     refs[cur.location_path] = cur.name
@@ -233,9 +234,12 @@ manufacturers_router = Router(tags=["manufacturers"])
 
 @manufacturers_router.get("/", response=list[ManufacturerSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_manufacturers(request: HttpRequest) -> list[Any]:
-    return list(
-        Manufacturer.objects.active()
+def list_manufacturers(request: HttpRequest) -> list[ManufacturerSchema]:
+    return [
+        ManufacturerSchema(
+            name=row["name"], slug=row["slug"], model_count=row["model_count"]
+        )
+        for row in Manufacturer.objects.active()
         .annotate(
             model_count=Count(
                 "entities__models",
@@ -244,7 +248,7 @@ def list_manufacturers(request: HttpRequest) -> list[Any]:
         )
         .order_by("name")
         .values("name", "slug", "model_count")
-    )
+    ]
 
 
 @manufacturers_router.get("/all/", response=list[ManufacturerGridSchema])

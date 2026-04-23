@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, NoReturn, cast
 
-from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
+from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, transaction
@@ -18,7 +18,7 @@ from django.db import models as db_models
 from ninja import Schema
 
 from apps.catalog.claims import build_relationship_claim
-from apps.catalog.models import CreditRole, GameplayFeature, Person
+from apps.catalog.models import CreditRole, GameplayFeature, MachineModel, Person, Title
 from apps.core.models import get_claim_fields
 from apps.provenance.models import ChangeSet, ChangeSetAction, CitationInstance, Claim
 from apps.provenance.schemas import EditCitationInput
@@ -28,14 +28,19 @@ from ..resolve import resolve_after_mutation
 from ._typing import CreditKey, CreditPkKey
 from .schemas import CreditInput, GameplayFeatureInput
 
-_UserLike = AbstractBaseUser | AnonymousUser
+# ``request.user`` is typed as ``AbstractBaseUser | AnonymousUser``; callers
+# narrow at the entry points below before threading into the internal helper.
+_RequestUser = AbstractBaseUser | AnonymousUser
 
-# The ``entity`` parameter on plan_*/build_* helpers is genuinely heterogeneous
-# across many concrete catalog models (Title, MachineModel, Theme, Person, …),
-# each with its own per-subclass reverse relations (``.aliases``, ``.parents``,
-# ``.credits``, ``.abbreviations``, ``.machinemodelgameplayfeature_set``).
-# django-stubs cannot express "any subclass that has these reverse relations"
-# on the base ``Model`` class — this is the 3rd-party-API ``Any`` (idiom #3).
+# ``plan_parent_claims`` and ``plan_alias_claims`` operate on genuinely
+# heterogeneous concrete catalog models (Theme, GameplayFeature,
+# CorporateEntity, …), each with its own per-subclass reverse relations
+# (``.aliases``, ``.parents``). django-stubs cannot express "any subclass
+# that has these reverse relations" on the base ``Model`` class — this is
+# the 3rd-party-API ``Any`` (idiom #3). The other plan_* helpers
+# (``plan_gameplay_feature_claims``, ``plan_credit_claims``,
+# ``plan_abbreviation_claims``) are effectively single-model and use
+# concrete types directly.
 _Entity = Any
 
 
@@ -511,7 +516,7 @@ def build_gameplay_feature_claim_specs(
 
 
 def plan_gameplay_feature_claims(
-    entity: _Entity,
+    entity: MachineModel,
     desired_features: list[GameplayFeatureInput],
 ) -> list[ClaimSpec]:
     """Validate and diff gameplay features (slug + optional count) on a MachineModel.
@@ -556,7 +561,7 @@ def plan_gameplay_feature_claims(
 
 
 def plan_abbreviation_claims(
-    entity: _Entity,
+    entity: MachineModel | Title,
     desired_values: list[str],
 ) -> list[ClaimSpec]:
     """Validate and diff abbreviation changes.
@@ -589,7 +594,7 @@ def plan_abbreviation_claims(
 
 
 def plan_credit_claims(
-    entity: _Entity,
+    entity: MachineModel,
     desired_credits: list[CreditInput],
 ) -> list[ClaimSpec]:
     """Validate and diff credits (person_slug + role) on a MachineModel.
@@ -740,7 +745,7 @@ def _write_claims_in_changeset(
     entity: db_models.Model,
     specs: list[ClaimSpec],
     *,
-    user: _UserLike,
+    user: AbstractBaseUser,
     changeset: ChangeSet,
 ) -> list[Claim]:
     """Assert claims on *entity* inside an already-open *changeset*.
@@ -792,7 +797,7 @@ def execute_claims(
     entity: db_models.Model,
     specs: list[ClaimSpec],
     *,
-    user: _UserLike,
+    user: _RequestUser,
     action: ChangeSetAction = ChangeSetAction.EDIT,
     note: str = "",
     citation: EditCitationInput | None = None,
@@ -805,10 +810,22 @@ def execute_claims(
 
     Raises HttpError 422 on IntegrityError (unique constraint violations).
     """
+    # All callers sit behind ``auth=django_auth``, so an anonymous user can't
+    # reach this helper. Narrow so ``ChangeSet.user`` (NOT NULL) isn't handed
+    # an ``AnonymousUser`` whose ``pk`` is ``None``. The runtime check only
+    # excludes ``AnonymousUser`` (the actual invariant) so it stays correct
+    # if ``AUTH_USER_MODEL`` is ever swapped.
+    #
+    # The ``cast(User, user)`` at the ``create`` call is a django-stubs
+    # workaround: the FK to ``settings.AUTH_USER_MODEL`` is typed against
+    # ``auth.User`` while ``request.user`` is ``AbstractBaseUser |
+    # AnonymousUser``. Both the cast and the tripwire go away once we
+    # introduce a custom User model — see docs/plans/UserModel.md.
+    assert not isinstance(user, AnonymousUser)
     try:
         with transaction.atomic():
             cs = ChangeSet.objects.create(
-                user=cast(Any, user), action=action, note=note
+                user=cast(User, user), action=action, note=note
             )
             created_claims = _write_claims_in_changeset(
                 entity, specs, user=user, changeset=cs
@@ -825,7 +842,7 @@ def execute_claims(
 def execute_multi_entity_claims(
     entries: Sequence[tuple[db_models.Model, list[ClaimSpec]]],
     *,
-    user: _UserLike,
+    user: _RequestUser,
     action: ChangeSetAction,
     note: str = "",
     citation: EditCitationInput | None = None,
@@ -845,10 +862,22 @@ def execute_multi_entity_claims(
     Returns the created ChangeSet so callers can thread its id into the
     response (Undo needs it).
     """
+    # All callers sit behind ``auth=django_auth``, so an anonymous user can't
+    # reach this helper. Narrow so ``ChangeSet.user`` (NOT NULL) isn't handed
+    # an ``AnonymousUser`` whose ``pk`` is ``None``. The runtime check only
+    # excludes ``AnonymousUser`` (the actual invariant) so it stays correct
+    # if ``AUTH_USER_MODEL`` is ever swapped.
+    #
+    # The ``cast(User, user)`` at the ``create`` call is a django-stubs
+    # workaround: the FK to ``settings.AUTH_USER_MODEL`` is typed against
+    # ``auth.User`` while ``request.user`` is ``AbstractBaseUser |
+    # AnonymousUser``. Both the cast and the tripwire go away once we
+    # introduce a custom User model — see docs/plans/UserModel.md.
+    assert not isinstance(user, AnonymousUser)
     try:
         with transaction.atomic():
             cs = ChangeSet.objects.create(
-                user=cast(Any, user), action=action, note=note
+                user=cast(User, user), action=action, note=note
             )
             all_created: list[Claim] = []
             per_entity_fields: list[tuple[db_models.Model, list[str]]] = []

@@ -117,7 +117,7 @@ def _get_location_tree() -> _LocationTree:
         )
     ):
         mfr_pk = cel.corporate_entity.manufacturer_id
-        cur: Any = cel.location
+        cur: Location | None = cel.location
         while cur is not None:
             mfr_pks_by_path.setdefault(cur.location_path, set()).add(mfr_pk)
             cur = cur.parent

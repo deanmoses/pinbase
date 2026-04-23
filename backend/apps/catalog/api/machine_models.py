@@ -40,6 +40,7 @@ from ..models import (
     DisplayType,
     GameFormat,
     GameplayFeature,
+    Location,
     MachineModel,
     MachineModelGameplayFeature,
     ModelAbbreviation,
@@ -632,7 +633,7 @@ def _build_search_text(pm: MachineModel) -> str:
         for entity in mfr.entities.all():
             parts.append(entity.name)
             for cel in entity.locations.all():
-                cur: Any = cel.location
+                cur: Location | None = cel.location
                 while cur is not None:
                     if cur.name:
                         parts.append(cur.name)

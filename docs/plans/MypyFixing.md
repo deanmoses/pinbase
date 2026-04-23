@@ -6,7 +6,7 @@ We recently introduced mypy and grandfathered in a lot of exceptions in backend/
 
 ## Status
 
-Steps 1–3 complete. Step 4 (tech-debt cleanup) or Step 5 (decorator relaxation) is next.
+Steps 1–3 complete. Step 4 partially done (items 1–4); items 5–6 undone.
 
 ## Running mypy
 
@@ -159,14 +159,47 @@ Delete endpoints now type 422 as a union of `SoftDeleteBlockedSchema | AlreadyDe
 
 Quality regressions introduced to clear the baseline quickly. Independent of Steps 3 / 5 — can land any time, but should not normalize.
 
-- **`_Entity = Any` is wider than its justification.** The alias in [edit_claims.py](backend/apps/catalog/api/edit_claims.py) is used for `plan_parent_claims`, `plan_alias_claims`, `plan_gameplay_feature_claims`, `plan_credit_claims`, `plan_abbreviation_claims`. Only the first two are genuinely cross-model. The last three are effectively MachineModel-only (or MachineModel | Title for abbreviations) and should use concrete types so "wrong entity passed" is caught at the call site. The module comment claims idiom #3 justification — real for the cross-model cases, lazy-`Any` (idiom #1) for the single-model ones.
-- **`cast(Any, user)` widens past what the runtime guarantees.** Two call sites in `execute_claims` / `execute_multi_entity_claims`. `_UserLike = AbstractBaseUser | AnonymousUser` matches what `request.user` returns, but `ChangeSet.user` is NOT NULL and `AnonymousUser.pk` is `None`. Every caller is behind `auth=django_auth`, so an anonymous user can't actually reach these helpers in prod — this is type-level laxity, not a latent bug. Tighten by narrowing with `assert not isinstance(user, AnonymousUser)` at entry and dropping `AnonymousUser` from `_UserLike`.
-- **`cur: Any` loop-variable pattern.** Three spots — [manufacturers.py:219](backend/apps/catalog/api/manufacturers.py#L219), [machine_models.py:631](backend/apps/catalog/api/machine_models.py#L631), [locations.py:122](backend/apps/catalog/api/locations.py#L122) — use `cur: Any = cel.location` to sidestep the reassignment to `.parent` (`Location | None`). Correct fix is `cur: Location | None = cel.location`, which preserves `.location_path` / `.name` / `.parent` typing inside the loop.
-- **`list[Any]` return on `list_manufacturers` / `list_people`.** Regression from `list[dict[str, Any]]` caused by `.values(...)` returning a mypy TypedDict that doesn't structurally match. Restore the dict annotation and cast the return if needed.
+### Done
+
+- **`_Entity = Any` is wider than its justification.** — **DONE (commit `7c512c09`).** `plan_gameplay_feature_claims` / `plan_credit_claims` now take `entity: MachineModel`; `plan_abbreviation_claims` takes `entity: MachineModel | Title`. `_Entity = Any` is kept only for the genuinely cross-model `plan_parent_claims` / `plan_alias_claims`; comment in [edit_claims.py](backend/apps/catalog/api/edit_claims.py) updated to reflect the narrower scope.
+- **`cast(Any, user)` widens past what the runtime guarantees.** — **DONE (commit `7c512c09`).** Both call sites now narrow with `assert not isinstance(user, AnonymousUser)` and use `cast(User, user)` as a localized django-stubs workaround at the `ChangeSet.objects.create(...)` line. The cast is deliberate and flagged with a comment pointing at [docs/plans/UserModel.md](UserModel.md), which captures the follow-up work (introducing a custom User model) that will remove both the cast and the `User` tripwire. `_UserLike` renamed `_RequestUser` and kept wide (`AbstractBaseUser | AnonymousUser`) at public entry points; narrowed internally.
+- **`cur: Any` loop-variable pattern.** — **DONE (commit `7c512c09`).** All three spots ([manufacturers.py](backend/apps/catalog/api/manufacturers.py), [machine_models.py](backend/apps/catalog/api/machine_models.py), [locations.py](backend/apps/catalog/api/locations.py)) now use `cur: Location | None = cel.location`.
+- **`list[Any]` return on `list_manufacturers` / `list_people`.** — **DONE (commit `7c512c09`).** Instead of casting the `.values(...)` result, both endpoints now construct `ManufacturerSchema` / `PersonSchema` instances directly per the project's "return Schema instances" idiom. No cast, no `dict[str, Any]`.
+
+## Not done
+
 - **`entity_crud.py` casts `model_cls` to `Any` four times** for `.entity_type` / `.active()`. Tightening the registrar params from `type[Model]` to `type[CatalogModel]` eliminates all four casts and restores type info on the manager.
+  - **Note:** `CatalogModel` currently inherits only from `LinkableModel` (gives `.entity_type`) but not `EntityStatusMixin` (which carries the `CatalogManager[Self]` descriptor with `.active()`). Every concrete `CatalogModel` subclass also inherits `EntityStatusMixin` directly, so adding it to `CatalogModel`'s bases is a zero-runtime-impact typing fix. Without that, the tightening only removes the `.entity_type` casts, not the `.active()` ones.
+  - **Idiom interaction:** if `EntityStatusMixin` is added to `CatalogModel`'s bases, the "Idiom for generics over heterogeneous model classes" above needs updating in the same commit. That idiom argues against a bound `[M: CatalogModel]` TypeVar because "`type[M]` collapses to the common base and loses `.objects.active()`." Once `CatalogModel` carries the manager, that specific rationale no longer holds — though the argument against bound still stands on per-subclass fields (e.g. `RewardType.aliases`). Soften the idiom text rather than leave it stale.
 - **`create_view: Callable[..., Any]`** in `register_entity_create` was the minimal assignment-incompatibility fix but discards signature info on the eventual `router.post(...)(create_view)` call.
 
 **Done when:** every bullet above is resolved or explicitly closed with a "won't fix, because..." note in this doc. No baseline-count criterion — these items don't all surface as baseline entries.
+
+## Step 4.7: Idiom-#2 cast sweep
+
+Separate from Step 4's Step-2 regressions: a distinct pattern of idiom-#2 violations (the "queryset-annotated attribute" class) that exist across the `catalog/api` package. Per idiom #2, `cast(HasModelCount, obj).model_count` should be `getattr(obj, "model_count", 0)` — scoped to the one annotated field instead of widening the whole object.
+
+Call sites (~8):
+
+- [corporate_entities.py:154](backend/apps/catalog/api/corporate_entities.py#L154) — `HasModelCount`
+- [franchises.py:67](backend/apps/catalog/api/franchises.py#L67) — `HasTitleCount`
+- [locations.py:208](backend/apps/catalog/api/locations.py#L208) — `HasModelCount`
+- [manufacturers.py:427-429](backend/apps/catalog/api/manufacturers.py#L427) — `HasModelCount`, `HasYearRange` ×2
+- [people.py:263](backend/apps/catalog/api/people.py#L263) — `HasCreditCount`
+- [series.py:153](backend/apps/catalog/api/series.py#L153) — `HasTitleCount`
+- [systems.py:202](backend/apps/catalog/api/systems.py#L202) — `HasModelCount`
+
+The `HasModelCount` / `HasTitleCount` / `HasCreditCount` / `HasYearRange` protocols in [\_typing.py](backend/apps/catalog/api/_typing.py) become unused after the sweep — delete them if no other callers remain.
+
+**Scope note:** this sweep is _only_ the `cast(Has*, obj).field` pattern. Other remaining `cast(...)` uses in `catalog/api` are deliberate or fall under different idioms and should not be folded in:
+
+- `cast(User, user)` ([edit_claims.py](backend/apps/catalog/api/edit_claims.py)) — tracked by [UserModel.md](UserModel.md).
+- `cast(Any, model_cls)` casts in [entity_crud.py](backend/apps/catalog/api/entity_crud.py) / [entity_create.py](backend/apps/catalog/api/entity_create.py) — tracked by Step 4 items 5–6.
+- `cast(CatalogModel, root)` / `cast(Any, remote_model)` in [soft_delete.py](backend/apps/catalog/api/soft_delete.py) — cross-model walker over dynamically-resolved relations; likely legitimate idiom #3 but worth re-reading when touched.
+- `cast(list[object], getattr(field, "_validators", []))` / `cast(list[Any], all_entities)` in [edit_claims.py](backend/apps/catalog/api/edit_claims.py) — django-stubs gaps, idiom #3.
+- `cast(_LocationTree, result)` in [locations.py](backend/apps/catalog/api/locations.py) / `cast(tuple[str, Any], child)` in [entity_create.py](backend/apps/catalog/api/entity_create.py) — shape narrowings at JSON / heterogeneous-iter boundaries; probably justified.
+
+**Done when:** every `cast(Has*, obj).field` call site is replaced with `getattr(obj, "field", default)`; the `Has*` protocols are deleted if no other callers remain; `./scripts/mypy` stays clean.
 
 ## Step 5: narrow `apps.*.api.*` decorator relaxation
 
