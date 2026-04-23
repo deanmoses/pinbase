@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
 from apps.catalog.models import Manufacturer, System
+from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim
 
 User = get_user_model()
@@ -41,7 +42,7 @@ def _clear_cache():
     cache.clear()
 
 
-def _post(client, body: dict[str, object]):
+def _post(client, body: JsonBody):
     return client.post(
         "/api/systems/",
         data=json.dumps(body),

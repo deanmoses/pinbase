@@ -86,8 +86,6 @@ ignore = [
 "apps/*/management/commands/*.py" = ["T20", "S603", "S607", "B904"]  # print, subprocess, raise-from in commands
 "scripts/*.py" = ["T201"]
 "**/__init__.py" = ["F401"]  # re-exports from barrel modules are the whole point of __init__.py
-# ANN401 grandfathering
-"apps/catalog/tests/**" = ["ANN401"]  # tests stay grandfathered; source is clean
 
 [tool.ruff.lint.isort]
 known-first-party = ["apps", "config"]

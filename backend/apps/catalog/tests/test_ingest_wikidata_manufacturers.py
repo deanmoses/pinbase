@@ -7,6 +7,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.catalog.models import Manufacturer
+from apps.core.types import JsonBody
 from apps.provenance.models import Claim, Source
 
 FIXTURES = "apps/catalog/tests/fixtures"
@@ -106,7 +107,7 @@ class TestFromDumpEmpty:
     """Empty dump should not crash and should still create the source."""
 
     def test_empty_bindings(self, db):
-        empty: dict[str, object] = {"results": {"bindings": []}}
+        empty: JsonBody = {"results": {"bindings": []}}
         data = {"manufacturers": empty, "bio": empty}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(data, f)

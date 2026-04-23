@@ -17,6 +17,7 @@ from apps.catalog.models import (
     Title,
 )
 from apps.catalog.tests.conftest import make_machine_model
+from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim
 
 User = get_user_model()
@@ -34,7 +35,7 @@ def _clear_cache():
     cache.clear()
 
 
-def _post(client, path: str, body: dict[str, object]):
+def _post(client, path: str, body: JsonBody):
     return client.post(path, data=json.dumps(body), content_type="application/json")
 
 
