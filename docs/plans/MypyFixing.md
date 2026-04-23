@@ -6,7 +6,7 @@ We recently introduced mypy and grandfathered in a lot of exceptions in backend/
 
 ## Status
 
-Steps 1–3 complete. Step 4 partially done (items 1–4); items 5–6 undone.
+Steps 1–4 complete. Step 4.7 and 5+ undone.
 
 ## Running mypy
 
@@ -64,7 +64,7 @@ For code that operates on a generic `type[Model]` (resolvers, validators, manage
 
 When a helper is generic over N concrete model classes that share a Schema shape but _don't_ share a base class carrying the fields / custom manager (e.g. the 9 taxonomy models share `name` / `slug` / `display_order` / `CatalogManager` but inherit them from different mixins):
 
-- **Constrained `TypeVar`, not bound.** A bound TypeVar (`[M: CatalogModel]`) collapses `type[M]` to the common base and loses `.objects.active()` and the per-subclass fields. Only a constraint list preserves the concrete type at each call site.
+- **Constrained `TypeVar`, not bound.** A bound TypeVar (`[M: CatalogModel]`) collapses `type[M]` to the common base and loses the per-subclass fields. (As of Step 4, `CatalogModel` now inherits `EntityStatusMixin`, so `.objects.active()` _is_ available on the common base — the rationale against bound is solely about per-subclass fields like `RewardType.aliases` or `Title.titlemachinemodel_set`.) Only a constraint list preserves the concrete type at each call site.
 - **`typing.TypeVar` with a module-level constraint list + per-def `# noqa: UP047`.** PEP 695 inline syntax (`def foo[M: (A, B, C, …)](…)`) is ergonomic for 1–2 constraints but forces the full list to be repeated at every generic function. Module-level `TypeVar` keeps the constraints DRY; ruff's UP047 then fires per def — suppress it locally.
 - **Narrow with `isinstance`, not `hasattr` + `getattr`.** When one arm of the union has a reverse relation the others don't (e.g. only `RewardType` has `aliases`), `if isinstance(obj, RewardType): obj.aliases.all()` type-checks cleanly. The `hasattr` + `getattr(obj, "attr")` spelling trips ruff's B009.
 - **The speculative fix is a shared abstract base.** Introducing a `TaxonomyBase` mixin with the shared fields and manager would let a bound TypeVar work and eliminate the noqas. Not in-scope for any step of this plan — revisit only if multiple future helpers need the same shape or the entity-type registry consolidation lands.
@@ -166,18 +166,18 @@ Quality regressions introduced to clear the baseline quickly. Independent of Ste
 - **`cur: Any` loop-variable pattern.** — **DONE (commit `7c512c09`).** All three spots ([manufacturers.py](backend/apps/catalog/api/manufacturers.py), [machine_models.py](backend/apps/catalog/api/machine_models.py), [locations.py](backend/apps/catalog/api/locations.py)) now use `cur: Location | None = cel.location`.
 - **`list[Any]` return on `list_manufacturers` / `list_people`.** — **DONE (commit `7c512c09`).** Instead of casting the `.values(...)` result, both endpoints now construct `ManufacturerSchema` / `PersonSchema` instances directly per the project's "return Schema instances" idiom. No cast, no `dict[str, Any]`.
 
-## Not done
-
-- **`entity_crud.py` casts `model_cls` to `Any` four times** for `.entity_type` / `.active()`. Tightening the registrar params from `type[Model]` to `type[CatalogModel]` eliminates all four casts and restores type info on the manager.
-  - **Note:** `CatalogModel` currently inherits only from `LinkableModel` (gives `.entity_type`) but not `EntityStatusMixin` (which carries the `CatalogManager[Self]` descriptor with `.active()`). Every concrete `CatalogModel` subclass also inherits `EntityStatusMixin` directly, so adding it to `CatalogModel`'s bases is a zero-runtime-impact typing fix. Without that, the tightening only removes the `.entity_type` casts, not the `.active()` ones.
-  - **Idiom interaction:** if `EntityStatusMixin` is added to `CatalogModel`'s bases, the "Idiom for generics over heterogeneous model classes" above needs updating in the same commit. That idiom argues against a bound `[M: CatalogModel]` TypeVar because "`type[M]` collapses to the common base and loses `.objects.active()`." Once `CatalogModel` carries the manager, that specific rationale no longer holds — though the argument against bound still stands on per-subclass fields (e.g. `RewardType.aliases`). Soften the idiom text rather than leave it stale.
-- **`create_view: Callable[..., Any]`** in `register_entity_create` was the minimal assignment-incompatibility fix but discards signature info on the eventual `router.post(...)(create_view)` call.
+- **`entity_crud.py` casts `model_cls` to `Any` four times** — **DONE.** `CatalogModel` now inherits `EntityStatusMixin` (zero-runtime-impact: every concrete subclass already inherited it directly; Python MRO dedupes, Django reports no migration changes). Registrar params narrowed from `type[Model]` to `type[CatalogModel]`; all four `cast(Any, model_cls)` sites and the `cast(Any, obj).status` / `cast(Any, e).slug` / `cast(Any, parent).slug` sites are gone. `LinkableModel` gained instance-level `name: str` / `slug: str` annotations (fields still live on concrete subclasses); the one `_meta.get_field("name")` call in `register_entity_create` needs `# type: ignore[misc]` because django-stubs's plugin can't see a field at the abstract level — the ignore is the only residual cost. The "Idiom for generics over heterogeneous model classes" above was softened — the rationale against a bound TypeVar now rests solely on per-subclass fields (e.g. `RewardType.aliases`), not on the manager.
+- **`create_view: Callable[..., Any]`** — **DONE.** Rather than assigning both inner functions to a single widened variable, each branch of `register_entity_create` now calls `router.post(...)(...)` with its own concretely-typed view inline. No shared-variable type widening, no `Callable[..., Any]`.
 
 **Done when:** every bullet above is resolved or explicitly closed with a "won't fix, because..." note in this doc. No baseline-count criterion — these items don't all surface as baseline entries.
+
+All Step 4 items resolved. Baseline: 377 → 375.
 
 ## Step 4.7: Idiom-#2 cast sweep
 
 Separate from Step 4's Step-2 regressions: a distinct pattern of idiom-#2 violations (the "queryset-annotated attribute" class) that exist across the `catalog/api` package. Per idiom #2, `cast(HasModelCount, obj).model_count` should be `getattr(obj, "model_count", 0)` — scoped to the one annotated field instead of widening the whole object.
+
+**Per-protocol default values.** Read [\_typing.py](backend/apps/catalog/api/_typing.py) and pick the right default per site — not every field defaults to `0`. Count-style fields (`model_count`, `title_count`, `credit_count`) default to `0`; optional-range fields on `HasYearRange` (`year_start`, `year_end`) are nullable ints and default to `None`. A blanket `0` at every site would silently invert semantics for the year-range case (missing year → 0 CE, not "unknown").
 
 Call sites (~8):
 
@@ -194,12 +194,20 @@ The `HasModelCount` / `HasTitleCount` / `HasCreditCount` / `HasYearRange` protoc
 **Scope note:** this sweep is _only_ the `cast(Has*, obj).field` pattern. Other remaining `cast(...)` uses in `catalog/api` are deliberate or fall under different idioms and should not be folded in:
 
 - `cast(User, user)` ([edit_claims.py](backend/apps/catalog/api/edit_claims.py)) — tracked by [UserModel.md](UserModel.md).
-- `cast(Any, model_cls)` casts in [entity_crud.py](backend/apps/catalog/api/entity_crud.py) / [entity_create.py](backend/apps/catalog/api/entity_create.py) — tracked by Step 4 items 5–6.
+- `cast(Any, model_cls)` casts in [entity_crud.py](backend/apps/catalog/api/entity_crud.py) / [entity_create.py](backend/apps/catalog/api/entity_create.py) — removed in Step 4.
 - `cast(CatalogModel, root)` / `cast(Any, remote_model)` in [soft_delete.py](backend/apps/catalog/api/soft_delete.py) — cross-model walker over dynamically-resolved relations; likely legitimate idiom #3 but worth re-reading when touched.
 - `cast(list[object], getattr(field, "_validators", []))` / `cast(list[Any], all_entities)` in [edit_claims.py](backend/apps/catalog/api/edit_claims.py) — django-stubs gaps, idiom #3.
 - `cast(_LocationTree, result)` in [locations.py](backend/apps/catalog/api/locations.py) / `cast(tuple[str, Any], child)` in [entity_create.py](backend/apps/catalog/api/entity_create.py) — shape narrowings at JSON / heterogeneous-iter boundaries; probably justified.
 
 **Done when:** every `cast(Has*, obj).field` call site is replaced with `getattr(obj, "field", default)`; the `Has*` protocols are deleted if no other callers remain; `./scripts/mypy` stays clean.
+
+**Baseline sync at the end.** Removed casts often clear related baseline entries (e.g. `Returning Any from function declared to return …`). Once `./scripts/mypy` reports `new: 0` and `unresolved` has dropped, run:
+
+```sh
+uv run --directory backend mypy --config-file pyproject.toml . 2>&1 | uv run --directory backend mypy-baseline sync
+```
+
+to remove the now-resolved entries from [backend/mypy-baseline.txt](backend/mypy-baseline.txt). Do **not** sync while `new > 0` — that would bake new errors into the baseline.
 
 ## Step 5: narrow `apps.*.api.*` decorator relaxation
 

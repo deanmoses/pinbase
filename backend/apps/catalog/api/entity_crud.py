@@ -16,10 +16,10 @@ stability — consumers already depend on
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from django.db import models as db_models
-from django.db.models import Model, Q
+from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -27,6 +27,7 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.catalog.naming import normalize_catalog_name
+from apps.core.models import CatalogModel
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -116,7 +117,7 @@ SerializeFn = Callable[[Any], dict[str, Any]]
 
 def register_entity_delete_restore(
     router: Router,
-    model_cls: type[Model],
+    model_cls: type[CatalogModel],
     *,
     detail_qs: DetailQsFn,
     serialize_detail: SerializeFn,
@@ -140,13 +141,11 @@ def register_entity_delete_restore(
       parent name / slug and restore refuses while the parent is deleted.
     """
     entity_label = model_cls.__name__
-    friendly = cast(str, cast(Any, model_cls).entity_type).replace("-", " ")
+    friendly = model_cls.entity_type.replace("-", " ")
     friendly_sentence = friendly.capitalize()
 
     def _delete_preview(request: HttpRequest, slug: str) -> dict[str, Any]:
-        obj = get_object_or_404(
-            cast(Any, model_cls)._default_manager.active(), slug=slug
-        )
+        obj = get_object_or_404(model_cls.objects.active(), slug=slug)
         plan = plan_soft_delete(obj)
 
         active_children = 0
@@ -186,9 +185,7 @@ def register_entity_delete_restore(
     ) -> dict[str, Any] | Status[Any]:
         check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
-        obj = get_object_or_404(
-            cast(Any, model_cls)._default_manager.active(), slug=slug
-        )
+        obj = get_object_or_404(model_cls.objects.active(), slug=slug)
 
         if child_related_name is not None:
             active_children = getattr(obj, child_related_name).active().count()
@@ -235,9 +232,7 @@ def register_entity_delete_restore(
 
         return {
             "changeset_id": changeset.pk,
-            "affected_slugs": [
-                cast(Any, e).slug for e in deleted if isinstance(e, model_cls)
-            ],
+            "affected_slugs": [e.slug for e in deleted if isinstance(e, model_cls)],
         }
 
     _delete.__name__ = f"{entity_label.lower()}_delete"
@@ -258,7 +253,7 @@ def register_entity_delete_restore(
 
         # Bypass .active() — we're looking for soft-deleted rows.
         obj = get_object_or_404(model_cls, slug=slug)
-        if cast(Any, obj).status != "deleted":
+        if obj.status != "deleted":
             return Status(422, {"detail": f"{friendly_sentence} is not deleted."})
 
         if parent_field is not None:
@@ -296,13 +291,13 @@ def register_entity_delete_restore(
 
 def register_entity_create(
     router: Router,
-    model_cls: type[Model],
+    model_cls: type[CatalogModel],
     *,
     detail_qs: DetailQsFn,
     serialize_detail: SerializeFn,
     response_schema: type[Schema],
     parent_field: str | None = None,
-    parent_model: type[Model] | None = None,
+    parent_model: type[CatalogModel] | None = None,
     route_suffix: str = "",
     scope_filter_builder: Callable[[Any], Q] | None = None,
     include_deleted_name_check: bool = False,
@@ -342,16 +337,21 @@ def register_entity_create(
         )
 
     entity_label = model_cls.__name__
-    name_field = model_cls._meta.get_field("name")
+    # django-stubs's plugin can't see ``name`` as a field on the abstract
+    # ``CatalogModel`` (LinkableModel declares the attribute annotation, not
+    # the Django field; the field lives on each concrete subclass). At
+    # runtime the lookup hits the concrete model's ``_meta``, so the call
+    # is safe — the ``# type: ignore[misc]`` is just for the plugin.
+    name_field = model_cls._meta.get_field("name")  # type: ignore[misc]
     assert isinstance(name_field, db_models.Field)
     name_max = name_field.max_length
     assert name_max is not None
-    friendly = cast(str, cast(Any, model_cls).entity_type).replace("-", " ")
+    friendly = model_cls.entity_type.replace("-", " ")
 
     def _do_create(
         request: HttpRequest,
         data: TaxonomyCreateSchema,
-        parent: Model | None = None,
+        parent: CatalogModel | None = None,
     ) -> Status[Any]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
@@ -382,9 +382,7 @@ def register_entity_create(
             assert parent_field is not None
             row_kwargs[parent_field] = parent
             # FK claim value is the parent's slug string.
-            claim_specs.append(
-                ClaimSpec(field_name=parent_field, value=cast(Any, parent).slug)
-            )
+            claim_specs.append(ClaimSpec(field_name=parent_field, value=parent.slug))
 
         create_entity_with_claims(
             model_cls,
@@ -404,14 +402,16 @@ def register_entity_create(
         def _create_parented(
             request: HttpRequest, parent_slug: str, data: TaxonomyCreateSchema
         ) -> Status[Any]:
-            # django-stubs doesn't expose ``.active()`` on the base manager.
-            parent = get_object_or_404(
-                cast(Any, parent_model)._default_manager.active(), slug=parent_slug
-            )
+            parent = get_object_or_404(parent_model.objects.active(), slug=parent_slug)
             return _do_create(request, data, parent=parent)
 
-        path = f"/{{parent_slug}}/{route_suffix}/"
-        create_view: Callable[..., Any] = _create_parented
+        _create_parented.__name__ = f"{entity_label.lower()}_create"
+        router.post(
+            f"/{{parent_slug}}/{route_suffix}/",
+            auth=django_auth,
+            response={201: response_schema},
+            tags=["private"],
+        )(_create_parented)
     else:
 
         def _create_unparented(
@@ -419,13 +419,10 @@ def register_entity_create(
         ) -> Status[Any]:
             return _do_create(request, data)
 
-        path = "/"
-        create_view = _create_unparented
-
-    create_view.__name__ = f"{entity_label.lower()}_create"
-    router.post(
-        path,
-        auth=django_auth,
-        response={201: response_schema},
-        tags=["private"],
-    )(create_view)
+        _create_unparented.__name__ = f"{entity_label.lower()}_create"
+        router.post(
+            "/",
+            auth=django_auth,
+            response={201: response_schema},
+            tags=["private"],
+        )(_create_unparented)

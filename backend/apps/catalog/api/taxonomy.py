@@ -5,7 +5,6 @@ from __future__ import annotations
 from itertools import chain
 from typing import Any, TypeVar
 
-from django.db import models
 from django.db.models import Count, F, Prefetch, QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -15,7 +14,7 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
-from apps.core.models import active_status_q
+from apps.core.models import CatalogModel, active_status_q
 from apps.provenance.helpers import claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
@@ -219,7 +218,7 @@ def _register_create(  # noqa: UP047
     model_cls: type[_TaxM],
     *,
     parent_field: str | None = None,
-    parent_model: type[models.Model] | None = None,
+    parent_model: type[CatalogModel] | None = None,
     route_suffix: str = "",
 ) -> None:
     register_entity_create(

@@ -185,8 +185,6 @@ apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Only concrete class can be given where "type[CatalogModel]" is expected  [type-abstract]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: "CatalogModel" has no attribute "slug"  [attr-defined]
-apps/catalog/management/commands/ingest_pinbase.py:0: error: "CatalogModel" has no attribute "name"  [attr-defined]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: "CatalogModel" has no attribute "display_order"  [attr-defined]
 apps/catalog/management/commands/ingest_pinbase.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/catalog/management/commands/ingest_pinbase.py:0: note: Use "-> None" if function does not return a value

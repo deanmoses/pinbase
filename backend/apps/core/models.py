@@ -344,6 +344,16 @@ class LinkableModel(models.Model):
 
     entity_type: str  # required on concrete subclasses
     entity_type_plural: str  # required on concrete subclasses
+    # ``name`` and ``slug`` are declared per-concrete-subclass (different
+    # max_length / validators per entity); these instance-level annotations
+    # let ``type[LinkableModel]`` introspection code read ``.name`` / ``.slug``
+    # without casting. Django field registration still happens on the concrete
+    # subclasses (where ``= models.CharField(...)`` lives), so ``_meta`` is
+    # unaffected — but django-stubs's plugin can't see a field here at the
+    # abstract level, so ``_meta.get_field("name")`` on ``type[CatalogModel]``
+    # needs ``# type: ignore[misc]`` at the one site that calls it.
+    name: str
+    slug: str
     link_url_pattern: ClassVar[str]
 
     class Meta:
@@ -387,14 +397,24 @@ class LinkableModel(models.Model):
 # ---------------------------------------------------------------------------
 
 
-class CatalogModel(LinkableModel):
+class CatalogModel(LinkableModel, EntityStatusMixin):
     """Abstract marker for top-level catalog entities.
 
-    Field-less subclass of ``LinkableModel`` that exists purely to identify
+    Subclass of ``LinkableModel`` + ``EntityStatusMixin``; exists to identify
     catalog-specific code paths (e.g. ``ingest_pinbase``, soft-delete wire
-    format) that must not widen to other ``LinkableModel`` subclasses.
+    format) that must not widen to other ``LinkableModel`` subclasses, and
+    to carry the ``CatalogManager[Self]`` descriptor so ``type[CatalogModel]``
+    introspection code sees ``.objects.active()`` without per-callsite casts.
 
-    All fields and validation now live on ``LinkableModel``.
+    Concrete subclasses continue to list ``EntityStatusMixin`` explicitly in
+    their own bases even though they now inherit it transitively. The
+    redundancy is intentional: it keeps the lifecycle capability visible at
+    the class declaration site, keeps ``grep EntityStatusMixin`` in the
+    models layer accurate as an inventory, matches the ``status_valid()``
+    constraint still carried in each subclass's ``Meta``, and forces any
+    future refactor that removes the mixin from ``CatalogModel`` to touch
+    each concrete subclass deliberately. Python MRO dedupes, Django treats
+    the repeated abstract parent as a no-op, so there is no runtime cost.
     """
 
     class Meta:
