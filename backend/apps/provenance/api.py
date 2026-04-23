@@ -23,7 +23,7 @@ from apps.citation.models import CitationSource
 
 from .models import CitationInstance
 from .page_endpoints import pages_router
-from .schemas import ReviewLinkSchema
+from .schemas import CitationLinkSchema, ReviewLinkSchema
 
 
 class SourceSchema(Schema):
@@ -260,11 +260,6 @@ def list_citation_instances(
     ]
 
 
-class BatchCitationLinkOut(Schema):
-    url: str
-    label: str
-
-
 class BatchCitationInstanceOut(Schema):
     id: int
     source_name: str
@@ -272,7 +267,7 @@ class BatchCitationInstanceOut(Schema):
     author: str
     year: int | None = None
     locator: str
-    links: list[BatchCitationLinkOut] = []
+    links: list[CitationLinkSchema] = []
 
 
 @citation_instances_router.get(

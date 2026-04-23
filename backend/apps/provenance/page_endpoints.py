@@ -31,6 +31,7 @@ from .helpers import active_claims, build_sources, claims_prefetch
 from .history import build_edit_history
 from .schemas import (
     ChangeSetSchema,
+    CitationLinkSchema,
     ClaimSchema,
     FieldChangeSchema,
     RetractionSchema,
@@ -70,18 +71,13 @@ class ChangeSetDetailSchema(Schema):
     retractions: list[RetractionSchema]
 
 
-class EvidenceLinkSchema(Schema):
-    url: str
-    label: str
-
-
 class CitedChangeSetCitationSchema(Schema):
     source_name: str
     source_type: str
     author: str
     year: int | None = None
     locator: str
-    links: list[EvidenceLinkSchema] = []
+    links: list[CitationLinkSchema] = []
 
 
 class CitedChangeSetSchema(Schema):
@@ -187,7 +183,7 @@ def sources_page(
                     author=c["author"],
                     year=c["year"],
                     locator=c["locator"],
-                    links=[EvidenceLinkSchema(**link) for link in c["links"]],
+                    links=[CitationLinkSchema(**link) for link in c["links"]],
                 )
                 for c in row["citations"]
             ],

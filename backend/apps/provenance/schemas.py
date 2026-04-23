@@ -86,7 +86,7 @@ class ReviewLinkSchema(Schema):
     url: str
 
 
-class InlineCitationLinkSchema(Schema):
+class CitationLinkSchema(Schema):
     """A link attached to a citation source."""
 
     url: str
@@ -103,7 +103,7 @@ class InlineCitationSchema(Schema):
     author: str
     year: int | None = None
     locator: str
-    links: list[InlineCitationLinkSchema] = []
+    links: list[CitationLinkSchema] = []
 
 
 class RichTextSchema(Schema):

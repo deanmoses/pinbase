@@ -135,12 +135,6 @@ class VariantSchema(Schema):
     variant_features: list[str] = []
 
 
-class ConversionSchema(Schema):
-    name: str
-    slug: str
-    year: int | None = None
-
-
 class ModelRefSchema(Schema):
     """A reference to a machine model with name, slug, and optional year."""
 
@@ -191,9 +185,9 @@ class MachineModelDetailSchema(Schema):
     variant_of: ModelRefSchema | None = None
     variant_siblings: list[VariantSchema] = []
     converted_from: ModelRefSchema | None = None
-    conversions: list[ConversionSchema] = []
+    conversions: list[ModelRefSchema] = []
     remake_of: ModelRefSchema | None = None
-    remakes: list[ConversionSchema] = []
+    remakes: list[ModelRefSchema] = []
     title_models: list[TitleMachineSchema] = []
 
 

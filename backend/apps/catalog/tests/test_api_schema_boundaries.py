@@ -16,7 +16,7 @@ class TestSharedSchemaOwnership:
         for name in (
             "EditCitationInput",
             "AttributionSchema",
-            "InlineCitationLinkSchema",
+            "CitationLinkSchema",
             "InlineCitationSchema",
             "RichTextSchema",
         ):
@@ -38,7 +38,7 @@ class TestSharedSchemaOwnership:
         shared_names = (
             "EditCitationInput",
             "AttributionSchema",
-            "InlineCitationLinkSchema",
+            "CitationLinkSchema",
             "InlineCitationSchema",
             "RichTextSchema",
             "MediaRenditionsSchema",

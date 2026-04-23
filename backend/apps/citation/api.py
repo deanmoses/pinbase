@@ -63,7 +63,7 @@ class CitationSourceSearchSchema(Schema):
     identifier_key: str = ""
 
 
-class RecognitionChildSchema(Schema):
+class CitationSourceMatchSchema(Schema):
     id: int
     name: str
     skip_locator: bool = False
@@ -71,7 +71,7 @@ class RecognitionChildSchema(Schema):
 
 class RecognitionSchema(Schema):
     parent: CitationSourceParentSchema
-    child: RecognitionChildSchema | None = None
+    child: CitationSourceMatchSchema | None = None
     identifier: str | None = None
 
 
@@ -204,15 +204,9 @@ class ExtractDraftSchema(Schema):
     url: str | None = None
 
 
-class ExtractMatchSchema(Schema):
-    id: int
-    name: str
-    skip_locator: bool = False
-
-
 class ExtractResponseSchema(Schema):
     draft: ExtractDraftSchema | None = None
-    match: ExtractMatchSchema | None = None
+    match: CitationSourceMatchSchema | None = None
     error: str | None = None
     confidence: str = ""
     source_api: str = ""
@@ -492,7 +486,7 @@ def extract_citation_source(request, data: ExtractRequestSchema):
         raise HttpError(422, "Unsupported input")
 
     return ExtractResponseSchema(
-        match=ExtractMatchSchema(**result.match) if result.match else None,
+        match=CitationSourceMatchSchema(**result.match) if result.match else None,
         draft=ExtractDraftSchema(**asdict(result.draft)) if result.draft else None,
         error=result.error,
         confidence=result.confidence,
