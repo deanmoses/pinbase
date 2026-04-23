@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from itertools import chain
+from typing import Any, TypeVar
 
-from django.db.models import Count, F, Prefetch
+from django.db import models
+from django.db.models import Count, F, Prefetch, QuerySet
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -73,33 +76,69 @@ class TechnologyGenerationListSchema(TaxonomyWithTitleCountSchema):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_taxonomy(obj) -> dict:
-    # Only RewardType among the shared-schema taxonomies carries aliases;
-    # Tag / Cabinet / GameFormat / Tech* / Display* don't have an alias
-    # model. ``hasattr`` on the class keeps the serializer uniform without
-    # triggering a lookup query on the alias-less branches.
+# Constrained TypeVar over the nine concrete taxonomy model classes that
+# share ``TaxonomySchema`` as their public shape. Constraints (not a bound)
+# are required so each call site binds ``_TaxM`` to the specific concrete
+# class — otherwise `type[_TaxM]` collapses to the common base
+# ``CatalogModel`` and ``.objects.active()`` / attribute access are lost.
+# Written with ``typing.TypeVar`` rather than PEP 695 syntax so the nine
+# constraints aren't repeated on every generic function; the per-def
+# UP047 suppression below covers the associated ruff rule.
+_TaxM = TypeVar(
+    "_TaxM",
+    Cabinet,
+    CreditRole,
+    DisplaySubtype,
+    DisplayType,
+    GameFormat,
+    RewardType,
+    Tag,
+    TechnologyGeneration,
+    TechnologySubgeneration,
+)
+
+
+def _serialize_taxonomy(
+    obj: (
+        Cabinet
+        | CreditRole
+        | DisplaySubtype
+        | DisplayType
+        | GameFormat
+        | RewardType
+        | Tag
+        | TechnologyGeneration
+        | TechnologySubgeneration
+    ),
+) -> TaxonomySchema:
+    # RewardType is the only shared-schema taxonomy with an ``aliases``
+    # reverse relation; the others share the schema purely for output
+    # uniformity.
     aliases: list[str] = []
-    if hasattr(type(obj), "aliases"):
+    if isinstance(obj, RewardType):
         aliases = [a.value for a in obj.aliases.all()]
-    return {
-        "name": obj.name,
-        "slug": obj.slug,
-        "display_order": obj.display_order,
-        # Dual-use serializer: called from list endpoints (no claims prefetch)
-        # and detail endpoints (claims_prefetch applied). `getattr` with None
-        # lets _build_rich_text skip attribution for list callers; detail
-        # callers get full attribution. Don't replace with active_claims() —
-        # it would raise on the list path.
-        "description": _build_rich_text(
+    # Dual-use serializer: called from list endpoints (no claims prefetch)
+    # and detail endpoints (claims_prefetch applied). `getattr` with None
+    # lets _build_rich_text skip attribution for list callers; detail
+    # callers get full attribution. Don't replace with active_claims() —
+    # it would raise on the list path.
+    return TaxonomySchema(
+        name=obj.name,
+        slug=obj.slug,
+        display_order=obj.display_order,
+        description=_build_rich_text(
             obj, "description", getattr(obj, "active_claims", None)
         ),
-        "aliases": aliases,
-    }
+        aliases=aliases,
+    )
 
 
-def _list_taxonomy_with_counts(
-    model_class, mm_relation: str, *, sort_by_display_order: bool = False
-) -> list[dict]:
+def _list_taxonomy_with_counts(  # noqa: UP047
+    model_class: type[_TaxM],
+    mm_relation: str,
+    *,
+    sort_by_display_order: bool = False,
+) -> list[TaxonomyWithTitleCountSchema]:
     """Standard list response for flat (non-DAG) model-attached taxonomies.
 
     Default sort is title_count desc (popular first). Pass
@@ -109,7 +148,7 @@ def _list_taxonomy_with_counts(
     """
     items = list(
         model_class.objects.active().prefetch_related(
-            *(["aliases"] if hasattr(model_class, "aliases") else [])
+            *(["aliases"] if model_class is RewardType else [])
         )
     )
     counts = bulk_title_counts_via_models([t.pk for t in items], mm_relation)
@@ -118,18 +157,29 @@ def _list_taxonomy_with_counts(
     else:
         items.sort(key=lambda t: (-counts.get(t.pk, 0), t.name.lower()))
     return [
-        {**_serialize_taxonomy(t), "title_count": counts.get(t.pk, 0)} for t in items
+        TaxonomyWithTitleCountSchema(
+            **_serialize_taxonomy(t).model_dump(),
+            title_count=counts.get(t.pk, 0),
+        )
+        for t in items
     ]
 
 
-def _taxonomy_detail_qs(model_class):
-    prefetches: list[object] = [claims_prefetch()]
-    if hasattr(model_class, "aliases"):
+def _taxonomy_detail_qs(model_class: type[_TaxM]) -> QuerySet[_TaxM]:  # noqa: UP047
+    # Prefetch is generic but its type args vary per entry; see idiom in
+    # docs/plans/MypyFixing.md.
+    prefetches: list[str | Prefetch[Any, Any, Any]] = [claims_prefetch()]
+    if model_class is RewardType:
         prefetches.append("aliases")
     return model_class.objects.active().prefetch_related(*prefetches)
 
 
-def _patch_taxonomy(request, model_class, slug, data):
+def _patch_taxonomy(  # noqa: UP047
+    request: HttpRequest,
+    model_class: type[_TaxM],
+    slug: str,
+    data: ClaimPatchSchema,
+) -> TaxonomySchema:
     """Shared PATCH handler for all taxonomy entities."""
     obj = get_object_or_404(model_class.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(model_class, data.fields, entity=obj)
@@ -142,26 +192,47 @@ def _patch_taxonomy(request, model_class, slug, data):
     return _serialize_taxonomy(obj)
 
 
-def _register_delete_restore(router: Router, model_cls, **kwargs) -> None:
+def _register_delete_restore(  # noqa: UP047
+    router: Router,
+    model_cls: type[_TaxM],
+    *,
+    child_related_name: str | None = None,
+    parent_field: str | None = None,
+) -> None:
     """Thin wrapper — auto-plumbs the standard taxonomy detail/serialize pair."""
     register_entity_delete_restore(
         router,
         model_cls,
         detail_qs=lambda cls=model_cls: _taxonomy_detail_qs(cls),
-        serialize_detail=_serialize_taxonomy,
+        # ``register_entity_delete_restore`` still takes dict-returning
+        # serializers (shared with untyped callers in step 2 modules). Wrap
+        # until that signature is tightened to ``Callable[[Any], Schema]``.
+        serialize_detail=lambda obj: _serialize_taxonomy(obj).model_dump(),
         response_schema=TaxonomySchema,
-        **kwargs,
+        child_related_name=child_related_name,
+        parent_field=parent_field,
     )
 
 
-def _register_create(router: Router, model_cls, **kwargs) -> None:
+def _register_create(  # noqa: UP047
+    router: Router,
+    model_cls: type[_TaxM],
+    *,
+    parent_field: str | None = None,
+    parent_model: type[models.Model] | None = None,
+    route_suffix: str = "",
+) -> None:
     register_entity_create(
         router,
         model_cls,
         detail_qs=lambda cls=model_cls: _taxonomy_detail_qs(cls),
-        serialize_detail=_serialize_taxonomy,
+        # See _register_delete_restore above for why the ``.model_dump()``
+        # hop is here.
+        serialize_detail=lambda obj: _serialize_taxonomy(obj).model_dump(),
         response_schema=TaxonomySchema,
-        **kwargs,
+        parent_field=parent_field,
+        parent_model=parent_model,
+        route_suffix=route_suffix,
     )
 
 
@@ -174,7 +245,9 @@ technology_generations_router = Router(tags=["technology-generations"])
 
 @technology_generations_router.get("/", response=list[TechnologyGenerationListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_technology_generations(request):
+def list_technology_generations(
+    request: HttpRequest,
+) -> list[TechnologyGenerationListSchema]:
     gens = list(TechnologyGeneration.objects.active())
     subgens = list(TechnologySubgeneration.objects.active())
 
@@ -192,17 +265,17 @@ def list_technology_generations(request):
     gens.sort(key=lambda g: (g.display_order, g.name.lower()))
 
     return [
-        {
-            **_serialize_taxonomy(g),
-            "title_count": gen_counts.get(g.pk, 0),
-            "subgenerations": [
-                {
-                    **_serialize_taxonomy(s),
-                    "title_count": subgen_counts.get(s.pk, 0),
-                }
+        TechnologyGenerationListSchema(
+            **_serialize_taxonomy(g).model_dump(),
+            title_count=gen_counts.get(g.pk, 0),
+            subgenerations=[
+                TaxonomyWithTitleCountSchema(
+                    **_serialize_taxonomy(s).model_dump(),
+                    title_count=subgen_counts.get(s.pk, 0),
+                )
                 for s in subgens_by_gen.get(g.pk, [])
             ],
-        }
+        )
         for g in gens
     ]
 
@@ -244,7 +317,9 @@ def _bulk_title_counts_for_subgenerations(
 @technology_generations_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_technology_generation(request, slug: str, data: ClaimPatchSchema):
+def patch_technology_generation(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, TechnologyGeneration, slug, data)
 
 
@@ -257,7 +332,7 @@ display_types_router = Router(tags=["display-types"])
 
 @display_types_router.get("/", response=list[DisplayTypeListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_display_types(request):
+def list_display_types(request: HttpRequest) -> list[DisplayTypeListSchema]:
     types = list(DisplayType.objects.active())
     subtypes = list(DisplaySubtype.objects.active())
 
@@ -275,17 +350,17 @@ def list_display_types(request):
     types.sort(key=lambda t: (t.display_order, t.name.lower()))
 
     return [
-        {
-            **_serialize_taxonomy(t),
-            "title_count": type_counts.get(t.pk, 0),
-            "subtypes": [
-                {
-                    **_serialize_taxonomy(s),
-                    "title_count": subtype_counts.get(s.pk, 0),
-                }
+        DisplayTypeListSchema(
+            **_serialize_taxonomy(t).model_dump(),
+            title_count=type_counts.get(t.pk, 0),
+            subtypes=[
+                TaxonomyWithTitleCountSchema(
+                    **_serialize_taxonomy(s).model_dump(),
+                    title_count=subtype_counts.get(s.pk, 0),
+                )
                 for s in subtypes_by_type.get(t.pk, [])
             ],
-        }
+        )
         for t in types
     ]
 
@@ -293,7 +368,9 @@ def list_display_types(request):
 @display_types_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_display_type(request, slug: str, data: ClaimPatchSchema):
+def patch_display_type(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, DisplayType, slug, data)
 
 
@@ -307,7 +384,9 @@ technology_subgenerations_router = Router(tags=["technology-subgenerations"])
 @technology_subgenerations_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_technology_subgeneration(request, slug: str, data: ClaimPatchSchema):
+def patch_technology_subgeneration(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, TechnologySubgeneration, slug, data)
 
 
@@ -321,7 +400,9 @@ display_subtypes_router = Router(tags=["display-subtypes"])
 @display_subtypes_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_display_subtype(request, slug: str, data: ClaimPatchSchema):
+def patch_display_subtype(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, DisplaySubtype, slug, data)
 
 
@@ -334,14 +415,16 @@ cabinets_router = Router(tags=["cabinets"])
 
 @cabinets_router.get("/", response=list[TaxonomyWithTitleCountSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_cabinets(request):
+def list_cabinets(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
     return _list_taxonomy_with_counts(Cabinet, "cabinet")
 
 
 @cabinets_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_cabinet(request, slug: str, data: ClaimPatchSchema):
+def patch_cabinet(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, Cabinet, slug, data)
 
 
@@ -354,7 +437,7 @@ game_formats_router = Router(tags=["game-formats"])
 
 @game_formats_router.get("/", response=list[TaxonomyWithTitleCountSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_game_formats(request):
+def list_game_formats(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
     return _list_taxonomy_with_counts(
         GameFormat, "game_format", sort_by_display_order=True
     )
@@ -363,7 +446,9 @@ def list_game_formats(request):
 @game_formats_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_game_format(request, slug: str, data: ClaimPatchSchema):
+def patch_game_format(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, GameFormat, slug, data)
 
 
@@ -379,7 +464,7 @@ class RewardTypeDetailSchema(TaxonomySchema):
 reward_types_router = Router(tags=["reward-types"])
 
 
-def _reward_type_detail_qs():
+def _reward_type_detail_qs() -> QuerySet[RewardType]:
     return RewardType.objects.active().prefetch_related(
         claims_prefetch(),
         Prefetch(
@@ -392,20 +477,20 @@ def _reward_type_detail_qs():
     )
 
 
-def _serialize_reward_type_detail(rt) -> dict:
+def _serialize_reward_type_detail(rt: RewardType) -> RewardTypeDetailSchema:
     min_rank = get_minimum_display_rank()
-    return {
-        **_serialize_taxonomy(rt),
-        "machines": [
+    return RewardTypeDetailSchema(
+        **_serialize_taxonomy(rt).model_dump(),
+        machines=[
             _serialize_title_machine(pm, min_rank=min_rank)
             for pm in rt.machine_models.all()
         ],
-    }
+    )
 
 
 @reward_types_router.get("/", response=list[TaxonomyWithTitleCountSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_reward_types(request):
+def list_reward_types(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
     return _list_taxonomy_with_counts(RewardType, "reward_types")
 
 
@@ -415,7 +500,9 @@ def list_reward_types(request):
     response=RewardTypeDetailSchema,
     tags=["private"],
 )
-def patch_reward_type(request, slug: str, data: ClaimPatchSchema):
+def patch_reward_type(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> RewardTypeDetailSchema:
     obj = get_object_or_404(RewardType.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(RewardType, data.fields, entity=obj)
 
@@ -436,14 +523,16 @@ tags_router = Router(tags=["tags"])
 
 @tags_router.get("/", response=list[TaxonomyWithTitleCountSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_tags(request):
+def list_tags(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
     return _list_taxonomy_with_counts(Tag, "tags")
 
 
 @tags_router.patch(
     "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
 )
-def patch_tag(request, slug: str, data: ClaimPatchSchema):
+def patch_tag(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> TaxonomySchema:
     return _patch_taxonomy(request, Tag, slug, data)
 
 
@@ -459,7 +548,7 @@ class CreditRoleDetailSchema(TaxonomySchema):
 credit_roles_router = Router(tags=["credit-roles"])
 
 
-def _credit_role_people(cr: CreditRole) -> list[dict]:
+def _credit_role_people(cr: CreditRole) -> list[PersonGridSchema]:
     """Rank Persons by distinct active Titles credited in *cr*.
 
     Titles roll up all MachineModels (parent + variants) so a person credited
@@ -521,12 +610,12 @@ def _credit_role_people(cr: CreditRole) -> list[dict]:
     }
 
     min_rank = get_minimum_display_rank()
-    out: list[dict] = []
+    out: list[PersonGridSchema] = []
     for pid in person_ids:
         person = people_by_id.get(pid)
         if person is None:
             continue
-        thumbnail = None
+        thumbnail: str | None = None
         tm_id = person_thumb_model.get(pid)
         tm = thumb_models.get(tm_id) if tm_id else None
         if tm and tm.extra_data:
@@ -534,38 +623,38 @@ def _credit_role_people(cr: CreditRole) -> list[dict]:
             if t:
                 thumbnail = t
         out.append(
-            {
-                "name": person.name,
-                "slug": person.slug,
-                "aliases": [a.value for a in person.aliases.all()],
-                "credit_count": count_by_id[pid],
-                "thumbnail_url": thumbnail,
-            }
+            PersonGridSchema(
+                name=person.name,
+                slug=person.slug,
+                aliases=[a.value for a in person.aliases.all()],
+                credit_count=count_by_id[pid],
+                thumbnail_url=thumbnail,
+            )
         )
     return out
 
 
-def _credit_role_detail_qs():
+def _credit_role_detail_qs() -> QuerySet[CreditRole]:
     # CreditRole has no alias relation — prefetch claims only.
     return CreditRole.objects.active().prefetch_related(claims_prefetch())
 
 
-def _serialize_credit_role_detail(cr: CreditRole) -> dict:
-    return {
-        **_serialize_taxonomy(cr),
-        "people": _credit_role_people(cr),
-    }
+def _serialize_credit_role_detail(cr: CreditRole) -> CreditRoleDetailSchema:
+    return CreditRoleDetailSchema(
+        **_serialize_taxonomy(cr).model_dump(),
+        people=_credit_role_people(cr),
+    )
 
 
-def _serialize_credit_role_detail_no_people(cr: CreditRole) -> dict:
+def _serialize_credit_role_detail_no_people(cr: CreditRole) -> CreditRoleDetailSchema:
     # Used by the create response: a just-created role has no credits yet,
     # so the aggregate query is guaranteed empty. Skip it.
-    return {**_serialize_taxonomy(cr), "people": []}
+    return CreditRoleDetailSchema(**_serialize_taxonomy(cr).model_dump(), people=[])
 
 
 @credit_roles_router.get("/", response=list[TaxonomySchema])
 @decorate_view(cache_control(no_cache=True))
-def list_credit_roles(request):
+def list_credit_roles(request: HttpRequest) -> list[TaxonomySchema]:
     return [
         _serialize_taxonomy(c) for c in CreditRole.objects.active().order_by("name")
     ]
@@ -573,7 +662,7 @@ def list_credit_roles(request):
 
 @credit_roles_router.get("/{slug}", response=CreditRoleDetailSchema)
 @decorate_view(cache_control(no_cache=True))
-def get_credit_role(request, slug: str):
+def get_credit_role(request: HttpRequest, slug: str) -> CreditRoleDetailSchema:
     return _serialize_credit_role_detail(
         get_object_or_404(_credit_role_detail_qs(), slug=slug)
     )
@@ -585,7 +674,9 @@ def get_credit_role(request, slug: str):
     response=CreditRoleDetailSchema,
     tags=["private"],
 )
-def patch_credit_role(request, slug: str, data: ClaimPatchSchema):
+def patch_credit_role(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> CreditRoleDetailSchema:
     obj = get_object_or_404(CreditRole.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(CreditRole, data.fields, entity=obj)
 
@@ -630,7 +721,7 @@ register_entity_delete_restore(
     credit_roles_router,
     CreditRole,
     detail_qs=_credit_role_detail_qs,
-    serialize_detail=_serialize_credit_role_detail,
+    serialize_detail=lambda obj: _serialize_credit_role_detail(obj).model_dump(),
     response_schema=CreditRoleDetailSchema,
 )
 
@@ -645,7 +736,9 @@ register_entity_create(
     credit_roles_router,
     CreditRole,
     detail_qs=_credit_role_detail_qs,
-    serialize_detail=_serialize_credit_role_detail_no_people,
+    serialize_detail=lambda obj: _serialize_credit_role_detail_no_people(
+        obj
+    ).model_dump(),
     response_schema=CreditRoleDetailSchema,
 )
 
