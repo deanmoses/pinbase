@@ -15,6 +15,7 @@ import socket
 import ssl
 import time
 from dataclasses import dataclass
+from typing import NamedTuple
 from urllib.parse import urljoin, urlparse
 
 # ---------------------------------------------------------------------------
@@ -36,6 +37,13 @@ class FetchResponse:
     status: int
     headers: dict[str, str]  # lowercased header names
     body: bytes  # already read, capped at max_bytes
+
+
+class _FetchOneResult(NamedTuple):
+    status: int
+    headers: dict[str, str]
+    body: bytes
+    redirect_location: str | None
 
 
 # ---------------------------------------------------------------------------
@@ -92,8 +100,8 @@ def _fetch_one(
     use_tls: bool,
     timeout: float,
     max_bytes: int,
-) -> tuple[int, dict[str, str], bytes, str | None]:
-    """Single HTTP request to *ip*.  Returns (status, headers, body, redirect_location)."""
+) -> _FetchOneResult:
+    """Single HTTP request to *ip*."""
     # Always create a plain HTTPConnection to the resolved IP.
     # For TLS we wrap the socket after connect() — this lets us use
     # server_hostname for SNI/cert validation against the real hostname.
@@ -121,7 +129,7 @@ def _fetch_one(
             if status in (301, 302, 303, 307, 308)
             else None
         )
-        return status, resp_headers, body, redirect
+        return _FetchOneResult(status, resp_headers, body, redirect)
     finally:
         conn.close()
 
@@ -148,7 +156,7 @@ def safe_fetch(url: str, *, timeout: float, max_bytes: int = 65536) -> FetchResp
     deadline = time.monotonic() + timeout
 
     current_url = url
-    last_response: tuple[int, dict[str, str], bytes] | None = None
+    last_response: FetchResponse | None = None
     for _ in range(_MAX_REDIRECTS + 1):
         parsed = urlparse(current_url)
         scheme = parsed.scheme.lower()
@@ -174,7 +182,7 @@ def safe_fetch(url: str, *, timeout: float, max_bytes: int = 65536) -> FetchResp
             raise TimeoutError("wall-clock deadline exceeded")
         hop_timeout = max(remaining, 0.5)
 
-        status, headers, body, redirect_location = _fetch_one(
+        result = _fetch_one(
             ip,
             port,
             hostname,
@@ -183,15 +191,16 @@ def safe_fetch(url: str, *, timeout: float, max_bytes: int = 65536) -> FetchResp
             timeout=hop_timeout,
             max_bytes=max_bytes,
         )
-        last_response = (status, headers, body)
+        last_response = FetchResponse(
+            status=result.status, headers=result.headers, body=result.body
+        )
 
-        if redirect_location is None:
-            return FetchResponse(status=status, headers=headers, body=body)
+        if result.redirect_location is None:
+            return last_response
 
         # Follow redirect — resolve the new URL
-        current_url = urljoin(current_url, redirect_location)
+        current_url = urljoin(current_url, result.redirect_location)
 
     # Exhausted redirect budget — return last response as-is
     assert last_response is not None
-    status, headers, body = last_response
-    return FetchResponse(status=status, headers=headers, body=body)
+    return last_response
