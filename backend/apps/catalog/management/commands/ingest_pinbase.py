@@ -151,6 +151,10 @@ def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
 
     from django.apps import apps
 
+    # Values are concrete LinkableModel subclasses, but mypy/django-stubs
+    # treats ``type[Model]`` as lacking ``.objects`` (managers are added
+    # to concrete subclasses); leaving the value type open avoids needing
+    # ``# type: ignore`` on every ``.objects`` access below.
     linkable_models: dict[str, Any] = {}
     for model in apps.get_models():
         if issubclass(model, LinkableModel) and hasattr(model, "slug"):

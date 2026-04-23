@@ -8,6 +8,21 @@ the adapter (plan/apply) and tests.
 from __future__ import annotations
 
 import re
+from typing import NamedTuple
+
+
+class GameplayFeaturePair(NamedTuple):
+    """A gameplay-feature slug paired with its optional repeat count.
+
+    Counts come from IPDB's ``Feature (N)`` syntax; narrative-pattern
+    matches and multiball variants leave the count as ``None``. The
+    field is named ``repeats`` rather than ``count`` to avoid shadowing
+    ``tuple.count``.
+    """
+
+    slug: str
+    repeats: int | None
+
 
 # ---------------------------------------------------------------------------
 # Theme parsing
@@ -174,7 +189,7 @@ def _resolve_multiball_slugs(paren_content: str, valid_slugs: set[str]) -> list[
 
 def extract_ipdb_gameplay_features(
     raw: str, feature_map: dict[str, str]
-) -> tuple[list[tuple[str, int | None]], list[str]]:
+) -> tuple[list[GameplayFeaturePair], list[str]]:
     """Extract gameplay feature slugs and counts from an IPDB notable_features string.
 
     Uses a structured 4-step pipeline:
@@ -193,14 +208,14 @@ def extract_ipdb_gameplay_features(
     count.  Narrative-pattern matches have ``count=None``.
     """
     seen: set[str] = set()
-    pairs: list[tuple[str, int | None]] = []
+    pairs: list[GameplayFeaturePair] = []
     unmatched: list[str] = []
     valid_slugs = set(feature_map.values())
 
     def _add(slug: str, count: int | None = None) -> None:
         if slug not in seen:
             seen.add(slug)
-            pairs.append((slug, count))
+            pairs.append(GameplayFeaturePair(slug, count))
 
     # Step 1: Clean.
     cleaned = raw
@@ -280,7 +295,7 @@ def extract_ipdb_gameplay_features(
     # If a specific n-ball-multiball variant was found, suppress the generic
     # "multiball" slug — the hierarchy already links variants to the parent.
     if any(s.endswith("-ball-multiball") for s in seen) and _MULTIBALL_SLUG in seen:
-        pairs = [(s, c) for s, c in pairs if s != _MULTIBALL_SLUG]
+        pairs = [pair for pair in pairs if pair.slug != _MULTIBALL_SLUG]
         seen.discard(_MULTIBALL_SLUG)
 
     return pairs, unmatched
