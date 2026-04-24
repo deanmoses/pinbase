@@ -18,7 +18,15 @@ from django.db import models as db_models
 from ninja import Schema
 
 from apps.catalog.claims import build_relationship_claim
-from apps.catalog.models import CreditRole, GameplayFeature, MachineModel, Person, Title
+from apps.catalog.models import (
+    CorporateEntity,
+    CreditRole,
+    GameplayFeature,
+    MachineModel,
+    Person,
+    Theme,
+    Title,
+)
 from apps.core.models import get_claim_fields
 from apps.provenance.models import ChangeSet, ChangeSetAction, CitationInstance, Claim
 from apps.provenance.schemas import EditCitationInput
@@ -32,16 +40,11 @@ from .schemas import CreditInput, GameplayFeatureInput
 # narrow at the entry points below before threading into the internal helper.
 _RequestUser = AbstractBaseUser | AnonymousUser
 
-# ``plan_parent_claims`` and ``plan_alias_claims`` operate on genuinely
-# heterogeneous concrete catalog models (Theme, GameplayFeature,
-# CorporateEntity, …), each with its own per-subclass reverse relations
-# (``.aliases``, ``.parents``). django-stubs cannot express "any subclass
-# that has these reverse relations" on the base ``Model`` class — this is
-# the 3rd-party-API ``Any`` (idiom #3). The other plan_* helpers
-# (``plan_gameplay_feature_claims``, ``plan_credit_claims``,
-# ``plan_abbreviation_claims``) are effectively single-model and use
-# concrete types directly.
-_Entity = Any
+# Concrete catalog models with a self-referencing ``parents`` M2M / reverse
+# ``aliases`` relation, typed as unions rather than a structural protocol
+# because the two helpers are only called from a handful of sites.
+_ParentEntity = GameplayFeature | Theme
+_AliasEntity = GameplayFeature | Theme | CorporateEntity
 
 
 @dataclass(frozen=True)
@@ -272,10 +275,10 @@ def validate_scalar_fields(
 
 
 def plan_parent_claims(
-    entity: _Entity,
+    entity: _ParentEntity,
     desired_slugs: set[str],
     *,
-    model_class: type[db_models.Model],
+    model_class: type[_ParentEntity],
     claim_field_name: str,
 ) -> list[ClaimSpec]:
     """Validate parent hierarchy changes and return diff-based ClaimSpecs.
@@ -304,7 +307,7 @@ def plan_parent_claims(
     if desired_slugs:
         all_entities = model_class._default_manager.prefetch_related("parents").all()
         parent_map: dict[str, set[str]] = {}
-        for e in cast(list[Any], all_entities):
+        for e in all_entities:
             if e.slug == entity.slug:
                 continue
             parent_map[e.slug] = {p.slug for p in e.parents.all()}
@@ -345,7 +348,7 @@ def plan_parent_claims(
 
 
 def plan_alias_claims(
-    entity: _Entity,
+    entity: _AliasEntity,
     desired_aliases: list[str],
     *,
     claim_field_name: str,
