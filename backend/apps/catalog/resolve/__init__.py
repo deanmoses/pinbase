@@ -8,15 +8,19 @@ the resolved values.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
+from django.core.management.base import OutputWrapper
 from django.utils import timezone
 
 from apps.core.licensing import (
     IMAGE_FIELDS,
+    SourceFieldLicenseMap,
     build_source_field_license_map,
     resolve_effective_license,
 )
+from apps.core.models import CatalogModel
+from apps.core.types import JsonBody
 from apps.provenance.models import Claim
 
 from ..claims import get_relationship_namespaces
@@ -81,7 +85,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     claims = (
         _annotate_priority(machine_model.claims.all())
         .select_related("source__default_license")
-        .order_by("claim_key", "-effective_priority", "-created_at")
+        .order_by("claim_key", "-effective_priority", "-created_at")  # type: ignore[misc]
     )
     winners: dict[str, Claim] = {}
     for claim in claims:
@@ -156,7 +160,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
     return machine_model
 
 
-def resolve_machine_models(stdout=None) -> int:
+def resolve_machine_models(stdout: OutputWrapper | None = None) -> int:
     """Re-resolve every MachineModel and its dependencies from claims (bulk-optimized).
 
     Resolves in dependency order: locations → taxonomy → titles → machine models
@@ -188,13 +192,15 @@ def resolve_machine_models(stdout=None) -> int:
         TechnologySubgeneration,
     )
 
-    resolve_all_entities(Location)
+    # Location duck-types ClaimControlledEntity but declines CatalogModel
+    # (non-unique slug, no entity_type).  See plans/types/ClaimControlledEntity.md.
+    resolve_all_entities(cast(type[CatalogModel], Location))
     resolve_all_location_aliases()
     _status("Locations resolved")
 
     from ..models import Franchise, Series, System
 
-    for tax_model in [
+    tax_models: list[type[CatalogModel]] = [
         TechnologyGeneration,
         TechnologySubgeneration,
         DisplayType,
@@ -207,7 +213,8 @@ def resolve_machine_models(stdout=None) -> int:
         Franchise,
         Series,
         System,
-    ]:
+    ]
+    for tax_model in tax_models:
         resolve_all_entities(tax_model)
     resolve_all_entities(Theme)
     resolve_all_entities(GameplayFeature)
@@ -317,7 +324,7 @@ def _build_claims_by_model() -> dict[int, dict[str, Claim]]:
     claims = (
         _annotate_priority(Claim.objects.filter(content_type=ct))
         .select_related("source__default_license")
-        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")
+        .order_by("object_id", "claim_key", "-effective_priority", "-created_at")  # type: ignore[misc]
     )
 
     result: dict[int, dict[str, Claim]] = {}
@@ -338,7 +345,7 @@ def _apply_resolution(
     # callable output; see ``_helpers.get_field_defaults``.
     field_defaults: dict[str, Any],
     fk_info: FKInfo,
-    sfl_map: dict | None = None,
+    sfl_map: SourceFieldLicenseMap | None = None,
     preserve_when_unclaimed: set[str] | None = None,
 ) -> None:
     """Apply claim winners to a MachineModel instance in memory."""
@@ -356,7 +363,7 @@ def _apply_resolution(
         setattr(pm, attr, default)
 
     # Fresh extra_data dict (never shared between models).
-    extra_data: dict = {}
+    extra_data: JsonBody = {}
 
     # Apply winners.
     for _claim_key, claim in winners.items():

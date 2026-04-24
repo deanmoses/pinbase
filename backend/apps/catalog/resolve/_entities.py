@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import logging
 
+from django.db import models
 from django.utils import timezone
 
+from apps.core.models import CatalogModel
+from apps.core.types import JsonBody
 from apps.provenance.models import Claim
 
 from ._helpers import (
@@ -28,7 +31,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def _sync_markdown_references(obj) -> None:
+def _sync_markdown_references(obj: models.Model) -> None:
     """Sync RecordReference table for all markdown fields on the object.
 
     Always calls sync_references, even for empty fields, so that stale
@@ -47,7 +50,7 @@ def _sync_markdown_references(obj) -> None:
 
 
 def _resolve_single(
-    obj,
+    obj: models.Model,
     direct_fields: dict[str, str],
 ) -> None:
     """Resolve active claims onto a single object with only direct fields.
@@ -63,7 +66,9 @@ def _resolve_single(
 
     Mutates *obj* in memory; the caller is responsible for saving.
     """
-    claims = _annotate_priority(obj.claims.all()).order_by(
+    # obj.claims is a GenericRelation declared on every claim-controlled concrete
+    # model — abstract bases don't (yet) declare it; see plans/types/ClaimControlledEntity.md.
+    claims = _annotate_priority(obj.claims.all()).order_by(  # type: ignore[attr-defined,misc]
         "field_name", "-effective_priority", "-created_at"
     )
 
@@ -85,7 +90,7 @@ def _resolve_single(
 
     # Apply winners.
     has_extra_data = hasattr(obj, "extra_data")
-    extra_data: dict | None = {} if has_extra_data else None
+    extra_data: JsonBody | None = {} if has_extra_data else None
     for field_name, claim in winners.items():
         if field_name in direct_fields:
             attr = direct_fields[field_name]
@@ -106,7 +111,8 @@ def _resolve_single(
             assert extra_data is not None
             extra_data[field_name] = claim.value
     if has_extra_data:
-        obj.extra_data = extra_data
+        # extra_data lives on a concrete-subclass subset; runtime-guarded above.
+        obj.extra_data = extra_data  # type: ignore[attr-defined]
 
 
 # ------------------------------------------------------------------
@@ -115,7 +121,7 @@ def _resolve_single(
 
 
 def _resolve_bulk(
-    model_class,
+    model_class: type[CatalogModel],
     direct_fields: dict[str, str],
     object_ids: set[int] | None = None,
 ) -> int:
@@ -145,7 +151,7 @@ def _resolve_bulk(
     ct = ContentType.objects.get_for_model(model_class)
 
     # 1. Pre-fetch all active claims for this model class.
-    claims_qs = _annotate_priority(Claim.objects.filter(content_type=ct)).order_by(
+    claims_qs = _annotate_priority(Claim.objects.filter(content_type=ct)).order_by(  # type: ignore[misc]
         "object_id", "field_name", "-effective_priority", "-created_at"
     )
     if object_ids is not None:
@@ -180,10 +186,17 @@ def _resolve_bulk(
 
     # Snapshot slugs before resolution for conflict revert.
     # Only check for global uniqueness if the slug field is actually unique.
+    # django-stubs validates the field-name literal against the model's
+    # declared fields; abstract CatalogModel._meta is empty.  See
+    # plans/types/ClaimControlledEntity.md.
     slug_field = (
-        model_class._meta.get_field("slug") if "slug" in direct_fields else None
+        model_class._meta.get_field("slug")  # type: ignore[misc]
+        if "slug" in direct_fields
+        else None
     )
-    has_unique_slug = slug_field is not None and slug_field.unique
+    has_unique_slug = slug_field is not None and bool(
+        getattr(slug_field, "unique", False)
+    )
     pre_slugs = {obj.pk: obj.slug for obj in all_objs} if has_unique_slug else {}
 
     # 4. Resolve each object in memory.
@@ -200,7 +213,7 @@ def _resolve_bulk(
             setattr(obj, attr, default)
 
         # Apply winners.
-        extra_data: dict | None = {} if has_extra_data else None
+        extra_data: JsonBody | None = {} if has_extra_data else None
         for field_name, claim in winners.items():
             if field_name in direct_fields:
                 attr = direct_fields[field_name]
@@ -221,9 +234,11 @@ def _resolve_bulk(
                 assert extra_data is not None
                 extra_data[field_name] = claim.value
         if has_extra_data:
-            obj.extra_data = extra_data
+            obj.extra_data = extra_data  # type: ignore[attr-defined]
 
-        obj.updated_at = now
+        # updated_at lives on TimeStampedModel, not CatalogModel; concrete
+        # subclasses mix it in.  See plans/types/ClaimControlledEntity.md.
+        obj.updated_at = now  # type: ignore[attr-defined]
 
     # 4b. Detect unique-field conflicts across resolved objects.
     if has_unique_slug:
@@ -255,7 +270,7 @@ def _resolve_bulk(
 # ------------------------------------------------------------------
 
 
-def resolve_entity(obj):
+def resolve_entity[T: CatalogModel](obj: T) -> T:
     """Resolve all claim-controlled fields on any entity.
 
     Discovers claim-controlled fields by introspecting the model (via
@@ -266,17 +281,22 @@ def resolve_entity(obj):
 
     model_class = type(obj)
     fields = get_claim_fields(model_class)
-    original_slug = getattr(obj, "slug", None)
+    original_slug = obj.slug
     _resolve_single(obj, fields)
 
     # Single-object slug conflict guard — only slug gets silent revert.
     # Other unique fields (e.g. name) rely on save() → IntegrityError
     # which execute_claims() catches and returns as 422.
+    # django-stubs checks the ``slug=`` filter keyword against the model's
+    # declared fields; abstract CatalogModel._meta lists none.  The concrete
+    # subclass always has slug.  See plans/types/ClaimControlledEntity.md.
     if (
         "slug" in fields
         and obj.slug
         and obj.slug != original_slug
-        and model_class.objects.filter(slug=obj.slug).exclude(pk=obj.pk).exists()
+        and model_class.objects.filter(slug=obj.slug)  # type: ignore[misc]
+        .exclude(pk=obj.pk)
+        .exists()
     ):
         logger.warning(
             "Cannot resolve slug=%r on %s pk=%s: "
@@ -294,7 +314,9 @@ def resolve_entity(obj):
     return obj
 
 
-def resolve_all_entities(model_class, *, object_ids=None) -> int:
+def resolve_all_entities(
+    model_class: type[CatalogModel], *, object_ids: set[int] | None = None
+) -> int:
     """Bulk-resolve all claim-controlled fields for all instances of a model.
 
     Discovers claim-controlled fields by introspecting the model.

@@ -77,7 +77,7 @@ def resolve_media_attachments(
         claims_qs = claims_qs.filter(content_type_id=content_type_id)
     if subject_ids is not None:
         claims_qs = claims_qs.filter(object_id__in=subject_ids)
-    claims = claims_qs.order_by(
+    claims = claims_qs.order_by(  # type: ignore[misc]
         "content_type_id",
         "object_id",
         "claim_key",
@@ -291,9 +291,9 @@ def resolve_media_attachments(
     if to_update:
         rows = EntityMedia.objects.in_bulk([update.row_pk for update in to_update])
         for update in to_update:
-            row = rows[update.row_pk]
-            row.category = update.category
-            row.is_primary = update.is_primary
+            media_row = rows[update.row_pk]
+            media_row.category = update.category
+            media_row.is_primary = update.is_primary
         EntityMedia.objects.bulk_update(
             list(rows.values()), ["category", "is_primary"], batch_size=2000
         )

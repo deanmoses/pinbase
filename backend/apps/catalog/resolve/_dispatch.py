@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 
 from django.db import transaction
 
+from apps.core.models import CatalogModel
+
 from .._alias_registry import discover_alias_types
 from ..cache import invalidate_all
 
@@ -30,7 +32,7 @@ logger = logging.getLogger(__name__)
 class ParentDispatchSpec(NamedTuple):
     """Entry in the parent-hierarchy dispatch table."""
 
-    model: type
+    model: type[CatalogModel]
     claim_field_prefix: str | None
 
 
@@ -215,7 +217,12 @@ def _resolve_non_machine_model(
         resolve_media_attachments(content_type_id=ct.id, subject_ids={entity.pk})
 
     # --- Scalar fields ---
-    resolve_entity(entity)
+    # ``entity`` is any claim-controlled catalog entity, which today includes
+    # ``Location`` — and Location declines CatalogModel (non-unique slug, no
+    # entity_type).  The cast is a runtime-harmless lie: Location duck-types
+    # CatalogModel for resolve_entity's purposes (slug, claims, _meta, objects).
+    # See plans/types/ClaimControlledEntity.md for the real fix.
+    resolve_entity(cast(CatalogModel, entity))
 
 
 def _call_custom_resolver(spec: CustomDispatchSpec, entity_pk: int) -> None:

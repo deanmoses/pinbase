@@ -9,14 +9,15 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, cast
 
 from django.db import models
+from django.db.models import QuerySet
 
 if TYPE_CHECKING:
-    pass
+    from apps.provenance.models import Claim
 
 logger = logging.getLogger(__name__)
 
 
-def validate_check_constraints(obj):
+def validate_check_constraints(obj: models.Model) -> None:
     """Validate cross-field CheckConstraints before save/bulk_update.
 
     Only validates constraints tagged with ``violation_error_code`` — these
@@ -57,7 +58,7 @@ class FKInfo:
 def _resolve_fk_generic(
     model_class: type[models.Model],
     field_name: str,
-    value,
+    value: object,
     lookup: dict[str, models.Model] | None = None,
 ) -> models.Model | None:
     """Resolve a claim value to an FK instance by introspecting the Django field.
@@ -127,7 +128,7 @@ def build_fk_info(
 # ------------------------------------------------------------------
 
 
-def _coerce(model_class: type[models.Model], attr: str, value):
+def _coerce(model_class: type[models.Model], attr: str, value: object) -> object:
     """Coerce a JSON claim value to the type expected by the model field."""
     if value is None or value == "":
         field = model_class._meta.get_field(attr)
@@ -144,7 +145,7 @@ def _coerce(model_class: type[models.Model], attr: str, value):
         | models.BigIntegerField,
     ):
         try:
-            return int(value)
+            return int(value)  # type: ignore[call-overload]
         except ValueError, TypeError:
             logger.warning("Cannot coerce %r to int for field %s", value, attr)
             return None if field.null else 0
@@ -171,13 +172,17 @@ def _coerce(model_class: type[models.Model], attr: str, value):
 # ------------------------------------------------------------------
 
 
-def _annotate_priority(qs):
+def _annotate_priority(qs: QuerySet[Claim]) -> QuerySet[Claim]:
     """Filter to active claims from enabled sources, annotate effective_priority.
 
     Returns a queryset with ``effective_priority`` annotation (highest wins)
     and ``select_related("source", "user__profile")``.  Callers supply their
     own ``.order_by()`` and may chain additional ``.select_related()`` or
     ``.filter()`` calls.
+
+    Callers that ``.order_by("-effective_priority")`` must add
+    ``# type: ignore[misc]`` — django-stubs validates order_by strings against
+    the model's declared fields and cannot see runtime ``.annotate()`` fields.
     """
     from django.db.models import Case, F, IntegerField, Value, When
 

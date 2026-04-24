@@ -38,9 +38,9 @@ def _run_resolve(target: str) -> tuple[str, int]:
             TechnologyGeneration,
             TechnologySubgeneration,
         )
+        from apps.core.models import CatalogModel
 
-        total = 0
-        for m in [
+        taxonomy_models: list[type[CatalogModel]] = [
             TechnologyGeneration,
             TechnologySubgeneration,
             DisplayType,
@@ -50,7 +50,9 @@ def _run_resolve(target: str) -> tuple[str, int]:
             RewardType,
             Tag,
             CreditRole,
-        ]:
+        ]
+        total = 0
+        for m in taxonomy_models:
             total += resolve_all_entities(m)
         return "taxonomy entities", total
     elif target == "manufacturers":

@@ -20,13 +20,14 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol, cast
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 
+from apps.core.models import CatalogModel
 from apps.core.types import ClaimIdentity, EntityKey
 from apps.provenance.models import (
     ChangeSet,
@@ -814,6 +815,11 @@ def _resolve(
 
     for ct_id, obj_ids in affected_by_ct.items():
         model_class = ContentType.objects.get_for_id(ct_id).model_class()
-        resolve_all_entities(model_class, object_ids=obj_ids)
+        if model_class is None:
+            continue
+        # Affected CTs are always claim-controlled catalog entities by
+        # construction (they carry claims).  See plans/types/ClaimControlledEntity.md
+        # for why we can't express this without a cast today.
+        resolve_all_entities(cast(type[CatalogModel], model_class), object_ids=obj_ids)
         for hook in resolve_hooks.get(ct_id, []):
             hook(subject_ids=obj_ids)

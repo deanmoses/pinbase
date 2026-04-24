@@ -17,7 +17,7 @@ import logging
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
@@ -496,7 +496,8 @@ class Command(BaseCommand):
                 alias_by_pk[obj.pk] = entry["aliases"]
 
         Claim.objects.bulk_assert_claims(source, pending_claims)
-        resolve_all_entities(Location)
+        # Location declines CatalogModel; see plans/types/ClaimControlledEntity.md.
+        resolve_all_entities(cast(type[CatalogModel], Location))
 
         alias_stats = self._assert_alias_claims(
             source, ct.pk, alias_by_pk, "location_alias"
