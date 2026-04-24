@@ -478,6 +478,42 @@ class TestResolveCorporateEntityLocations:
         assert result["deleted"] == 1
         assert not CorporateEntityLocation.objects.filter(corporate_entity=ce).exists()
 
+    def test_retraction_claim_does_not_create_cel(self, db):
+        source = Source.objects.create(name="PB", source_type="editorial", priority=300)
+        ce = self._make_ce("williams")
+        loc = self._make_location("usa/il/chicago")
+        claim_key, value = build_relationship_claim(
+            "location", {"location": loc.pk}, exists=False
+        )
+        Claim.objects.assert_claim(
+            ce, "location", value, source=source, claim_key=claim_key
+        )
+
+        resolve_all_corporate_entity_locations()
+
+        assert not CorporateEntityLocation.objects.filter(
+            corporate_entity=ce, location=loc
+        ).exists()
+
+    def test_retraction_claim_removes_existing_cel(self, db):
+        source = Source.objects.create(name="PB", source_type="editorial", priority=300)
+        ce = self._make_ce("williams")
+        loc = self._make_location("usa/il/chicago")
+        self._assert_location(source, ce, loc)
+        resolve_all_corporate_entity_locations()
+        assert CorporateEntityLocation.objects.filter(corporate_entity=ce).count() == 1
+
+        claim_key, value = build_relationship_claim(
+            "location", {"location": loc.pk}, exists=False
+        )
+        Claim.objects.assert_claim(
+            ce, "location", value, source=source, claim_key=claim_key
+        )
+        result = resolve_all_corporate_entity_locations()
+
+        assert result["deleted"] == 1
+        assert not CorporateEntityLocation.objects.filter(corporate_entity=ce).exists()
+
     def test_handles_multiple_ces(self, db):
         source = Source.objects.create(name="PB", source_type="editorial", priority=300)
         ce1 = self._make_ce("williams")
