@@ -34,9 +34,8 @@ class Theme(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
 
     entity_type = "theme"
     entity_type_plural = "themes"
-    soft_delete_usage_blockers: ClassVar[tuple[str, ...]] = (
-        "machine_models",
-        "children",
+    soft_delete_usage_blockers: ClassVar[frozenset[str]] = frozenset(
+        {"machine_models", "children"}
     )
     aliases: models.Manager[ThemeAlias]
     children: models.Manager[Theme]

@@ -50,7 +50,9 @@ class Title(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     # (each gets a ``status=deleted`` claim in the same ChangeSet). The DB FK
     # from MachineModel.title is PROTECT, which blocks hard deletion; the
     # cascade here is an application-layer rule over resolved ``status``.
-    soft_delete_cascade_relations: ClassVar[tuple[str, ...]] = ("machine_models",)
+    soft_delete_cascade_relations: ClassVar[frozenset[str]] = frozenset(
+        {"machine_models"}
+    )
 
     opdb_id = models.CharField(
         max_length=50,

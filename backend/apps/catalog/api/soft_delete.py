@@ -26,7 +26,7 @@ through-rows (``MachineModelTag``, ``MachineModelTheme``, …) and
 self-referential hierarchy (``Theme.parents``, ``GameplayFeature.parents``)
 hop through an intermediate table that itself has no lifecycle. Models
 that care about those "usage" references declare them explicitly via
-``soft_delete_usage_blockers``, a tuple of reverse-manager names to walk
+``soft_delete_usage_blockers``, a frozenset of reverse-manager names to walk
 for active referrers — closing the gap between "no FK PROTECT breakage
 at the DB" and "no active lifecycle entity still references me at the
 application layer".
@@ -144,7 +144,7 @@ def _cascade_targets(root: db_models.Model) -> list[CatalogModel]:
         seen.add(key)
         result.append(entity)
         relation_names: Iterable[str] = getattr(
-            type(entity), "soft_delete_cascade_relations", ()
+            type(entity), "soft_delete_cascade_relations", frozenset()
         )
         for rel_name in relation_names:
             manager = getattr(entity, rel_name)
@@ -208,7 +208,7 @@ def _iter_usage_blockers(
     via ``EntityStatusMixin``). Yielded referrers are always active.
     """
     manager_names: Iterable[str] = getattr(
-        type(entity), "soft_delete_usage_blockers", ()
+        type(entity), "soft_delete_usage_blockers", frozenset()
     )
     for manager_name in manager_names:
         manager = getattr(entity, manager_name)

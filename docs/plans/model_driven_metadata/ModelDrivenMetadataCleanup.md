@@ -13,13 +13,17 @@ Bring existing model-driven metadata patterns to the canonical conventions in [M
 
 Existing Shape 2 class attrs that work correctly but lack `ClassVar[...]` typing. Each is a one-line edit.
 
-| Attr                            | Current                       | Upgrade                         |
-| ------------------------------- | ----------------------------- | ------------------------------- |
-| `claim_fk_lookups`              | untyped, bare `getattr`       | Add `ClassVar[dict[str, str]]`  |
-| `claims_exempt`                 | untyped                       | Add `ClassVar[frozenset[str]]`  |
-| `soft_delete_cascade_relations` | untyped                       | Add `ClassVar[tuple[str, ...]]` |
-| `soft_delete_usage_blockers`    | untyped                       | Add `ClassVar[tuple[str, ...]]` |
-| `MEDIA_CATEGORIES`              | already `ClassVar[list[str]]` | None needed                     |
+| Attr                            | Pre-sweep                     | Final                      |
+| ------------------------------- | ----------------------------- | -------------------------- |
+| `claim_fk_lookups`              | untyped, bare `getattr`       | `ClassVar[dict[str, str]]` |
+| `claims_exempt`                 | untyped                       | `ClassVar[frozenset[str]]` |
+| `soft_delete_cascade_relations` | untyped → `tuple[str, ...]`   | `ClassVar[frozenset[str]]` |
+| `soft_delete_usage_blockers`    | untyped → `tuple[str, ...]`   | `ClassVar[frozenset[str]]` |
+| `MEDIA_CATEGORIES`              | already `ClassVar[list[str]]` | unchanged                  |
+
+The `soft_delete_*` attrs went through two commits: a first pass that mirrored the tuple literal on the RHS (`ClassVar[tuple[str, ...]]`), then a second pass that corrected the semantics to `ClassVar[frozenset[str]]` with a `frozenset({...})` RHS. History is preserved in the arrow above as a worked example of the rule below.
+
+Rule of thumb for these annotations: pick the collection type that matches the **semantics** of the attr, not just what the RHS literal happens to look like. Order and duplicates are meaningless for `soft_delete_*` (they're unordered sets of relation names — same shape as `claims_exempt`), so `frozenset[str]` is the right annotation even if the RHS was originally written as a tuple literal. Update the RHS to `frozenset({...})` at the same time, and update any consumer `getattr(..., default)` defaults to match the annotated type (`frozenset()` here, not `()`) — don't lie about the shape in the annotation or smuggle a mismatched default past the type checker.
 
 Consumer-side: the bare `getattr(model, "attr", default)` reads stay — they're the canonical Shape 2 access pattern per the umbrella. Only the declarations get typed.
 
