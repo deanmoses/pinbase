@@ -13,9 +13,14 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from django.core.exceptions import FieldDoesNotExist, ValidationError
+from django.core.exceptions import (
+    FieldDoesNotExist,
+    ImproperlyConfigured,
+    ValidationError,
+)
 from django.db import models
 
 if TYPE_CHECKING:
@@ -29,27 +34,132 @@ RELATIONSHIP = "relationship"
 EXTRA = "extra"
 UNRECOGNIZED = "unrecognized"
 
+
 # ---------------------------------------------------------------------------
-# Relationship target registry
+# Relationship schema registry
 # ---------------------------------------------------------------------------
-# Populated by catalog.apps.CatalogConfig.ready() — the provenance layer owns
-# the data structure, the catalog layer provides the concrete mappings.
-#
-# Format: {namespace: [(value_key, target_model, lookup_field), ...]}
-#   e.g. {"credit": [("person", Person, "pk"), ("role", CreditRole, "pk")]}
-_relationship_target_registry: dict[str, list[tuple[str, type[models.Model], str]]] = {}
+# Single source of truth for relationship namespaces. Drives claim
+# construction, namespace enumeration, write-path shape validation, and
+# batch FK existence checks.
 
 
-def register_relationship_targets(
-    mapping: dict[str, list[tuple[str, type[models.Model], str]]],
-) -> None:
-    """Register target models for relationship claim validation.
+@dataclass(frozen=True, slots=True)
+class ValueKeySpec:
+    """One key in a relationship claim's value dict.
 
-    Called once from ``CatalogConfig.ready()``.  Each entry maps a
-    relationship namespace to the value-dict keys that reference external
-    models and the field used for the existence check.
+    ``name`` is the key as it appears in the value dict. ``identity``, when
+    set, is the label used in the canonical ``claim_key`` identity parts —
+    typically equal to ``name`` (e.g. ``"person"``) but occasionally different
+    (e.g. ``identity="alias"`` for ``name="alias_value"``). ``None`` means
+    this key is non-identity (e.g. ``count``, ``category``, ``alias_display``).
+
+    **INVARIANT**: ``identity is not None`` ⇒ ``required=True``. Enforced at
+    registration time in ``register_relationship_schema``.
     """
-    _relationship_target_registry.update(mapping)
+
+    name: str
+    scalar_type: type
+    required: bool
+    nullable: bool = False
+    identity: str | None = None
+    fk_target: tuple[type[models.Model], str] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RelationshipSchema:
+    """Shape of one relationship namespace: value-key list + valid subjects."""
+
+    namespace: str
+    value_keys: tuple[ValueKeySpec, ...]
+    valid_subjects: frozenset[type[models.Model]]
+
+
+_relationship_schemas: dict[str, RelationshipSchema] = {}
+
+# Cached frozenset of registered namespace names. Invalidated on every
+# ``register_relationship_schema`` call and rebuilt lazily by
+# ``get_relationship_namespaces``. Registration happens once during
+# ``CatalogConfig.ready()``, so the cache is effectively permanent after
+# startup — worth caching because ``get_relationship_namespaces`` is
+# called inside per-winner loops during resolve.
+_namespaces_cache: frozenset[str] | None = None
+
+
+def register_relationship_schema(
+    namespace: str,
+    value_keys: tuple[ValueKeySpec, ...],
+    valid_subjects: frozenset[type[models.Model]],
+) -> None:
+    """Register a relationship schema. Idempotent; conflicting re-registration raises.
+
+    Invariants enforced here (not at the validator):
+    - ``identity is not None`` ⇒ ``required=True`` on every value-key.
+    - ``namespace`` must not collide with a concrete claim-controlled field
+      name on any class in ``valid_subjects`` (keeps ``classify_claim``'s
+      DIRECT-vs-RELATIONSHIP routing structurally disjoint).
+    """
+    from apps.core.models import get_claim_fields
+
+    for spec in value_keys:
+        if spec.identity is not None and not spec.required:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}, value_key {spec.name!r}: "
+                f"identity keys must be required "
+                f"(identity={spec.identity!r}, required=False)"
+            )
+
+    for subject_model in valid_subjects:
+        if namespace in get_claim_fields(subject_model):
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r} collides with a concrete claim field "
+                f"on {subject_model.__name__}"
+            )
+
+    new = RelationshipSchema(
+        namespace=namespace,
+        value_keys=value_keys,
+        valid_subjects=valid_subjects,
+    )
+    existing = _relationship_schemas.get(namespace)
+    if existing is not None:
+        if existing == new:
+            return
+        raise ImproperlyConfigured(
+            f"namespace {namespace!r} already registered with a different schema"
+        )
+    _relationship_schemas[namespace] = new
+    global _namespaces_cache
+    _namespaces_cache = None
+
+
+def get_relationship_schema(namespace: str) -> RelationshipSchema | None:
+    """Return the schema for a namespace, or ``None`` if unregistered."""
+    return _relationship_schemas.get(namespace)
+
+
+def get_all_relationship_schemas() -> dict[str, RelationshipSchema]:
+    """Return the registry keyed by namespace (read-only snapshot)."""
+    return dict(_relationship_schemas)
+
+
+def get_relationship_namespaces() -> frozenset[str]:
+    """Return the cached frozenset of registered namespace names.
+
+    Hot path: called inside per-winner loops during entity resolve. The
+    frozenset is rebuilt once after registration (or on first access) and
+    reused until another ``register_relationship_schema`` call invalidates it.
+    """
+    global _namespaces_cache
+    if _namespaces_cache is None:
+        _namespaces_cache = frozenset(_relationship_schemas)
+    return _namespaces_cache
+
+
+def is_valid_subject(
+    schema: RelationshipSchema, subject_model: type[models.Model]
+) -> bool:
+    """Whether ``subject_model`` is a registered subject for this schema."""
+    return subject_model in schema.valid_subjects
 
 
 def classify_claim(
@@ -365,11 +475,12 @@ def validate_relationship_claims_batch(
     query per group — the same grouped-query pattern used by
     ``validate_fk_claims_batch`` for FK claims.
 
-    Only namespaces registered via ``register_relationship_targets`` are
-    checked. Unregistered namespaces (aliases, abbreviations) pass through
-    because their value dicts contain literal data, not foreign references.
+    Reads target models from ``ValueKeySpec.fk_target`` on each registered
+    schema. Non-FK value-keys (literals like ``alias_value``) have
+    ``fk_target=None`` and pass through without an existence check.
+    Unregistered namespaces also pass through.
     """
-    if not _relationship_target_registry:
+    if not _relationship_schemas:
         return []
 
     # (namespace, value_key) → [(claim, ref_value), ...]
@@ -379,8 +490,8 @@ def validate_relationship_claims_batch(
 
     for claim in rel_claims:
         namespace = claim.field_name
-        targets = _relationship_target_registry.get(namespace)
-        if not targets:
+        schema = _relationship_schemas.get(namespace)
+        if schema is None:
             continue
         value = claim.value
         if not isinstance(value, dict):
@@ -389,20 +500,24 @@ def validate_relationship_claims_batch(
         # target may have been deleted, and the claim is being removed.
         if not value.get("exists", True):
             continue
-        for value_key, target_model, lookup_field in targets:
-            ref = value.get(value_key)
-            if ref is not None:
-                key = (namespace, value_key)
-                groups[key].append((claim, ref))
-                if key not in group_meta:
-                    group_meta[key] = (target_model, lookup_field)
+        for spec in schema.value_keys:
+            if spec.fk_target is None:
+                continue
+            ref = value.get(spec.name)
+            if ref is None:
+                continue
+            target_model, lookup_field = spec.fk_target
+            key = (namespace, spec.name)
+            groups[key].append((claim, ref))
+            if key not in group_meta:
+                group_meta[key] = (target_model, lookup_field)
 
     rejected: list[Claim] = []
     rejected_ids: set[int] = set()
 
     for key, group in groups.items():
         target_model, lookup_field = group_meta[key]
-        namespace, value_key = key
+        namespace, _value_key = key
 
         refs = {ref for _, ref in group}
         existing = set(
