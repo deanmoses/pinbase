@@ -365,8 +365,8 @@ class LinkableModel(models.Model):
     creation time — do not declare it by hand.
     """
 
-    entity_type: str  # required on concrete subclasses
-    entity_type_plural: str  # required on concrete subclasses
+    entity_type: ClassVar[str]  # required on concrete subclasses
+    entity_type_plural: ClassVar[str]  # required on concrete subclasses
     # ``name`` and ``slug`` are declared per-concrete-subclass (different
     # max_length / validators per entity); these instance-level annotations
     # let ``type[LinkableModel]`` introspection code read ``.name`` / ``.slug``

@@ -39,17 +39,11 @@ Confirmed by grep across `backend/apps/` before the sweep landed:
 
 Every consumer uses `getattr(model_class, "attr", default)` with a default matching the annotated type — no shadowing, no drift risk. No base class declares any of the four opt-in attrs, so subclass declarations are the only source of truth.
 
-### `entity_type` typing — separate sub-item, _blocked on shape decision_
+### `entity_type` typing — _landed_
 
-`entity_type` (LinkableModel's public identifier, listed in the umbrella as "already in the codebase") is also untyped today. It's Shape 2, same pattern, but has a bigger blast radius than the one-liners above: annotate the base on `LinkableModel` and touch every concrete subclass assignment.
+`entity_type` and `entity_type_plural` on `LinkableModel` are now `ClassVar[str]` on the base (previously bare instance-level `str` annotations). Aligns with the other Shape 2 attrs on this mixin (`MEDIA_CATEGORIES`, `link_url_pattern`, `alias_claim_field`) so the "base annotates, subclasses assign" template reads the same everywhere. One-liner on the base; no subclass or consumer edits.
 
-**Open question before implementation:** what's the right annotation? The `frozenset[str]` follow-up on `soft_delete_*` established the rule of matching annotations to semantics, not RHS literal shape. `entity_type` values are a closed set (`"theme"`, `"tag"`, `"gameplay-feature"`, `"machine-model"`, …), not arbitrary strings. Three options:
-
-- **`ClassVar[str]`** — matches the RHS literal; cheapest; undertypes, per the `soft_delete_*` lesson.
-- **`ClassVar[Literal[...]]`** per subclass — strongest typing; lets callers refine on `entity_type`; but each subclass carries its own narrow `Literal` annotation, which is verbose.
-- **`ClassVar[EntityType]`** where `EntityType = Literal[...]` or `Enum` at module level — declare the closed set once, reuse the alias everywhere.
-
-Decide before starting. Implementing `ClassVar[str]` and redoing it would repeat the exact mistake the follow-up commit fixed. No consumer-side changes regardless of choice.
+**Why not `ClassVar[Literal[...]]`?** Considered and rejected. A base `Literal` union listing all 19 current values would create a parallel canonical list that must stay in sync with subclass declarations — the exact drift surface the model-driven approach is meant to eliminate. Adding a new entity would touch three places (new model + two `Literal` unions) instead of one. The `soft_delete_*` "semantics over RHS shape" rule doesn't transfer here: that rule was about collection type for a single local attr (`frozenset` vs `tuple`); for `entity_type`, the "closed set" spans all subclasses and is already derived by `LinkableModel.__subclasses__()` walks. Typos and duplicates are caught at import time by `__init_subclass__` validation and the registry builder — effectively as early as type-check time for this codebase. No boundary consumer takes `entity_type` as untrusted input, so the stronger type buys nothing the runtime validation doesn't already provide.
 
 ### Optional: `MEDIA_CATEGORIES` readiness validator
 
@@ -111,10 +105,7 @@ This is not _required_ before `CatalogRelationshipSpec` lands — the spec PR co
 1. Shape 2 typing sweep (table) — including the `frozenset[str]` follow-up for `soft_delete_*`.
 2. Cache-invalidation signal list `_meta` walk — including parity test and coverage-gap comment.
 3. `AliasBase` explicit-identity-attr upgrade.
-
-### Next
-
-1. **`entity_type` typing** — blocked on shape decision (see "Open question" in that section).
+4. `entity_type` / `entity_type_plural` base `ClassVar[str]` typing on `LinkableModel`.
 
 ### Remaining
 
