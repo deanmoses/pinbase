@@ -1,5 +1,7 @@
 # TypeFixing
 
+Status: DONE
+
 ## Background
 
 The backend is in the process of eliminating `mypy-baseline.txt` entries. Most of that work has been mechanical — adding return annotations, typing management-command `handle()` methods, etc. But a second category keeps surfacing on review: annotations that satisfy mypy yet communicate nothing, because they reach for `Any` / `object` / untagged tuples when the real shape is already obvious from the body.

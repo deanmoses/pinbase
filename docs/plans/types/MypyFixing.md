@@ -14,15 +14,15 @@ Steps 1–7 complete. Step 8+ undone.
 - **Don't pass a file path.** `./scripts/mypy src/foo.py` is ignored by the wrapper on purpose (see the comment at the top of [scripts/mypy](scripts/mypy)); partial runs generate paths that don't align with the baseline.
 - **Sync baseline after clearing entries:** `uv run --directory backend mypy --config-file pyproject.toml . 2>&1 | uv run --directory backend mypy-baseline sync`. Only run this once `./scripts/mypy` shows `new: 0`.
 - **Kill dmypy when the type system changes.** `scripts/mypy` uses fresh one-shot mypy, but the IDE and `scripts/dmypy` use a persistent daemon. Adding a type alias, changing an override, or renaming a module-level symbol can make dmypy's cache stale and report wrong errors. Fix: `uv run --directory backend dmypy stop` (the IDE pays cold-start cost on next check).
-- **Relevant overrides to keep in mind** (from [backend/pyproject.toml](backend/pyproject.toml)):
+- **Relevant overrides to keep in mind** (from [backend/pyproject.toml](../../../backend/pyproject.toml)):
   - `strict = true` is global. Touching imports in an otherwise-clean file can surface new errors.
-  - `*.tests.*` / `conftest` relaxes `disallow_untyped_defs` + friends ([line 127](backend/pyproject.toml#L127)) — annotation-style rules only, not `arg-type` / `attr-defined` / etc.
-  - `apps.*.api.*` relaxes `disallow_untyped_decorators` ([line 136](backend/pyproject.toml#L136)) for Ninja's untyped decorators.
+  - `*.tests.*` / `conftest` relaxes `disallow_untyped_defs` + friends ([line 127](../../../backend/pyproject.toml#L127)) — annotation-style rules only, not `arg-type` / `attr-defined` / etc.
+  - `apps.*.api.*` relaxes `disallow_untyped_decorators` ([line 136](../../../backend/pyproject.toml#L136)) for Ninja's untyped decorators.
 
 ## Guiding principles
 
 - **Type callees before callers.** Most `no-untyped-call` errors evaporate when the function being called gets annotated. Sweeping caller signatures against `Any`-returning helpers just means revisiting them.
-- **Ratchet via the baseline, not per-module strictness.** `strict = true` is already global in [backend/pyproject.toml](backend/pyproject.toml); the only per-module levers are _relaxations_, and the enforceable direction is removing them. Concretely: (a) shrink `mypy-baseline.txt` monotonically and fail CI on new entries (`mypy-baseline --fail-on-new-error` or equivalent); (b) as `apps.*.api.*` packages clean up, narrow or remove the `disallow_untyped_decorators = false` relaxation at [pyproject.toml:136](backend/pyproject.toml#L136).
+- **Ratchet via the baseline, not per-module strictness.** `strict = true` is already global in [backend/pyproject.toml](../../../backend/pyproject.toml); the only per-module levers are _relaxations_, and the enforceable direction is removing them. Concretely: (a) shrink `mypy-baseline.txt` monotonically and fail CI on new entries (`mypy-baseline --fail-on-new-error` or equivalent); (b) as `apps.*.api.*` packages clean up, narrow or remove the `disallow_untyped_decorators = false` relaxation at [pyproject.toml:136](../../../backend/pyproject.toml#L136).
 - **Re-run `make api-gen` after any Ninja endpoint retyping.** Annotated return types change the generated OpenAPI schema and therefore `frontend/src/lib/api/schema.d.ts`. Run the frontend typecheck too, not just pytest.
 
 ## Idioms
@@ -33,7 +33,7 @@ In a Django + Ninja app, the Ninja `Schema` (Pydantic v2) is the canonical data 
 
 - **Schema-shaped output → return the Schema instance.** Pydantic v2 construction is microseconds; the "runtime cost" concern is not real.
 - **No Schema exists yet for this shape → add one.** Two duplicated shapes (a TypedDict and a Schema) is a worse outcome than one Schema used everywhere.
-- **Truly free-form `JSONField` bags → `JsonData` from [apps/core/types.py](backend/apps/core/types.py).** Only `extra_data` qualifies. `JsonData = Mapping[str, object]` — `object` (not `Any`) forces `isinstance`-narrowing at use sites, which is correct for JSON. `Mapping` (covariant) is needed because dict literals with specific value types aren't subtypes of the invariant `dict[str, object]`. Use `JsonBody` (the `dict` form) only for test-client write bodies.
+- **Truly free-form `JSONField` bags → `JsonData` from [apps/core/types.py](../../../backend/apps/core/types.py).** Only `extra_data` qualifies. `JsonData = Mapping[str, object]` — `object` (not `Any`) forces `isinstance`-narrowing at use sites, which is correct for JSON. `Mapping` (covariant) is needed because dict literals with specific value types aren't subtypes of the invariant `dict[str, object]`. Use `JsonBody` (the `dict` form) only for test-client write bodies.
 - **Exception: cached-bytes hot paths.** Endpoints that build the input to `set_cached_response` (e.g. `list_all_titles`, `list_all_models`) persist JSON bytes; the dict _is_ the cached form. Building Schemas only to `model_dump()` them back is the round-trip the cache exists to avoid. Keep these few helpers dict-returning, type the local as `list[dict[str, Any]]`, and leave a comment naming the cache contract. The Schema for the same shape still applies to the non-cached sibling endpoint.
   - **Cached-endpoint return type:** `get_cached_response()` returns `HttpResponse | None`, so the endpoint's return annotation must be `HttpResponse | list[dict[str, Any]]` (not just the list). Mixing `return response` (HttpResponse) and `return result` (list) in one function otherwise fails mypy.
 
@@ -65,7 +65,7 @@ For code that operates on a generic `type[Model]` (resolvers, validators, manage
 When a helper is generic over N concrete model classes that share a Schema shape but _don't_ share a base class carrying the fields / custom manager (e.g. the 9 taxonomy models share `name` / `slug` / `display_order` / `CatalogManager` but inherit them from different mixins):
 
 - **Constrained `TypeVar`, not bound.** A bound TypeVar (`[M: CatalogModel]`) collapses `type[M]` to the common base and loses the per-subclass fields. (As of Step 4, `CatalogModel` now inherits `EntityStatusMixin`, so `.objects.active()` _is_ available on the common base — the rationale against bound is solely about per-subclass fields like `RewardType.aliases` or `Title.titlemachinemodel_set`.) Only a constraint list preserves the concrete type at each call site.
-- **`typing.TypeVar` with a module-level constraint list + per-def `# noqa: UP047`.** PEP 695 inline syntax (`def foo[M: (A, B, C, …)](…)`) is ergonomic for 1–2 constraints but forces the full list to be repeated at every generic function. Module-level `TypeVar` keeps the constraints DRY; ruff's UP047 then fires per def — suppress it locally. **This rationale is specific to constraint lists.** For simple _bounded_ TypeVars (`[M: CatalogModel]`), PEP 695 inline syntax is the right call — it's shorter, matches the project convention ([bulk_create_validated[M: Model]](backend/apps/core/validators.py#L12), [\_agreed_value[T]](backend/apps/catalog/api/titles.py#L379)), and avoids the UP047 suppression entirely. Don't copy the taxonomy pattern to non-constrained call sites.
+- **`typing.TypeVar` with a module-level constraint list + per-def `# noqa: UP047`.** PEP 695 inline syntax (`def foo[M: (A, B, C, …)](…)`) is ergonomic for 1–2 constraints but forces the full list to be repeated at every generic function. Module-level `TypeVar` keeps the constraints DRY; ruff's UP047 then fires per def — suppress it locally. **This rationale is specific to constraint lists.** For simple _bounded_ TypeVars (`[M: CatalogModel]`), PEP 695 inline syntax is the right call — it's shorter, matches the project convention ([bulk_create_validated[M: Model]](../../../backend/apps/core/validators.py#L12), [\_agreed_value[T]](../../../backend/apps/catalog/api/titles.py#L379)), and avoids the UP047 suppression entirely. Don't copy the taxonomy pattern to non-constrained call sites.
 - **Narrow with `isinstance`, not `hasattr` + `getattr`.** When one arm of the union has a reverse relation the others don't (e.g. only `RewardType` has `aliases`), `if isinstance(obj, RewardType): obj.aliases.all()` type-checks cleanly. The `hasattr` + `getattr(obj, "attr")` spelling trips ruff's B009.
 - **The speculative fix is a shared abstract base.** Introducing a `TaxonomyBase` mixin with the shared fields and manager would let a bound TypeVar work and eliminate the noqas. Not in-scope for any step of this plan — revisit only if multiple future helpers need the same shape or the entity-type registry consolidation lands.
 
@@ -95,7 +95,7 @@ Two tools make dispatch deterministic; apply both on every union of response sch
 
 Before landing a union, verify dispatch with `TypeAdapter(A | B).validate_python(body)` for every real body shape the endpoint emits. The baseline and test suite will not catch it. `{"detail": "…"}` alone is ambiguous; fix it before shipping.
 
-See [schemas.py:SoftDeleteBlockedSchema](backend/apps/catalog/api/schemas.py) / `AlreadyDeletedSchema` / `PersonSoftDeleteBlockedSchema` for the canonical example (Step 3.2).
+See [schemas.py:SoftDeleteBlockedSchema](../../../backend/apps/catalog/api/schemas.py) / `AlreadyDeletedSchema` / `PersonSoftDeleteBlockedSchema` for the canonical example (Step 3.2).
 
 ### Idiom for narrowing optional FK fields
 
@@ -108,8 +108,8 @@ See [schemas.py:SoftDeleteBlockedSchema](backend/apps/catalog/api/schemas.py) / 
 
 Type the shared helpers before their callers. Expect the `no-untyped-call` count to drop noticeably as a side effect.
 
-- [apps/catalog/api/taxonomy.py](backend/apps/catalog/api/taxonomy.py) — **done** (58 → 2; the 2 remaining are pre-existing `Cannot infer type of lambda` on default-arg-captured lambdas in the `_register_*` wrappers).
-- [apps/catalog/api/titles.py](backend/apps/catalog/api/titles.py) — **done** (51 → 0). Two `MachineModelDetailSchema.model_validate(_serialize_model_detail(...))` bridges remain; remove when Step 3.1 converts `_serialize_model_detail` to return the Schema. `_serialize_model_detail` and `_model_detail_qs` in [machine_models.py](backend/apps/catalog/api/machine_models.py) were minimally typed (return `dict[str, Any]` and `QuerySet[MachineModel]`) as cross-file callee unblocks — the full Schema conversion is Step 3.1 work.
+- [apps/catalog/api/taxonomy.py](../../../backend/apps/catalog/api/taxonomy.py) — **done** (58 → 2; the 2 remaining are pre-existing `Cannot infer type of lambda` on default-arg-captured lambdas in the `_register_*` wrappers).
+- [apps/catalog/api/titles.py](../../../backend/apps/catalog/api/titles.py) — **done** (51 → 0). Two `MachineModelDetailSchema.model_validate(_serialize_model_detail(...))` bridges remain; remove when Step 3.1 converts `_serialize_model_detail` to return the Schema. `_serialize_model_detail` and `_model_detail_qs` in [machine_models.py](../../../backend/apps/catalog/api/machine_models.py) were minimally typed (return `dict[str, Any]` and `QuerySet[MachineModel]`) as cross-file callee unblocks — the full Schema conversion is Step 3.1 work.
 
 Return Schema instances (see idiom above). Add schemas for shapes that don't have one yet.
 
@@ -141,7 +141,7 @@ Order: Schema-return conversion (3.1) before error-schema swap (3.2) because 3.1
 
 ### Step 3.1: Convert `_serialize_model_detail` to return Schema - DONE
 
-Step 1's deferred work. Two bridges in [titles.py](backend/apps/catalog/api/titles.py) still read `MachineModelDetailSchema.model_validate(_serialize_model_detail(pm))`; they must be removed, not left to rot. `_serialize_model_detail` is currently typed `-> dict[str, Any]` as a minimal-touch unblock. Flip the return to the Schema, drop the two `model_validate` wrappers in titles.py, and re-run `make api-gen` + frontend check.
+Step 1's deferred work. Two bridges in [titles.py](../../../backend/apps/catalog/api/titles.py) still read `MachineModelDetailSchema.model_validate(_serialize_model_detail(pm))`; they must be removed, not left to rot. `_serialize_model_detail` is currently typed `-> dict[str, Any]` as a minimal-touch unblock. Flip the return to the Schema, drop the two `model_validate` wrappers in titles.py, and re-run `make api-gen` + frontend check.
 
 **Done when:** `_serialize_model_detail` returns `MachineModelDetailSchema`, the two `model_validate` wrappers are gone from titles.py, `./scripts/mypy` stays clean, and frontend typecheck passes.
 
@@ -161,9 +161,9 @@ Quality regressions introduced to clear the baseline quickly. Independent of Ste
 
 ### Done
 
-- **`_Entity = Any` is wider than its justification.** — **DONE (commit `7c512c09`).** `plan_gameplay_feature_claims` / `plan_credit_claims` now take `entity: MachineModel`; `plan_abbreviation_claims` takes `entity: MachineModel | Title`. `_Entity = Any` is kept only for the genuinely cross-model `plan_parent_claims` / `plan_alias_claims`; comment in [edit_claims.py](backend/apps/catalog/api/edit_claims.py) updated to reflect the narrower scope.
+- **`_Entity = Any` is wider than its justification.** — **DONE (commit `7c512c09`).** `plan_gameplay_feature_claims` / `plan_credit_claims` now take `entity: MachineModel`; `plan_abbreviation_claims` takes `entity: MachineModel | Title`. `_Entity = Any` is kept only for the genuinely cross-model `plan_parent_claims` / `plan_alias_claims`; comment in [edit_claims.py](../../../backend/apps/catalog/api/edit_claims.py) updated to reflect the narrower scope.
 - **`cast(Any, user)` widens past what the runtime guarantees.** — **DONE (commit `7c512c09`).** Both call sites now narrow with `assert not isinstance(user, AnonymousUser)` and use `cast(User, user)` as a localized django-stubs workaround at the `ChangeSet.objects.create(...)` line. The cast is deliberate and flagged with a comment pointing at [docs/plans/UserModel.md](UserModel.md), which captures the follow-up work (introducing a custom User model) that will remove both the cast and the `User` tripwire. `_UserLike` renamed `_RequestUser` and kept wide (`AbstractBaseUser | AnonymousUser`) at public entry points; narrowed internally.
-- **`cur: Any` loop-variable pattern.** — **DONE (commit `7c512c09`).** All three spots ([manufacturers.py](backend/apps/catalog/api/manufacturers.py), [machine_models.py](backend/apps/catalog/api/machine_models.py), [locations.py](backend/apps/catalog/api/locations.py)) now use `cur: Location | None = cel.location`.
+- **`cur: Any` loop-variable pattern.** — **DONE (commit `7c512c09`).** All three spots ([manufacturers.py](../../../backend/apps/catalog/api/manufacturers.py), [machine_models.py](../../../backend/apps/catalog/api/machine_models.py), [locations.py](../../../backend/apps/catalog/api/locations.py)) now use `cur: Location | None = cel.location`.
 - **`list[Any]` return on `list_manufacturers` / `list_people`.** — **DONE (commit `7c512c09`).** Instead of casting the `.values(...)` result, both endpoints now construct `ManufacturerSchema` / `PersonSchema` instances directly per the project's "return Schema instances" idiom. No cast, no `dict[str, Any]`.
 
 - **`entity_crud.py` casts `model_cls` to `Any` four times** — **DONE.** `CatalogModel` now inherits `EntityStatusMixin` (zero-runtime-impact: every concrete subclass already inherited it directly; Python MRO dedupes, Django reports no migration changes). Registrar params narrowed from `type[Model]` to `type[CatalogModel]`; all four `cast(Any, model_cls)` sites and the `cast(Any, obj).status` / `cast(Any, e).slug` / `cast(Any, parent).slug` sites are gone. `LinkableModel` gained instance-level `name: str` / `slug: str` annotations (fields still live on concrete subclasses); the one `_meta.get_field("name")` call in `register_entity_create` needs `# type: ignore[misc]` because django-stubs's plugin can't see a field at the abstract level — the ignore is the only residual cost. The "Idiom for generics over heterogeneous model classes" above was softened — the rationale against a bound TypeVar now rests solely on per-subclass fields (e.g. `RewardType.aliases`), not on the manager.
@@ -175,14 +175,14 @@ All Step 4 items resolved. Baseline: 377 → 375.
 
 ## Step 4.7: Idiom-#2 cast sweep — WONT_DO
 
-Originally planned as a sweep to replace `cast(HasModelCount, obj).model_count` with `getattr(obj, "model_count", 0)` across `catalog/api`. On trying the first site ([corporate_entities.py:154](backend/apps/catalog/api/corporate_entities.py#L154)) it became clear the trade is lateral at best:
+Originally planned as a sweep to replace `cast(HasModelCount, obj).model_count` with `getattr(obj, "model_count", 0)` across `catalog/api`. On trying the first site ([corporate_entities.py:154](../../../backend/apps/catalog/api/corporate_entities.py#L154)) it became clear the trade is lateral at best:
 
 - **Cast + protocol:** `.model_count` is a real typed attribute access. Typos → mypy error. `HasModelCount` is effectively a structural type for "an object with the queryset-annotated count field" — which is what protocols are _for_.
 - **getattr:** `"model_count"` is a magic string. Typos → silently returns `0` forever, no mypy signal.
 
 The idiom-#2 argument ("widens the whole object") is overstated here: the `cast(Has*, obj).field` pattern reads one field and discards the widened reference immediately. There is no cleaner django-stubs-native way to express "this queryset carries these `.annotate()`d attributes" — `.values()` + `TypedDict` would lose model instances and break the prefetch-heavy serializers these endpoints rely on.
 
-**Decision:** keep the `Has*` protocols in [\_typing.py](backend/apps/catalog/api/_typing.py) and the existing `cast(Has*, obj).field` sites. Update idiom #2 when touched to note that queryset-annotated attributes are an exception: prefer a narrow structural protocol over `getattr` for this case.
+**Decision:** keep the `Has*` protocols in [\_typing.py](../../../backend/apps/catalog/api/_typing.py) and the existing `cast(Has*, obj).field` sites. Update idiom #2 when touched to note that queryset-annotated attributes are an exception: prefer a narrow structural protocol over `getattr` for this case.
 
 ## Step 5: narrow `apps.*.api.*` decorator relaxation - DONE
 
@@ -213,8 +213,8 @@ The taxonomy-adjacent endpoint files (franchises, themes, gameplay_features, cor
 
 Two new named types landed alongside the type-arg fixes:
 
-- `IdentityPart = str | int | None` on `make_claim_key` in [apps/provenance/models/claim.py](backend/apps/provenance/models/claim.py) — re-exported through `apps.provenance.models`. Replaces inline `str | int | None` at every identity-part call site.
-- `RelationshipClaim = tuple[str, JsonBody]` in [apps/catalog/claims.py](backend/apps/catalog/claims.py) — the `(claim_key, value_dict)` pair returned by both relationship-claim builders. `JsonBody` (already in `apps/core/types.py`) is the right alias for the JSON-shaped value dict.
+- `IdentityPart = str | int | None` on `make_claim_key` in [apps/provenance/models/claim.py](../../../backend/apps/provenance/models/claim.py) — re-exported through `apps.provenance.models`. Replaces inline `str | int | None` at every identity-part call site.
+- `RelationshipClaim = tuple[str, JsonBody]` in [apps/catalog/claims.py](../../../backend/apps/catalog/claims.py) — the `(claim_key, value_dict)` pair returned by both relationship-claim builders. `JsonBody` (already in `apps/core/types.py`) is the right alias for the JSON-shaped value dict.
 
 The two `Cannot infer type of lambda` entries on `taxonomy.py`'s `_register_*` wrappers are pre-existing (noted in Step 1) and still deferred.
 
@@ -232,7 +232,7 @@ Same pattern as Step 2 — helpers first, endpoints after, `make api-gen` betwee
 
 Scope landed: `citation/api.py` (38 → 0), `citation/url_extraction.py` (7 → 0), plus three adjacent files:
 
-- **`citation/models.py`** — dropped the `has_children: bool` class-level annotation on `CitationSource`. It was a lie: `has_children` only exists on rows from the search queryset's `.annotate(has_children=Exists(...))`. Replaced with a narrow `_HasChildren` Protocol in `api.py` and `cast(_HasChildren, s).has_children` at the one read site (same pattern as the `Has*` protocols in [catalog/api/\_typing.py](backend/apps/catalog/api/_typing.py)).
+- **`citation/models.py`** — dropped the `has_children: bool` class-level annotation on `CitationSource`. It was a lie: `has_children` only exists on rows from the search queryset's `.annotate(has_children=Exists(...))`. Replaced with a narrow `_HasChildren` Protocol in `api.py` and `cast(_HasChildren, s).has_children` at the one read site (same pattern as the `Has*` protocols in [catalog/api/\_typing.py](../../../backend/apps/catalog/api/_typing.py)).
 - **`citation/extractors.py`** — `Recognition`'s four loose `child_id` / `child_name` / `child_skip_locator` fields were tightened into a nested `RecognitionChild | None`. The dataclass now encodes the runtime invariant (child fields are either all present or all absent) in the type, eliminating an `assert rec.child_name is not None` at the consumer and a defensive `rec.child_name or ""` fallback in `url_extraction.py`. Two test mocks flipped from `MagicMock(child_id=…)` to real `Recognition` / `RecognitionChild` instances.
 - **`_authed_user(request: HttpRequest) -> User`** — new endpoint-local helper that narrows `request.user` with `assert not isinstance(request.user, AnonymousUser)`. No `cast(User, ...)` needed because django-stubs types `HttpRequest.user` as `User | AnonymousUser` when `AUTH_USER_MODEL` resolves to `auth.User`. When a custom User model lands (see [docs/plans/UserModel.md](UserModel.md)), the helper will need a cast re-added — flagged in the docstring.
 
@@ -246,15 +246,24 @@ Scope (19 entries): `provenance/api.py` (15) plus foundational `provenance/model
 
 ## Step 10: `catalog/resolve/*`
 
-Refactor tuple-heavy resolver code into `dataclass` / `TypedDict` where state is being unpacked inconsistently. Apply the idioms above for remaining `attr-defined` / `union-attr` noise.
+Type the resolver package and clean up adjacent behavior issues surfaced along the way. Each of the following is its own PR.
 
-Scope (~44 entries): `_relationships.py` (18), `_entities.py` (10), `__init__.py` (7), `_helpers.py` (5), `_media.py` (4).
+**Sequencing.** 10.2 → 10.3 → 10.4 is strictly serial — 10.3's TypedDicts mirror 10.2's registry (contract drift must be caught at implementation time, not design time), and 10.4 depends on 10.3's Phase B wiring. 10.1 is independent of 10.2 and 10.3 and can land any time, **but should land before 10.4** — 10.4 flips `.get("location")` → subscript inside the same function 10.1 adds a guard to, so landing 10.1 first avoids a merge-conflict hazard.
+
+- **10.1** — behavior fix, small. `resolve_all_corporate_entity_locations` `exists=False` handling. See [LocationRetractionFix.md](LocationRetractionFix.md). Independent of 10.2 / 10.3; should precede 10.4.
+- **10.2** — behavior fix, larger. Provenance write-path validation tightening. See [ProvenanceValidationTightening.md](ProvenanceValidationTightening.md). Settles the relationship-claim registry contract.
+- **10.3** — typing pass on `catalog/resolve/*`. See [CatalogResolveTyping.md](CatalogResolveTyping.md). Adds TypedDicts mirroring 10.2's registry; wires resolvers with `cast + .get()` (subscript flip deferred to 10.4). Depends on 10.2.
+- **10.4** — subscript flip. See [ResolverReadsTightening.md](ResolverReadsTightening.md). Focused grep-flip, easy to review in isolation. Depends on 10.1 and 10.3.
+
+Typing scope (~44 mypy entries, cleared in 10.3): `_relationships.py` (18), `_entities.py` (10), `__init__.py` (7), `_helpers.py` (5), `_media.py` (4).
 
 ## Step 11: `media/*`
 
-Its own app, not a "tail." Same pattern as Step 2 — helpers first, endpoints after, `make api-gen` between batches.
+Same pattern as Step 2 — helpers first, endpoints after, `make api-gen` between batches.
 
 Scope (~38 entries): `media/admin.py` (12), `media/api.py` (9), `media/apps.py` (8), `media/processing.py` (6), `media/tests/*` (3).
+
+Plan to be written at [MediaTyping.md](MediaTyping.md)
 
 ## Step 12: Ingestion and management commands
 
@@ -262,16 +271,16 @@ These are last. The ingestion code may be completely rewritten, so refactoring f
 
 Grouped because they share patterns (external I/O, command runners, bare dicts from JSON parsing):
 
-- [catalog/management/commands/ingest_pinbase.py](backend/apps/catalog/management/commands/ingest_pinbase.py) (45 — #1 hotspot)
-- [catalog/ingestion/opdb/adapter.py](backend/apps/catalog/ingestion/opdb/adapter.py) (30)
-- [catalog/ingestion/ipdb/adapter.py](backend/apps/catalog/ingestion/ipdb/adapter.py) (20)
-- [catalog/management/commands/validate_catalog.py](backend/apps/catalog/management/commands/validate_catalog.py) (13)
-- [catalog/ingestion/wikidata_sparql.py](backend/apps/catalog/ingestion/wikidata_sparql.py) (12)
-- [catalog/ingestion/fandom_wiki.py](backend/apps/catalog/ingestion/fandom_wiki.py) (10)
-- [catalog/ingestion/apply.py](backend/apps/catalog/ingestion/apply.py) (4)
-- [catalog/ingestion/opdb/records.py](backend/apps/catalog/ingestion/opdb/records.py) (3)
-- [catalog/ingestion/bulk_utils.py](backend/apps/catalog/ingestion/bulk_utils.py) (3)
-- Adapter tests land with their subjects: [catalog/tests/test_opdb_adapter.py](backend/apps/catalog/tests/test_opdb_adapter.py) (7), [test_ipdb_adapter.py](backend/apps/catalog/tests/test_ipdb_adapter.py) (6).
+- [catalog/management/commands/ingest_pinbase.py](../../../backend/apps/catalog/management/commands/ingest_pinbase.py) (45 — #1 hotspot)
+- [catalog/ingestion/opdb/adapter.py](../../../backend/apps/catalog/ingestion/opdb/adapter.py) (30)
+- [catalog/ingestion/ipdb/adapter.py](../../../backend/apps/catalog/ingestion/ipdb/adapter.py) (20)
+- [catalog/management/commands/validate_catalog.py](../../../backend/apps/catalog/management/commands/validate_catalog.py) (13)
+- [catalog/ingestion/wikidata_sparql.py](../../../backend/apps/catalog/ingestion/wikidata_sparql.py) (12)
+- [catalog/ingestion/fandom_wiki.py](../../../backend/apps/catalog/ingestion/fandom_wiki.py) (10)
+- [catalog/ingestion/apply.py](../../../backend/apps/catalog/ingestion/apply.py) (4)
+- [catalog/ingestion/opdb/records.py](../../../backend/apps/catalog/ingestion/opdb/records.py) (3)
+- [catalog/ingestion/bulk_utils.py](../../../backend/apps/catalog/ingestion/bulk_utils.py) (3)
+- Adapter tests land with their subjects: [catalog/tests/test_opdb_adapter.py](../../../backend/apps/catalog/tests/test_opdb_adapter.py) (7), [test_ipdb_adapter.py](../../../backend/apps/catalog/tests/test_ipdb_adapter.py) (6).
 
 ## Process
 
