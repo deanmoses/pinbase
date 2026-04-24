@@ -2,7 +2,31 @@ import pytest
 from django.core.cache import cache
 
 from apps.catalog.cache import MODELS_ALL_KEY, TITLES_ALL_KEY
-from apps.catalog.models import Title
+from apps.catalog.models import (
+    Cabinet,
+    CorporateEntity,
+    CorporateEntityLocation,
+    Credit,
+    CreditRole,
+    DisplaySubtype,
+    DisplayType,
+    Franchise,
+    GameFormat,
+    GameplayFeature,
+    Location,
+    MachineModel,
+    Manufacturer,
+    Person,
+    RewardType,
+    Series,
+    System,
+    Tag,
+    TechnologyGeneration,
+    TechnologySubgeneration,
+    Theme,
+    Title,
+)
+from apps.catalog.signals import _cache_invalidating_models
 from apps.catalog.tests.conftest import make_machine_model
 
 
@@ -63,6 +87,41 @@ class TestAllEndpointCache:
         Title.objects.create(name="Godzilla", slug="godzilla", opdb_id="GZ1")
         resp2 = client.get("/api/titles/all/")
         assert len(resp2.json()) == count_before + 1
+
+
+class TestCacheInvalidatingModelsParity:
+    """Derived signal-connection set must match the expected model landscape.
+
+    If this fails, a new ``CatalogModel`` was added (or an existing one removed)
+    — update the expected set here intentionally rather than silently drifting.
+    """
+
+    def test_derived_set_matches_expected(self):
+        expected = {
+            Cabinet,
+            CorporateEntity,
+            CorporateEntityLocation,
+            Credit,
+            CreditRole,
+            DisplaySubtype,
+            DisplayType,
+            Franchise,
+            GameFormat,
+            GameplayFeature,
+            Location,
+            MachineModel,
+            Manufacturer,
+            Person,
+            RewardType,
+            Series,
+            System,
+            Tag,
+            TechnologyGeneration,
+            TechnologySubgeneration,
+            Theme,
+            Title,
+        }
+        assert set(_cache_invalidating_models()) == expected
 
 
 class TestConditionalGet:
