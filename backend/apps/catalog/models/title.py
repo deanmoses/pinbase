@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MinValueValidator
@@ -50,7 +50,7 @@ class Title(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     # (each gets a ``status=deleted`` claim in the same ChangeSet). The DB FK
     # from MachineModel.title is PROTECT, which blocks hard deletion; the
     # cascade here is an application-layer rule over resolved ``status``.
-    soft_delete_cascade_relations = ("machine_models",)
+    soft_delete_cascade_relations: ClassVar[tuple[str, ...]] = ("machine_models",)
 
     opdb_id = models.CharField(
         max_length=50,

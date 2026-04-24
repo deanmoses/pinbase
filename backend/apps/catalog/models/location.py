@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower, Now
@@ -28,8 +30,8 @@ class Location(EntityStatusMixin, models.Model):
     are claim-controlled — pindata is the authoritative source.
     """
 
-    claims_exempt = frozenset({"location_path"})
-    claim_fk_lookups = {"parent": "location_path"}
+    claims_exempt: ClassVar[frozenset[str]] = frozenset({"location_path"})
+    claim_fk_lookups: ClassVar[dict[str, str]] = {"parent": "location_path"}
 
     created_at = models.DateTimeField(auto_now_add=True, db_default=Now())
     updated_at = models.DateTimeField(auto_now=True)

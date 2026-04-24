@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -39,7 +41,10 @@ class GameplayFeature(
 
     entity_type = "gameplay-feature"
     entity_type_plural = "gameplay-features"
-    soft_delete_usage_blockers = ("machine_models", "children")
+    soft_delete_usage_blockers: ClassVar[tuple[str, ...]] = (
+        "machine_models",
+        "children",
+    )
     MEDIA_CATEGORIES = ["other"]
     aliases: models.Manager[GameplayFeatureAlias]
     children: models.Manager[GameplayFeature]
