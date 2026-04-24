@@ -291,9 +291,9 @@ def resolve_media_attachments(
     if to_update:
         rows = EntityMedia.objects.in_bulk([update.row_pk for update in to_update])
         for update in to_update:
-            row = rows[update.row_pk]
-            row.category = update.category
-            row.is_primary = update.is_primary
+            media_row = rows[update.row_pk]
+            media_row.category = update.category
+            media_row.is_primary = update.is_primary
         EntityMedia.objects.bulk_update(
             list(rows.values()), ["category", "is_primary"], batch_size=2000
         )

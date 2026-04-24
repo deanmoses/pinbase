@@ -301,8 +301,8 @@ def resolve_all_gameplay_features(
     if to_update:
         rows = MachineModelGameplayFeature.objects.in_bulk([pk for pk, _ in to_update])
         for pk, count in to_update:
-            row = rows[pk]
-            row.count = count
+            mgf_row = rows[pk]
+            mgf_row.count = count
         MachineModelGameplayFeature.objects.bulk_update(
             list(rows.values()), ["count"], batch_size=2000
         )
@@ -394,8 +394,12 @@ def resolve_all_credits(
         all_model_ids = set(MachineModel.objects.values_list("pk", flat=True))
     existing_by_model: dict[int, set[CreditAssignment]] = {}
     dc_qs = Credit.objects.filter(model_id__in=all_model_ids)
-    for dc in dc_qs.values_list("model_id", "person_id", "role_id"):
-        existing_by_model.setdefault(dc[0], set()).add(CreditAssignment(dc[1], dc[2]))
+    for model_id, person_id, role_id in dc_qs.values_list(
+        "model_id", "person_id", "role_id"
+    ):
+        existing_by_model.setdefault(model_id, set()).add(
+            CreditAssignment(person_id, role_id)
+        )
 
     to_create: list[Credit] = []
     to_delete_pks: list[int] = []
@@ -413,10 +417,9 @@ def resolve_all_credits(
                 )
             )
 
-    for dc in Credit.objects.filter(model_id__in=all_model_ids).values_list(
-        "pk", "model_id", "person_id", "role_id"
-    ):
-        pk, model_id, person_id, role_id = dc
+    for pk, model_id, person_id, role_id in Credit.objects.filter(
+        model_id__in=all_model_ids
+    ).values_list("pk", "model_id", "person_id", "role_id"):
         desired = desired_by_model.get(model_id, set())
         if CreditAssignment(person_id, role_id) not in desired:
             to_delete_pks.append(pk)
@@ -474,10 +477,10 @@ def resolve_all_title_abbreviations(
         else set(Title.objects.values_list("pk", flat=True))
     )
     existing_by_title: dict[int, set[str]] = {}
-    for row in TitleAbbreviation.objects.filter(title_id__in=all_title_ids).values_list(
-        "title_id", "value"
-    ):
-        existing_by_title.setdefault(row[0], set()).add(row[1])
+    for title_id, value in TitleAbbreviation.objects.filter(
+        title_id__in=all_title_ids
+    ).values_list("title_id", "value"):
+        existing_by_title.setdefault(title_id, set()).add(value)
 
     to_create = []
     to_delete_pks: list[int] = []
@@ -489,10 +492,9 @@ def resolve_all_title_abbreviations(
         for value in desired - existing:
             to_create.append(TitleAbbreviation(title_id=title_id, value=value))
 
-    for row in TitleAbbreviation.objects.filter(title_id__in=all_title_ids).values_list(
-        "pk", "title_id", "value"
-    ):
-        pk, title_id, value = row
+    for pk, title_id, value in TitleAbbreviation.objects.filter(
+        title_id__in=all_title_ids
+    ).values_list("pk", "title_id", "value"):
         desired = desired_by_title.get(title_id, set())
         if value not in desired:
             to_delete_pks.append(pk)
@@ -577,10 +579,10 @@ def resolve_all_model_abbreviations(
             desired_by_model[model_id] -= title_abbrs
 
     existing_by_model: dict[int, set[str]] = {}
-    for row in ModelAbbreviation.objects.filter(
+    for model_id, value in ModelAbbreviation.objects.filter(
         machine_model_id__in=all_model_ids
     ).values_list("machine_model_id", "value"):
-        existing_by_model.setdefault(row[0], set()).add(row[1])
+        existing_by_model.setdefault(model_id, set()).add(value)
 
     to_create = []
     to_delete_pks: list[int] = []
@@ -592,10 +594,9 @@ def resolve_all_model_abbreviations(
         for value in desired - existing:
             to_create.append(ModelAbbreviation(machine_model_id=model_id, value=value))
 
-    for row in ModelAbbreviation.objects.filter(
+    for pk, model_id, value in ModelAbbreviation.objects.filter(
         machine_model_id__in=all_model_ids
     ).values_list("pk", "machine_model_id", "value"):
-        pk, model_id, value = row
         desired = desired_by_model.get(model_id, set())
         if value not in desired:
             to_delete_pks.append(pk)
