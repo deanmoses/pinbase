@@ -1144,7 +1144,7 @@ def title_delete_preview(request: HttpRequest, slug: str) -> TitleDeletePreviewS
 )
 def delete_title(
     request: HttpRequest, slug: str, data: TitleDeleteSchema
-) -> TitleDeleteResponseSchema | Status[dict[str, Any]]:
+) -> TitleDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a Title and cascade to its active MachineModels.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1163,16 +1163,16 @@ def delete_title(
     except SoftDeleteBlockedError as exc:
         return Status(
             422,
-            {
-                "detail": "Cannot delete: active references would be left dangling.",
-                "blocked_by": [serialize_blocking_referrer(b) for b in exc.blockers],
-            },
+            SoftDeleteBlockedSchema(
+                detail="Cannot delete: active references would be left dangling.",
+                blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+            ),
         )
 
     if changeset is None:
         # Already soft-deleted; shouldn't happen because of the .active()
         # fetch above, but guard anyway.
-        return Status(422, {"detail": "Title is already deleted."})
+        return Status(422, AlreadyDeletedSchema(detail="Title is already deleted."))
 
     affected_titles = [e.slug for e in deleted if isinstance(e, Title)]
     affected_models = [e.slug for e in deleted if isinstance(e, MachineModel)]
@@ -1195,7 +1195,7 @@ def delete_title(
 )
 def restore_title(
     request: HttpRequest, slug: str, data: TitleRestoreSchema
-) -> TitleDetailSchema | Status[dict[str, Any]]:
+) -> TitleDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Title.
 
     This is the "Restore" path (distinct from Undo, which inverts a
@@ -1209,7 +1209,7 @@ def restore_title(
     # Bypass .active() — we're looking for soft-deleted titles.
     title = get_object_or_404(Title, slug=slug)
     if title.status != "deleted":
-        return Status(422, {"detail": "Title is not deleted."})
+        return Status(422, ErrorDetailSchema(detail="Title is not deleted."))
 
     execute_claims(
         title,

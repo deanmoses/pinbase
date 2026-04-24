@@ -1048,7 +1048,7 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
 )
 def delete_model(
     request: HttpRequest, slug: str, data: ModelDeleteSchema
-) -> dict[str, Any] | Status[dict[str, Any]]:
+) -> ModelDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a MachineModel.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1068,19 +1068,19 @@ def delete_model(
     except SoftDeleteBlockedError as exc:
         return Status(
             422,
-            {
-                "detail": "Cannot delete: active references would be left dangling.",
-                "blocked_by": [serialize_blocking_referrer(b) for b in exc.blockers],
-            },
+            SoftDeleteBlockedSchema(
+                detail="Cannot delete: active references would be left dangling.",
+                blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+            ),
         )
 
     if changeset is None:
-        return Status(422, {"detail": "Model is already deleted."})
+        return Status(422, AlreadyDeletedSchema(detail="Model is already deleted."))
 
-    return {
-        "changeset_id": changeset.pk,
-        "affected_models": [e.slug for e in deleted if isinstance(e, MachineModel)],
-    }
+    return ModelDeleteResponseSchema(
+        changeset_id=changeset.pk,
+        affected_models=[e.slug for e in deleted if isinstance(e, MachineModel)],
+    )
 
 
 @models_router.post(
@@ -1095,7 +1095,7 @@ def delete_model(
 )
 def restore_model(
     request: HttpRequest, slug: str, data: ModelRestoreSchema
-) -> MachineModelDetailSchema | Status[dict[str, Any]]:
+) -> MachineModelDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Model.
 
     This is the "Restore" path (distinct from Undo, which inverts a specific
@@ -1107,7 +1107,7 @@ def restore_model(
     # Bypass .active() — we're looking for soft-deleted models.
     pm = get_object_or_404(MachineModel, slug=slug)
     if pm.status != "deleted":
-        return Status(422, {"detail": "Model is not deleted."})
+        return Status(422, ErrorDetailSchema(detail="Model is not deleted."))
 
     execute_claims(
         pm,

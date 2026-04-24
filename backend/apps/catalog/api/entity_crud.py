@@ -142,7 +142,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
     friendly = model_cls.entity_type.replace("-", " ")
     friendly_sentence = friendly.capitalize()
 
-    def _delete_preview(request: HttpRequest, slug: str) -> dict[str, Any]:
+    def _delete_preview(request: HttpRequest, slug: str) -> TaxonomyDeletePreviewSchema:
         obj = get_object_or_404(model_cls.objects.active(), slug=slug)
         plan = plan_soft_delete(obj)
 
@@ -160,15 +160,15 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
             parent_name = parent.name
             parent_slug = parent.slug
 
-        return {
-            "name": obj.name,
-            "slug": obj.slug,
-            "changeset_count": changeset_count,
-            "blocked_by": [serialize_blocking_referrer(b) for b in plan.blockers],
-            "active_children_count": active_children,
-            "parent_name": parent_name,
-            "parent_slug": parent_slug,
-        }
+        return TaxonomyDeletePreviewSchema(
+            name=obj.name,
+            slug=obj.slug,
+            changeset_count=changeset_count,
+            blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
+            active_children_count=active_children,
+            parent_name=parent_name,
+            parent_slug=parent_slug,
+        )
 
     _delete_preview.__name__ = f"{entity_label.lower()}_delete_preview"
     router.get(
@@ -180,7 +180,10 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
 
     def _delete(
         request: HttpRequest, slug: str, data: TaxonomyDeleteSchema
-    ) -> dict[str, Any] | Status[Any]:
+    ) -> (
+        TaxonomyDeleteResponseSchema
+        | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]
+    ):
         check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
         obj = get_object_or_404(model_cls.objects.active(), slug=slug)
@@ -195,16 +198,16 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
                 # form error and loses the structured state.
                 return Status(
                     422,
-                    {
-                        "detail": (
+                    SoftDeleteBlockedSchema(
+                        detail=(
                             f"Cannot delete: {obj.name} has {active_children} "
                             f"active child"
                             f"{'ren' if active_children != 1 else ''}. "
                             "Delete those first."
                         ),
-                        "blocked_by": [],
-                        "active_children_count": active_children,
-                    },
+                        blocked_by=[],
+                        active_children_count=active_children,
+                    ),
                 )
 
         try:
@@ -214,24 +217,23 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
         except SoftDeleteBlockedError as exc:
             return Status(
                 422,
-                {
-                    "detail": (
-                        "Cannot delete: active references would be left dangling."
-                    ),
-                    "blocked_by": [
-                        serialize_blocking_referrer(b) for b in exc.blockers
-                    ],
-                    "active_children_count": 0,
-                },
+                SoftDeleteBlockedSchema(
+                    detail=("Cannot delete: active references would be left dangling."),
+                    blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+                    active_children_count=0,
+                ),
             )
 
         if changeset is None:
-            return Status(422, {"detail": f"{friendly_sentence} is already deleted."})
+            return Status(
+                422,
+                AlreadyDeletedSchema(detail=f"{friendly_sentence} is already deleted."),
+            )
 
-        return {
-            "changeset_id": changeset.pk,
-            "affected_slugs": [e.slug for e in deleted if isinstance(e, model_cls)],
-        }
+        return TaxonomyDeleteResponseSchema(
+            changeset_id=changeset.pk,
+            affected_slugs=[e.slug for e in deleted if isinstance(e, model_cls)],
+        )
 
     _delete.__name__ = f"{entity_label.lower()}_delete"
     router.post(
@@ -246,20 +248,21 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
 
     def _restore(
         request: HttpRequest, slug: str, data: TaxonomyRestoreSchema
-    ) -> SchemaT | Status[Any]:
+    ) -> SchemaT | Status[ErrorDetailSchema]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
         # Bypass .active() — we're looking for soft-deleted rows.
         obj = get_object_or_404(model_cls, slug=slug)
         if obj.status != "deleted":
-            return Status(422, {"detail": f"{friendly_sentence} is not deleted."})
+            return Status(
+                422, ErrorDetailSchema(detail=f"{friendly_sentence} is not deleted.")
+            )
 
         if parent_field is not None:
             parent = getattr(obj, parent_field)
             if parent.status == "deleted":
                 return Status(
-                    422,
-                    {"detail": f"Restore {parent.name} first."},
+                    422, ErrorDetailSchema(detail=f"Restore {parent.name} first.")
                 )
 
         execute_claims(

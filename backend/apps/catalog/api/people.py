@@ -410,7 +410,10 @@ def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePrevie
 )
 def delete_person(
     request: HttpRequest, slug: str, data: PersonDeleteSchema
-) -> dict[str, Any] | Status[dict[str, Any]]:
+) -> (
+    PersonDeleteResponseSchema
+    | Status[PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema]
+):
     """Soft-delete a Person.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -427,16 +430,16 @@ def delete_person(
     if active_credits > 0:
         return Status(
             422,
-            {
-                "detail": (
+            PersonSoftDeleteBlockedSchema(
+                detail=(
                     f"Cannot delete: {person.name} is credited on "
                     f"{active_credits} active machine"
                     f"{'s' if active_credits != 1 else ''}. "
                     "Remove the credits first."
                 ),
-                "blocked_by": [],
-                "active_credit_count": active_credits,
-            },
+                blocked_by=[],
+                active_credit_count=active_credits,
+            ),
         )
 
     try:
@@ -446,20 +449,20 @@ def delete_person(
     except SoftDeleteBlockedError as exc:
         return Status(
             422,
-            {
-                "detail": "Cannot delete: active references would be left dangling.",
-                "blocked_by": [serialize_blocking_referrer(b) for b in exc.blockers],
-                "active_credit_count": 0,
-            },
+            PersonSoftDeleteBlockedSchema(
+                detail="Cannot delete: active references would be left dangling.",
+                blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+                active_credit_count=0,
+            ),
         )
 
     if changeset is None:
-        return Status(422, {"detail": "Person is already deleted."})
+        return Status(422, AlreadyDeletedSchema(detail="Person is already deleted."))
 
-    return {
-        "changeset_id": changeset.pk,
-        "affected_people": [e.slug for e in deleted if isinstance(e, Person)],
-    }
+    return PersonDeleteResponseSchema(
+        changeset_id=changeset.pk,
+        affected_people=[e.slug for e in deleted if isinstance(e, Person)],
+    )
 
 
 @people_router.post(
@@ -474,7 +477,7 @@ def delete_person(
 )
 def restore_person(
     request: HttpRequest, slug: str, data: PersonRestoreSchema
-) -> PersonDetailSchema | Status[dict[str, Any]]:
+) -> PersonDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Person.
 
     Shares the ``create`` rate-limit bucket (Restore is semantically a
@@ -485,7 +488,7 @@ def restore_person(
     # Bypass .active() — we're looking for soft-deleted people.
     person = get_object_or_404(Person, slug=slug)
     if person.status != "deleted":
-        return Status(422, {"detail": "Person is not deleted."})
+        return Status(422, ErrorDetailSchema(detail="Person is not deleted."))
 
     execute_claims(
         person,
