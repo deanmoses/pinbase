@@ -877,7 +877,10 @@ def resolve_all_corporate_entity_locations(
 
     desired: dict[int, set[int]] = defaultdict(set)
     for row in active_claims:
-        loc_pk = (row["value"] or {}).get("location")
+        val = row["value"] or {}
+        if not val.get("exists", True):
+            continue
+        loc_pk = val.get("location")
         if loc_pk and loc_pk in valid_loc_pks:
             desired[row["object_id"]].add(loc_pk)
 
