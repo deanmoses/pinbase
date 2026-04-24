@@ -4,9 +4,21 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
-from django.db.models import Count, F, Max, Min, OuterRef, Prefetch, Q, Subquery
+from django.db.models import (
+    Count,
+    F,
+    Max,
+    Min,
+    OuterRef,
+    Prefetch,
+    Q,
+    QuerySet,
+    Subquery,
+)
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -68,12 +80,15 @@ from .machine_models import (
     _serialize_model_detail,
 )
 from .schemas import (
+    AlreadyDeletedSchema,
     BlockingReferrerSchema,
     CreditSchema,
+    ErrorDetailSchema,
     GameplayFeatureSchema,
     ModelCreateSchema,
     Ref,
     SeriesRefSchema,
+    SoftDeleteBlockedSchema,
     ThemeSchema,
     TitleMachineSchema,
 )
@@ -236,34 +251,36 @@ def _assert_title_name_available(name: str, *, exclude_pk: int | None = None) ->
 # ---------------------------------------------------------------------------
 
 
-def _dedup_facet_refs(items) -> list[dict]:
+def _dedup_facet_refs(items: Iterable[tuple[str, str]]) -> list[Ref]:
     """Deduplicate {slug, name} pairs preserving insertion order."""
     seen: set[str] = set()
-    result: list[dict] = []
+    result: list[Ref] = []
     for slug, name in items:
         if slug and slug not in seen:
             seen.add(slug)
-            result.append({"slug": slug, "name": name})
+            result.append(Ref(slug=slug, name=name))
     return result
 
 
-def _serialize_title_list(title, *, min_rank: int | None = None) -> dict:
-    thumbnail_url = None
-    manufacturer = None
-    year = None
+def _serialize_title_list(
+    title: Title, *, min_rank: int | None = None
+) -> TitleListSchema:
+    thumbnail_url: str | None = None
+    manufacturer: Ref | None = None
+    year: int | None = None
     machines = list(title.machine_models.all())
 
     # Collect facet data from all non-variant models
-    tech_gen_pairs = []
-    display_type_pairs = []
+    tech_gen_pairs: list[tuple[str, str]] = []
+    display_type_pairs: list[tuple[str, str]] = []
     player_counts_set: set[int] = set()
-    system_pairs = []
-    theme_pairs = []
-    gameplay_feature_pairs = []
-    reward_type_pairs = []
-    person_pairs = []
-    years = []
-    ratings = []
+    system_pairs: list[tuple[str, str]] = []
+    theme_pairs: list[tuple[str, str]] = []
+    gameplay_feature_pairs: list[tuple[str, str]] = []
+    reward_type_pairs: list[tuple[str, str]] = []
+    person_pairs: list[tuple[str, str]] = []
+    years: list[int] = []
+    ratings: list[float] = []
 
     for m in machines:
         if m.technology_generation:
@@ -299,44 +316,45 @@ def _serialize_title_list(title, *, min_rank: int | None = None) -> dict:
             if first.corporate_entity and first.corporate_entity.manufacturer
             else None
         )
-        manufacturer = {"slug": mfr.slug, "name": mfr.name} if mfr else None
+        manufacturer = Ref(slug=mfr.slug, name=mfr.name) if mfr else None
         year = first.year
 
     # Franchise and Series (both FKs on Title)
-    franchise = None
+    franchise: Ref | None = None
     if title.franchise:
-        franchise = {"slug": title.franchise.slug, "name": title.franchise.name}
-    series = None
+        franchise = Ref(slug=title.franchise.slug, name=title.franchise.name)
+    series: Ref | None = None
     if title.series:
-        series = {"slug": title.series.slug, "name": title.series.name}
+        series = Ref(slug=title.series.slug, name=title.series.name)
 
-    return {
-        "name": title.name,
-        "slug": title.slug,
-        "abbreviations": [a.value for a in title.abbreviations.all()],
-        "model_count": title.model_count,
-        "manufacturer": manufacturer,
-        "year": year,
-        "thumbnail_url": thumbnail_url,
-        "tech_generations": _dedup_facet_refs(tech_gen_pairs),
-        "display_types": _dedup_facet_refs(display_type_pairs),
-        "player_counts": sorted(player_counts_set),
-        "systems": _dedup_facet_refs(system_pairs),
-        "themes": _dedup_facet_refs(theme_pairs),
-        "gameplay_features": _dedup_facet_refs(gameplay_feature_pairs),
-        "reward_types": _dedup_facet_refs(reward_type_pairs),
-        "persons": _dedup_facet_refs(person_pairs),
-        "franchise": franchise,
-        "series": series,
-        "year_min": min(years) if years else None,
-        "year_max": max(years) if years else None,
-        "ipdb_rating_max": max(ratings) if ratings else None,
-    }
+    return TitleListSchema(
+        name=title.name,
+        slug=title.slug,
+        abbreviations=[a.value for a in title.abbreviations.all()],
+        # model_count is a queryset .annotate() attribute, not on Title itself.
+        model_count=getattr(title, "model_count", 0),
+        manufacturer=manufacturer,
+        year=year,
+        thumbnail_url=thumbnail_url,
+        tech_generations=_dedup_facet_refs(tech_gen_pairs),
+        display_types=_dedup_facet_refs(display_type_pairs),
+        player_counts=sorted(player_counts_set),
+        systems=_dedup_facet_refs(system_pairs),
+        themes=_dedup_facet_refs(theme_pairs),
+        gameplay_features=_dedup_facet_refs(gameplay_feature_pairs),
+        reward_types=_dedup_facet_refs(reward_type_pairs),
+        persons=_dedup_facet_refs(person_pairs),
+        franchise=franchise,
+        series=series,
+        year_min=min(years) if years else None,
+        year_max=max(years) if years else None,
+        ipdb_rating_max=max(ratings) if ratings else None,
+    )
 
 
-def _build_review_links(title) -> list[dict]:
+def _build_review_links(title: Title) -> list[ReviewLinkSchema]:
     """Build external/internal review links for a needs_review title."""
-    links: list[dict] = []
+    links: list[ReviewLinkSchema] = []
 
     # Related titles by name match (only OPDB-backed ones).
     base_name = re.sub(r"\s*\([^)]*\)\s*$", "", title.name).strip()
@@ -347,18 +365,21 @@ def _build_review_links(title) -> list[dict]:
         .exclude(opdb_id__isnull=True)
     )
     for rt in related:
-        links.append({"label": rt.name, "url": f"/titles/{rt.slug}"})
+        links.append(ReviewLinkSchema(label=rt.name, url=f"/titles/{rt.slug}"))
         links.append(
-            {
-                "label": f"OPDB {rt.opdb_id}",
-                "url": f"https://opdb.org/machines/{rt.opdb_id}",
-            }
+            ReviewLinkSchema(
+                label=f"OPDB {rt.opdb_id}",
+                url=f"https://opdb.org/machines/{rt.opdb_id}",
+            )
         )
 
     return links
 
 
-def _agreed_value(models, accessor):
+def _agreed_value[T](
+    models: Sequence[MachineModel],
+    accessor: Callable[[MachineModel], T | None],
+) -> T | None:
     """Return a value if *every* model agrees, else None.
 
     *accessor* is called with each model and should return the value (or None
@@ -373,48 +394,29 @@ def _agreed_value(models, accessor):
     return first if all(v == first for v in values) else None
 
 
-def _compute_agreed_specs(models) -> dict:
+def _compute_agreed_specs(models: Sequence[MachineModel]) -> AgreedSpecsSchema:
     """Return spec fields that all *models* agree on."""
 
-    def _fk_pair(m, attr):
+    def _fk_pair(m: MachineModel, attr: str) -> tuple[str, str] | None:
         obj = getattr(m, attr, None)
         return (obj.name, obj.slug) if obj else None
 
-    specs: dict = {}
+    def _ref_for(attr: str) -> Ref | None:
+        def accessor(m: MachineModel) -> tuple[str, str] | None:
+            return _fk_pair(m, attr)
 
-    for key, attr in (
-        ("technology_generation", "technology_generation"),
-        ("technology_subgeneration", "technology_subgeneration"),
-        ("display_type", "display_type"),
-        ("system", "system"),
-        ("cabinet", "cabinet"),
-        ("game_format", "game_format"),
-        ("display_subtype", "display_subtype"),
-    ):
-        val = _agreed_value(models, lambda m, a=attr: _fk_pair(m, a))
-        if val:
-            specs[key] = {"name": val[0], "slug": val[1]}
-
-    pc = _agreed_value(models, lambda m: m.player_count)
-    if pc is not None:
-        specs["player_count"] = pc
-
-    fc = _agreed_value(models, lambda m: m.flipper_count)
-    if fc is not None:
-        specs["flipper_count"] = fc
-
-    pq = _agreed_value(models, lambda m: m.production_quantity or None)
-    if pq:
-        specs["production_quantity"] = pq
+        val = _agreed_value(models, accessor)
+        return Ref(name=val[0], slug=val[1]) if val else None
 
     # Themes: only roll up when every model has the same set.
     theme_sets = [frozenset((t.slug, t.name) for t in m.themes.all()) for m in models]
+    themes: list[ThemeSchema] = []
     if (
         theme_sets
         and all(ts for ts in theme_sets)
         and all(ts == theme_sets[0] for ts in theme_sets)
     ):
-        specs["themes"] = [{"name": n, "slug": s} for s, n in sorted(theme_sets[0])]
+        themes = [ThemeSchema(name=n, slug=s) for s, n in sorted(theme_sets[0])]
 
     # Gameplay features: intersection across all models (with count agreement).
     gf_maps: list[dict[str, tuple[str, int | None]]] = []
@@ -424,33 +426,43 @@ def _compute_agreed_specs(models) -> dict:
             gf_map[t.gameplayfeature.slug] = (t.gameplayfeature.name, t.count)
         gf_maps.append(gf_map)
 
+    gameplay_features: list[GameplayFeatureSchema] = []
     if gf_maps and all(gf_maps):
         common_slugs = set(gf_maps[0])
         for gf_map in gf_maps[1:]:
             common_slugs &= set(gf_map)
         if common_slugs:
-            result = []
             for slug in sorted(common_slugs):
                 name = gf_maps[0][slug][0]
                 counts = [gf_map[slug][1] for gf_map in gf_maps]
                 count = counts[0] if all(c == counts[0] for c in counts) else None
-                result.append({"slug": slug, "name": name, "count": count})
-            specs["gameplay_features"] = result
+                gameplay_features.append(
+                    GameplayFeatureSchema(slug=slug, name=name, count=count)
+                )
 
-    # Reward types: intersection across all models.
-    rt = _intersect_facet_sets(models, "reward_types")
-    if rt:
-        specs["reward_types"] = rt
+    pq = _agreed_value(models, lambda m: m.production_quantity or None)
 
-    # Tags: intersection across all models.
-    tags = _intersect_facet_sets(models, "tags")
-    if tags:
-        specs["tags"] = tags
+    return AgreedSpecsSchema(
+        technology_generation=_ref_for("technology_generation"),
+        technology_subgeneration=_ref_for("technology_subgeneration"),
+        display_type=_ref_for("display_type"),
+        system=_ref_for("system"),
+        cabinet=_ref_for("cabinet"),
+        game_format=_ref_for("game_format"),
+        display_subtype=_ref_for("display_subtype"),
+        player_count=_agreed_value(models, lambda m: m.player_count),
+        flipper_count=_agreed_value(models, lambda m: m.flipper_count),
+        production_quantity=pq or None,
+        themes=themes,
+        gameplay_features=gameplay_features,
+        reward_types=_intersect_facet_sets(models, "reward_types"),
+        tags=_intersect_facet_sets(models, "tags"),
+    )
 
-    return specs
 
-
-def _collect_related_titles(models, current_title) -> list[dict]:
+def _collect_related_titles(
+    models: Sequence[MachineModel], current_title: Title
+) -> list[CrossTitleLinkSchema]:
     """Collect cross-title ``converted_from`` / ``remake_of`` links.
 
     For each model under *current_title* that has a ``converted_from`` or
@@ -459,7 +471,7 @@ def _collect_related_titles(models, current_title) -> list[dict]:
     model under the current title.  Same-title relations (LE→Pro conversion,
     within-title remakes) are excluded — they are not cross-title content.
     """
-    items: list[dict] = []
+    items: list[CrossTitleLinkSchema] = []
     for m in models:
         for attr in ("converted_from", "remake_of"):
             other = getattr(m, attr, None)
@@ -468,48 +480,49 @@ def _collect_related_titles(models, current_title) -> list[dict]:
             if other.title_id == current_title.pk:
                 continue
             items.append(
-                {
-                    "relation": attr,
-                    "other_title": {
-                        "slug": other.title.slug,
-                        "name": other.title.name,
-                    },
-                    "source_model": {"slug": m.slug, "name": m.name},
-                }
+                CrossTitleLinkSchema(
+                    relation=attr,
+                    other_title=Ref(slug=other.title.slug, name=other.title.name),
+                    source_model=Ref(slug=m.slug, name=m.name),
+                )
             )
     return items
 
 
-def _collect_aggregated_media(models) -> list[dict]:
+def _collect_aggregated_media(
+    models: Sequence[MachineModel],
+) -> list[AggregatedMediaSchema]:
     """Collect uploaded media across all *models* (union), labeled with
     the source model each item came from."""
-    items: list[dict] = []
+    items: list[AggregatedMediaSchema] = []
     for m in models:
-        source_ref = {"slug": m.slug, "name": m.name}
+        source_ref = Ref(slug=m.slug, name=m.name)
         for em in all_media(m):
             items.append(
-                {
-                    "asset_uuid": str(em.asset.uuid),
-                    "category": em.category,
-                    "is_primary": em.is_primary,
-                    "uploaded_by_username": (
+                AggregatedMediaSchema(
+                    asset_uuid=str(em.asset.uuid),
+                    category=em.category,
+                    is_primary=em.is_primary,
+                    uploaded_by_username=(
                         em.asset.uploaded_by.username if em.asset.uploaded_by else None
                     ),
-                    "renditions": {
-                        "thumb": build_public_url(
+                    renditions=MediaRenditionsSchema(
+                        thumb=build_public_url(
                             build_storage_key(em.asset.uuid, "thumb")
                         ),
-                        "display": build_public_url(
+                        display=build_public_url(
                             build_storage_key(em.asset.uuid, "display")
                         ),
-                    },
-                    "source_model": source_ref,
-                }
+                    ),
+                    source_model=source_ref,
+                )
             )
     return items
 
 
-def _select_title_hero_image_url(models, *, min_rank: int) -> str | None:
+def _select_title_hero_image_url(
+    models: Sequence[MachineModel], *, min_rank: int
+) -> str | None:
     """Return the title hero from the earliest model with uploaded backglass media.
 
     Falls back to the earliest model's existing image-selection logic when no
@@ -531,12 +544,14 @@ def _select_title_hero_image_url(models, *, min_rank: int) -> str | None:
     return hero_image_url
 
 
-def _serialize_title_detail(title) -> dict:
+def _serialize_title_detail(title: Title) -> TitleDetailSchema:
     min_rank = get_minimum_display_rank()
     model_objs = list(title.machine_models.all())
     machines = [_serialize_title_machine(pm, min_rank=min_rank) for pm in model_objs]
     series = (
-        {"name": title.series.name, "slug": title.series.slug} if title.series else None
+        SeriesRefSchema(name=title.series.name, slug=title.series.slug)
+        if title.series
+        else None
     )
     review_links = _build_review_links(title) if title.needs_review else []
 
@@ -544,7 +559,7 @@ def _serialize_title_detail(title) -> dict:
 
     # Credits that appear on every model (intersection, not union).
     credit_sets = []
-    credit_data: dict[CreditKey, dict] = {}
+    credit_data: dict[CreditKey, CreditSchema] = {}
     for pm in model_objs:
         model_keys: set[CreditKey] = set()
         for c in pm.credits.all():
@@ -562,47 +577,49 @@ def _serialize_title_detail(title) -> dict:
         credits = []
 
     # Agreed specs across all models.
-    agreed_specs = _compute_agreed_specs(model_objs) if model_objs else {}
+    agreed_specs = (
+        _compute_agreed_specs(model_objs) if model_objs else AgreedSpecsSchema()
+    )
 
     # Cross-title links and aggregated media (union across all models).
     related_titles = _collect_related_titles(model_objs, title)
     media = _collect_aggregated_media(model_objs)
 
     # For single-model titles with no variants, include full model detail inline.
-    model_detail = None
-    if len(machines) == 1 and not machines[0].get("variants"):
-        pm = _model_detail_qs().get(slug=machines[0]["slug"])
+    model_detail: MachineModelDetailSchema | None = None
+    if len(machines) == 1 and not machines[0].variants:
+        pm = _model_detail_qs().get(slug=machines[0].slug)
         model_detail = _serialize_model_detail(pm)
 
     description = _build_rich_text(title, "description", active_claims(title))
 
-    return {
-        "name": title.name,
-        "slug": title.slug,
-        "opdb_id": title.opdb_id,
-        "fandom_page_id": title.fandom_page_id,
-        "abbreviations": [a.value for a in title.abbreviations.all()],
-        "description": description,
-        "needs_review": title.needs_review,
-        "needs_review_notes": title.needs_review_notes,
-        "review_links": review_links,
-        "hero_image_url": hero_image_url,
-        "franchise": (
-            {"slug": title.franchise.slug, "name": title.franchise.name}
+    return TitleDetailSchema(
+        name=title.name,
+        slug=title.slug,
+        opdb_id=title.opdb_id,
+        fandom_page_id=title.fandom_page_id,
+        abbreviations=[a.value for a in title.abbreviations.all()],
+        description=description,
+        needs_review=title.needs_review,
+        needs_review_notes=title.needs_review_notes,
+        review_links=review_links,
+        hero_image_url=hero_image_url,
+        franchise=(
+            Ref(slug=title.franchise.slug, name=title.franchise.name)
             if title.franchise
             else None
         ),
-        "machines": machines,
-        "series": series,
-        "credits": credits,
-        "agreed_specs": agreed_specs,
-        "related_titles": related_titles,
-        "media": media,
-        "model_detail": model_detail,
-    }
+        machines=machines,
+        series=series,
+        credits=credits,
+        agreed_specs=agreed_specs,
+        related_titles=related_titles,
+        media=media,
+        model_detail=model_detail,
+    )
 
 
-def _title_models_prefetch():
+def _title_models_prefetch() -> Prefetch[str, Any, str]:
     return Prefetch(
         "machine_models",
         queryset=MachineModel.objects.active()
@@ -639,15 +656,16 @@ def _title_models_prefetch():
     )
 
 
-def _detail_qs():
+def _detail_qs() -> QuerySet[Title]:
+    prefetches: list[str | Prefetch[Any, Any, Any]] = [
+        _title_models_prefetch(),
+        "abbreviations",
+        claims_prefetch(),
+    ]
     return (
         Title.objects.active()
         .select_related("franchise", "series")
-        .prefetch_related(
-            _title_models_prefetch(),
-            "abbreviations",
-            claims_prefetch(),
-        )
+        .prefetch_related(*prefetches)
     )
 
 
@@ -660,7 +678,7 @@ titles_router = Router(tags=["titles"])
 
 @titles_router.get("/", response=list[TitleListSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_titles(request, display: str = ""):
+def list_titles(request: HttpRequest, display: str = "") -> list[TitleListSchema]:
     qs = Title.objects.active().annotate(
         model_count=Count(
             "machine_models",
@@ -681,7 +699,7 @@ def list_titles(request, display: str = ""):
 
 @titles_router.get("/all/", response=list[TitleListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_titles(request):
+def list_all_titles(request: HttpRequest) -> HttpResponse:
     """Return every title with facet data for client-side filtering.
 
     Performance-critical: this serializes ~6k titles with facet arrays
@@ -851,24 +869,28 @@ def list_all_titles(request):
         model_persons[mid].append(SlugName(slug, name))
 
     # --- Assembly ---
-    result = []
+    # Build dicts directly (not TitleListSchema instances) — the cache stores
+    # JSON bytes, and this endpoint deliberately skips Schema construction to
+    # keep cold-cache rebuild fast (~5s prod vs ~30s via ORM hydration). The
+    # dict shape mirrors TitleListSchema; keep them in sync.
+    def _ref_dict(slug: str | None, name: str | None) -> dict[str, str | None] | None:
+        return {"slug": slug, "name": name} if slug else None
+
+    def _dedup_facet_dicts(
+        items: Iterable[tuple[str, str]],
+    ) -> list[dict[str, str]]:
+        seen: set[str] = set()
+        out: list[dict[str, str]] = []
+        for slug, name in items:
+            if slug and slug not in seen:
+                seen.add(slug)
+                out.append({"slug": slug, "name": name})
+        return out
+
+    result: list[dict[str, Any]] = []
     for r in title_rows:
         tid = r.id
         mids = title_model_map.get(tid, [])
-
-        mfr = (
-            {"slug": r.primary_mfr_slug, "name": r.primary_mfr_name}
-            if r.primary_mfr_slug
-            else None
-        )
-        franchise = (
-            {"slug": r.franchise_slug, "name": r.franchise_name}
-            if r.franchise_slug
-            else None
-        )
-        series = (
-            {"slug": r.series_slug, "name": r.series_name} if r.series_slug else None
-        )
 
         result.append(
             {
@@ -876,13 +898,13 @@ def list_all_titles(request):
                 "slug": r.slug,
                 "abbreviations": title_abbrevs.get(tid, []),
                 "model_count": r.model_count,
-                "manufacturer": mfr,
+                "manufacturer": _ref_dict(r.primary_mfr_slug, r.primary_mfr_name),
                 "year": r.primary_year,
                 "thumbnail_url": thumb_data.get(r.primary_model_id),
-                "tech_generations": _dedup_facet_refs(
+                "tech_generations": _dedup_facet_dicts(
                     model_tech_gen[mid] for mid in mids if mid in model_tech_gen
                 ),
-                "display_types": _dedup_facet_refs(
+                "display_types": _dedup_facet_dicts(
                     model_display[mid] for mid in mids if mid in model_display
                 ),
                 "player_counts": sorted(
@@ -892,23 +914,23 @@ def list_all_titles(request):
                         if (count := model_player_count.get(mid)) is not None
                     }
                 ),
-                "systems": _dedup_facet_refs(
+                "systems": _dedup_facet_dicts(
                     model_system[mid] for mid in mids if mid in model_system
                 ),
-                "themes": _dedup_facet_refs(
+                "themes": _dedup_facet_dicts(
                     p for mid in mids for p in model_themes.get(mid, [])
                 ),
-                "gameplay_features": _dedup_facet_refs(
+                "gameplay_features": _dedup_facet_dicts(
                     p for mid in mids for p in model_gf.get(mid, [])
                 ),
-                "reward_types": _dedup_facet_refs(
+                "reward_types": _dedup_facet_dicts(
                     p for mid in mids for p in model_rt.get(mid, [])
                 ),
-                "persons": _dedup_facet_refs(
+                "persons": _dedup_facet_dicts(
                     p for mid in mids for p in model_persons.get(mid, [])
                 ),
-                "franchise": franchise,
-                "series": series,
+                "franchise": _ref_dict(r.franchise_slug, r.franchise_name),
+                "series": _ref_dict(r.series_slug, r.series_name),
                 "year_min": r.year_min,
                 "year_max": r.latest_year,
                 "ipdb_rating_max": (
@@ -925,7 +947,9 @@ def list_all_titles(request):
     response=TitleDetailSchema,
     tags=["private"],
 )
-def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
+def patch_title_claims(
+    request: HttpRequest, slug: str, data: TitleClaimPatchSchema
+) -> TitleDetailSchema:
     """Assert title-owned claims and return the refreshed title detail."""
     if not data.fields and data.abbreviations is None:
         raise_form_error("No changes provided.")
@@ -973,7 +997,9 @@ def patch_title_claims(request, slug: str, data: TitleClaimPatchSchema):
     response={201: TitleDetailSchema},
     tags=["private"],
 )
-def create_title(request, data: TitleCreateSchema):
+def create_title(
+    request: HttpRequest, data: TitleCreateSchema
+) -> Status[TitleDetailSchema]:
     """Create a new Title from a user-supplied name and slug.
 
     Writes a user ChangeSet with ``action=create`` and three claims — name,
@@ -1013,7 +1039,9 @@ def create_title(request, data: TitleCreateSchema):
     response={201: MachineModelDetailSchema},
     tags=["private"],
 )
-def create_model(request, title_slug: str, data: ModelCreateSchema):
+def create_model(
+    request: HttpRequest, title_slug: str, data: ModelCreateSchema
+) -> Status[MachineModelDetailSchema]:
     """Create a new MachineModel under an existing Title.
 
     Writes a user ChangeSet with ``action=create`` and four claims — name,
@@ -1079,7 +1107,7 @@ def create_model(request, title_slug: str, data: ModelCreateSchema):
     response=TitleDeletePreviewSchema,
     tags=["private"],
 )
-def title_delete_preview(request, slug: str):
+def title_delete_preview(request: HttpRequest, slug: str) -> TitleDeletePreviewSchema:
     """Return the impact summary used by the delete confirmation screen.
 
     Includes counts for active child models and user ChangeSets that touch
@@ -1096,22 +1124,27 @@ def title_delete_preview(request, slug: str):
     changeset_count = (
         0 if plan.is_blocked else count_entity_changesets(*plan.entities_to_delete)
     )
-    return {
-        "title_name": title.name,
-        "title_slug": title.slug,
-        "active_model_count": len(model_pks),
-        "changeset_count": changeset_count,
-        "blocked_by": [serialize_blocking_referrer(b) for b in plan.blockers],
-    }
+    return TitleDeletePreviewSchema(
+        title_name=title.name,
+        title_slug=title.slug,
+        active_model_count=len(model_pks),
+        changeset_count=changeset_count,
+        blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
+    )
 
 
 @titles_router.post(
     "/{slug}/delete/",
     auth=django_auth,
-    response={200: TitleDeleteResponseSchema, 422: dict},
+    response={
+        200: TitleDeleteResponseSchema,
+        422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
+    },
     tags=["private"],
 )
-def delete_title(request, slug: str, data: TitleDeleteSchema):
+def delete_title(
+    request: HttpRequest, slug: str, data: TitleDeleteSchema
+) -> TitleDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a Title and cascade to its active MachineModels.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1130,33 +1163,39 @@ def delete_title(request, slug: str, data: TitleDeleteSchema):
     except SoftDeleteBlockedError as exc:
         return Status(
             422,
-            {
-                "detail": "Cannot delete: active references would be left dangling.",
-                "blocked_by": [serialize_blocking_referrer(b) for b in exc.blockers],
-            },
+            SoftDeleteBlockedSchema(
+                detail="Cannot delete: active references would be left dangling.",
+                blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+            ),
         )
 
     if changeset is None:
         # Already soft-deleted; shouldn't happen because of the .active()
         # fetch above, but guard anyway.
-        return Status(422, {"detail": "Title is already deleted."})
+        return Status(422, AlreadyDeletedSchema(detail="Title is already deleted."))
 
     affected_titles = [e.slug for e in deleted if isinstance(e, Title)]
     affected_models = [e.slug for e in deleted if isinstance(e, MachineModel)]
-    return {
-        "changeset_id": changeset.pk,
-        "affected_titles": affected_titles,
-        "affected_models": affected_models,
-    }
+    return TitleDeleteResponseSchema(
+        changeset_id=changeset.pk,
+        affected_titles=affected_titles,
+        affected_models=affected_models,
+    )
 
 
 @titles_router.post(
     "/{slug}/restore/",
     auth=django_auth,
-    response={200: TitleDetailSchema, 422: dict, 404: dict},
+    response={
+        200: TitleDetailSchema,
+        422: ErrorDetailSchema,
+        404: ErrorDetailSchema,
+    },
     tags=["private"],
 )
-def restore_title(request, slug: str, data: TitleRestoreSchema):
+def restore_title(
+    request: HttpRequest, slug: str, data: TitleRestoreSchema
+) -> TitleDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Title.
 
     This is the "Restore" path (distinct from Undo, which inverts a
@@ -1170,7 +1209,7 @@ def restore_title(request, slug: str, data: TitleRestoreSchema):
     # Bypass .active() — we're looking for soft-deleted titles.
     title = get_object_or_404(Title, slug=slug)
     if title.status != "deleted":
-        return Status(422, {"detail": "Title is not deleted."})
+        return Status(422, ErrorDetailSchema(detail="Title is not deleted."))
 
     execute_claims(
         title,

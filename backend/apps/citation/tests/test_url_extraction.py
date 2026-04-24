@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
+from apps.citation.extractors import Recognition, RecognitionChild
 from apps.citation.safe_fetch import FetchResponse, SSRFBlockedError
 from apps.citation.url_extraction import PageMeta, extract_url, parse_page_meta
 
@@ -258,12 +259,10 @@ class TestExtractUrlRecognition:
     @patch("apps.citation.url_extraction.recognize_url")
     def test_child_match_returns_match(self, mock_rec):
         """Recognition finds a specific child → return match directly."""
-        mock_rec.return_value = MagicMock(
-            child_id=42,
-            child_name="IPDB #4836",
-            child_skip_locator=True,
+        mock_rec.return_value = Recognition(
             parent_id=20,
             parent_name="IPDB",
+            child=RecognitionChild(id=42, name="IPDB #4836", skip_locator=True),
         )
         result = extract_url("https://www.ipdb.org/machine.cgi?id=4836")
         assert result.match == {"id": 42, "name": "IPDB #4836", "skip_locator": True}
@@ -273,9 +272,8 @@ class TestExtractUrlRecognition:
     @patch("apps.citation.url_extraction.recognize_url")
     @patch("apps.citation.url_extraction.cache")
     def test_domain_only_match_ignored(self, mock_cache, mock_rec, mock_fetch):
-        """Domain-only recognition (no child_id) proceeds to fetch."""
-        mock_rec.return_value = MagicMock(
-            child_id=None,
+        """Domain-only recognition (no child) proceeds to fetch."""
+        mock_rec.return_value = Recognition(
             parent_id=30,
             parent_name="Jersey Jack",
         )

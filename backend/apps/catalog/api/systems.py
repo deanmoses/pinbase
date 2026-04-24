@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import cast
 
-from django.db.models import Count, F, Max, Prefetch, Q
+from django.db import models
+from django.db.models import Count, F, Max, Prefetch, Q, QuerySet
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -85,7 +87,7 @@ class SystemDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _system_detail_qs():
+def _system_detail_qs() -> QuerySet[System]:
     return (
         System.objects.active()
         .select_related("manufacturer", "technology_subgeneration")
@@ -102,9 +104,9 @@ def _system_detail_qs():
     )
 
 
-def _serialize_system_detail(system) -> dict:
+def _serialize_system_detail(system: System) -> SystemDetailSchema:
     min_rank = get_minimum_display_rank()
-    titles: dict[str, dict] = {}
+    titles: dict[str, RelatedTitleSchema] = {}
     for m in system.machine_models.all():
         if m.title is None:
             continue
@@ -118,51 +120,52 @@ def _serialize_system_detail(system) -> dict:
                 if m.corporate_entity and m.corporate_entity.manufacturer
                 else None
             )
-            titles[key] = {
-                "name": m.title.name,
-                "slug": m.title.slug,
-                "year": m.year,
-                "manufacturer_name": mfr.name if mfr else None,
-                "thumbnail_url": thumbnail_url,
-            }
-        elif titles[key]["thumbnail_url"] is None:
+            titles[key] = RelatedTitleSchema(
+                name=m.title.name,
+                slug=m.title.slug,
+                year=m.year,
+                manufacturer_name=mfr.name if mfr else None,
+                thumbnail_url=thumbnail_url,
+            )
+        elif titles[key].thumbnail_url is None:
             thumbnail_url = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)[
                 0
             ]
             if thumbnail_url:
-                titles[key]["thumbnail_url"] = thumbnail_url
+                titles[key].thumbnail_url = thumbnail_url
 
-    sibling_systems = []
+    sibling_systems: list[SiblingSystemSchema] = []
     if system.manufacturer:
-        sibling_systems = list(
-            System.objects.active()
+        sibling_systems = [
+            SiblingSystemSchema(name=row["name"], slug=row["slug"])
+            for row in System.objects.active()
             .filter(manufacturer=system.manufacturer)
             .exclude(pk=system.pk)
             .annotate(latest_year=Max("machine_models__year"))
             .order_by(F("latest_year").desc(nulls_last=True), "name")
             .values("name", "slug")
-        )
+        ]
 
-    return {
-        "name": system.name,
-        "slug": system.slug,
-        "description": _build_rich_text(system, "description", active_claims(system)),
-        "manufacturer": (
-            {"name": system.manufacturer.name, "slug": system.manufacturer.slug}
+    return SystemDetailSchema(
+        name=system.name,
+        slug=system.slug,
+        description=_build_rich_text(system, "description", active_claims(system)),
+        manufacturer=(
+            Ref(name=system.manufacturer.name, slug=system.manufacturer.slug)
             if system.manufacturer
             else None
         ),
-        "technology_subgeneration": (
-            {
-                "name": system.technology_subgeneration.name,
-                "slug": system.technology_subgeneration.slug,
-            }
+        technology_subgeneration=(
+            Ref(
+                name=system.technology_subgeneration.name,
+                slug=system.technology_subgeneration.slug,
+            )
             if system.technology_subgeneration
             else None
         ),
-        "titles": list(titles.values()),
-        "sibling_systems": sibling_systems,
-    }
+        titles=list(titles.values()),
+        sibling_systems=sibling_systems,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +177,7 @@ systems_router = Router(tags=["systems"])
 
 @systems_router.get("/all/", response=list[SystemListSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_systems(request):
+def list_all_systems(request: HttpRequest) -> list[SystemListSchema]:
     """Return every system with machine count (no pagination)."""
     qs = (
         System.objects.active()
@@ -189,16 +192,16 @@ def list_all_systems(request):
         .order_by("name")
     )
     return [
-        {
-            "name": s.name,
-            "slug": s.slug,
-            "manufacturer": (
-                {"name": s.manufacturer.name, "slug": s.manufacturer.slug}
+        SystemListSchema(
+            name=s.name,
+            slug=s.slug,
+            manufacturer=(
+                Ref(name=s.manufacturer.name, slug=s.manufacturer.slug)
                 if s.manufacturer
                 else None
             ),
-            "model_count": cast(HasModelCount, s).model_count,
-        }
+            model_count=cast(HasModelCount, s).model_count,
+        )
         for s in qs
     ]
 
@@ -206,7 +209,9 @@ def list_all_systems(request):
 @systems_router.patch(
     "/{slug}/claims/", auth=django_auth, response=SystemDetailSchema, tags=["private"]
 )
-def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_system_claims(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> SystemDetailSchema:
     """Assert per-field claims from the authenticated user, then re-resolve."""
     system = get_object_or_404(System.objects.active(), slug=slug)
     specs = plan_scalar_field_claims(System, data.fields, entity=system)
@@ -230,7 +235,9 @@ def patch_system_claims(request, slug: str, data: ClaimPatchSchema):
     response={201: SystemDetailSchema},
     tags=["private"],
 )
-def create_system(request, data: SystemCreateSchema):
+def create_system(
+    request: HttpRequest, data: SystemCreateSchema
+) -> Status[SystemDetailSchema]:
     """Create a new System.
 
     Required fields: ``name``, ``slug``, ``manufacturer_slug``. Optional
@@ -243,8 +250,10 @@ def create_system(request, data: SystemCreateSchema):
     """
     check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
-    name_max = System._meta.get_field("name").max_length
-    name = validate_name(data.name, max_length=name_max)
+    name_field = System._meta.get_field("name")
+    assert isinstance(name_field, models.Field)
+    assert name_field.max_length is not None
+    name = validate_name(data.name, max_length=name_field.max_length)
     slug = validate_slug_format(data.slug)
 
     manufacturer_slug = (data.manufacturer_slug or "").strip()

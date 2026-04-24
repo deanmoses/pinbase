@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from django.db.models import Prefetch
+from collections.abc import Iterable, Sequence
+from typing import Any
+
+from django.db.models import Model, Prefetch
 
 from apps.core.licensing import (
     UNKNOWN_LICENSE_RANK,
@@ -10,29 +13,56 @@ from apps.core.licensing import (
     get_minimum_display_rank,
     resolve_effective_license,
 )
-from apps.core.markdown import render_markdown_fields
+from apps.core.markdown import render_markdown_field
 from apps.core.markdown_links import convert_storage_to_authoring
+from apps.core.types import JsonData
 from apps.media.models import EntityMedia
+from apps.media.schemas import MediaRenditionsSchema, UploadedMediaSchema
 from apps.media.storage import build_public_url, build_storage_key
+from apps.provenance.models import Claim
+from apps.provenance.schemas import (
+    AttributionSchema,
+    InlineCitationSchema,
+    RichTextSchema,
+)
 
-from ..models import GameplayFeature
+from ..models import (
+    CorporateEntity,
+    Credit,
+    GameplayFeature,
+    Location,
+    MachineModel,
+    Title,
+)
+from .schemas import (
+    CorporateEntityLocationAncestorRef,
+    CorporateEntityLocationSchema,
+    CreditSchema,
+    Ref,
+    RelatedTitleSchema,
+    TitleMachineSchema,
+    TitleMachineVariantSchema,
+    TitleRefSchema,
+)
 
 # ---------------------------------------------------------------------------
 # Generic serialization helpers
 # ---------------------------------------------------------------------------
 
 
-def _serialize_credit(credit) -> dict:
-    """Serialize a Credit row into the standard CreditSchema-shaped dict."""
-    return {
-        "person": {"name": credit.person.name, "slug": credit.person.slug},
-        "role": credit.role.slug,
-        "role_display": credit.role.name,
-        "role_sort_order": credit.role.display_order,
-    }
+def _serialize_credit(credit: Credit) -> CreditSchema:
+    """Serialize a Credit row into a CreditSchema."""
+    return CreditSchema(
+        person=Ref(name=credit.person.name, slug=credit.person.slug),
+        role=credit.role.slug,
+        role_display=credit.role.name,
+        role_sort_order=credit.role.display_order,
+    )
 
 
-def _first_thumbnail(entities_with_models, *, min_rank: int) -> str | None:
+def _first_thumbnail(
+    entities_with_models: Iterable[CorporateEntity], *, min_rank: int
+) -> str | None:
     """Return the first non-None thumbnail URL from nested entity→model prefetches."""
     for entity in entities_with_models:
         for model in entity.models.all():
@@ -43,7 +73,7 @@ def _first_thumbnail(entities_with_models, *, min_rank: int) -> str | None:
     return None
 
 
-def _intersect_facet_sets(models, relation_name: str) -> list[dict]:
+def _intersect_facet_sets(models: Iterable[Model], relation_name: str) -> list[Ref]:
     """Return the intersection of a slug/name M2M across all *models*.
 
     Each model's related set is collected as ``frozenset((slug, name))``.
@@ -59,10 +89,12 @@ def _intersect_facet_sets(models, relation_name: str) -> list[dict]:
     common = sets[0]
     for s in sets[1:]:
         common &= s
-    return [{"slug": s, "name": n} for s, n in sorted(common)] if common else []
+    return [Ref(slug=s, name=n) for s, n in sorted(common)] if common else []
 
 
-def _serialize_title_ref(title, *, min_rank: int | None = None) -> dict:
+def _serialize_title_ref(
+    title: Title, *, min_rank: int | None = None
+) -> TitleRefSchema:
     """Serialize a Title for use in franchise/series listing context.
 
     Expects *title* to have prefetched ``machine_models`` (with
@@ -83,15 +115,16 @@ def _serialize_title_ref(title, *, min_rank: int | None = None) -> dict:
             else None
         )
         year = first.year
-    return {
-        "name": title.name,
-        "slug": title.slug,
-        "abbreviations": [a.value for a in title.abbreviations.all()],
-        "model_count": title.model_count,
-        "manufacturer_name": manufacturer_name,
-        "year": year,
-        "thumbnail_url": thumbnail_url,
-    }
+    return TitleRefSchema(
+        name=title.name,
+        slug=title.slug,
+        abbreviations=[a.value for a in title.abbreviations.all()],
+        # model_count is a queryset .annotate() attribute, not on Title itself.
+        model_count=getattr(title, "model_count", 0),
+        manufacturer_name=manufacturer_name,
+        year=year,
+        thumbnail_url=thumbnail_url,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +132,11 @@ def _serialize_title_ref(title, *, min_rank: int | None = None) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _media_prefetch():
+# Slot 2 is Any because prefetch_related has a single _PrefetchedQuerySetT
+# TypeVar it must unify across all heterogeneous Prefetch args at the call
+# site; any concrete queryset type here breaks that unification. The Any
+# is an artifact of django-stubs' API design, not lost information.
+def _media_prefetch() -> Prefetch[str, Any, str]:
     """Return a Prefetch for ready EntityMedia with assets."""
     return Prefetch(
         "entity_media",
@@ -110,28 +147,30 @@ def _media_prefetch():
     )
 
 
-def _serialize_uploaded_media(all_media) -> list[dict]:
+def _serialize_uploaded_media(
+    all_media: Iterable[EntityMedia],
+) -> list[UploadedMediaSchema]:
     """Serialize EntityMedia rows into the uploaded_media response list."""
     return [
-        {
-            "asset_uuid": str(em.asset.uuid),
-            "category": em.category,
-            "is_primary": em.is_primary,
-            "uploaded_by_username": (
+        UploadedMediaSchema(
+            asset_uuid=str(em.asset.uuid),
+            category=em.category,
+            is_primary=em.is_primary,
+            uploaded_by_username=(
                 em.asset.uploaded_by.username if em.asset.uploaded_by else None
             ),
-            "renditions": {
-                "thumb": build_public_url(build_storage_key(em.asset.uuid, "thumb")),
-                "display": build_public_url(
-                    build_storage_key(em.asset.uuid, "display")
-                ),
-            },
-        }
+            renditions=MediaRenditionsSchema(
+                thumb=build_public_url(build_storage_key(em.asset.uuid, "thumb")),
+                display=build_public_url(build_storage_key(em.asset.uuid, "display")),
+            ),
+        )
         for em in all_media
     ]
 
 
-def _uploaded_image_urls(primary_media) -> tuple[str | None, str | None]:
+def _uploaded_image_urls(
+    primary_media: Sequence[EntityMedia] | None,
+) -> tuple[str | None, str | None]:
     """Return (thumbnail_url, hero_image_url) from prefetched EntityMedia.
 
     Prefers ``backglass`` category, then falls back to any primary.
@@ -156,8 +195,8 @@ def _uploaded_image_urls(primary_media) -> tuple[str | None, str | None]:
 
 
 def _extract_image_urls(
-    extra_data: dict,
-    primary_media=None,
+    extra_data: JsonData,
+    primary_media: Sequence[EntityMedia] | None = None,
     *,
     min_rank: int | None = None,
 ) -> tuple[str | None, str | None]:
@@ -180,7 +219,7 @@ def _extract_image_urls(
 
     def _rank_ok(key: str) -> bool:
         rank = extra_data.get(f"{key}.__permissiveness_rank")
-        effective = rank if rank is not None else UNKNOWN_LICENSE_RANK
+        effective = rank if isinstance(rank, int) else UNKNOWN_LICENSE_RANK
         return effective >= min_rank
 
     def _abs(url: str | None) -> str | None:
@@ -217,8 +256,11 @@ def _extract_image_urls(
     return None, None
 
 
-def _extract_image_attribution(extra_data: dict, primary_media=None) -> dict | None:
-    """Return AttributionSchema-shaped dict for the displayed image, or None.
+def _extract_image_attribution(
+    extra_data: JsonData,
+    primary_media: Sequence[EntityMedia] | None = None,
+) -> AttributionSchema | None:
+    """Return AttributionSchema for the displayed image, or None.
 
     When uploaded media is being used (determined by *primary_media*), returns
     ``None`` — no third-party license to cite.  Otherwise checks each external
@@ -235,19 +277,26 @@ def _extract_image_attribution(extra_data: dict, primary_media=None) -> dict | N
         data = extra_data.get(key)
         if not data:
             continue
-        rank = extra_data.get(f"{key}.__permissiveness_rank")
+        rank_raw = extra_data.get(f"{key}.__permissiveness_rank")
+        rank = rank_raw if isinstance(rank_raw, int) else None
         effective = rank if rank is not None else UNKNOWN_LICENSE_RANK
         if effective >= min_rank:
-            return {
-                "license_slug": extra_data.get(f"{key}.__license_slug"),
-                "permissiveness_rank": rank,
-            }
+            license_slug_raw = extra_data.get(f"{key}.__license_slug")
+            license_slug = (
+                license_slug_raw if isinstance(license_slug_raw, str) else None
+            )
+            return AttributionSchema(
+                license_slug=license_slug,
+                permissiveness_rank=rank,
+            )
 
     return None
 
 
-def _extract_description_attribution(active_claims) -> dict | None:
-    """Return AttributionSchema-shaped dict for the winning description claim, or None.
+def _extract_description_attribution(
+    active_claims: Iterable[Claim],
+) -> AttributionSchema | None:
+    """Return AttributionSchema for the winning description claim, or None.
 
     Expects active_claims to be ordered by claim_key, -priority, -created_at
     (the standard prefetch ordering).
@@ -258,24 +307,28 @@ def _extract_description_attribution(active_claims) -> dict | None:
             if sfl_map is None:
                 sfl_map = build_source_field_license_map()
             lic = resolve_effective_license(claim, sfl_map)
-            return {
-                "license_slug": lic.slug if lic else None,
-                "license_name": lic.short_name if lic else None,
-                "license_url": lic.url if lic else None,
-                "permissiveness_rank": (lic.permissiveness_rank if lic else None),
-                "requires_attribution": (lic.requires_attribution if lic else False),
-                "source_name": claim.source.name if claim.source else None,
-                "source_url": claim.source.url if claim.source else None,
-                "attribution_text": claim.citation or None,
-            }
+            return AttributionSchema(
+                license_slug=lic.slug if lic else None,
+                license_name=lic.short_name if lic else None,
+                license_url=lic.url if lic else None,
+                permissiveness_rank=lic.permissiveness_rank if lic else None,
+                requires_attribution=lic.requires_attribution if lic else False,
+                source_name=claim.source.name if claim.source else None,
+                source_url=claim.source.url if claim.source else None,
+                attribution_text=claim.citation or None,
+            )
     return None
 
 
-def _build_rich_text(obj, field_name: str, active_claims=None) -> dict:
-    """Build a RichTextSchema-shaped dict for a text field with attribution.
+def _build_rich_text(
+    obj: Model,
+    field_name: str,
+    active_claims: Iterable[Claim] | None = None,
+) -> RichTextSchema:
+    """Build a RichTextSchema for a text field with attribution.
 
     Reads the raw text from obj.{field_name}, renders HTML via
-    render_markdown_fields, and extracts attribution from the winning claim.
+    render_markdown_field, and extracts attribution from the winning claim.
 
     The ``text`` value is returned in authoring format (``[[type:slug]]``)
     so edit forms show human-readable link references.  The ``html`` value
@@ -283,26 +336,27 @@ def _build_rich_text(obj, field_name: str, active_claims=None) -> dict:
     """
     raw_text = getattr(obj, field_name, "") or ""
     text = convert_storage_to_authoring(raw_text) if raw_text else raw_text
-    html_fields = render_markdown_fields(obj)
-    html = html_fields.get(f"{field_name}_html", "")
-    citations = html_fields.get(f"{field_name}_citations", [])
+    rendered = render_markdown_field(obj, field_name)
+    citations = [InlineCitationSchema.model_validate(c) for c in rendered.citations]
 
     attribution = None
     if active_claims is not None:
         attribution = _extract_description_attribution(active_claims)
 
-    return {
-        "text": text,
-        "html": html,
-        "citations": citations,
-        "attribution": attribution,
-    }
+    return RichTextSchema(
+        text=text,
+        html=rendered.html,
+        citations=citations,
+        attribution=attribution,
+    )
 
 
-def _collect_titles(models, *, include_manufacturer: bool = False) -> list[dict]:
+def _collect_titles(
+    models: Iterable[MachineModel], *, include_manufacturer: bool = False
+) -> list[RelatedTitleSchema]:
     """Group models by title into a deduplicated title list."""
     min_rank = get_minimum_display_rank()
-    titles: dict[str, dict] = {}
+    titles: dict[str, RelatedTitleSchema] = {}
     for m in models:
         if m.title is None:
             continue
@@ -311,59 +365,62 @@ def _collect_titles(models, *, include_manufacturer: bool = False) -> list[dict]
             thumbnail_url = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)[
                 0
             ]
-            entry: dict = {
-                "name": m.title.name,
-                "slug": m.title.slug,
-                "year": m.year,
-                "thumbnail_url": thumbnail_url,
-            }
+            manufacturer_name = None
             if include_manufacturer:
                 mfr = (
                     m.corporate_entity.manufacturer
                     if m.corporate_entity and m.corporate_entity.manufacturer
                     else None
                 )
-                entry["manufacturer_name"] = mfr.name if mfr else None
-            titles[key] = entry
-        elif titles[key]["thumbnail_url"] is None:
+                manufacturer_name = mfr.name if mfr else None
+            titles[key] = RelatedTitleSchema(
+                name=m.title.name,
+                slug=m.title.slug,
+                year=m.year,
+                thumbnail_url=thumbnail_url,
+                manufacturer_name=manufacturer_name,
+            )
+        elif titles[key].thumbnail_url is None:
             thumbnail_url = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)[
                 0
             ]
             if thumbnail_url:
-                titles[key]["thumbnail_url"] = thumbnail_url
-    return sorted(titles.values(), key=lambda t: (t["year"] is None, -(t["year"] or 0)))
+                titles[key].thumbnail_url = thumbnail_url
+    return sorted(titles.values(), key=lambda t: (t.year is None, -(t.year or 0)))
 
 
-def _location_ancestors(loc) -> list[dict]:
+def _location_ancestors(loc: Location) -> list[CorporateEntityLocationAncestorRef]:
     """Return ancestor locations from immediate parent up to root, in order."""
-    ancestors = []
+    ancestors: list[CorporateEntityLocationAncestorRef] = []
     current = loc.parent
     while current is not None:
         ancestors.append(
-            {
-                "display_name": current.short_name or current.name,
-                "location_path": current.location_path,
-            }
+            CorporateEntityLocationAncestorRef(
+                display_name=current.short_name or current.name,
+                location_path=current.location_path,
+            )
         )
         current = current.parent
     return ancestors
 
 
-def _serialize_locations(entity) -> list[dict]:
+def _serialize_locations(
+    entity: CorporateEntity,
+) -> list[CorporateEntityLocationSchema]:
     """Serialize CorporateEntityLocation rows with ancestor chains."""
     return [
-        {
-            "location_path": cel.location.location_path,
-            "location_type": cel.location.location_type,
-            "display_name": cel.location.short_name or cel.location.name,
-            "slug": cel.location.slug,
-            "ancestors": _location_ancestors(cel.location),
-        }
+        CorporateEntityLocationSchema(
+            location_path=cel.location.location_path,
+            location_type=cel.location.location_type,
+            display_name=cel.location.short_name or cel.location.name,
+            slug=cel.location.slug,
+            ancestors=_location_ancestors(cel.location),
+        )
         for cel in entity.locations.all()
     ]
 
 
-def _extract_variant_features(extra_data: dict) -> list[str]:
+def _extract_variant_features(extra_data: JsonData) -> list[str]:
     """Return variant feature list from extra_data variant_features claim."""
     features = extra_data.get("opdb.variant_features")
     if not features or not isinstance(features, list):
@@ -395,7 +452,9 @@ def _get_feature_descendant_slugs(slug: str) -> set[str]:
     return result
 
 
-def _serialize_title_machine(pm, *, min_rank: int | None = None) -> dict:
+def _serialize_title_machine(
+    pm: MachineModel, *, min_rank: int | None = None
+) -> TitleMachineSchema:
     """Serialize a MachineModel for use in title/theme/system machine lists."""
     if min_rank is None:
         min_rank = get_minimum_display_rank()
@@ -409,14 +468,12 @@ def _serialize_title_machine(pm, *, min_rank: int | None = None) -> dict:
         else []
     )
     variants = [
-        {
-            "name": v.name,
-            "slug": v.slug,
-            "year": v.year,
-            "thumbnail_url": _extract_image_urls(v.extra_data or {}, min_rank=min_rank)[
-                0
-            ],
-        }
+        TitleMachineVariantSchema(
+            name=v.name,
+            slug=v.slug,
+            year=v.year,
+            thumbnail_url=_extract_image_urls(v.extra_data or {}, min_rank=min_rank)[0],
+        )
         for v in variant_qs
     ]
 
@@ -425,14 +482,14 @@ def _serialize_title_machine(pm, *, min_rank: int | None = None) -> dict:
         if pm.corporate_entity and pm.corporate_entity.manufacturer
         else None
     )
-    return {
-        "name": pm.name,
-        "slug": pm.slug,
-        "year": pm.year,
-        "manufacturer": {"name": mfr.name, "slug": mfr.slug} if mfr else None,
-        "technology_generation_name": (
+    return TitleMachineSchema(
+        name=pm.name,
+        slug=pm.slug,
+        year=pm.year,
+        manufacturer=Ref(name=mfr.name, slug=mfr.slug) if mfr else None,
+        technology_generation_name=(
             pm.technology_generation.name if pm.technology_generation else None
         ),
-        "thumbnail_url": thumbnail_url,
-        "variants": variants,
-    }
+        thumbnail_url=thumbnail_url,
+        variants=variants,
+    )

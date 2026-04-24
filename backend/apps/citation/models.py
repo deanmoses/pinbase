@@ -25,7 +25,6 @@ class CitationSource(TimeStampedModel):
     """
 
     id: int
-    has_children: bool
     links: models.Manager[CitationSourceLink]
     parent_id: int | None
 

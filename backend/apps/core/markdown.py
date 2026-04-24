@@ -5,6 +5,7 @@ API serializers to produce ``{field}_html`` output for markdown fields.
 """
 
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 import nh3
@@ -163,6 +164,30 @@ def render_markdown_html(
     return mark_safe(_convert_task_list_items(safe_html))  # noqa: S308 — HTML sanitized by nh3
 
 
+@dataclass(frozen=True, slots=True)
+class RenderedField:
+    """Rendered markdown output for a single field.
+
+    ``citations`` stays as ``list[dict]`` because link types are extensible
+    and ``apps.core`` has no business naming provenance-layer schemas (see
+    ``render_markdown_html`` note). Callers validate citations into their
+    own schemas via ``Schema.model_validate(...)`` at the boundary.
+    """
+
+    html: str
+    citations: list[dict[str, Any]] = field(default_factory=list)
+
+
+def render_markdown_field(obj: models.Model, field_name: str) -> RenderedField:
+    """Render one markdown field on *obj* to HTML + collected citations.
+
+    Returns empty ``RenderedField`` if the field's raw value is blank.
+    """
+    citations: list[dict[str, Any]] = []
+    html = render_markdown_html(getattr(obj, field_name, ""), metadata_out=citations)
+    return RenderedField(html=html, citations=citations)
+
+
 # Return value mixes rendered HTML strings and free-form metadata dicts
 # (see ``render_markdown_html`` note); callers spread this into API payloads.
 def render_markdown_fields(
@@ -181,11 +206,11 @@ def render_markdown_fields(
     from apps.core.models import get_markdown_fields
 
     result: dict[str, str | list[dict[str, Any]]] = {}
-    for field in get_markdown_fields(type(obj)):
+    for field_name in get_markdown_fields(type(obj)):
         citations: list[dict[str, Any]] = []
-        result[f"{field}_html"] = render_markdown_html(
-            getattr(obj, field, ""), metadata_out=citations
+        result[f"{field_name}_html"] = render_markdown_html(
+            getattr(obj, field_name, ""), metadata_out=citations
         )
         if citations:
-            result[f"{field}_citations"] = citations
+            result[f"{field_name}_citations"] = citations
     return result

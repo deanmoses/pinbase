@@ -24,8 +24,11 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from typing import Any, cast
 
+from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.db import IntegrityError, transaction
+from django.db import models as db_models
 from django.db.models import Q
 
 from apps.provenance.models import ChangeSetAction
@@ -36,6 +39,8 @@ from .edit_claims import (
     StructuredValidationError,
     execute_claims,
 )
+
+_UserLike = AbstractBaseUser | AnonymousUser
 
 # Slug format is globally consistent across catalog record types: lowercase
 # ASCII letters/digits, single hyphens between segments, no leading/trailing
@@ -88,7 +93,9 @@ def validate_name(name: str, *, max_length: int) -> str:
     return name
 
 
-def _resolve_alias_relation(model_cls):
+def _resolve_alias_relation(
+    model_cls: type[db_models.Model],
+) -> tuple[type[db_models.Model], str] | None:
     """Return ``(alias_model, parent_fk_name)`` if *model_cls* exposes an
     ``aliases`` reverse manager, else ``None``.
 
@@ -100,12 +107,15 @@ def _resolve_alias_relation(model_cls):
     """
     for rel in model_cls._meta.related_objects:
         if rel.get_accessor_name() == "aliases":
-            return rel.related_model, rel.field.name
+            related_model = rel.related_model
+            assert isinstance(related_model, type)
+            assert issubclass(related_model, db_models.Model)
+            return related_model, rel.field.name
     return None
 
 
 def assert_name_available(
-    model_cls,
+    model_cls: type[db_models.Model],
     name: str,
     *,
     normalize: Callable[[str], str],
@@ -156,7 +166,8 @@ def assert_name_available(
             field_errors={"name": "Name cannot be blank."},
         )
 
-    qs = model_cls.objects.all() if include_deleted else model_cls.objects.active()
+    manager = cast(Any, model_cls)._default_manager
+    qs = manager.all() if include_deleted else manager.active()
     if scope_filter is not None:
         qs = qs.filter(scope_filter)
     for pk, other_name in qs.values_list("pk", "name"):
@@ -177,7 +188,9 @@ def assert_name_available(
     if alias_rel is None:
         return
     alias_model, parent_fk_name = alias_rel
-    alias_qs = alias_model.objects.filter(**{f"{parent_fk_name}__status": "active"})
+    alias_qs = alias_model._default_manager.filter(
+        **{f"{parent_fk_name}__status": "active"}
+    )
     if scope_filter is not None:
         # Rewrite the scope filter so it applies to the alias's parent.
         alias_qs = alias_qs.filter(
@@ -206,7 +219,7 @@ def _rewrite_scope_for_alias(scope_filter: Q, parent_fk_name: str) -> Q:
     fields live behind the FK to the parent.
     """
 
-    def _walk(node):
+    def _walk(node: Q) -> Q:
         new = Q()
         new.connector = node.connector
         new.negated = node.negated
@@ -214,14 +227,14 @@ def _rewrite_scope_for_alias(scope_filter: Q, parent_fk_name: str) -> Q:
             if isinstance(child, Q):
                 new.children.append(_walk(child))
             else:
-                lookup, value = child
+                lookup, value = cast(tuple[str, Any], child)
                 new.children.append((f"{parent_fk_name}__{lookup}", value))
         return new
 
     return _walk(scope_filter)
 
 
-def assert_slug_available(model_cls, slug: str) -> None:
+def assert_slug_available(model_cls: type[db_models.Model], slug: str) -> None:
     """Raise a field-level 422 if *slug* is already taken on *model_cls*.
 
     Slug uniqueness is DB-enforced (including against soft-deleted rows,
@@ -230,7 +243,7 @@ def assert_slug_available(model_cls, slug: str) -> None:
     backstop and is translated to the same shape by
     :func:`create_entity_with_claims` if a concurrent create wins the race.
     """
-    if model_cls.objects.filter(slug=slug).exists():
+    if model_cls._default_manager.filter(slug=slug).exists():
         raise StructuredValidationError(
             message="Slug collision.",
             field_errors={
@@ -240,14 +253,14 @@ def assert_slug_available(model_cls, slug: str) -> None:
 
 
 def create_entity_with_claims(
-    model_cls,
+    model_cls: type[db_models.Model],
     *,
-    row_kwargs: dict,
+    row_kwargs: dict[str, Any],
     claim_specs: list[ClaimSpec],
-    user,
+    user: _UserLike,
     note: str = "",
     citation: EditCitationInput | None = None,
-):
+) -> db_models.Model:
     """Create a new catalog row + its initial claims atomically.
 
     * Opens a ``transaction.atomic`` block so that a claim-write failure
@@ -275,7 +288,7 @@ def create_entity_with_claims(
     slug = row_kwargs["slug"]
     try:
         with transaction.atomic():
-            entity = model_cls.objects.create(**row_kwargs)
+            entity = model_cls._default_manager.create(**row_kwargs)
             execute_claims(
                 entity,
                 claim_specs,

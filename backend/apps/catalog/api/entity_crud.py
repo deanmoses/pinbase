@@ -18,13 +18,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from django.db.models import Model, Q
+from django.db import models as db_models
+from django.db.models import Q, QuerySet
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.catalog.naming import normalize_catalog_name
+from apps.core.models import CatalogModel
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -41,7 +44,12 @@ from .entity_create import (
     validate_name,
     validate_slug_format,
 )
-from .schemas import BlockingReferrerSchema
+from .schemas import (
+    AlreadyDeletedSchema,
+    BlockingReferrerSchema,
+    ErrorDetailSchema,
+    SoftDeleteBlockedSchema,
+)
 from .soft_delete import (
     SoftDeleteBlockedError,
     count_entity_changesets,
@@ -103,17 +111,15 @@ class TaxonomyDeleteResponseSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-DetailQsFn = Callable[[], Any]
-SerializeFn = Callable[[Any], dict]
-
-
-def register_entity_delete_restore(
+# ``ModelT`` / ``SchemaT`` link the four contractually-related arguments
+# — model class, detail queryset, serializer, response schema must agree.
+def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
     router: Router,
-    model_cls,
+    model_cls: type[ModelT],
     *,
-    detail_qs: DetailQsFn,
-    serialize_detail: SerializeFn,
-    response_schema: type[Schema],
+    detail_qs: Callable[[], QuerySet[ModelT]],
+    serialize_detail: Callable[[ModelT], SchemaT],
+    response_schema: type[SchemaT],
     child_related_name: str | None = None,
     parent_field: str | None = None,
 ) -> None:
@@ -136,7 +142,7 @@ def register_entity_delete_restore(
     friendly = model_cls.entity_type.replace("-", " ")
     friendly_sentence = friendly.capitalize()
 
-    def _delete_preview(request, slug: str):
+    def _delete_preview(request: HttpRequest, slug: str) -> TaxonomyDeletePreviewSchema:
         obj = get_object_or_404(model_cls.objects.active(), slug=slug)
         plan = plan_soft_delete(obj)
 
@@ -154,15 +160,15 @@ def register_entity_delete_restore(
             parent_name = parent.name
             parent_slug = parent.slug
 
-        return {
-            "name": obj.name,
-            "slug": obj.slug,
-            "changeset_count": changeset_count,
-            "blocked_by": [serialize_blocking_referrer(b) for b in plan.blockers],
-            "active_children_count": active_children,
-            "parent_name": parent_name,
-            "parent_slug": parent_slug,
-        }
+        return TaxonomyDeletePreviewSchema(
+            name=obj.name,
+            slug=obj.slug,
+            changeset_count=changeset_count,
+            blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
+            active_children_count=active_children,
+            parent_name=parent_name,
+            parent_slug=parent_slug,
+        )
 
     _delete_preview.__name__ = f"{entity_label.lower()}_delete_preview"
     router.get(
@@ -172,7 +178,12 @@ def register_entity_delete_restore(
         tags=["private"],
     )(_delete_preview)
 
-    def _delete(request, slug: str, data: TaxonomyDeleteSchema):
+    def _delete(
+        request: HttpRequest, slug: str, data: TaxonomyDeleteSchema
+    ) -> (
+        TaxonomyDeleteResponseSchema
+        | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]
+    ):
         check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
         obj = get_object_or_404(model_cls.objects.active(), slug=slug)
@@ -187,16 +198,16 @@ def register_entity_delete_restore(
                 # form error and loses the structured state.
                 return Status(
                     422,
-                    {
-                        "detail": (
+                    SoftDeleteBlockedSchema(
+                        detail=(
                             f"Cannot delete: {obj.name} has {active_children} "
                             f"active child"
                             f"{'ren' if active_children != 1 else ''}. "
                             "Delete those first."
                         ),
-                        "blocked_by": [],
-                        "active_children_count": active_children,
-                    },
+                        blocked_by=[],
+                        active_children_count=active_children,
+                    ),
                 )
 
         try:
@@ -206,47 +217,52 @@ def register_entity_delete_restore(
         except SoftDeleteBlockedError as exc:
             return Status(
                 422,
-                {
-                    "detail": (
-                        "Cannot delete: active references would be left dangling."
-                    ),
-                    "blocked_by": [
-                        serialize_blocking_referrer(b) for b in exc.blockers
-                    ],
-                    "active_children_count": 0,
-                },
+                SoftDeleteBlockedSchema(
+                    detail=("Cannot delete: active references would be left dangling."),
+                    blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+                    active_children_count=0,
+                ),
             )
 
         if changeset is None:
-            return Status(422, {"detail": f"{friendly_sentence} is already deleted."})
+            return Status(
+                422,
+                AlreadyDeletedSchema(detail=f"{friendly_sentence} is already deleted."),
+            )
 
-        return {
-            "changeset_id": changeset.pk,
-            "affected_slugs": [e.slug for e in deleted if isinstance(e, model_cls)],
-        }
+        return TaxonomyDeleteResponseSchema(
+            changeset_id=changeset.pk,
+            affected_slugs=[e.slug for e in deleted if isinstance(e, model_cls)],
+        )
 
     _delete.__name__ = f"{entity_label.lower()}_delete"
     router.post(
         "/{slug}/delete/",
         auth=django_auth,
-        response={200: TaxonomyDeleteResponseSchema, 422: dict},
+        response={
+            200: TaxonomyDeleteResponseSchema,
+            422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
+        },
         tags=["private"],
     )(_delete)
 
-    def _restore(request, slug: str, data: TaxonomyRestoreSchema):
+    def _restore(
+        request: HttpRequest, slug: str, data: TaxonomyRestoreSchema
+    ) -> SchemaT | Status[ErrorDetailSchema]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
         # Bypass .active() — we're looking for soft-deleted rows.
         obj = get_object_or_404(model_cls, slug=slug)
         if obj.status != "deleted":
-            return Status(422, {"detail": f"{friendly_sentence} is not deleted."})
+            return Status(
+                422, ErrorDetailSchema(detail=f"{friendly_sentence} is not deleted.")
+            )
 
         if parent_field is not None:
             parent = getattr(obj, parent_field)
             if parent.status == "deleted":
                 return Status(
-                    422,
-                    {"detail": f"Restore {parent.name} first."},
+                    422, ErrorDetailSchema(detail=f"Restore {parent.name} first.")
                 )
 
         execute_claims(
@@ -265,20 +281,24 @@ def register_entity_delete_restore(
     router.post(
         "/{slug}/restore/",
         auth=django_auth,
-        response={200: response_schema, 422: dict, 404: dict},
+        response={
+            200: response_schema,
+            422: ErrorDetailSchema,
+            404: ErrorDetailSchema,
+        },
         tags=["private"],
     )(_restore)
 
 
-def register_entity_create(
+def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
     router: Router,
-    model_cls,
+    model_cls: type[ModelT],
     *,
-    detail_qs: DetailQsFn,
-    serialize_detail: SerializeFn,
-    response_schema: type[Schema],
+    detail_qs: Callable[[], QuerySet[ModelT]],
+    serialize_detail: Callable[[ModelT], SchemaT],
+    response_schema: type[SchemaT],
     parent_field: str | None = None,
-    parent_model: type[Model] | None = None,
+    parent_model: type[CatalogModel] | None = None,
     route_suffix: str = "",
     scope_filter_builder: Callable[[Any], Q] | None = None,
     include_deleted_name_check: bool = False,
@@ -318,10 +338,19 @@ def register_entity_create(
         )
 
     entity_label = model_cls.__name__
-    name_max = model_cls._meta.get_field("name").max_length
+    # django-stubs returns ``Any`` for ``_meta.get_field`` on a TypeVar'd
+    # model; the assert is the runtime narrowing to ``Field``.
+    name_field = model_cls._meta.get_field("name")
+    assert isinstance(name_field, db_models.Field)
+    name_max = name_field.max_length
+    assert name_max is not None
     friendly = model_cls.entity_type.replace("-", " ")
 
-    def _do_create(request, data: TaxonomyCreateSchema, parent=None):
+    def _do_create(
+        request: HttpRequest,
+        data: TaxonomyCreateSchema,
+        parent: CatalogModel | None = None,
+    ) -> Status[Any]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
         name = validate_name(data.name, max_length=name_max)
@@ -341,7 +370,7 @@ def register_entity_create(
         )
         assert_slug_available(model_cls, slug)
 
-        row_kwargs: dict = {"name": name, "slug": slug, "status": "active"}
+        row_kwargs: dict[str, Any] = {"name": name, "slug": slug, "status": "active"}
         claim_specs = [
             ClaimSpec(field_name="name", value=name),
             ClaimSpec(field_name="slug", value=slug),
@@ -368,26 +397,30 @@ def register_entity_create(
     if parented:
         assert parent_model is not None
 
-        def _create_parented(request, parent_slug: str, data: TaxonomyCreateSchema):
-            # django-stubs doesn't expose .objects on abstract type[Model], and
-            # the concrete manager here adds a custom .active() filter.
-            parent = get_object_or_404(parent_model.objects.active(), slug=parent_slug)  # type: ignore[attr-defined]
+        def _create_parented(
+            request: HttpRequest, parent_slug: str, data: TaxonomyCreateSchema
+        ) -> Status[Any]:
+            parent = get_object_or_404(parent_model.objects.active(), slug=parent_slug)
             return _do_create(request, data, parent=parent)
 
-        path = f"/{{parent_slug}}/{route_suffix}/"
-        create_view = _create_parented
+        _create_parented.__name__ = f"{entity_label.lower()}_create"
+        router.post(
+            f"/{{parent_slug}}/{route_suffix}/",
+            auth=django_auth,
+            response={201: response_schema},
+            tags=["private"],
+        )(_create_parented)
     else:
 
-        def _create_unparented(request, data: TaxonomyCreateSchema):
+        def _create_unparented(
+            request: HttpRequest, data: TaxonomyCreateSchema
+        ) -> Status[Any]:
             return _do_create(request, data)
 
-        path = "/"
-        create_view = _create_unparented
-
-    create_view.__name__ = f"{entity_label.lower()}_create"
-    router.post(
-        path,
-        auth=django_auth,
-        response={201: response_schema},
-        tags=["private"],
-    )(create_view)
+        _create_unparented.__name__ = f"{entity_label.lower()}_create"
+        router.post(
+            "/",
+            auth=django_auth,
+            response={201: response_schema},
+            tags=["private"],
+        )(_create_unparented)

@@ -6,11 +6,15 @@ Auto-discovered via the ``routers`` list convention in config/api.py.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict
+from typing import Protocol, cast
 
+from django.contrib.auth.models import AnonymousUser, User
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db import IntegrityError, models, transaction
+from django.db.models import Exists, OuterRef, Q, QuerySet
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 from ninja.errors import HttpError
@@ -20,7 +24,7 @@ from ninja.throttling import AuthRateThrottle
 from pydantic import field_validator
 
 from .extraction import classify_input, extract_isbn, normalize_isbn
-from .extractors import EXTRACTORS, recognize_url
+from .extractors import EXTRACTORS, Recognition, recognize_url
 from .models import CitationSource, CitationSourceLink
 from .url_extraction import extract_url
 
@@ -69,6 +73,11 @@ class CitationSourceMatchSchema(Schema):
     skip_locator: bool = False
 
 
+class CitationSourceParentSchema(Schema):
+    id: int
+    name: str
+
+
 class RecognitionSchema(Schema):
     parent: CitationSourceParentSchema
     child: CitationSourceMatchSchema | None = None
@@ -100,7 +109,7 @@ class CitationSourceCreateSchema(Schema):
 
     @field_validator("isbn", mode="before")
     @classmethod
-    def coerce_empty_isbn_to_none(cls, v):
+    def coerce_empty_isbn_to_none(cls, v: object) -> object:
         """Empty string → None for nullable unique field."""
         return None if v == "" else v
 
@@ -119,20 +128,15 @@ class CitationSourceUpdateSchema(Schema):
 
     @field_validator(*NONNULLABLE_STR_FIELDS, mode="before")
     @classmethod
-    def coerce_null_to_empty(cls, v):
+    def coerce_null_to_empty(cls, v: object) -> object:
         """None → empty string for non-nullable CharFields."""
         return "" if v is None else v
 
     @field_validator("isbn", mode="before")
     @classmethod
-    def coerce_empty_isbn_to_none(cls, v):
+    def coerce_empty_isbn_to_none(cls, v: object) -> object:
         """Empty string → None for nullable unique field."""
         return None if v == "" else v
-
-
-class CitationSourceParentSchema(Schema):
-    id: int
-    name: str
 
 
 class CitationSourceChildSchema(Schema):
@@ -186,7 +190,7 @@ class CitationSourceLinkUpdateSchema(Schema):
 
     @field_validator("label", mode="before")
     @classmethod
-    def coerce_null_to_empty(cls, v):
+    def coerce_null_to_empty(cls, v: object) -> object:
         return "" if v is None else v
 
 
@@ -217,12 +221,39 @@ class ExtractResponseSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _is_abstract(source_type, parent_id, has_children):
+def _authed_user(request: HttpRequest) -> User:
+    """Narrow ``request.user`` to ``User``.
+
+    All mutating endpoints in this module use ``auth=django_auth``, so
+    ``AnonymousUser`` is unreachable at runtime. The tripwire goes away
+    once a custom User model lands; see ``docs/plans/UserModel.md``.
+    """
+    assert not isinstance(request.user, AnonymousUser)
+    return request.user
+
+
+class _HasChildren(Protocol):
+    """Structural type for rows returned by the search queryset below.
+
+    ``.annotate(has_children=Exists(...))`` adds a boolean column that isn't
+    a real model attribute. Cast at the read site to narrow mypy's view —
+    same pattern as the ``Has*`` protocols in ``apps.catalog.api._typing``.
+    """
+
+    has_children: bool
+
+
+def _is_abstract(source_type: str, parent_id: int | None, has_children: bool) -> bool:
     """Source is abstract if it has children or is a root web/magazine source."""
     return has_children or (parent_id is None and source_type in ("web", "magazine"))
 
 
-def _clean_and_save(instance, update_fields=None, *, integrity_msg=""):
+def _clean_and_save(
+    instance: models.Model,
+    update_fields: Sequence[str] | None = None,
+    *,
+    integrity_msg: str = "",
+) -> None:
     """Validate model then save.
 
     Converts both ``ValidationError`` (from ``full_clean``) and
@@ -253,50 +284,71 @@ def _clean_and_save(instance, update_fields=None, *, integrity_msg=""):
         raise HttpError(422, f"Integrity error: {exc}") from exc
 
 
-def _detail_qs():
+def _detail_qs() -> QuerySet[CitationSource]:
     return CitationSource.objects.select_related("parent").prefetch_related(
         "links", "children", "children__links"
     )
 
 
-def _serialize_detail(source) -> dict:
-    parent = None
+def _serialize_child(child: CitationSource) -> CitationSourceChildSchema:
+    return CitationSourceChildSchema(
+        id=child.pk,
+        name=child.name,
+        source_type=child.source_type,
+        year=child.year,
+        isbn=child.isbn,
+        skip_locator=child.skip_locator,
+        urls=[link.url for link in child.links.all()],
+    )
+
+
+def _serialize_search_row(s: CitationSource) -> CitationSourceSearchSchema:
+    has_children = cast(_HasChildren, s).has_children
+    return CitationSourceSearchSchema(
+        id=s.pk,
+        name=s.name,
+        source_type=s.source_type,
+        author=s.author,
+        publisher=s.publisher,
+        year=s.year,
+        isbn=s.isbn,
+        parent_id=s.parent_id,
+        has_children=has_children,
+        is_abstract=_is_abstract(s.source_type, s.parent_id, has_children),
+        skip_locator=s.skip_locator,
+        identifier_key=s.identifier_key,
+    )
+
+
+def _serialize_detail(source: CitationSource) -> CitationSourceDetailSchema:
+    parent: CitationSourceParentSchema | None = None
     if source.parent_id is not None:
-        parent = {"id": source.parent_id, "name": source.parent.name}
-    return {
-        "id": source.pk,
-        "name": source.name,
-        "source_type": source.source_type,
-        "author": source.author,
-        "publisher": source.publisher,
-        "year": source.year,
-        "month": source.month,
-        "day": source.day,
-        "date_note": source.date_note,
-        "isbn": source.isbn,
-        "description": source.description,
-        "identifier_key": source.identifier_key,
-        "skip_locator": source.skip_locator,
-        "parent": parent,
-        "links": [
-            CitationSourceLinkSchema.from_orm(link).model_dump()
+        parent_obj = source.parent
+        assert parent_obj is not None
+        parent = CitationSourceParentSchema(id=source.parent_id, name=parent_obj.name)
+    return CitationSourceDetailSchema(
+        id=source.pk,
+        name=source.name,
+        source_type=source.source_type,
+        author=source.author,
+        publisher=source.publisher,
+        year=source.year,
+        month=source.month,
+        day=source.day,
+        date_note=source.date_note,
+        isbn=source.isbn,
+        description=source.description,
+        identifier_key=source.identifier_key,
+        skip_locator=source.skip_locator,
+        parent=parent,
+        links=[
+            CitationSourceLinkSchema.model_validate(link, from_attributes=True)
             for link in source.links.all()
         ],
-        "children": [
-            {
-                "id": child.pk,
-                "name": child.name,
-                "source_type": child.source_type,
-                "year": child.year,
-                "isbn": child.isbn,
-                "skip_locator": child.skip_locator,
-                "urls": [link.url for link in child.links.all()],
-            }
-            for child in source.children.all()
-        ],
-        "created_at": source.created_at.isoformat(),
-        "updated_at": source.updated_at.isoformat(),
-    }
+        children=[_serialize_child(child) for child in source.children.all()],
+        created_at=source.created_at.isoformat(),
+        updated_at=source.updated_at.isoformat(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -308,20 +360,20 @@ def _is_url(q: str) -> bool:
     return q.startswith("http://") or q.startswith("https://")
 
 
-def _build_recognition(rec) -> dict:
+def _build_recognition(rec: Recognition) -> RecognitionSchema:
     """Serialize an extractors.Recognition into the API response shape."""
-    result: dict = {
-        "parent": {"id": rec.parent_id, "name": rec.parent_name},
-        "child": None,
-        "identifier": rec.identifier,
-    }
-    if rec.child_id is not None:
-        result["child"] = {
-            "id": rec.child_id,
-            "name": rec.child_name,
-            "skip_locator": rec.child_skip_locator,
-        }
-    return result
+    child: CitationSourceMatchSchema | None = None
+    if rec.child is not None:
+        child = CitationSourceMatchSchema(
+            id=rec.child.id,
+            name=rec.child.name,
+            skip_locator=rec.child.skip_locator,
+        )
+    return RecognitionSchema(
+        parent=CitationSourceParentSchema(id=rec.parent_id, name=rec.parent_name),
+        child=child,
+        identifier=rec.identifier,
+    )
 
 
 @citation_sources_router.get(
@@ -329,7 +381,7 @@ def _build_recognition(rec) -> dict:
     response=SearchResponse,
     auth=django_auth,
 )
-def search_citation_sources(request, q: str = ""):
+def search_citation_sources(request: HttpRequest, q: str = "") -> SearchResponse:
     """Typeahead search with URL/ISBN recognition.
 
     Returns search results plus optional recognition metadata when the
@@ -337,10 +389,10 @@ def search_citation_sources(request, q: str = ""):
     """
     q = q.strip()
     if not q:
-        return {"results": [], "recognition": None}
+        return SearchResponse(results=[], recognition=None)
 
     # --- Recognition (URL or ISBN) -----------------------------------------
-    recognition = None
+    recognition: RecognitionSchema | None = None
     if _is_url(q):
         rec = recognize_url(q)
         if rec is not None:
@@ -368,24 +420,10 @@ def search_citation_sources(request, q: str = ""):
         .distinct()
         .order_by("name")[:20]
     )
-    results = [
-        {
-            "id": s.pk,
-            "name": s.name,
-            "source_type": s.source_type,
-            "author": s.author,
-            "publisher": s.publisher,
-            "year": s.year,
-            "isbn": s.isbn,
-            "parent_id": s.parent_id,
-            "has_children": s.has_children,
-            "is_abstract": _is_abstract(s.source_type, s.parent_id, s.has_children),
-            "skip_locator": s.skip_locator,
-            "identifier_key": s.identifier_key,
-        }
-        for s in qs
-    ]
-    return {"results": results, "recognition": recognition}
+    return SearchResponse(
+        results=[_serialize_search_row(s) for s in qs],
+        recognition=recognition,
+    )
 
 
 @citation_sources_router.post(
@@ -393,8 +431,11 @@ def search_citation_sources(request, q: str = ""):
     response={201: CitationSourceDetailSchema},
     auth=django_auth,
 )
-def create_citation_source(request, data: CitationSourceCreateSchema):
+def create_citation_source(
+    request: HttpRequest, data: CitationSourceCreateSchema
+) -> Status[CitationSourceDetailSchema]:
     """Create a new Citation Source, optionally with an initial link."""
+    user = _authed_user(request)
     parent = None
     if data.parent_id is not None:
         parent = get_object_or_404(CitationSource, pk=data.parent_id)
@@ -433,8 +474,8 @@ def create_citation_source(request, data: CitationSourceCreateSchema):
             description=data.description,
             identifier=identifier,
             parent=parent,
-            created_by=request.user,
-            updated_by=request.user,
+            created_by=user,
+            updated_by=user,
         )
         _clean_and_save(
             source,
@@ -447,8 +488,8 @@ def create_citation_source(request, data: CitationSourceCreateSchema):
                 link_type=data.link_type or "homepage",
                 url=url,
                 label=data.link_label,
-                created_by=request.user,
-                updated_by=request.user,
+                created_by=user,
+                updated_by=user,
             )
             _clean_and_save(link)
 
@@ -471,7 +512,9 @@ class _ExtractThrottle(AuthRateThrottle):
     auth=django_auth,
     throttle=[_ExtractThrottle("10/m")],
 )
-def extract_citation_source(request, data: ExtractRequestSchema):
+def extract_citation_source(
+    request: HttpRequest, data: ExtractRequestSchema
+) -> ExtractResponseSchema:
     """Classify input and look up metadata from external APIs."""
     classified = classify_input(data.input)
     if classified is None:
@@ -504,7 +547,9 @@ def extract_citation_source(request, data: ExtractRequestSchema):
     response=list[CitationSourceChildSchema],
     auth=django_auth,
 )
-def list_citation_source_children(request, source_id: int, q: str = ""):
+def list_citation_source_children(
+    request: HttpRequest, source_id: int, q: str = ""
+) -> list[CitationSourceChildSchema]:
     """Filtered children of a source, searched by name, URL, identifier, or ISBN."""
     parent = get_object_or_404(CitationSource, pk=source_id)
     q = q.strip()
@@ -522,18 +567,7 @@ def list_citation_source_children(request, source_id: int, q: str = ""):
         .distinct()
         .order_by("name")[:20]
     )
-    return [
-        {
-            "id": child.pk,
-            "name": child.name,
-            "source_type": child.source_type,
-            "year": child.year,
-            "isbn": child.isbn,
-            "skip_locator": child.skip_locator,
-            "urls": [link.url for link in child.links.all()],
-        }
-        for child in children
-    ]
+    return [_serialize_child(child) for child in children]
 
 
 @citation_sources_router.get(
@@ -541,7 +575,9 @@ def list_citation_source_children(request, source_id: int, q: str = ""):
     response=CitationSourceDetailSchema,
     auth=django_auth,
 )
-def get_citation_source(request, source_id: int):
+def get_citation_source(
+    request: HttpRequest, source_id: int
+) -> CitationSourceDetailSchema:
     """Get a Citation Source with its links and children."""
     source = get_object_or_404(_detail_qs(), pk=source_id)
     return _serialize_detail(source)
@@ -552,8 +588,11 @@ def get_citation_source(request, source_id: int):
     response=CitationSourceDetailSchema,
     auth=django_auth,
 )
-def update_citation_source(request, source_id: int, data: CitationSourceUpdateSchema):
+def update_citation_source(
+    request: HttpRequest, source_id: int, data: CitationSourceUpdateSchema
+) -> CitationSourceDetailSchema:
     """Partially update a Citation Source."""
+    user = _authed_user(request)
     source = get_object_or_404(CitationSource, pk=source_id)
     fields = data.model_dump(exclude_unset=True)
     if not fields:
@@ -561,7 +600,7 @@ def update_citation_source(request, source_id: int, data: CitationSourceUpdateSc
 
     for attr, value in fields.items():
         setattr(source, attr, value)
-    source.updated_by = request.user
+    source.updated_by = user
 
     _clean_and_save(
         source,
@@ -584,21 +623,24 @@ def update_citation_source(request, source_id: int, data: CitationSourceUpdateSc
     auth=django_auth,
 )
 def create_citation_source_link(
-    request, source_id: int, data: CitationSourceLinkCreateSchema
-):
+    request: HttpRequest, source_id: int, data: CitationSourceLinkCreateSchema
+) -> Status[CitationSourceLinkSchema]:
     """Create a link on a Citation Source."""
+    user = _authed_user(request)
     source = get_object_or_404(CitationSource, pk=source_id)
     link = CitationSourceLink(
         citation_source=source,
         link_type=data.link_type,
         url=data.url,
         label=data.label,
-        created_by=request.user,
-        updated_by=request.user,
+        created_by=user,
+        updated_by=user,
     )
     _clean_and_save(link, integrity_msg="This URL is already linked to this source.")
 
-    return Status(201, link)
+    return Status(
+        201, CitationSourceLinkSchema.model_validate(link, from_attributes=True)
+    )
 
 
 @citation_sources_router.patch(
@@ -607,9 +649,13 @@ def create_citation_source_link(
     auth=django_auth,
 )
 def update_citation_source_link(
-    request, source_id: int, link_id: int, data: CitationSourceLinkUpdateSchema
-):
+    request: HttpRequest,
+    source_id: int,
+    link_id: int,
+    data: CitationSourceLinkUpdateSchema,
+) -> CitationSourceLinkSchema:
     """Partially update a link on a Citation Source."""
+    user = _authed_user(request)
     link = get_object_or_404(
         CitationSourceLink, pk=link_id, citation_source_id=source_id
     )
@@ -619,7 +665,7 @@ def update_citation_source_link(
 
     for attr, value in fields.items():
         setattr(link, attr, value)
-    link.updated_by = request.user
+    link.updated_by = user
 
     _clean_and_save(
         link,
@@ -627,4 +673,4 @@ def update_citation_source_link(
         integrity_msg="This URL is already linked to this source.",
     )
 
-    return link
+    return CitationSourceLinkSchema.model_validate(link, from_attributes=True)

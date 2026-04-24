@@ -6,9 +6,11 @@ build a list of ClaimSpecs, then execute them atomically in a ChangeSet.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import NoReturn, cast
+from typing import Any, NoReturn, TypedDict, cast
 
+from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, transaction
@@ -16,7 +18,15 @@ from django.db import models as db_models
 from ninja import Schema
 
 from apps.catalog.claims import build_relationship_claim
-from apps.catalog.models import CreditRole, GameplayFeature, Person
+from apps.catalog.models import (
+    CorporateEntity,
+    CreditRole,
+    GameplayFeature,
+    MachineModel,
+    Person,
+    Theme,
+    Title,
+)
 from apps.core.models import get_claim_fields
 from apps.provenance.models import ChangeSet, ChangeSetAction, CitationInstance, Claim
 from apps.provenance.schemas import EditCitationInput
@@ -24,6 +34,17 @@ from apps.provenance.validation import validate_claim_value
 
 from ..resolve import resolve_after_mutation
 from ._typing import CreditKey, CreditPkKey
+from .schemas import CreditInput, GameplayFeatureInput
+
+# ``request.user`` is typed as ``AbstractBaseUser | AnonymousUser``; callers
+# narrow at the entry points below before threading into the internal helper.
+_RequestUser = AbstractBaseUser | AnonymousUser
+
+# Concrete catalog models with a self-referencing ``parents`` M2M / reverse
+# ``aliases`` relation, typed as unions rather than a structural protocol
+# because the two helpers are only called from a handful of sites.
+_ParentEntity = GameplayFeature | Theme
+_AliasEntity = GameplayFeature | Theme | CorporateEntity
 
 
 @dataclass(frozen=True)
@@ -36,6 +57,14 @@ class ClaimSpec:
     # consumers narrow per field_name before persisting.
     value: object
     claim_key: str = ""
+
+
+class StructuredErrorBody(TypedDict):
+    """JSON body for a 422 structured-validation response (nested under ``detail`` by the handler)."""
+
+    message: str
+    field_errors: dict[str, str]
+    form_errors: list[str]
 
 
 class StructuredValidationError(Exception):
@@ -67,7 +96,7 @@ class StructuredValidationError(Exception):
         self.form_errors = form_errors or []
         super().__init__(message)
 
-    def to_response_body(self) -> dict:
+    def to_response_body(self) -> StructuredErrorBody:
         return {
             "message": self.message,
             "field_errors": self.field_errors,
@@ -118,7 +147,10 @@ def raise_form_error(message: str) -> NoReturn:
 
 
 def plan_scalar_field_claims(
-    model_class, fields: dict, *, entity=None
+    model_class: type[db_models.Model],
+    fields: dict[str, Any],
+    *,
+    entity: db_models.Model | None = None,
 ) -> list[ClaimSpec]:
     """Validate scalar fields and reject empty/no-op field payloads.
 
@@ -145,7 +177,9 @@ class FieldConstraint(Schema):
     step: float | int
 
 
-def get_field_constraints(model_class) -> dict[str, FieldConstraint]:
+def get_field_constraints(
+    model_class: type[db_models.Model],
+) -> dict[str, FieldConstraint]:
     """Extract min/max/step constraints from numeric claim fields.
 
     Only fields with at least one validator-derived bound are included.
@@ -188,7 +222,10 @@ def get_field_constraints(model_class) -> dict[str, FieldConstraint]:
 
 
 def validate_scalar_fields(
-    model_class, fields: dict, *, entity=None
+    model_class: type[db_models.Model],
+    fields: dict[str, Any],
+    *,
+    entity: db_models.Model | None = None,
 ) -> list[ClaimSpec]:
     """Validate scalar fields and return ClaimSpecs.
 
@@ -225,7 +262,7 @@ def validate_scalar_fields(
             errors.add_field(field_name, "; ".join(exc.messages))
             continue
         if getattr(field_obj, "unique", False) and value != "":
-            conflict_qs = model_class.objects.filter(**{field_name: value})
+            conflict_qs = model_class._default_manager.filter(**{field_name: value})
             if entity is not None and getattr(entity, "pk", None) is not None:
                 conflict_qs = conflict_qs.exclude(pk=entity.pk)
             if conflict_qs.exists():
@@ -238,10 +275,10 @@ def validate_scalar_fields(
 
 
 def plan_parent_claims(
-    entity,
+    entity: _ParentEntity,
     desired_slugs: set[str],
     *,
-    model_class,
+    model_class: type[_ParentEntity],
     claim_field_name: str,
 ) -> list[ClaimSpec]:
     """Validate parent hierarchy changes and return diff-based ClaimSpecs.
@@ -256,7 +293,9 @@ def plan_parent_claims(
 
     # Resolve desired slugs → PKs (also validates existence).
     slug_to_pk = dict(
-        model_class.objects.filter(slug__in=desired_slugs).values_list("slug", "pk")
+        model_class._default_manager.filter(slug__in=desired_slugs).values_list(
+            "slug", "pk"
+        )
     )
     missing = desired_slugs - slug_to_pk.keys()
     if missing:
@@ -266,7 +305,7 @@ def plan_parent_claims(
     # graph (excluding the edited entity's current parents, since
     # they're being replaced). If we reach the edited entity, reject.
     if desired_slugs:
-        all_entities = model_class.objects.prefetch_related("parents").all()
+        all_entities = model_class._default_manager.prefetch_related("parents").all()
         parent_map: dict[str, set[str]] = {}
         for e in all_entities:
             if e.slug == entity.slug:
@@ -309,7 +348,7 @@ def plan_parent_claims(
 
 
 def plan_alias_claims(
-    entity,
+    entity: _AliasEntity,
     desired_aliases: list[str],
     *,
     claim_field_name: str,
@@ -357,10 +396,10 @@ def plan_alias_claims(
 
 
 def plan_m2m_claims(
-    entity,
+    entity: db_models.Model,
     desired_slugs: set[str],
     *,
-    target_model,
+    target_model: type[db_models.Model],
     claim_field_name: str,
     m2m_attr: str,
 ) -> list[ClaimSpec]:
@@ -375,7 +414,7 @@ def plan_m2m_claims(
     """
     if desired_slugs:
         slug_to_pk = dict(
-            target_model.objects.filter(slug__in=desired_slugs).values_list(
+            target_model._default_manager.filter(slug__in=desired_slugs).values_list(
                 "slug", "pk"
             )
         )
@@ -488,8 +527,8 @@ def build_gameplay_feature_claim_specs(
 
 
 def plan_gameplay_feature_claims(
-    entity,
-    desired_features: list,
+    entity: MachineModel,
+    desired_features: list[GameplayFeatureInput],
 ) -> list[ClaimSpec]:
     """Validate and diff gameplay features (slug + optional count) on a MachineModel.
 
@@ -533,7 +572,7 @@ def plan_gameplay_feature_claims(
 
 
 def plan_abbreviation_claims(
-    entity,
+    entity: MachineModel | Title,
     desired_values: list[str],
 ) -> list[ClaimSpec]:
     """Validate and diff abbreviation changes.
@@ -566,8 +605,8 @@ def plan_abbreviation_claims(
 
 
 def plan_credit_claims(
-    entity,
-    desired_credits: list,
+    entity: MachineModel,
+    desired_credits: list[CreditInput],
 ) -> list[ClaimSpec]:
     """Validate and diff credits (person_slug + role) on a MachineModel.
 
@@ -717,7 +756,7 @@ def _write_claims_in_changeset(
     entity: db_models.Model,
     specs: list[ClaimSpec],
     *,
-    user,
+    user: AbstractBaseUser,
     changeset: ChangeSet,
 ) -> list[Claim]:
     """Assert claims on *entity* inside an already-open *changeset*.
@@ -769,7 +808,7 @@ def execute_claims(
     entity: db_models.Model,
     specs: list[ClaimSpec],
     *,
-    user,
+    user: _RequestUser,
     action: ChangeSetAction = ChangeSetAction.EDIT,
     note: str = "",
     citation: EditCitationInput | None = None,
@@ -782,9 +821,23 @@ def execute_claims(
 
     Raises HttpError 422 on IntegrityError (unique constraint violations).
     """
+    # All callers sit behind ``auth=django_auth``, so an anonymous user can't
+    # reach this helper. Narrow so ``ChangeSet.user`` (NOT NULL) isn't handed
+    # an ``AnonymousUser`` whose ``pk`` is ``None``. The runtime check only
+    # excludes ``AnonymousUser`` (the actual invariant) so it stays correct
+    # if ``AUTH_USER_MODEL`` is ever swapped.
+    #
+    # The ``cast(User, user)`` at the ``create`` call is a django-stubs
+    # workaround: the FK to ``settings.AUTH_USER_MODEL`` is typed against
+    # ``auth.User`` while ``request.user`` is ``AbstractBaseUser |
+    # AnonymousUser``. Both the cast and the tripwire go away once we
+    # introduce a custom User model — see docs/plans/UserModel.md.
+    assert not isinstance(user, AnonymousUser)
     try:
         with transaction.atomic():
-            cs = ChangeSet.objects.create(user=user, action=action, note=note)
+            cs = ChangeSet.objects.create(
+                user=cast(User, user), action=action, note=note
+            )
             created_claims = _write_claims_in_changeset(
                 entity, specs, user=user, changeset=cs
             )
@@ -798,9 +851,9 @@ def execute_claims(
 
 
 def execute_multi_entity_claims(
-    entries: list[tuple[db_models.Model, list[ClaimSpec]]],
+    entries: Sequence[tuple[db_models.Model, list[ClaimSpec]]],
     *,
-    user,
+    user: _RequestUser,
     action: ChangeSetAction,
     note: str = "",
     citation: EditCitationInput | None = None,
@@ -820,9 +873,23 @@ def execute_multi_entity_claims(
     Returns the created ChangeSet so callers can thread its id into the
     response (Undo needs it).
     """
+    # All callers sit behind ``auth=django_auth``, so an anonymous user can't
+    # reach this helper. Narrow so ``ChangeSet.user`` (NOT NULL) isn't handed
+    # an ``AnonymousUser`` whose ``pk`` is ``None``. The runtime check only
+    # excludes ``AnonymousUser`` (the actual invariant) so it stays correct
+    # if ``AUTH_USER_MODEL`` is ever swapped.
+    #
+    # The ``cast(User, user)`` at the ``create`` call is a django-stubs
+    # workaround: the FK to ``settings.AUTH_USER_MODEL`` is typed against
+    # ``auth.User`` while ``request.user`` is ``AbstractBaseUser |
+    # AnonymousUser``. Both the cast and the tripwire go away once we
+    # introduce a custom User model — see docs/plans/UserModel.md.
+    assert not isinstance(user, AnonymousUser)
     try:
         with transaction.atomic():
-            cs = ChangeSet.objects.create(user=user, action=action, note=note)
+            cs = ChangeSet.objects.create(
+                user=cast(User, user), action=action, note=note
+            )
             all_created: list[Claim] = []
             per_entity_fields: list[tuple[db_models.Model, list[str]]] = []
             for entity, specs in entries:

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
-from django.db.models import Count, F, Prefetch, Q
+from django.db import models
+from django.db.models import Count, F, Prefetch, Q, QuerySet
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -46,12 +48,15 @@ from .helpers import (
     _serialize_uploaded_media,
 )
 from .schemas import (
+    AlreadyDeletedSchema,
     ClaimPatchSchema,
+    ErrorDetailSchema,
     PersonCreateSchema,
     PersonDeletePreviewSchema,
     PersonDeleteResponseSchema,
     PersonDeleteSchema,
     PersonRestoreSchema,
+    PersonSoftDeleteBlockedSchema,
     RelatedTitleSchema,
 )
 from .soft_delete import (
@@ -103,15 +108,15 @@ class PersonDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_person_detail(person) -> dict:
-    """Serialize a Person into the detail response dict.
+def _serialize_person_detail(person: Person) -> PersonDetailSchema:
+    """Serialize a Person into the detail response schema.
 
     Expects *person* to have been fetched with prefetch_related for credits
     (select_related model, model__title, model__manufacturer) and claims
     (to_attr="active_claims").
     """
     min_rank = get_minimum_display_rank()
-    titles: dict[str, dict] = {}
+    titles: dict[str, PersonTitleSchema] = {}
     for c in person.credits.all():
         if c.model is None or c.model.title is None:
             continue
@@ -121,47 +126,47 @@ def _serialize_person_detail(person) -> dict:
             thumbnail_url = _extract_image_urls(
                 c.model.extra_data or {}, min_rank=min_rank
             )[0]
-            titles[key] = {
-                "name": title.name,
-                "slug": title.slug,
-                "year": c.model.year,
-                "manufacturer_name": (
+            titles[key] = PersonTitleSchema(
+                name=title.name,
+                slug=title.slug,
+                year=c.model.year,
+                manufacturer_name=(
                     c.model.corporate_entity.manufacturer.name
                     if c.model.corporate_entity
                     and c.model.corporate_entity.manufacturer
                     else None
                 ),
-                "thumbnail_url": thumbnail_url,
-                "roles": [],
-            }
-        elif titles[key]["thumbnail_url"] is None:
+                thumbnail_url=thumbnail_url,
+                roles=[],
+            )
+        elif titles[key].thumbnail_url is None:
             thumbnail_url = _extract_image_urls(
                 c.model.extra_data or {}, min_rank=min_rank
             )[0]
             if thumbnail_url:
-                titles[key]["thumbnail_url"] = thumbnail_url
+                titles[key].thumbnail_url = thumbnail_url
         role_display = c.role.name
-        if role_display not in titles[key]["roles"]:
-            titles[key]["roles"].append(role_display)
-    return {
-        "name": person.name,
-        "slug": person.slug,
-        "description": _build_rich_text(person, "description", active_claims(person)),
-        "birth_year": person.birth_year,
-        "birth_month": person.birth_month,
-        "birth_day": person.birth_day,
-        "death_year": person.death_year,
-        "death_month": person.death_month,
-        "death_day": person.death_day,
-        "birth_place": person.birth_place,
-        "nationality": person.nationality,
-        "photo_url": person.photo_url,
-        "titles": list(titles.values()),
-        "uploaded_media": _serialize_uploaded_media(all_media(person)),
-    }
+        if role_display not in titles[key].roles:
+            titles[key].roles.append(role_display)
+    return PersonDetailSchema(
+        name=person.name,
+        slug=person.slug,
+        description=_build_rich_text(person, "description", active_claims(person)),
+        birth_year=person.birth_year,
+        birth_month=person.birth_month,
+        birth_day=person.birth_day,
+        death_year=person.death_year,
+        death_month=person.death_month,
+        death_day=person.death_day,
+        birth_place=person.birth_place,
+        nationality=person.nationality,
+        photo_url=person.photo_url,
+        titles=list(titles.values()),
+        uploaded_media=_serialize_uploaded_media(all_media(person)),
+    )
 
 
-def _person_qs():
+def _person_qs() -> QuerySet[Person]:
     return Person.objects.active().prefetch_related(
         Prefetch(
             "credits",
@@ -185,18 +190,23 @@ people_router = Router(tags=["people"])
 
 @people_router.get("/", response=list[PersonSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
-def list_people(request):
-    return list(
-        Person.objects.active()
+def list_people(request: HttpRequest) -> list[PersonSchema]:
+    return [
+        PersonSchema(
+            name=row["name"], slug=row["slug"], credit_count=row["credit_count"]
+        )
+        for row in Person.objects.active()
         .annotate(credit_count=Count("credits"))
         .order_by("name")
         .values("name", "slug", "credit_count")
-    )
+    ]
 
 
 @people_router.get("/all/", response=list[PersonGridSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_people(request):
+def list_all_people(
+    request: HttpRequest,
+) -> HttpResponse | list[dict[str, Any]]:
     """Return every person with credit count and thumbnail.
 
     Uses a bulk query to find the newest credited model per person for
@@ -235,7 +245,7 @@ def list_all_people(request):
         ).only("id", "extra_data")
     }
 
-    result = []
+    result: list[dict[str, Any]] = []
     for p in people:
         thumb = None
         person_id = p.pk
@@ -260,7 +270,9 @@ def list_all_people(request):
 @people_router.patch(
     "/{slug}/claims/", auth=django_auth, response=PersonDetailSchema, tags=["private"]
 )
-def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
+def patch_person_claims(
+    request: HttpRequest, slug: str, data: ClaimPatchSchema
+) -> PersonDetailSchema:
     """Assert per-field claims from the authenticated user, then re-resolve."""
     person = get_object_or_404(Person.objects.active(), slug=slug)
 
@@ -285,7 +297,9 @@ def patch_person_claims(request, slug: str, data: ClaimPatchSchema):
     response={201: PersonDetailSchema},
     tags=["private"],
 )
-def create_person(request, data: PersonCreateSchema):
+def create_person(
+    request: HttpRequest, data: PersonCreateSchema
+) -> Status[PersonDetailSchema]:
     """Create a new Person from a user-supplied name and slug.
 
     Mirrors ``create_title``: writes a user ChangeSet with ``action=create``
@@ -304,9 +318,10 @@ def create_person(request, data: PersonCreateSchema):
     # would let over-long names pass validation and fail at DB insert,
     # which create_entity_with_claims would then misreport as a slug
     # collision.
-    name = validate_name(
-        data.name, max_length=Person._meta.get_field("name").max_length
-    )
+    name_field = Person._meta.get_field("name")
+    assert isinstance(name_field, models.Field)
+    assert name_field.max_length is not None
+    name = validate_name(data.name, max_length=name_field.max_length)
     slug = validate_slug_format(data.slug)
     assert_name_available(
         Person,
@@ -368,29 +383,37 @@ def _active_credit_count(person: Person) -> int:
     response=PersonDeletePreviewSchema,
     tags=["private"],
 )
-def person_delete_preview(request, slug: str):
+def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePreviewSchema:
     """Return the impact summary used by the delete confirmation screen."""
     person = get_object_or_404(Person.objects.active(), slug=slug)
     plan = plan_soft_delete(person)
     active_credits = _active_credit_count(person)
     is_blocked = plan.is_blocked or active_credits > 0
     changeset_count = 0 if is_blocked else count_entity_changesets(person)
-    return {
-        "person_name": person.name,
-        "person_slug": person.slug,
-        "changeset_count": changeset_count,
-        "active_credit_count": active_credits,
-        "blocked_by": [serialize_blocking_referrer(b) for b in plan.blockers],
-    }
+    return PersonDeletePreviewSchema(
+        person_name=person.name,
+        person_slug=person.slug,
+        changeset_count=changeset_count,
+        active_credit_count=active_credits,
+        blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
+    )
 
 
 @people_router.post(
     "/{slug}/delete/",
     auth=django_auth,
-    response={200: PersonDeleteResponseSchema, 422: dict},
+    response={
+        200: PersonDeleteResponseSchema,
+        422: PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema,
+    },
     tags=["private"],
 )
-def delete_person(request, slug: str, data: PersonDeleteSchema):
+def delete_person(
+    request: HttpRequest, slug: str, data: PersonDeleteSchema
+) -> (
+    PersonDeleteResponseSchema
+    | Status[PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema]
+):
     """Soft-delete a Person.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -407,16 +430,16 @@ def delete_person(request, slug: str, data: PersonDeleteSchema):
     if active_credits > 0:
         return Status(
             422,
-            {
-                "detail": (
+            PersonSoftDeleteBlockedSchema(
+                detail=(
                     f"Cannot delete: {person.name} is credited on "
                     f"{active_credits} active machine"
                     f"{'s' if active_credits != 1 else ''}. "
                     "Remove the credits first."
                 ),
-                "blocked_by": [],
-                "active_credit_count": active_credits,
-            },
+                blocked_by=[],
+                active_credit_count=active_credits,
+            ),
         )
 
     try:
@@ -426,29 +449,35 @@ def delete_person(request, slug: str, data: PersonDeleteSchema):
     except SoftDeleteBlockedError as exc:
         return Status(
             422,
-            {
-                "detail": "Cannot delete: active references would be left dangling.",
-                "blocked_by": [serialize_blocking_referrer(b) for b in exc.blockers],
-                "active_credit_count": 0,
-            },
+            PersonSoftDeleteBlockedSchema(
+                detail="Cannot delete: active references would be left dangling.",
+                blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+                active_credit_count=0,
+            ),
         )
 
     if changeset is None:
-        return Status(422, {"detail": "Person is already deleted."})
+        return Status(422, AlreadyDeletedSchema(detail="Person is already deleted."))
 
-    return {
-        "changeset_id": changeset.pk,
-        "affected_people": [e.slug for e in deleted if isinstance(e, Person)],
-    }
+    return PersonDeleteResponseSchema(
+        changeset_id=changeset.pk,
+        affected_people=[e.slug for e in deleted if isinstance(e, Person)],
+    )
 
 
 @people_router.post(
     "/{slug}/restore/",
     auth=django_auth,
-    response={200: PersonDetailSchema, 422: dict, 404: dict},
+    response={
+        200: PersonDetailSchema,
+        422: ErrorDetailSchema,
+        404: ErrorDetailSchema,
+    },
     tags=["private"],
 )
-def restore_person(request, slug: str, data: PersonRestoreSchema):
+def restore_person(
+    request: HttpRequest, slug: str, data: PersonRestoreSchema
+) -> PersonDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Person.
 
     Shares the ``create`` rate-limit bucket (Restore is semantically a
@@ -459,7 +488,7 @@ def restore_person(request, slug: str, data: PersonRestoreSchema):
     # Bypass .active() — we're looking for soft-deleted people.
     person = get_object_or_404(Person, slug=slug)
     if person.status != "deleted":
-        return Status(422, {"detail": "Person is not deleted."})
+        return Status(422, ErrorDetailSchema(detail="Person is not deleted."))
 
     execute_claims(
         person,

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 
-from django.db.models import F, Prefetch, Q
+from django.db.models import F, Prefetch, Q, QuerySet
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
 from ninja import Router, Schema
@@ -14,6 +16,7 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
+from apps.core.types import JsonBody
 from apps.media.helpers import all_media, primary_media
 from apps.media.models import EntityMedia
 from apps.media.schemas import UploadedMediaSchema
@@ -38,6 +41,7 @@ from ..models import (
     DisplayType,
     GameFormat,
     GameplayFeature,
+    Location,
     MachineModel,
     MachineModelGameplayFeature,
     ModelAbbreviation,
@@ -74,7 +78,10 @@ from .helpers import (
     _serialize_uploaded_media,
 )
 from .schemas import (
+    AlreadyDeletedSchema,
     CreditSchema,
+    EditOptionItem,
+    ErrorDetailSchema,
     FranchiseRefSchema,
     GameplayFeatureSchema,
     ModelClaimPatchSchema,
@@ -86,6 +93,7 @@ from .schemas import (
     Ref,
     RewardTypeSchema,
     SeriesRefSchema,
+    SoftDeleteBlockedSchema,
     ThemeSchema,
     TitleMachineSchema,
 )
@@ -165,7 +173,7 @@ class MachineModelDetailSchema(Schema):
     pinside_rating: float | None = None
     description: RichTextSchema = RichTextSchema()
     abbreviations: list[str] = []
-    extra_data: dict
+    extra_data: JsonBody
     credits: list[CreditSchema]
     thumbnail_url: str | None = None
     hero_image_url: str | None = None
@@ -211,7 +219,7 @@ def _build_model_list_qs(
     year_max: int | None = None,
     person: str = "",
     ordering: str = "-year",
-):
+) -> QuerySet[MachineModel]:
     qs = (
         MachineModel.objects.active()
         .select_related(
@@ -282,7 +290,9 @@ def _build_model_list_qs(
     return qs
 
 
-def _serialize_model_list(pm, *, min_rank: int | None = None) -> dict:
+def _serialize_model_list(
+    pm: MachineModel, *, min_rank: int | None = None
+) -> dict[str, Any]:
     thumbnail_url, _ = _extract_image_urls(
         pm.extra_data or {}, primary_media(pm), min_rank=min_rank
     )
@@ -320,8 +330,8 @@ def _serialize_model_list(pm, *, min_rank: int | None = None) -> dict:
     }
 
 
-def _serialize_model_detail(pm) -> dict:
-    """Serialize a MachineModel into the detail response dict.
+def _serialize_model_detail(pm: MachineModel) -> MachineModelDetailSchema:
+    """Serialize a MachineModel into the detail response schema.
 
     Expects *pm* to have been fetched with prefetch_related for credits
     (with select_related("person")) and claims (to_attr="active_claims").
@@ -343,26 +353,28 @@ def _serialize_model_detail(pm) -> dict:
     variant_features = _extract_variant_features(pm.extra_data or {})
 
     variants = [
-        {
-            "name": v.name,
-            "slug": v.slug,
-            "year": v.year,
-            "variant_features": _extract_variant_features(v.extra_data or {}),
-        }
+        VariantSchema(
+            name=v.name,
+            slug=v.slug,
+            year=v.year,
+            variant_features=_extract_variant_features(v.extra_data or {}),
+        )
         for v in pm.variants.all()
     ]
 
     # Build sibling variants: other variants of the same parent.
-    variant_siblings = []
+    variant_siblings: list[VariantSchema] = []
     if pm.variant_of_id is not None:
+        parent = pm.variant_of
+        assert parent is not None  # narrowed by variant_of_id check above
         variant_siblings = [
-            {
-                "name": sib.name,
-                "slug": sib.slug,
-                "year": sib.year,
-                "variant_features": _extract_variant_features(sib.extra_data or {}),
-            }
-            for sib in pm.variant_of.variants.all()
+            VariantSchema(
+                name=sib.name,
+                slug=sib.slug,
+                year=sib.year,
+                variant_features=_extract_variant_features(sib.extra_data or {}),
+            )
+            for sib in parent.variants.all()
             if sib.pk != pm.pk
         ]
 
@@ -379,137 +391,138 @@ def _serialize_model_detail(pm) -> dict:
         else None
     )
 
-    return {
-        "name": pm.name,
-        "slug": pm.slug,
-        "description": description,
-        "manufacturer": {"name": mfr.name, "slug": mfr.slug} if mfr else None,
-        "corporate_entity": (
-            {"name": pm.corporate_entity.name, "slug": pm.corporate_entity.slug}
+    return MachineModelDetailSchema(
+        name=pm.name,
+        slug=pm.slug,
+        description=description,
+        manufacturer=Ref(name=mfr.name, slug=mfr.slug) if mfr else None,
+        corporate_entity=(
+            Ref(name=pm.corporate_entity.name, slug=pm.corporate_entity.slug)
             if pm.corporate_entity
             else None
         ),
-        "year": pm.year,
-        "month": pm.month,
-        "technology_generation": (
-            {
-                "name": pm.technology_generation.name,
-                "slug": pm.technology_generation.slug,
-            }
+        year=pm.year,
+        month=pm.month,
+        technology_generation=(
+            Ref(
+                name=pm.technology_generation.name,
+                slug=pm.technology_generation.slug,
+            )
             if pm.technology_generation
             else None
         ),
-        "technology_subgeneration": (
-            {"name": subgen.name, "slug": subgen.slug} if subgen else None
+        technology_subgeneration=(
+            Ref(name=subgen.name, slug=subgen.slug) if subgen else None
         ),
-        "display_type": (
-            {"name": pm.display_type.name, "slug": pm.display_type.slug}
+        display_type=(
+            Ref(name=pm.display_type.name, slug=pm.display_type.slug)
             if pm.display_type
             else None
         ),
-        "player_count": pm.player_count,
-        "themes": [{"name": t.name, "slug": t.slug} for t in pm.themes.all()],
-        "production_quantity": pm.production_quantity,
-        "system": (
-            {"name": pm.system.name, "slug": pm.system.slug} if pm.system else None
+        player_count=pm.player_count,
+        themes=[ThemeSchema(name=t.name, slug=t.slug) for t in pm.themes.all()],
+        production_quantity=pm.production_quantity,
+        system=(Ref(name=pm.system.name, slug=pm.system.slug) if pm.system else None),
+        flipper_count=pm.flipper_count,
+        ipdb_id=pm.ipdb_id,
+        opdb_id=pm.opdb_id,
+        pinside_id=pm.pinside_id,
+        ipdb_rating=float(pm.ipdb_rating) if pm.ipdb_rating is not None else None,
+        pinside_rating=(
+            float(pm.pinside_rating) if pm.pinside_rating is not None else None
         ),
-        "flipper_count": pm.flipper_count,
-        "ipdb_id": pm.ipdb_id,
-        "opdb_id": pm.opdb_id,
-        "pinside_id": pm.pinside_id,
-        "ipdb_rating": float(pm.ipdb_rating) if pm.ipdb_rating is not None else None,
-        "pinside_rating": float(pm.pinside_rating)
-        if pm.pinside_rating is not None
-        else None,
-        "abbreviations": [a.value for a in pm.abbreviations.all()],
-        "extra_data": pm.extra_data or {},
-        "credits": credits,
-        "thumbnail_url": thumbnail_url,
-        "hero_image_url": hero_image_url,
-        "image_attribution": image_attribution,
-        "uploaded_media": uploaded_media,
-        "variant_features": variant_features,
-        "variants": variants,
-        "variant_of": (
-            {
-                "name": pm.variant_of.name,
-                "slug": pm.variant_of.slug,
-                "year": pm.variant_of.year,
-            }
+        abbreviations=[a.value for a in pm.abbreviations.all()],
+        extra_data=pm.extra_data or {},
+        credits=credits,
+        thumbnail_url=thumbnail_url,
+        hero_image_url=hero_image_url,
+        image_attribution=image_attribution,
+        uploaded_media=uploaded_media,
+        variant_features=variant_features,
+        variants=variants,
+        variant_of=(
+            ModelRefSchema(
+                name=pm.variant_of.name,
+                slug=pm.variant_of.slug,
+                year=pm.variant_of.year,
+            )
             if pm.variant_of
             else None
         ),
-        "variant_siblings": variant_siblings,
-        "converted_from": (
-            {
-                "name": pm.converted_from.name,
-                "slug": pm.converted_from.slug,
-                "year": pm.converted_from.year,
-            }
+        variant_siblings=variant_siblings,
+        converted_from=(
+            ModelRefSchema(
+                name=pm.converted_from.name,
+                slug=pm.converted_from.slug,
+                year=pm.converted_from.year,
+            )
             if pm.converted_from
             else None
         ),
-        "conversions": [
-            {"name": c.name, "slug": c.slug, "year": c.year}
+        conversions=[
+            ModelRefSchema(name=c.name, slug=c.slug, year=c.year)
             for c in pm.conversions.all()
         ],
-        "remake_of": (
-            {
-                "name": pm.remake_of.name,
-                "slug": pm.remake_of.slug,
-                "year": pm.remake_of.year,
-            }
+        remake_of=(
+            ModelRefSchema(
+                name=pm.remake_of.name,
+                slug=pm.remake_of.slug,
+                year=pm.remake_of.year,
+            )
             if pm.remake_of
             else None
         ),
-        "remakes": [
-            {"name": r.name, "slug": r.slug, "year": r.year} for r in pm.remakes.all()
+        remakes=[
+            ModelRefSchema(name=r.name, slug=r.slug, year=r.year)
+            for r in pm.remakes.all()
         ],
-        "title": ({"name": pm.title.name, "slug": pm.title.slug} if pm.title else None),
-        "cabinet": (
-            {"name": pm.cabinet.name, "slug": pm.cabinet.slug} if pm.cabinet else None
+        title=(Ref(name=pm.title.name, slug=pm.title.slug) if pm.title else None),
+        cabinet=(
+            Ref(name=pm.cabinet.name, slug=pm.cabinet.slug) if pm.cabinet else None
         ),
-        "game_format": (
-            {"name": pm.game_format.name, "slug": pm.game_format.slug}
+        game_format=(
+            Ref(name=pm.game_format.name, slug=pm.game_format.slug)
             if pm.game_format
             else None
         ),
-        "display_subtype": (
-            {"name": pm.display_subtype.name, "slug": pm.display_subtype.slug}
+        display_subtype=(
+            Ref(name=pm.display_subtype.name, slug=pm.display_subtype.slug)
             if pm.display_subtype
             else None
         ),
-        "gameplay_features": [
-            {
-                "name": t.gameplayfeature.name,
-                "slug": t.gameplayfeature.slug,
-                "count": t.count,
-            }
+        gameplay_features=[
+            GameplayFeatureSchema(
+                name=t.gameplayfeature.name,
+                slug=t.gameplayfeature.slug,
+                count=t.count,
+            )
             for t in pm.machinemodelgameplayfeature_set.all()
         ],
-        "tags": [{"name": t.name, "slug": t.slug} for t in pm.tags.all()],
-        "reward_types": [
-            {"name": rt.name, "slug": rt.slug} for rt in pm.reward_types.all()
+        tags=[Ref(name=t.name, slug=t.slug) for t in pm.tags.all()],
+        reward_types=[
+            RewardTypeSchema(name=rt.name, slug=rt.slug) for rt in pm.reward_types.all()
         ],
-        "franchise": (
-            {"name": pm.title.franchise.name, "slug": pm.title.franchise.slug}
+        franchise=(
+            FranchiseRefSchema(
+                name=pm.title.franchise.name, slug=pm.title.franchise.slug
+            )
             if pm.title and pm.title.franchise
             else None
         ),
-        "series": (
-            {"name": pm.title.series.name, "slug": pm.title.series.slug}
+        series=(
+            SeriesRefSchema(name=pm.title.series.name, slug=pm.title.series.slug)
             if pm.title and pm.title.series
             else None
         ),
-        "title_models": [
+        title_models=[
             _serialize_title_machine(sibling, min_rank=min_rank)
             for sibling in (pm.title.machine_models.all() if pm.title else [])
             if sibling.variant_of_id is None
         ],
-    }
+    )
 
 
-def _model_detail_qs():
+def _model_detail_qs() -> QuerySet[MachineModel]:
     """Return the queryset used for model detail / patch endpoints."""
     return (
         MachineModel.objects.active()
@@ -577,7 +590,7 @@ models_router = Router(tags=["models"])
 @models_router.get("/", response=list[MachineModelListSchema])
 @paginate(PageNumberPagination, page_size=DEFAULT_PAGE_SIZE)
 def list_models(
-    request,
+    request: HttpRequest,
     manufacturer: str = "",
     type: str = "",
     subgeneration: str = "",
@@ -592,7 +605,7 @@ def list_models(
     year_max: int | None = None,
     person: str = "",
     ordering: str = "-year",
-):
+) -> list[dict[str, Any]]:
     qs = _build_model_list_qs(
         manufacturer=manufacturer,
         type=type,
@@ -613,7 +626,7 @@ def list_models(
     return [_serialize_model_list(pm, min_rank=min_rank) for pm in qs]
 
 
-def _build_search_text(pm) -> str:
+def _build_search_text(pm: MachineModel) -> str:
     """Build a pipe-separated search text from all related entity names."""
     parts: list[str] = []
     if pm.corporate_entity and pm.corporate_entity.manufacturer:
@@ -622,11 +635,11 @@ def _build_search_text(pm) -> str:
         for entity in mfr.entities.all():
             parts.append(entity.name)
             for cel in entity.locations.all():
-                loc = cel.location
-                while loc is not None:
-                    if loc.name:
-                        parts.append(loc.name)
-                    loc = loc.parent
+                cur: Location | None = cel.location
+                while cur is not None:
+                    if cur.name:
+                        parts.append(cur.name)
+                    cur = cur.parent
     if pm.system:
         parts.append(pm.system.name)
     if pm.technology_generation:
@@ -662,7 +675,7 @@ class ModelRecentSchema(Schema):
 
 @models_router.get("/recent/", response=list[ModelRecentSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_recent_models(request):
+def list_recent_models(request: HttpRequest) -> list[ModelRecentSchema]:
     """Return the 3 newest non-variant models, one per title."""
     qs = (
         MachineModel.objects.active()
@@ -675,7 +688,7 @@ def list_recent_models(request):
         )[:20]  # generous LIMIT — we only need 3 unique titles
     )
     min_rank = get_minimum_display_rank()
-    results = []
+    results: list[ModelRecentSchema] = []
     seen_titles: set[int | None] = set()
     for m in qs:
         title_id = m.title_id
@@ -684,17 +697,17 @@ def list_recent_models(request):
         seen_titles.add(title_id)
         thumbnail_url, _ = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)
         results.append(
-            {
-                "name": m.name,
-                "slug": m.slug,
-                "manufacturer_name": (
+            ModelRecentSchema(
+                name=m.name,
+                slug=m.slug,
+                manufacturer_name=(
                     m.corporate_entity.manufacturer.name
                     if m.corporate_entity and m.corporate_entity.manufacturer
                     else None
                 ),
-                "year": m.year,
-                "thumbnail_url": thumbnail_url,
-            }
+                year=m.year,
+                thumbnail_url=thumbnail_url,
+            )
         )
         if len(results) == 3:
             break
@@ -703,7 +716,9 @@ def list_recent_models(request):
 
 @models_router.get("/all/", response=list[MachineModelGridSchema])
 @decorate_view(cache_control(no_cache=True))
-def list_all_models(request):
+def list_all_models(
+    request: HttpRequest,
+) -> HttpResponse | list[dict[str, Any]]:
     """Return every model (including variants) for client-side search/grid.
 
     Performance-critical: serializes ~7k models with search_text built from
@@ -819,7 +834,7 @@ def list_all_models(request):
                 mfr_search_parts[mfr_id].append(n)
 
     # --- Assembly ---
-    result = []
+    result: list[dict[str, Any]] = []
     for r in rows:
         mid = r.id
         thumbnail_url, _ = _extract_image_urls(r.extra_data or {}, min_rank=min_rank)
@@ -863,50 +878,50 @@ def list_all_models(request):
 
 @models_router.get("/edit-options/", response=ModelEditOptionsSchema)
 @decorate_view(cache_control(no_cache=True))
-def get_model_edit_options(request):
+def get_model_edit_options(request: HttpRequest) -> ModelEditOptionsSchema:
     """Return all dropdown options for the MachineModel edit form."""
 
-    def _opts(qs):
-        return [{"slug": obj.slug, "label": obj.name} for obj in qs]
+    def _opts(qs: QuerySet[Any]) -> list[EditOptionItem]:
+        return [EditOptionItem(slug=obj.slug, label=obj.name) for obj in qs]
 
-    return {
-        "themes": _opts(Theme.objects.active().order_by("name")),
-        "tags": _opts(Tag.objects.active().order_by("name")),
-        "reward_types": _opts(
+    return ModelEditOptionsSchema(
+        themes=_opts(Theme.objects.active().order_by("name")),
+        tags=_opts(Tag.objects.active().order_by("name")),
+        reward_types=_opts(
             RewardType.objects.active().order_by("display_order", "name")
         ),
-        "gameplay_features": _opts(GameplayFeature.objects.active().order_by("name")),
-        "technology_generations": _opts(
+        gameplay_features=_opts(GameplayFeature.objects.active().order_by("name")),
+        technology_generations=_opts(
             TechnologyGeneration.objects.active().order_by("display_order", "name")
         ),
-        "technology_subgenerations": _opts(
+        technology_subgenerations=_opts(
             TechnologySubgeneration.objects.active().order_by("display_order", "name")
         ),
-        "display_types": _opts(
+        display_types=_opts(
             DisplayType.objects.active().order_by("display_order", "name")
         ),
-        "display_subtypes": _opts(
+        display_subtypes=_opts(
             DisplaySubtype.objects.active().order_by("display_order", "name")
         ),
-        "cabinets": _opts(Cabinet.objects.active().order_by("display_order", "name")),
-        "game_formats": _opts(
+        cabinets=_opts(Cabinet.objects.active().order_by("display_order", "name")),
+        game_formats=_opts(
             GameFormat.objects.active().order_by("display_order", "name")
         ),
-        "systems": _opts(System.objects.active().order_by("name")),
-        "corporate_entities": _opts(CorporateEntity.objects.active().order_by("name")),
-        "people": _opts(Person.objects.active().order_by("name")),
-        "credit_roles": _opts(
+        systems=_opts(System.objects.active().order_by("name")),
+        corporate_entities=_opts(CorporateEntity.objects.active().order_by("name")),
+        people=_opts(Person.objects.active().order_by("name")),
+        credit_roles=_opts(
             CreditRole.objects.active().order_by("display_order", "name")
         ),
-        "titles": _opts(Title.objects.active().order_by("name")),
-        "models": [
-            {
-                "slug": obj.slug,
-                "label": f"{obj.name} ({obj.year})" if obj.year else obj.name,
-            }
+        titles=_opts(Title.objects.active().order_by("name")),
+        models=[
+            EditOptionItem(
+                slug=obj.slug,
+                label=f"{obj.name} ({obj.year})" if obj.year else obj.name,
+            )
             for obj in MachineModel.objects.active().order_by("name")
         ],
-    }
+    )
 
 
 _SELF_REF_FIELDS = frozenset({"variant_of", "converted_from", "remake_of"})
@@ -918,7 +933,9 @@ _SELF_REF_FIELDS = frozenset({"variant_of", "converted_from", "remake_of"})
     response=MachineModelDetailSchema,
     tags=["private"],
 )
-def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
+def patch_model_claims(
+    request: HttpRequest, slug: str, data: ModelClaimPatchSchema
+) -> MachineModelDetailSchema:
     """Assert per-field claims from the authenticated user, then re-resolve the model."""
     pm = get_object_or_404(
         MachineModel.objects.active().prefetch_related(
@@ -1003,30 +1020,35 @@ def patch_model_claims(request, slug: str, data: ModelClaimPatchSchema):
     response=ModelDeletePreviewSchema,
     tags=["private"],
 )
-def model_delete_preview(request, slug: str):
+def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewSchema:
     """Return the impact summary used by the delete confirmation screen."""
     pm = get_object_or_404(
         MachineModel.objects.active().select_related("title"), slug=slug
     )
     plan = plan_soft_delete(pm)
     changeset_count = 0 if plan.is_blocked else count_entity_changesets(pm)
-    return {
-        "model_name": pm.name,
-        "model_slug": pm.slug,
-        "title_name": pm.title.name,
-        "title_slug": pm.title.slug,
-        "changeset_count": changeset_count,
-        "blocked_by": [serialize_blocking_referrer(b) for b in plan.blockers],
-    }
+    return ModelDeletePreviewSchema(
+        model_name=pm.name,
+        model_slug=pm.slug,
+        title_name=pm.title.name,
+        title_slug=pm.title.slug,
+        changeset_count=changeset_count,
+        blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
+    )
 
 
 @models_router.post(
     "/{slug}/delete/",
     auth=django_auth,
-    response={200: ModelDeleteResponseSchema, 422: dict},
+    response={
+        200: ModelDeleteResponseSchema,
+        422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
+    },
     tags=["private"],
 )
-def delete_model(request, slug: str, data: ModelDeleteSchema):
+def delete_model(
+    request: HttpRequest, slug: str, data: ModelDeleteSchema
+) -> ModelDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a MachineModel.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1046,28 +1068,34 @@ def delete_model(request, slug: str, data: ModelDeleteSchema):
     except SoftDeleteBlockedError as exc:
         return Status(
             422,
-            {
-                "detail": "Cannot delete: active references would be left dangling.",
-                "blocked_by": [serialize_blocking_referrer(b) for b in exc.blockers],
-            },
+            SoftDeleteBlockedSchema(
+                detail="Cannot delete: active references would be left dangling.",
+                blocked_by=[serialize_blocking_referrer(b) for b in exc.blockers],
+            ),
         )
 
     if changeset is None:
-        return Status(422, {"detail": "Model is already deleted."})
+        return Status(422, AlreadyDeletedSchema(detail="Model is already deleted."))
 
-    return {
-        "changeset_id": changeset.pk,
-        "affected_models": [e.slug for e in deleted if isinstance(e, MachineModel)],
-    }
+    return ModelDeleteResponseSchema(
+        changeset_id=changeset.pk,
+        affected_models=[e.slug for e in deleted if isinstance(e, MachineModel)],
+    )
 
 
 @models_router.post(
     "/{slug}/restore/",
     auth=django_auth,
-    response={200: MachineModelDetailSchema, 422: dict, 404: dict},
+    response={
+        200: MachineModelDetailSchema,
+        422: ErrorDetailSchema,
+        404: ErrorDetailSchema,
+    },
     tags=["private"],
 )
-def restore_model(request, slug: str, data: ModelRestoreSchema):
+def restore_model(
+    request: HttpRequest, slug: str, data: ModelRestoreSchema
+) -> MachineModelDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Model.
 
     This is the "Restore" path (distinct from Undo, which inverts a specific
@@ -1079,7 +1107,7 @@ def restore_model(request, slug: str, data: ModelRestoreSchema):
     # Bypass .active() — we're looking for soft-deleted models.
     pm = get_object_or_404(MachineModel, slug=slug)
     if pm.status != "deleted":
-        return Status(422, {"detail": "Model is not deleted."})
+        return Status(422, ErrorDetailSchema(detail="Model is not deleted."))
 
     execute_claims(
         pm,

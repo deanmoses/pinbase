@@ -4,6 +4,7 @@ import json
 from email.message import Message
 from http.client import HTTPResponse
 from io import BytesIO
+from typing import Any
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 
@@ -128,7 +129,7 @@ class TestNormalizeIsbn:
 # ---------------------------------------------------------------------------
 
 
-def _make_urlopen_response(data: dict, status: int = 200) -> MagicMock:
+def _make_urlopen_response(data: dict[str, Any], status: int = 200) -> MagicMock:
     """Build a mock HTTPResponse that behaves like urllib's urlopen return."""
     body = json.dumps(data).encode()
     resp = MagicMock(spec=HTTPResponse)

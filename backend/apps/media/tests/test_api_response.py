@@ -214,8 +214,8 @@ class TestImageAttribution:
         attr = _extract_image_attribution(OPDB_EXTRA_DATA, primary_media=[])
 
         assert attr is not None
-        assert attr["license_slug"] == "cc-by-sa-4-0"
-        assert attr["permissiveness_rank"] == 50
+        assert attr.license_slug == "cc-by-sa-4-0"
+        assert attr.permissiveness_rank == 50
 
     def test_no_media_returns_none(self):
         attr = _extract_image_attribution({}, primary_media=[])

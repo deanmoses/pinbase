@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import NamedTuple
 
-# JSON request/response body for test-client helpers. Endpoint-specific
-# shapes are validated at the API boundary by Django-Ninja schemas; the
-# value type stays ``object`` so callers can pass arbitrary dict literals
-# without per-endpoint TypedDicts.
+# JSON-shaped dict — object keys, arbitrary JSON values. ``object`` (not
+# ``Any``) forces callers to isinstance-narrow before use, which matches
+# the free-form-but-typed nature of JSON.
+#
+# ``JsonBody`` (invariant dict): test-client request/response bodies.
+# ``JsonData`` (covariant Mapping): read-only views of JSON — function
+# params that only read, e.g. ``extra_data`` JSONField contents. A
+# covariant alias is needed because dict literals like
+# ``{"k": [1, 2]}`` have inferred type ``dict[str, list[int]]``, which
+# is not a subtype of ``dict[str, object]`` but is a subtype of
+# ``Mapping[str, object]``.
 type JsonBody = dict[str, object]
+type JsonData = Mapping[str, object]
 
 
 class EntityKey(NamedTuple):

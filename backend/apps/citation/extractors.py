@@ -61,14 +61,27 @@ EXTRACTORS: dict[str, Extractor] = {
 
 
 @dataclass
+class RecognitionChild:
+    """Child-source portion of a :class:`Recognition`.
+
+    Grouping ``id`` / ``name`` / ``skip_locator`` here encodes the runtime
+    invariant that they're either all present or all absent — callers can
+    narrow with ``if rec.child is not None`` and access fields without
+    per-field ``None`` checks.
+    """
+
+    id: int
+    name: str
+    skip_locator: bool = False
+
+
+@dataclass
 class Recognition:
     """Result of recognizing a pasted URL."""
 
     parent_id: int
     parent_name: str
-    child_id: int | None = None
-    child_name: str | None = None
-    child_skip_locator: bool = False
+    child: RecognitionChild | None = None
     identifier: str | None = None
 
 
@@ -120,9 +133,11 @@ def recognize_url(url: str) -> Recognition | None:
             return Recognition(
                 parent_id=parent.id,
                 parent_name=parent.name,
-                child_id=child.id,
-                child_name=child.name,
-                child_skip_locator=child.skip_locator,
+                child=RecognitionChild(
+                    id=child.id,
+                    name=child.name,
+                    skip_locator=child.skip_locator,
+                ),
                 identifier=extracted_id,
             )
         return Recognition(
@@ -147,9 +162,11 @@ def recognize_url(url: str) -> Recognition | None:
         return Recognition(
             parent_id=parent.pk,
             parent_name=parent.name,
-            child_id=child.pk,
-            child_name=child.name,
-            child_skip_locator=child.skip_locator,
+            child=RecognitionChild(
+                id=child.pk,
+                name=child.name,
+                skip_locator=child.skip_locator,
+            ),
         )
 
     # --- Step 3: Domain match against homepage links -----------------------
