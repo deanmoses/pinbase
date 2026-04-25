@@ -6,7 +6,7 @@ We recently introduced mypy and grandfathered in a lot of exceptions in backend/
 
 ## Status
 
-Steps 1–7 complete. Step 8+ undone.
+Steps 1–8, 10, and 11 complete. Step 9, Step 12, and Step 7.1 remain open.
 
 ## Running mypy
 
@@ -248,9 +248,11 @@ Same pattern as Step 2 — helpers first, endpoints after, `make api-gen` betwee
 
 ## Step 9.2: `provenance/models`
 
-## Step 10: `catalog/resolve/*`
+## Step 10: `catalog/resolve/*` - DONE
 
 See [ResolveHardening.md](ResolveHardening.md). Multi-PR sequence that tightens the claim-value contract across the write path, registry, read-path types, and resolver reads. Typing motivation is one of several — the reasoning wins justify the sequence independently — but baseline reduction still counts here: ~44 mypy entries in `catalog/resolve/*` clear across Steps 3–4, plus downstream subscript-flip entries in Step 5.
+
+Scope landed: no `apps/catalog/resolve/*` entries remain in `backend/mypy-baseline.txt`.
 
 ## Step 11: `media/*` - DONE
 
