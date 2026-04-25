@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 from django.db import models
@@ -108,6 +109,16 @@ class PersonDetailSchema(Schema):
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class _PersonTitleAccum:
+    name: str
+    slug: str
+    year: int | None
+    manufacturer_name: str | None
+    thumbnail_url: str | None
+    roles: list[str] = field(default_factory=list)
+
+
 def _serialize_person_detail(person: Person) -> PersonDetailSchema:
     """Serialize a Person into the detail response schema.
 
@@ -116,17 +127,17 @@ def _serialize_person_detail(person: Person) -> PersonDetailSchema:
     (to_attr="active_claims").
     """
     min_rank = get_minimum_display_rank()
-    titles: dict[str, PersonTitleSchema] = {}
+    accum: dict[str, _PersonTitleAccum] = {}
     for c in person.credits.all():
         if c.model is None or c.model.title is None:
             continue
         title = c.model.title
         key = title.slug
-        if key not in titles:
-            thumbnail_url = _extract_image_urls(
-                c.model.extra_data or {}, min_rank=min_rank
-            )[0]
-            titles[key] = PersonTitleSchema(
+        thumbnail_url = _extract_image_urls(
+            c.model.extra_data or {}, min_rank=min_rank
+        )[0]
+        if key not in accum:
+            accum[key] = _PersonTitleAccum(
                 name=title.name,
                 slug=title.slug,
                 year=c.model.year,
@@ -137,17 +148,23 @@ def _serialize_person_detail(person: Person) -> PersonDetailSchema:
                     else None
                 ),
                 thumbnail_url=thumbnail_url,
-                roles=[],
             )
-        elif titles[key].thumbnail_url is None:
-            thumbnail_url = _extract_image_urls(
-                c.model.extra_data or {}, min_rank=min_rank
-            )[0]
-            if thumbnail_url:
-                titles[key].thumbnail_url = thumbnail_url
+        elif accum[key].thumbnail_url is None and thumbnail_url:
+            accum[key].thumbnail_url = thumbnail_url
         role_display = c.role.name
-        if role_display not in titles[key].roles:
-            titles[key].roles.append(role_display)
+        if role_display not in accum[key].roles:
+            accum[key].roles.append(role_display)
+    titles = [
+        PersonTitleSchema(
+            name=a.name,
+            slug=a.slug,
+            year=a.year,
+            manufacturer_name=a.manufacturer_name,
+            thumbnail_url=a.thumbnail_url,
+            roles=a.roles,
+        )
+        for a in accum.values()
+    ]
     return PersonDetailSchema(
         name=person.name,
         slug=person.slug,
@@ -161,7 +178,7 @@ def _serialize_person_detail(person: Person) -> PersonDetailSchema:
         birth_place=person.birth_place,
         nationality=person.nationality,
         photo_url=person.photo_url,
-        titles=list(titles.values()),
+        titles=titles,
         uploaded_media=_serialize_uploaded_media(all_media(person)),
     )
 

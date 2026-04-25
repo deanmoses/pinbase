@@ -220,11 +220,11 @@ The two `Cannot infer type of lambda` entries on `taxonomy.py`'s `_register_*` w
 
 Baseline: 353 → 310.
 
-## Step 7.1: return-Schema follow-ups surfaced by Step 7
+## Step 7.1: return-Schema follow-ups surfaced by Step 7 - DONE
 
 Remaining "return Schema, not dict" debt in `catalog/api`. No baseline impact — drift cleanup on files that already satisfy `disallow_untyped_defs`.
 
-- **Restructure the accumulator-then-mutate pattern in `_serialize_system_detail` and `_serialize_person_detail`.** Both helpers build a `dict[str, SomeSchema]` and then mutate the Schema instances in place (`titles[key].thumbnail_url = ...`, `titles[key].roles.append(...)`) as more data arrives in the loop. Pydantic v2 allows this (no `validate_assignment`), but it's off-idiom — pydantic models are usually treated as immutable after construction. Build mutable state (dataclass or plain dict) during accumulation, then construct the Schema once at the end.
+- **Restructured the accumulator-then-mutate pattern in `_serialize_system_detail` and `_serialize_person_detail`.** Both helpers built a `dict[str, SomeSchema]` and then mutated the Schema instances in place (`titles[key].thumbnail_url = ...`, `titles[key].roles.append(...)`) as more data arrived in the loop. Replaced with private mutable dataclasses (`_RelatedTitleAccum`, `_PersonTitleAccum`) used during accumulation; the Pydantic Schema is now constructed once per entry at the end of the loop. Schemas are never mutated post-construction.
 
 ## Step 8: `citation/api` - DONE
 
