@@ -33,18 +33,15 @@
 </svelte:head>
 
 <article>
-  <div class="page-head">
-    <div class="page-head-title">
-      <PageHeader title="Locations" --page-header-title-mb="0">
-        <p class="subtitle">Browse pinball manufacturers by country, state, and city.</p>
-      </PageHeader>
-    </div>
-    {#if showActionMenu}
-      <div class="page-actions">
-        <EditSectionMenu items={actionItems} />
-      </div>
-    {/if}
-  </div>
+  <PageHeader
+    title="Locations"
+    subtitle="Browse pinball manufacturers by country, state, and city."
+    actions={showActionMenu ? actionsSnippet : undefined}
+  />
+
+  {#snippet actionsSnippet()}
+    <EditSectionMenu items={actionItems} />
+  {/snippet}
 
   {#if locations.loading}
     <p class="status">Loading...</p>
@@ -84,28 +81,6 @@
 <style>
   article {
     max-width: 48rem;
-  }
-
-  .page-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--size-4);
-  }
-
-  .page-head-title {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .page-actions {
-    flex-shrink: 0;
-  }
-
-  .subtitle {
-    font-size: var(--font-size-2);
-    color: var(--color-text-muted);
-    margin-top: var(--size-2);
   }
 
   .country-section {

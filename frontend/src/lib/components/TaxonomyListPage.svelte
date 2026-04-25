@@ -118,22 +118,19 @@
 </svelte:head>
 
 <article>
-  <div class="page-head">
-    <div class="page-head-title">
-      <PageHeader {title} --page-header-title-mb="0">
-        {#if headerSnippet}
-          {@render headerSnippet()}
-        {:else if subtitle}
-          <p class="subtitle">{subtitle}</p>
-        {/if}
-      </PageHeader>
-    </div>
-    {#if showActionMenu}
-      <div class="page-actions">
-        <EditSectionMenu items={actionItems} />
-      </div>
+  <PageHeader
+    {title}
+    subtitle={headerSnippet ? undefined : subtitle}
+    actions={showActionMenu ? actionsSnippet : undefined}
+  >
+    {#if headerSnippet}
+      {@render headerSnippet()}
     {/if}
-  </div>
+  </PageHeader>
+
+  {#snippet actionsSnippet()}
+    <EditSectionMenu items={actionItems} />
+  {/snippet}
 
   {#if loading}
     <p class="status">Loading...</p>
@@ -188,28 +185,6 @@
 <style>
   article {
     max-width: 48rem;
-  }
-
-  .subtitle {
-    font-size: var(--font-size-2);
-    color: var(--color-text-muted);
-    margin-top: var(--size-2);
-  }
-
-  .page-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--size-4);
-  }
-
-  .page-head-title {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .page-actions {
-    flex-shrink: 0;
   }
 
   .item-list {

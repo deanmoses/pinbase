@@ -57,12 +57,11 @@
   {:else}
     <PageHeader
       title={heading}
+      {subtitle}
       breadcrumbs={crumbs}
       --page-header-mb="var(--size-5)"
       --page-header-title-mb="var(--size-2)"
-    >
-      <p class="subtitle">{subtitle}</p>
-    </PageHeader>
+    />
 
     <TwoColumnLayout>
       {#snippet main()}
@@ -77,11 +76,6 @@
 </article>
 
 <style>
-  .subtitle {
-    font-size: var(--font-size-2);
-    color: var(--color-text-muted);
-  }
-
   .status.error {
     color: var(--color-error);
     text-align: center;

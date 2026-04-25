@@ -13,9 +13,11 @@
 </svelte:head>
 
 <article>
-  <PageHeader title="Claims Needing Review" --page-header-title-mb="var(--size-2)">
-    <p class="subtitle">{claims.length} claim{claims.length !== 1 ? 's' : ''} flagged for review</p>
-  </PageHeader>
+  <PageHeader
+    title="Claims Needing Review"
+    subtitle={`${claims.length} claim${claims.length !== 1 ? 's' : ''} flagged for review`}
+    --page-header-title-mb="var(--size-2)"
+  />
 
   {#if claims.length === 0}
     <p class="empty">No claims need review.</p>
@@ -67,11 +69,6 @@
 <style>
   article {
     max-width: 64rem;
-  }
-
-  .subtitle {
-    font-size: var(--font-size-1);
-    color: var(--color-text-muted);
   }
 
   .empty {
