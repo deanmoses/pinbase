@@ -543,10 +543,8 @@ class TestResolveEntitySlugConflictGuard:
 
         Claim.objects.assert_claim(target, "slug", "springfield", source=editorial)
 
-        # Bypass the dispatcher so the bug is reachable without widening
-        # resolve_entity's signature; the type ignore goes away in step 7
-        # of plans/types/ClaimControlledEntity.md.
-        resolve_entity(target)  # type: ignore[type-var]
+        # Bypass the dispatcher so the bug is reachable directly.
+        resolve_entity(target)
         target.refresh_from_db()
 
         assert target.slug == "springfield"

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower, Now
 
 from apps.core.models import AliasBase, EntityStatusMixin, field_not_blank, status_valid
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = [
     "CorporateEntityLocation",
@@ -18,7 +18,7 @@ __all__ = [
 ]
 
 
-class Location(EntityStatusMixin, models.Model):
+class Location(EntityStatusMixin, ClaimControlledModel):
     """A canonical geographic location at any level of the hierarchy.
 
     The hierarchy is self-referential: a city's parent is its subdivision,
@@ -62,7 +62,6 @@ class Location(EntityStatusMixin, models.Model):
         on_delete=models.PROTECT,
         related_name="children",
     )
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["location_path"]

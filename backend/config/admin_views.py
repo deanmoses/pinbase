@@ -38,9 +38,9 @@ def _run_resolve(target: str) -> tuple[str, int]:
             TechnologyGeneration,
             TechnologySubgeneration,
         )
-        from apps.core.models import CatalogModel
+        from apps.provenance.models import ClaimControlledModel
 
-        taxonomy_models: list[type[CatalogModel]] = [
+        taxonomy_models: list[type[ClaimControlledModel]] = [
             TechnologyGeneration,
             TechnologySubgeneration,
             DisplayType,

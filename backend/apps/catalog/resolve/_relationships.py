@@ -13,8 +13,7 @@ from typing import NamedTuple, cast
 
 from django.db.models import Model
 
-from apps.core.models import CatalogModel
-from apps.provenance.models import Claim
+from apps.provenance.models import Claim, ClaimControlledModel
 
 from .._alias_registry import AliasType, discover_alias_types
 from ..models import (
@@ -773,7 +772,7 @@ def resolve_all_aliases() -> None:
 
 
 def _resolve_parents(
-    parent_model: type[CatalogModel], *, claim_field_prefix: str | None = None
+    parent_model: type[ClaimControlledModel], *, claim_field_prefix: str | None = None
 ) -> None:
     """Resolve parent hierarchy claims into self-referential M2M rows.
 
@@ -805,7 +804,7 @@ def _resolve_parents(
             seen.add(key)
             winners_by_child.setdefault(claim.object_id, []).append(claim)
 
-    valid_pks = set(parent_model.objects.values_list("pk", flat=True))
+    valid_pks = set(parent_model.objects.values_list("pk", flat=True))  # type: ignore[attr-defined]
 
     desired_by_child: dict[int, set[int]] = {}
     for child_id, claims_list in winners_by_child.items():
@@ -831,7 +830,7 @@ def _resolve_parents(
     from_col = f"from_{model_name}_id"
     to_col = f"to_{model_name}_id"
 
-    all_child_ids = set(parent_model.objects.values_list("pk", flat=True))
+    all_child_ids = set(parent_model.objects.values_list("pk", flat=True))  # type: ignore[attr-defined]
     existing_by_child: dict[int, set[int]] = {}
     for row in through._default_manager.filter(
         **{f"{from_col}__in": all_child_ids}

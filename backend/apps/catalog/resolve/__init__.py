@@ -8,7 +8,7 @@ the resolved values.
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from django.core.management.base import OutputWrapper
 from django.utils import timezone
@@ -19,9 +19,8 @@ from apps.core.licensing import (
     build_source_field_license_map,
     resolve_effective_license,
 )
-from apps.core.models import CatalogModel
 from apps.core.types import JsonBody
-from apps.provenance.models import Claim
+from apps.provenance.models import Claim, ClaimControlledModel
 
 from ..claims import get_relationship_namespaces
 from ..models import (
@@ -192,15 +191,13 @@ def resolve_machine_models(stdout: OutputWrapper | None = None) -> int:
         TechnologySubgeneration,
     )
 
-    # Location duck-types ClaimControlledEntity but declines CatalogModel
-    # (non-unique slug, no entity_type).  See plans/types/ClaimControlledEntity.md.
-    resolve_all_entities(cast(type[CatalogModel], Location))
+    resolve_all_entities(Location)
     resolve_all_location_aliases()
     _status("Locations resolved")
 
     from ..models import Franchise, Series, System
 
-    tax_models: list[type[CatalogModel]] = [
+    tax_models: list[type[ClaimControlledModel]] = [
         TechnologyGeneration,
         TechnologySubgeneration,
         DisplayType,

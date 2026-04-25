@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -20,6 +19,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 if TYPE_CHECKING:
     from .machine_model import MachineModel
@@ -43,7 +43,11 @@ __all__ = [
 
 
 class TechnologyGeneration(
-    CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
 ):
     """A major technological era: Pure Mechanical, Electromechanical, Solid State.
 
@@ -59,8 +63,6 @@ class TechnologyGeneration(
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["display_order"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -70,7 +72,11 @@ class TechnologyGeneration(
 
 
 class TechnologySubgeneration(
-    CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
 ):
     """A subdivision within a TechnologyGeneration.
 
@@ -92,8 +98,6 @@ class TechnologySubgeneration(
         related_name="subgenerations",
     )
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["display_order"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -102,7 +106,13 @@ class TechnologySubgeneration(
         return self.name
 
 
-class DisplayType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class DisplayType(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A display technology category: Score Reels, DMD, LCD, etc.
 
     Replaces the old DisplayType enum.
@@ -117,8 +127,6 @@ class DisplayType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedMode
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["display_order"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -127,7 +135,13 @@ class DisplayType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedMode
         return self.name
 
 
-class DisplaySubtype(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class DisplaySubtype(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A subdivision within a DisplayType.
 
     e.g., LCD → Standard LCD, HD LCD.
@@ -148,8 +162,6 @@ class DisplaySubtype(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedM
         related_name="subtypes",
     )
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["display_order"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -158,7 +170,13 @@ class DisplaySubtype(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedM
         return self.name
 
 
-class Cabinet(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class Cabinet(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """Physical cabinet form factor: Floor, Tabletop, Countertop, Cocktail."""
 
     entity_type = "cabinet"
@@ -170,8 +188,6 @@ class Cabinet(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["display_order"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -180,7 +196,13 @@ class Cabinet(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
         return self.name
 
 
-class GameFormat(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class GameFormat(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """Game format: Pinball, Bagatelle, Shuffle Alley, Pitch-and-Bat."""
 
     entity_type = "game-format"
@@ -192,8 +214,6 @@ class GameFormat(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["display_order"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -202,7 +222,13 @@ class GameFormat(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
         return self.name
 
 
-class RewardType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class RewardType(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A pinball reward mechanism: replay, add-a-ball, free-play, etc.
 
     Reward types are the payoff mechanic for achieving a goal, distinct from
@@ -218,8 +244,6 @@ class RewardType(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
     )
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
-
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["display_order", "name"]
@@ -267,7 +291,13 @@ class RewardTypeAlias(AliasBase):
         ]
 
 
-class Tag(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class Tag(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A classification tag: Home Use, Prototype, Widebody, Remake, etc.
 
     Linked to MachineModel via M2M relationship claims.
@@ -282,8 +312,6 @@ class Tag(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     )
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
-
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["display_order"]
@@ -312,7 +340,13 @@ class MachineModelTag(TimeStampedModel):
         return f"{self.machinemodel} → {self.tag}"
 
 
-class CreditRole(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class CreditRole(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A credit role category: Design, Art, Software, etc."""
 
     entity_type = "credit-role"
@@ -345,8 +379,6 @@ class CreditRole(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel
         through_fields=("role", "series"),
         related_name="+",
     )
-
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["display_order"]

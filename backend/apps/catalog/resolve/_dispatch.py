@@ -9,17 +9,14 @@ the claim field names that changed, then invalidates cached endpoint data.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import NamedTuple, cast
 
 from django.db import transaction
 
-from apps.core.models import CatalogModel
+from apps.provenance.models import ClaimControlledModel
 
 from .._alias_registry import discover_alias_types
 from ..cache import invalidate_all
-
-if TYPE_CHECKING:
-    from django.db import models
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +29,7 @@ logger = logging.getLogger(__name__)
 class ParentDispatchSpec(NamedTuple):
     """Entry in the parent-hierarchy dispatch table."""
 
-    model: type[CatalogModel]
+    model: type[ClaimControlledModel]
     claim_field_prefix: str | None
 
 
@@ -106,7 +103,7 @@ def _get_custom_dispatch() -> dict[str, CustomDispatchSpec]:
 
 
 def resolve_after_mutation(
-    entity: models.Model,
+    entity: ClaimControlledModel,
     field_names: list[str] | None = None,
 ) -> None:
     """Re-resolve an entity after its claims have been mutated.
@@ -139,7 +136,7 @@ def resolve_after_mutation(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_machine_model(entity: models.Model) -> None:
+def _resolve_machine_model(entity: ClaimControlledModel) -> None:
     """MachineModel path — resolve_model() handles everything."""
     from ..models import MachineModel
     from . import resolve_model
@@ -148,7 +145,7 @@ def _resolve_machine_model(entity: models.Model) -> None:
 
 
 def _resolve_non_machine_model(
-    entity: models.Model,
+    entity: ClaimControlledModel,
     field_names: list[str] | None,
 ) -> None:
     """Non-MachineModel path — dispatch relationship resolvers then scalars."""
@@ -217,12 +214,7 @@ def _resolve_non_machine_model(
         resolve_media_attachments(content_type_id=ct.id, subject_ids={entity.pk})
 
     # --- Scalar fields ---
-    # ``entity`` is any claim-controlled catalog entity, which today includes
-    # ``Location`` — and Location declines CatalogModel (non-unique slug, no
-    # entity_type).  The cast is a runtime-harmless lie: Location duck-types
-    # CatalogModel for resolve_entity's purposes (slug, claims, _meta, objects).
-    # See plans/types/ClaimControlledEntity.md for the real fix.
-    resolve_entity(cast(CatalogModel, entity))
+    resolve_entity(entity)
 
 
 def _call_custom_resolver(spec: CustomDispatchSpec, entity_pk: int) -> None:

@@ -21,6 +21,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = [
     "CorporateEntity",
@@ -36,6 +37,7 @@ EXTERNAL_ID_MIN = 1
 class Manufacturer(
     CatalogModel,
     EntityStatusMixin,
+    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,
@@ -86,7 +88,6 @@ class Manufacturer(
     # but no validation is applied. Promote keys to real fields when needed.
     extra_data = models.JSONField(default=dict, blank=True)
 
-    claims = GenericRelation("provenance.Claim")
     entity_media = GenericRelation("media.EntityMedia")
 
     class Meta:
@@ -128,7 +129,13 @@ class ManufacturerAlias(AliasBase):
         ]
 
 
-class CorporateEntity(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class CorporateEntity(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A specific corporate incarnation of a manufacturer brand.
 
     IPDB tracks corporate entities (e.g., four separate entries for Gottlieb
@@ -169,8 +176,6 @@ class CorporateEntity(CatalogModel, EntityStatusMixin, SluggedModel, TimeStamped
         help_text="Year this corporate entity ceased operations.",
         validators=[MinValueValidator(YEAR_MIN), MaxValueValidator(YEAR_MAX)],
     )
-
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["manufacturer", "year_start"]

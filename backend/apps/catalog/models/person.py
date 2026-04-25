@@ -21,6 +21,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = ["Credit", "Person", "PersonAlias"]
 
@@ -32,6 +33,7 @@ DAY_MIN, DAY_MAX = 1, 31
 class Person(
     CatalogModel,
     EntityStatusMixin,
+    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,
@@ -111,7 +113,6 @@ class Person(
     # but no validation is applied. Promote keys to real fields when needed.
     extra_data = models.JSONField(default=dict, blank=True)
 
-    claims = GenericRelation("provenance.Claim")
     entity_media = GenericRelation("media.EntityMedia")
 
     class Meta:

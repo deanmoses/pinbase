@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -20,11 +19,18 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = ["MachineModelTheme", "Theme", "ThemeAlias"]
 
 
-class Theme(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class Theme(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A thematic tag for pinball machines (e.g., Sports, Horror, Licensed).
 
     Supports a DAG hierarchy via the ``parents`` M2M (structural, not
@@ -51,8 +57,6 @@ class Theme(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
         blank=True,
         help_text="Parent themes in the hierarchy (materialized from relationship claims).",
     )
-
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["name"]

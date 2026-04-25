@@ -21,7 +21,7 @@ from ninja.security import django_auth
 
 from apps.citation.models import CitationSource
 
-from .models import CitationInstance
+from .models import CitationInstance, ClaimControlledModel
 from .page_endpoints import pages_router
 from .schemas import CitationLinkSchema, ReviewLinkSchema
 
@@ -183,6 +183,8 @@ def revert_claim(request, claim_id: int, data: RevertNoteSchema):
     except ObjectDoesNotExist:
         return Status(404, {"detail": "Entity for this claim no longer exists."})
 
+    # By construction, any entity carrying a Claim is a ClaimControlledModel.
+    assert isinstance(entity, ClaimControlledModel)
     try:
         execute_revert(entity, claim_id=claim_id, user=request.user, note=data.note)
     except RevertError as exc:

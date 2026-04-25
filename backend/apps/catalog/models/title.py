@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MinValueValidator
 from django.db import models
 
@@ -20,6 +19,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = ["Title", "TitleAbbreviation"]
 
@@ -29,7 +29,13 @@ if TYPE_CHECKING:
     from .machine_model import MachineModel
 
 
-class Title(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class Title(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """The canonical identity of a pinball game, independent of edition or variant.
 
     OPDB calls this a "group" in its JSON, but we use "Title" as it is the
@@ -98,8 +104,6 @@ class Title(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
     )
 
     # Reverse access to provenance claims for this title.
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["name"]
         constraints = [

@@ -21,10 +21,9 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Model
 
 from .constants import REVERT_OTHERS_MIN_EDITS
-from .models import ChangeSet, ChangeSetAction, Claim
+from .models import ChangeSet, ChangeSetAction, Claim, ClaimControlledModel
 
 
 class RevertError(Exception):
@@ -39,7 +38,9 @@ class RevertError(Exception):
         self.status_code = status_code
 
 
-def execute_revert(entity: Model, *, claim_id: int, user: User, note: str) -> None:
+def execute_revert(
+    entity: ClaimControlledModel, *, claim_id: int, user: User, note: str
+) -> None:
     """Deactivate a single user claim and re-resolve the entity.
 
     Creates a new ChangeSet recording the revert, deactivates the target
@@ -214,6 +215,10 @@ def execute_undo_changeset(
             for (ct_id, obj_id), fields in affected_fields.items():
                 ct = ContentType.objects.get_for_id(ct_id)
                 entity = ct.get_object_for_this_type(pk=obj_id)
+                # ContentType.get_object_for_this_type returns Model; by
+                # construction the affected entity carries claims, so it is
+                # always a ClaimControlledModel.
+                assert isinstance(entity, ClaimControlledModel)
                 resolve_after_mutation(entity, field_names=list(fields))
     except ValidationError as exc:
         raise UndoError("; ".join(exc.messages)) from exc

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from apps.core.models import (
@@ -16,11 +15,18 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = ["System", "SystemMpuString"]
 
 
-class System(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class System(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """An electronic hardware generation for pinball machines.
 
     e.g. WPC-95, System 6, SAM System, SPIKE.
@@ -47,7 +53,6 @@ class System(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
         blank=True,
         help_text="Technology subgeneration this system belongs to.",
     )
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["name"]

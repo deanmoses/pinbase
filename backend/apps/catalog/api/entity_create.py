@@ -31,7 +31,7 @@ from django.db import IntegrityError, transaction
 from django.db import models as db_models
 from django.db.models import Q
 
-from apps.provenance.models import ChangeSetAction
+from apps.provenance.models import ChangeSetAction, ClaimControlledModel
 from apps.provenance.schemas import EditCitationInput
 
 from .edit_claims import (
@@ -253,14 +253,14 @@ def assert_slug_available(model_cls: type[db_models.Model], slug: str) -> None:
 
 
 def create_entity_with_claims(
-    model_cls: type[db_models.Model],
+    model_cls: type[ClaimControlledModel],
     *,
     row_kwargs: dict[str, Any],
     claim_specs: list[ClaimSpec],
     user: _UserLike,
     note: str = "",
     citation: EditCitationInput | None = None,
-) -> db_models.Model:
+) -> ClaimControlledModel:
     """Create a new catalog row + its initial claims atomically.
 
     * Opens a ``transaction.atomic`` block so that a claim-write failure

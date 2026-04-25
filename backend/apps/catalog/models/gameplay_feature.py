@@ -22,6 +22,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeature"]
 
@@ -29,6 +30,7 @@ __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeatu
 class GameplayFeature(
     CatalogModel,
     EntityStatusMixin,
+    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,
@@ -60,7 +62,6 @@ class GameplayFeature(
         help_text="Parent features in the hierarchy (materialized from relationship claims).",
     )
 
-    claims = GenericRelation("provenance.Claim")
     entity_media = GenericRelation("media.EntityMedia")
 
     class Meta:

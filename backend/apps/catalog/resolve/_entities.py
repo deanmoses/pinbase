@@ -13,9 +13,8 @@ import logging
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import CatalogModel
 from apps.core.types import JsonBody
-from apps.provenance.models import Claim
+from apps.provenance.models import Claim, ClaimControlledModel
 
 from ._helpers import (
     _annotate_priority,
@@ -50,7 +49,7 @@ def _sync_markdown_references(obj: models.Model) -> None:
 
 
 def _resolve_single(
-    obj: models.Model,
+    obj: ClaimControlledModel,
     direct_fields: dict[str, str],
 ) -> None:
     """Resolve active claims onto a single object with only direct fields.
@@ -66,9 +65,7 @@ def _resolve_single(
 
     Mutates *obj* in memory; the caller is responsible for saving.
     """
-    # obj.claims is a GenericRelation declared on every claim-controlled concrete
-    # model — abstract bases don't (yet) declare it; see plans/types/ClaimControlledEntity.md.
-    claims = _annotate_priority(obj.claims.all()).order_by(  # type: ignore[attr-defined,misc]
+    claims = _annotate_priority(obj.claims.all()).order_by(  # type: ignore[misc]
         "field_name", "-effective_priority", "-created_at"
     )
 
@@ -121,7 +118,7 @@ def _resolve_single(
 
 
 def _resolve_bulk(
-    model_class: type[CatalogModel],
+    model_class: type[ClaimControlledModel],
     direct_fields: dict[str, str],
     object_ids: set[int] | None = None,
 ) -> int:
@@ -165,7 +162,7 @@ def _resolve_bulk(
             obj_winners[claim.field_name] = claim
 
     # 2. Load objects.
-    objs_qs = model_class.objects.all()
+    objs_qs = model_class.objects.all()  # type: ignore[attr-defined]
     if object_ids is not None:
         objs_qs = objs_qs.filter(pk__in=object_ids)
     all_objs = list(objs_qs)
@@ -187,8 +184,7 @@ def _resolve_bulk(
     # Snapshot slugs before resolution for conflict revert.
     # Only check for global uniqueness if the slug field is actually unique.
     # django-stubs validates the field-name literal against the model's
-    # declared fields; abstract CatalogModel._meta is empty.  See
-    # plans/types/ClaimControlledEntity.md.
+    # declared fields; abstract ClaimControlledModel._meta is empty.
     slug_field = (
         model_class._meta.get_field("slug")  # type: ignore[misc]
         if "slug" in direct_fields
@@ -234,11 +230,9 @@ def _resolve_bulk(
                 assert extra_data is not None
                 extra_data[field_name] = claim.value
         if has_extra_data:
-            obj.extra_data = extra_data  # type: ignore[attr-defined]
+            obj.extra_data = extra_data
 
-        # updated_at lives on TimeStampedModel, not CatalogModel; concrete
-        # subclasses mix it in.  See plans/types/ClaimControlledEntity.md.
-        obj.updated_at = now  # type: ignore[attr-defined]
+        obj.updated_at = now
 
     # 4b. Detect unique-field conflicts across resolved objects.
     if has_unique_slug:
@@ -253,7 +247,7 @@ def _resolve_bulk(
     update_fields = [*set(direct_fields.values()), "updated_at"]
     if has_extra_data:
         update_fields.append("extra_data")
-    model_class.objects.bulk_update(all_objs, update_fields, batch_size=100)
+    model_class.objects.bulk_update(all_objs, update_fields, batch_size=100)  # type: ignore[attr-defined]
 
     # Sync markdown backlinks (RecordReference) for bulk-resolved objects.
     from apps.core.models import get_markdown_fields
@@ -270,7 +264,7 @@ def _resolve_bulk(
 # ------------------------------------------------------------------
 
 
-def resolve_entity[T: CatalogModel](obj: T) -> T:
+def resolve_entity[T: ClaimControlledModel](obj: T) -> T:
     """Resolve all claim-controlled fields on any entity.
 
     Discovers claim-controlled fields by introspecting the model (via
@@ -290,8 +284,8 @@ def resolve_entity[T: CatalogModel](obj: T) -> T:
     # Skip when slug isn't globally unique (e.g. Location, where slug is
     # unique-per-location_path); mirrors the bulk path's has_unique_slug
     # check.  django-stubs checks the ``slug=`` filter keyword against the
-    # model's declared fields; abstract CatalogModel._meta lists none.  The
-    # concrete subclass always has slug.  See plans/types/ClaimControlledEntity.md.
+    # model's declared fields; abstract ClaimControlledModel._meta lists
+    # none.  The concrete subclass always has slug.
     slug_field = model_class._meta.get_field("slug") if "slug" in fields else None
     slug_is_unique = slug_field is not None and bool(
         getattr(slug_field, "unique", False)
@@ -300,7 +294,7 @@ def resolve_entity[T: CatalogModel](obj: T) -> T:
         slug_is_unique
         and obj.slug
         and obj.slug != original_slug
-        and model_class.objects.filter(slug=obj.slug)  # type: ignore[misc]
+        and model_class.objects.filter(slug=obj.slug)  # type: ignore[attr-defined]
         .exclude(pk=obj.pk)
         .exists()
     ):
@@ -321,7 +315,7 @@ def resolve_entity[T: CatalogModel](obj: T) -> T:
 
 
 def resolve_all_entities(
-    model_class: type[CatalogModel], *, object_ids: set[int] | None = None
+    model_class: type[ClaimControlledModel], *, object_ids: set[int] | None = None
 ) -> int:
     """Bulk-resolve all claim-controlled fields for all instances of a model.
 

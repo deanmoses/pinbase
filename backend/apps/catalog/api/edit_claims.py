@@ -28,7 +28,13 @@ from apps.catalog.models import (
     Title,
 )
 from apps.core.models import get_claim_fields
-from apps.provenance.models import ChangeSet, ChangeSetAction, CitationInstance, Claim
+from apps.provenance.models import (
+    ChangeSet,
+    ChangeSetAction,
+    CitationInstance,
+    Claim,
+    ClaimControlledModel,
+)
 from apps.provenance.schemas import EditCitationInput
 from apps.provenance.validation import validate_claim_value
 
@@ -753,7 +759,7 @@ def _normalize_abbreviations(values: list[str]) -> list[str]:
 
 
 def _write_claims_in_changeset(
-    entity: db_models.Model,
+    entity: ClaimControlledModel,
     specs: list[ClaimSpec],
     *,
     user: AbstractBaseUser,
@@ -805,7 +811,7 @@ def _attach_citation(
 
 
 def execute_claims(
-    entity: db_models.Model,
+    entity: ClaimControlledModel,
     specs: list[ClaimSpec],
     *,
     user: _RequestUser,
@@ -851,7 +857,7 @@ def execute_claims(
 
 
 def execute_multi_entity_claims(
-    entries: Sequence[tuple[db_models.Model, list[ClaimSpec]]],
+    entries: Sequence[tuple[ClaimControlledModel, list[ClaimSpec]]],
     *,
     user: _RequestUser,
     action: ChangeSetAction,
@@ -891,7 +897,7 @@ def execute_multi_entity_claims(
                 user=cast(User, user), action=action, note=note
             )
             all_created: list[Claim] = []
-            per_entity_fields: list[tuple[db_models.Model, list[str]]] = []
+            per_entity_fields: list[tuple[ClaimControlledModel, list[str]]] = []
             for entity, specs in entries:
                 if not specs:
                     continue

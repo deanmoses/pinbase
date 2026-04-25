@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from apps.core.models import (
@@ -18,6 +17,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
+from apps.provenance.models import ClaimControlledModel
 
 __all__ = ["Franchise", "Series"]
 
@@ -25,7 +25,13 @@ if TYPE_CHECKING:
     from .title import Title
 
 
-class Franchise(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class Franchise(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """An IP grouping that spans manufacturers and eras.
 
     e.g., Indiana Jones, Star Trek. Most Titles do not belong to a Franchise.
@@ -40,8 +46,6 @@ class Franchise(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel)
     )
     description = MarkdownField(blank=True)
 
-    claims = GenericRelation("provenance.Claim")
-
     class Meta:
         ordering = ["name"]
         constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
@@ -50,7 +54,13 @@ class Franchise(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel)
         return self.name
 
 
-class Series(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
+class Series(
+    CatalogModel,
+    EntityStatusMixin,
+    ClaimControlledModel,
+    SluggedModel,
+    TimeStampedModel,
+):
     """A manually-curated grouping of related Titles sharing a thematic lineage.
 
     e.g., the "Eight Ball" series spans Eight Ball, Eight Ball Deluxe, and
@@ -67,8 +77,6 @@ class Series(CatalogModel, EntityStatusMixin, SluggedModel, TimeStampedModel):
         max_length=200, validators=[validate_no_mojibake], unique=True
     )
     description = MarkdownField(blank=True)
-
-    claims = GenericRelation("provenance.Claim")
 
     class Meta:
         ordering = ["name"]

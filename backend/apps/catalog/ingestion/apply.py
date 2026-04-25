@@ -27,11 +27,11 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 
-from apps.core.models import CatalogModel
 from apps.core.types import ClaimIdentity, EntityKey
 from apps.provenance.models import (
     ChangeSet,
     Claim,
+    ClaimControlledModel,
     ExistingClaimRow,
     IngestRun,
     Source,
@@ -818,8 +818,10 @@ def _resolve(
         if model_class is None:
             continue
         # Affected CTs are always claim-controlled catalog entities by
-        # construction (they carry claims).  See plans/types/ClaimControlledEntity.md
-        # for why we can't express this without a cast today.
-        resolve_all_entities(cast(type[CatalogModel], model_class), object_ids=obj_ids)
+        # construction (they carry claims).  ContentType.model_class()
+        # returns ``type[Model]``, so the narrowing cast is unavoidable.
+        resolve_all_entities(
+            cast(type[ClaimControlledModel], model_class), object_ids=obj_ids
+        )
         for hook in resolve_hooks.get(ct_id, []):
             hook(subject_ids=obj_ids)
