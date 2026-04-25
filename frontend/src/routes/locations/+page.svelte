@@ -1,6 +1,7 @@
 <script lang="ts">
   import client from '$lib/api/client';
   import { createAsyncLoader } from '$lib/async-loader.svelte';
+  import Page from '$lib/components/Page.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatusMessage from '$lib/components/StatusMessage.svelte';
   import EditSectionMenu from '$lib/components/EditSectionMenu.svelte';
@@ -33,16 +34,16 @@
   <link rel="preload" as="fetch" href="/api/locations/" crossorigin="anonymous" />
 </svelte:head>
 
-<article>
+{#snippet actionsSnippet()}
+  <EditSectionMenu items={actionItems} />
+{/snippet}
+
+<Page>
   <PageHeader
     title="Locations"
     subtitle="Browse pinball manufacturers by country, state, and city."
     actions={showActionMenu ? actionsSnippet : undefined}
   />
-
-  {#snippet actionsSnippet()}
-    <EditSectionMenu items={actionItems} />
-  {/snippet}
 
   {#if locations.loading}
     <StatusMessage variant="loading">Loading...</StatusMessage>
@@ -77,13 +78,9 @@
       {/each}
     </div>
   {/if}
-</article>
+</Page>
 
 <style>
-  article {
-    max-width: 48rem;
-  }
-
   .country-section {
     margin-bottom: var(--size-6);
   }

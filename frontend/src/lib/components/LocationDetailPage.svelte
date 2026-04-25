@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Page from '$lib/components/Page.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatusMessage from '$lib/components/StatusMessage.svelte';
   import type { Crumb } from '$lib/components/Breadcrumb.svelte';
@@ -34,7 +35,7 @@
   } = $props();
 </script>
 
-<article>
+<Page width="extra-wide">
   {#if loading}
     <PageHeader
       title="Loading..."
@@ -74,4 +75,4 @@
       {/snippet}
     </TwoColumnLayout>
   {/if}
-</article>
+</Page>

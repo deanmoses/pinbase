@@ -2,6 +2,7 @@
   import { resolve } from '$app/paths';
   import client from '$lib/api/client';
   import { createAsyncLoader } from '$lib/async-loader.svelte';
+  import Page from '$lib/components/Page.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatusMessage from '$lib/components/StatusMessage.svelte';
   import { pageTitle } from '$lib/constants';
@@ -17,7 +18,7 @@
   <title>{pageTitle('Corporate Entities')}</title>
 </svelte:head>
 
-<article>
+<Page width="wide">
   <PageHeader title="Corporate Entities" />
 
   {#if entities.loading}
@@ -46,13 +47,9 @@
       {/each}
     </ul>
   {/if}
-</article>
+</Page>
 
 <style>
-  article {
-    max-width: 56rem;
-  }
-
   .entity-list {
     list-style: none;
     padding: 0;

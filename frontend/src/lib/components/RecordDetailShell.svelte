@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import HeroHeader from '$lib/components/HeroHeader.svelte';
+  import Page from '$lib/components/Page.svelte';
   import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
 
   type MetaItem = { text: string; href?: string };
@@ -39,7 +40,7 @@
   } = $props();
 </script>
 
-<article>
+<Page width="extra-wide">
   <HeroHeader {name} {heroImageUrl} {heroImageAlt} {parentLink} {metaItems} {aliases} />
 
   {#if actionBar}
@@ -65,7 +66,7 @@
   {:else}
     {@render mainContent()}
   {/if}
-</article>
+</Page>
 
 <style>
   /* Hide sidebar on mobile for the detail reader — the page body duplicates it. */

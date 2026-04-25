@@ -3,6 +3,7 @@
   generics="T extends { slug: string; name: string; aliases?: string[]; title_count?: number }"
 >
   import type { Snippet } from 'svelte';
+  import Page from './Page.svelte';
   import PageHeader from './PageHeader.svelte';
   import SearchBox from './SearchBox.svelte';
   import StatusMessage from './StatusMessage.svelte';
@@ -118,7 +119,11 @@
   <link rel="preload" as="fetch" href={endpoint} crossorigin="anonymous" />
 </svelte:head>
 
-<article>
+{#snippet actionsSnippet()}
+  <EditSectionMenu items={actionItems} />
+{/snippet}
+
+<Page>
   <PageHeader
     {title}
     subtitle={headerSnippet ? undefined : subtitle}
@@ -128,10 +133,6 @@
       {@render headerSnippet()}
     {/if}
   </PageHeader>
-
-  {#snippet actionsSnippet()}
-    <EditSectionMenu items={actionItems} />
-  {/snippet}
 
   {#if loading}
     <StatusMessage variant="loading">Loading...</StatusMessage>
@@ -181,13 +182,9 @@
       </ul>
     {/if}
   {/if}
-</article>
+</Page>
 
 <style>
-  article {
-    max-width: 48rem;
-  }
-
   .item-list {
     list-style: none;
     padding: 0;
