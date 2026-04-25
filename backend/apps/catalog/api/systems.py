@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import cast
 
 from django.db import models
@@ -104,35 +105,48 @@ def _system_detail_qs() -> QuerySet[System]:
     )
 
 
+@dataclass
+class _RelatedTitleAccum:
+    name: str
+    slug: str
+    year: int | None
+    manufacturer_name: str | None
+    thumbnail_url: str | None
+
+
 def _serialize_system_detail(system: System) -> SystemDetailSchema:
     min_rank = get_minimum_display_rank()
-    titles: dict[str, RelatedTitleSchema] = {}
+    accum: dict[str, _RelatedTitleAccum] = {}
     for m in system.machine_models.all():
         if m.title is None:
             continue
         key = m.title.slug
-        if key not in titles:
-            thumbnail_url = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)[
-                0
-            ]
+        thumbnail_url = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)[0]
+        if key not in accum:
             mfr = (
                 m.corporate_entity.manufacturer
                 if m.corporate_entity and m.corporate_entity.manufacturer
                 else None
             )
-            titles[key] = RelatedTitleSchema(
+            accum[key] = _RelatedTitleAccum(
                 name=m.title.name,
                 slug=m.title.slug,
                 year=m.year,
                 manufacturer_name=mfr.name if mfr else None,
                 thumbnail_url=thumbnail_url,
             )
-        elif titles[key].thumbnail_url is None:
-            thumbnail_url = _extract_image_urls(m.extra_data or {}, min_rank=min_rank)[
-                0
-            ]
-            if thumbnail_url:
-                titles[key].thumbnail_url = thumbnail_url
+        elif accum[key].thumbnail_url is None and thumbnail_url:
+            accum[key].thumbnail_url = thumbnail_url
+    titles = [
+        RelatedTitleSchema(
+            name=a.name,
+            slug=a.slug,
+            year=a.year,
+            manufacturer_name=a.manufacturer_name,
+            thumbnail_url=a.thumbnail_url,
+        )
+        for a in accum.values()
+    ]
 
     sibling_systems: list[SiblingSystemSchema] = []
     if system.manufacturer:
@@ -163,7 +177,7 @@ def _serialize_system_detail(system: System) -> SystemDetailSchema:
             if system.technology_subgeneration
             else None
         ),
-        titles=list(titles.values()),
+        titles=titles,
         sibling_systems=sibling_systems,
     )
 
