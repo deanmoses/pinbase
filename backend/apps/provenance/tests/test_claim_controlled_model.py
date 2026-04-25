@@ -13,8 +13,7 @@ from __future__ import annotations
 from django.apps import apps
 from django.db.models import Model
 
-from apps.catalog.models import Location
-from apps.core.models import CatalogModel
+from apps.catalog.models import CatalogModel, Location
 from apps.provenance.models import Claim, ClaimControlledModel
 
 

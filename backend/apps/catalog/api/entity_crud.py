@@ -16,7 +16,7 @@ stability — consumers already depend on
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from django.db import models as db_models
 from django.db.models import Q, QuerySet
@@ -26,9 +26,9 @@ from ninja import Router, Schema
 from ninja.responses import Status
 from ninja.security import django_auth
 
+from apps.catalog.models import CatalogModel
 from apps.catalog.naming import normalize_catalog_name
-from apps.core.models import CatalogModel
-from apps.provenance.models import ChangeSetAction, ClaimControlledModel
+from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
     DELETE_RATE_LIMIT_SPEC,
@@ -266,7 +266,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
                 )
 
         execute_claims(
-            cast(ClaimControlledModel, obj),
+            obj,
             [ClaimSpec(field_name="status", value="active")],
             user=request.user,
             action=ChangeSetAction.EDIT,
@@ -383,7 +383,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
             claim_specs.append(ClaimSpec(field_name=parent_field, value=parent.slug))
 
         create_entity_with_claims(
-            cast(type[ClaimControlledModel], model_cls),
+            model_cls,
             row_kwargs=row_kwargs,
             claim_specs=claim_specs,
             user=request.user,

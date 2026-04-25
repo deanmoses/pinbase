@@ -9,8 +9,6 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -21,7 +19,8 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 __all__ = ["Credit", "Person", "PersonAlias"]
 
@@ -32,8 +31,6 @@ DAY_MIN, DAY_MAX = 1, 31
 
 class Person(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,

@@ -9,8 +9,6 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -21,7 +19,8 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 __all__ = [
     "CorporateEntity",
@@ -36,8 +35,6 @@ EXTERNAL_ID_MIN = 1
 
 class Manufacturer(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,
@@ -131,8 +128,6 @@ class ManufacturerAlias(AliasBase):
 
 class CorporateEntity(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
