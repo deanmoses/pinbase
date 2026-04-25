@@ -276,8 +276,10 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
     )
 
     entities_edited: list[EntityContributionSchema] = []
-    for row in entity_rows:
-        meta = resolved.get(EntityKey(row["content_type_id"], row["object_id"]))
+    for entity_row in entity_rows:
+        meta = resolved.get(
+            EntityKey(entity_row["content_type_id"], entity_row["object_id"])
+        )
         if not meta:
             continue
         entities_edited.append(
@@ -285,8 +287,8 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
                 entity_href=meta["href"],
                 entity_name=meta["name"],
                 entity_type_label=meta["type_label"],
-                edit_count=row["edit_count"],
-                last_edited_at=row["last_edited_at"].isoformat(),
+                edit_count=entity_row["edit_count"],
+                last_edited_at=entity_row["last_edited_at"].isoformat(),
             )
         )
 

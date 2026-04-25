@@ -131,7 +131,10 @@ def list_review_claims(request):
                 "value": claim.value,
                 "needs_review_notes": claim.needs_review_notes,
                 "created_at": claim.created_at.isoformat(),
-                "subject_type": claim.content_type.model_class().entity_type,
+                # ``model_class()`` is ``type[Model] | None`` and ``.entity_type``
+                # belongs to the deferred LinkableModel contract tracked in
+                # docs/plans/types/MypyFixing.md. Cleared when that lands.
+                "subject_type": claim.content_type.model_class().entity_type,  # type: ignore[union-attr]
                 "subject_name": subject_name,
                 "subject_slug": subject_slug,
                 "title_slug": title_slug,
