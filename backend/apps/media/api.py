@@ -21,7 +21,6 @@ from ninja.security import django_auth
 from apps.catalog.claims import build_media_attachment_claim
 from apps.catalog.resolve import resolve_media_attachments
 from apps.core.entity_types import get_linkable_model
-from apps.core.models import MediaSupported
 from apps.media.constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     DISPLAY_MAX_DIMENSION,
@@ -29,7 +28,7 @@ from apps.media.constants import (
     MAX_UPLOADS_PER_HOUR,
     THUMB_MAX_DIMENSION,
 )
-from apps.media.models import EntityMedia, MediaAsset, MediaRendition
+from apps.media.models import EntityMedia, MediaAsset, MediaRendition, MediaSupported
 from apps.media.processing import (
     InvalidImageError,
     check_codec_support,

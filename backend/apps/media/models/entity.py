@@ -7,9 +7,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from apps.core.models import MediaSupported, TimeStampedModel
+from apps.core.models import TimeStampedModel
 
 from .asset import MediaAsset
+from .base import MediaSupported
 
 
 class EntityMedia(TimeStampedModel):
