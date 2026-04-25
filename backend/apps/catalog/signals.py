@@ -28,9 +28,7 @@ def _cache_invalidating_models() -> list[type[models.Model]]:
     """
     from django.apps import apps
 
-    from apps.core.models import CatalogModel
-
-    from .models import CorporateEntityLocation, Credit, Location
+    from .models import CatalogModel, CorporateEntityLocation, Credit, Location
 
     catalog_app = apps.get_app_config("catalog")
     derived = [

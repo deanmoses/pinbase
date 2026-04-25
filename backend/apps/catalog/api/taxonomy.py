@@ -14,12 +14,13 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
-from apps.core.models import CatalogModel, active_status_q
+from apps.core.models import active_status_q
 from apps.provenance.helpers import claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
 from ..models import (
     Cabinet,
+    CatalogModel,
     Credit,
     CreditRole,
     DisplaySubtype,

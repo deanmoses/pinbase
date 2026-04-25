@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING
 from django.db import models
 
 from apps.core.models import (
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
@@ -17,7 +15,8 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 __all__ = ["Franchise", "Series"]
 
@@ -27,8 +26,6 @@ if TYPE_CHECKING:
 
 class Franchise(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -56,8 +53,6 @@ class Franchise(
 
 class Series(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):

@@ -9,8 +9,6 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.core.models import (
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -21,7 +19,8 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 __all__ = ["MachineModel", "ModelAbbreviation"]
 
@@ -48,8 +47,6 @@ EXTERNAL_ID_MIN = 1
 
 class MachineModel(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,

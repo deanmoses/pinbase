@@ -11,8 +11,6 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     MediaSupported,
     SluggedModel,
@@ -22,15 +20,14 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeature"]
 
 
 class GameplayFeature(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     MediaSupported,
     TimeStampedModel,

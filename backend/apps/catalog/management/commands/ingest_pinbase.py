@@ -27,6 +27,7 @@ from apps.catalog.claims import build_relationship_claim, make_authoritative_sco
 from apps.catalog.ingestion.bulk_utils import generate_unique_slug
 from apps.catalog.models import (
     Cabinet,
+    CatalogModel,
     CorporateEntity,
     Credit,
     CreditRole,
@@ -69,7 +70,7 @@ from apps.catalog.resolve import (
     resolve_theme_aliases,
     resolve_theme_parents,
 )
-from apps.core.models import CatalogModel, LinkableModel
+from apps.core.models import LinkableModel
 from apps.core.validators import bulk_create_validated
 from apps.provenance.models import Claim, Source
 

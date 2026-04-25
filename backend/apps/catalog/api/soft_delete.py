@@ -42,8 +42,9 @@ from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as db_models
 
-from apps.core.models import CatalogModel, EntityStatusMixin
-from apps.provenance.models import ChangeSet, ChangeSetAction, ClaimControlledModel
+from apps.catalog.models import CatalogModel
+from apps.core.models import EntityStatusMixin
+from apps.provenance.models import ChangeSet, ChangeSetAction
 from apps.provenance.schemas import EditCitationInput
 
 from .edit_claims import ClaimSpec, execute_multi_entity_claims
@@ -317,13 +318,8 @@ def execute_soft_delete(
         # Entity is already soft-deleted; no-op.
         return None, []
 
-    # Concrete CatalogModel subclasses also inherit ClaimControlledModel, but
-    # the abstract bases are independent — cast for the typed call.
-    entries: list[tuple[ClaimControlledModel, list[ClaimSpec]]] = [
-        (
-            cast(ClaimControlledModel, entity),
-            [ClaimSpec(field_name="status", value="deleted")],
-        )
+    entries = [
+        (entity, [ClaimSpec(field_name="status", value="deleted")])
         for entity in active_entities
     ]
     changeset = execute_multi_entity_claims(

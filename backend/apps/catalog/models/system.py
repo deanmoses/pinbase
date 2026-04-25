@@ -5,8 +5,6 @@ from __future__ import annotations
 from django.db import models
 
 from apps.core.models import (
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
@@ -15,15 +13,14 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 __all__ = ["System", "SystemMpuString"]
 
 
 class System(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):

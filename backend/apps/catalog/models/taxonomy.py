@@ -9,8 +9,6 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     AliasBase,
-    CatalogModel,
-    EntityStatusMixin,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
@@ -19,7 +17,8 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
+
+from ._base import CatalogModel
 
 if TYPE_CHECKING:
     from .machine_model import MachineModel
@@ -44,8 +43,6 @@ __all__ = [
 
 class TechnologyGeneration(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -73,8 +70,6 @@ class TechnologyGeneration(
 
 class TechnologySubgeneration(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -108,8 +103,6 @@ class TechnologySubgeneration(
 
 class DisplayType(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -137,8 +130,6 @@ class DisplayType(
 
 class DisplaySubtype(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -172,8 +163,6 @@ class DisplaySubtype(
 
 class Cabinet(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -198,8 +187,6 @@ class Cabinet(
 
 class GameFormat(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -224,8 +211,6 @@ class GameFormat(
 
 class RewardType(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -293,8 +278,6 @@ class RewardTypeAlias(AliasBase):
 
 class Tag(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):
@@ -342,8 +325,6 @@ class MachineModelTag(TimeStampedModel):
 
 class CreditRole(
     CatalogModel,
-    EntityStatusMixin,
-    ClaimControlledModel,
     SluggedModel,
     TimeStampedModel,
 ):

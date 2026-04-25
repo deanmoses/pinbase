@@ -387,7 +387,7 @@ class LinkableModel(models.Model):
         # __init_subclass__ fires before Django's ModelBase sets up ``_meta``,
         # so abstract/concrete cannot be determined via ``_meta.abstract`` here.
         # Instead, treat ``entity_type`` declaration as the concrete-class
-        # marker: abstract intermediates (CatalogModel) must NOT declare
+        # marker: abstract intermediates (e.g. ``CatalogModel``) must NOT declare
         # ``entity_type``; any subclass that does is treated as concrete and
         # must also declare ``entity_type_plural``. If a future abstract
         # intermediate needs ``entity_type`` set for some reason, this hook's
@@ -413,35 +413,6 @@ class LinkableModel(models.Model):
         cls.link_url_pattern = f"/{entity_type_plural}/{{slug}}"
         # Collision detection happens lazily in get_linkable_model's map
         # builder, not here, to avoid depending on import order.
-
-
-# ---------------------------------------------------------------------------
-# CatalogModel abstract base — marker for catalog-specific code paths
-# ---------------------------------------------------------------------------
-
-
-class CatalogModel(LinkableModel, EntityStatusMixin):
-    """Abstract marker for top-level catalog entities.
-
-    Subclass of ``LinkableModel`` + ``EntityStatusMixin``; exists to identify
-    catalog-specific code paths (e.g. ``ingest_pinbase``, soft-delete wire
-    format) that must not widen to other ``LinkableModel`` subclasses, and
-    to carry the ``CatalogManager[Self]`` descriptor so ``type[CatalogModel]``
-    introspection code sees ``.objects.active()`` without per-callsite casts.
-
-    Concrete subclasses continue to list ``EntityStatusMixin`` explicitly in
-    their own bases even though they now inherit it transitively. The
-    redundancy is intentional: it keeps the lifecycle capability visible at
-    the class declaration site, keeps ``grep EntityStatusMixin`` in the
-    models layer accurate as an inventory, matches the ``status_valid()``
-    constraint still carried in each subclass's ``Meta``, and forces any
-    future refactor that removes the mixin from ``CatalogModel`` to touch
-    each concrete subclass deliberately. Python MRO dedupes, Django treats
-    the repeated abstract parent as a no-op, so there is no runtime cost.
-    """
-
-    class Meta:
-        abstract = True
 
 
 # ---------------------------------------------------------------------------
