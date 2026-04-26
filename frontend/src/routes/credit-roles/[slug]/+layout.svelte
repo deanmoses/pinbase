@@ -1,6 +1,5 @@
 <script lang="ts">
   import SimpleTaxonomyDetailLayout from '$lib/components/SimpleTaxonomyDetailLayout.svelte';
-  import { saveCreditRoleClaims } from './save-credit-role-claims';
 
   let { data, children } = $props();
   let profile = $derived(data.profile);
@@ -10,7 +9,7 @@
   {profile}
   parentLabel="Credit Roles"
   basePath="/credit-roles"
-  saveClaims={saveCreditRoleClaims}
+  claimsPath={'/api/credit-roles/{slug}/claims/'}
   deleteHref={`/credit-roles/${profile.slug}/delete`}
 >
   {@render children()}

@@ -18,9 +18,14 @@ export type SaveResult =
   | { ok: false; error: string; fieldErrors: FieldErrors };
 
 type ClaimsBody = components['schemas']['ClaimPatchSchema'];
+type HierarchyClaimsBody = components['schemas']['HierarchyClaimPatchSchema'];
 
 export type SimpleTaxonomySectionPatchBody = Partial<
   Pick<ClaimsBody, 'fields' | 'note' | 'citation'>
+>;
+
+export type HierarchicalTaxonomySectionPatchBody = Partial<
+  Pick<HierarchyClaimsBody, 'fields' | 'parents' | 'aliases' | 'note' | 'citation'>
 >;
 
 /**
@@ -49,6 +54,44 @@ export async function saveSimpleTaxonomyClaims(
   path: SimpleTaxonomyClaimsPath,
   slug: string,
   body: SimpleTaxonomySectionPatchBody,
+): Promise<SaveResult> {
+  const { data, error } = await client.PATCH(path, {
+    params: { path: { slug } },
+    body: { fields: {}, note: '', ...body },
+  });
+
+  if (error) {
+    const parsed = parseApiError(error);
+    return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
+  }
+
+  await invalidateAll();
+  return { ok: true, updatedSlug: data?.slug ?? slug };
+}
+
+/**
+ * Any OpenAPI path whose PATCH operation accepts the `HierarchyClaimPatchSchema`
+ * body and identifies the resource by `slug`. Mirrors `SimpleTaxonomyClaimsPath`
+ * for hierarchical taxonomies (themes, gameplay-features).
+ */
+export type HierarchicalTaxonomyClaimsPath = {
+  [K in keyof paths]: paths[K] extends {
+    patch: {
+      parameters: { path: { slug: string } };
+      requestBody: { content: { 'application/json': HierarchyClaimsBody } };
+    };
+  }
+    ? K
+    : never;
+}[keyof paths];
+
+/**
+ * Save handler for any hierarchical-taxonomy claims endpoint.
+ */
+export async function saveHierarchicalTaxonomyClaims(
+  path: HierarchicalTaxonomyClaimsPath,
+  slug: string,
+  body: HierarchicalTaxonomySectionPatchBody,
 ): Promise<SaveResult> {
   const { data, error } = await client.PATCH(path, {
     params: { path: { slug } },

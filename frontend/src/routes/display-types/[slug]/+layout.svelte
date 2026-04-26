@@ -1,6 +1,5 @@
 <script lang="ts">
   import SimpleTaxonomyDetailLayout from '$lib/components/SimpleTaxonomyDetailLayout.svelte';
-  import { saveDisplayTypeClaims } from './save-display-type-claims';
 
   let { data, children } = $props();
   let profile = $derived(data.profile);
@@ -10,7 +9,7 @@
   {profile}
   parentLabel="Display Types"
   basePath="/display-types"
-  saveClaims={saveDisplayTypeClaims}
+  claimsPath={'/api/display-types/{slug}/claims/'}
   deleteHref={`/display-types/${profile.slug}/delete`}
   createChild={{
     href: `/display-subtypes/new?parent=${profile.slug}`,

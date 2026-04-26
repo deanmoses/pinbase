@@ -7,7 +7,6 @@
     HIERARCHICAL_TAXONOMY_EDIT_SECTIONS,
     type HierarchicalTaxonomyEditSectionKey,
   } from '$lib/components/editors/hierarchical-taxonomy-edit-sections';
-  import { saveThemeClaims } from '../../save-theme-claims';
 
   let { data } = $props();
   let theme = $derived(data.theme);
@@ -39,7 +38,7 @@
       sectionKey={key}
       initialData={theme}
       slug={theme.slug}
-      saveClaims={saveThemeClaims}
+      claimsPath={'/api/themes/{slug}/claims/'}
       parentOptionsLoader={loadParentOptions}
       bind:editorRef={ref.current}
       {onsaved}

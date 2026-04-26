@@ -1,5 +1,4 @@
 import type { components } from '$lib/api/schema';
-import type { SaveResult, SimpleTaxonomySectionPatchBody } from './save-claims-shared';
 
 type RichTextSchema = components['schemas']['RichTextSchema'];
 
@@ -15,8 +14,3 @@ export type SimpleTaxonomyEditView = {
   description: RichTextSchema;
   display_order: number | null;
 };
-
-export type SaveSimpleTaxonomyClaims = (
-  slug: string,
-  body: SimpleTaxonomySectionPatchBody,
-) => Promise<SaveResult>;

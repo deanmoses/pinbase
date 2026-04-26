@@ -3,17 +3,19 @@
   import NameEditor from './NameEditor.svelte';
   import DisplayOrderEditor from './DisplayOrderEditor.svelte';
   import type { SectionEditorHandle } from './editor-contract';
+  import {
+    saveSimpleTaxonomyClaims,
+    type SimpleTaxonomyClaimsPath,
+    type SimpleTaxonomySectionPatchBody,
+  } from './save-claims-shared';
   import type { SimpleTaxonomyEditSectionKey } from './simple-taxonomy-edit-sections';
-  import type {
-    SaveSimpleTaxonomyClaims,
-    SimpleTaxonomyEditView,
-  } from './simple-taxonomy-edit-types';
+  import type { SimpleTaxonomyEditView } from './simple-taxonomy-edit-types';
 
   let {
     sectionKey,
     initialData,
     slug,
-    saveClaims,
+    claimsPath,
     editorRef = $bindable<SectionEditorHandle | undefined>(undefined),
     onsaved,
     onerror,
@@ -22,12 +24,15 @@
     sectionKey: SimpleTaxonomyEditSectionKey;
     initialData: SimpleTaxonomyEditView;
     slug: string;
-    saveClaims: SaveSimpleTaxonomyClaims;
+    claimsPath: SimpleTaxonomyClaimsPath;
     editorRef?: SectionEditorHandle | undefined;
     onsaved: () => void;
     onerror: (message: string) => void;
     ondirtychange: (dirty: boolean) => void;
   } = $props();
+
+  const saveClaims = (s: string, body: SimpleTaxonomySectionPatchBody) =>
+    saveSimpleTaxonomyClaims(claimsPath, s, body);
 </script>
 
 {#if sectionKey === 'name'}

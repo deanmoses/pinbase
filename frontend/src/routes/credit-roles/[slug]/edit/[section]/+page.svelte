@@ -1,6 +1,5 @@
 <script lang="ts">
   import SimpleTaxonomyEditSectionPage from '$lib/components/SimpleTaxonomyEditSectionPage.svelte';
-  import { saveCreditRoleClaims } from '../../save-credit-role-claims';
 
   let { data } = $props();
   let profile = $derived(data.profile);
@@ -9,5 +8,5 @@
 <SimpleTaxonomyEditSectionPage
   {profile}
   basePath="/credit-roles"
-  saveClaims={saveCreditRoleClaims}
+  claimsPath={'/api/credit-roles/{slug}/claims/'}
 />

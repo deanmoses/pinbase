@@ -1,6 +1,5 @@
 <script lang="ts">
   import SimpleTaxonomyEditSectionPage from '$lib/components/SimpleTaxonomyEditSectionPage.svelte';
-  import { saveDisplaySubtypeClaims } from '../../save-display-subtype-claims';
 
   let { data } = $props();
   let profile = $derived(data.profile);
@@ -9,5 +8,5 @@
 <SimpleTaxonomyEditSectionPage
   {profile}
   basePath="/display-subtypes"
-  saveClaims={saveDisplaySubtypeClaims}
+  claimsPath={'/api/display-subtypes/{slug}/claims/'}
 />
