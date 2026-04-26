@@ -17,7 +17,7 @@
     "test:unit": "vitest run --project unit",
     "test:dom": "vitest run --project dom",
     "test:dom:watch": "vitest --project dom",
-    "api:gen": "openapi-typescript ../backend/openapi.json -o src/lib/api/schema.d.ts",
+    "api:gen": "openapi-typescript ../backend/openapi.json --root-types --root-types-no-schema-prefix --empty-objects-unknown --default-non-nullable -o src/lib/api/schema.d.ts",
     "knip": "knip"
   },
   "devDependencies": {
