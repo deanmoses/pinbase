@@ -10,7 +10,7 @@
  * :func:`createDeleteSubmitter`.
  */
 import client from '$lib/api/client';
-import { parseApiError } from '$lib/components/editors/save-claims-shared';
+import { parseApiError } from '$lib/api/parse-api-error';
 import type { components } from '$lib/api/schema';
 import type { EditCitationSelection } from '$lib/edit-citation';
 import { buildEditCitationRequest } from '$lib/edit-citation';

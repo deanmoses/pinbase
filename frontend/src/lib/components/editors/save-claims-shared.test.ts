@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { saveSimpleTaxonomyClaims } from './save-claims-shared';
+import { saveHierarchicalTaxonomyClaims, saveSimpleTaxonomyClaims } from './save-claims-shared';
 
 const { PATCH, invalidateAll } = vi.hoisted(() => ({
   PATCH: vi.fn(),
@@ -80,5 +80,72 @@ describe('saveSimpleTaxonomyClaims', () => {
         citation: { citation_instance_id: 42 },
       },
     });
+  });
+});
+
+describe('saveHierarchicalTaxonomyClaims', () => {
+  beforeEach(() => {
+    PATCH.mockReset();
+    invalidateAll.mockReset();
+    invalidateAll.mockResolvedValue(undefined);
+  });
+
+  it('PATCHes the supplied claims endpoint with the merged body', async () => {
+    PATCH.mockResolvedValueOnce({ data: { slug: 'medieval' }, error: undefined });
+
+    const result = await saveHierarchicalTaxonomyClaims('/api/themes/{slug}/claims/', 'medieval', {
+      fields: { name: 'Medieval' },
+    });
+
+    expect(PATCH).toHaveBeenCalledWith('/api/themes/{slug}/claims/', {
+      params: { path: { slug: 'medieval' } },
+      body: { fields: { name: 'Medieval' }, note: '' },
+    });
+    expect(invalidateAll).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ ok: true, updatedSlug: 'medieval' });
+  });
+
+  it('forwards parents and aliases when supplied', async () => {
+    PATCH.mockResolvedValueOnce({ data: { slug: 'pop-bumper' }, error: undefined });
+
+    await saveHierarchicalTaxonomyClaims('/api/gameplay-features/{slug}/claims/', 'pop-bumper', {
+      parents: ['physical-feature'],
+      aliases: ['Pop'],
+      note: 'rationale',
+    });
+
+    expect(PATCH).toHaveBeenCalledWith('/api/gameplay-features/{slug}/claims/', {
+      params: { path: { slug: 'pop-bumper' } },
+      body: {
+        fields: {},
+        note: 'rationale',
+        parents: ['physical-feature'],
+        aliases: ['Pop'],
+      },
+    });
+  });
+
+  it('returns parsed field errors on 422 and skips invalidateAll', async () => {
+    PATCH.mockResolvedValueOnce({
+      data: undefined,
+      error: {
+        detail: {
+          message: 'invalid',
+          field_errors: { parents: 'would create a cycle' },
+          form_errors: [],
+        },
+      },
+    });
+
+    const result = await saveHierarchicalTaxonomyClaims('/api/themes/{slug}/claims/', 'medieval', {
+      parents: ['descendant-of-medieval'],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'parents: would create a cycle',
+      fieldErrors: { parents: 'would create a cycle' },
+    });
+    expect(invalidateAll).not.toHaveBeenCalled();
   });
 });

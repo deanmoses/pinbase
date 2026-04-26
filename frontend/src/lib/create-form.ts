@@ -11,7 +11,7 @@
  * created.
  */
 
-import { parseApiError } from '$lib/components/editors/save-claims-shared';
+import { parseApiError } from '$lib/api/parse-api-error';
 
 /**
  * Lowercase, hyphen-separated slug derived from a catalog name.

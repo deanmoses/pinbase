@@ -1,22 +1,16 @@
 import type { components } from '$lib/api/schema';
-import type { SaveResult, SimpleTaxonomySectionPatchBody } from './save-claims-shared';
 
 type RichTextSchema = components['schemas']['RichTextSchema'];
 
 /**
- * Structural superset of every per-entity page payload (TaxonomySchema,
- * RewardTypeDetailSchema, etc). Each of those schemas already includes
- * these four fields, so all per-entity profiles are assignable to this
- * view without picking the "right" schema.
+ * Structural superset of every per-entity page payload that simple-taxonomy
+ * editors operate on. `display_order` is optional because not every payload
+ * carries it; consumers without it omit the display-order section so the
+ * field is never read at runtime.
  */
 export type SimpleTaxonomyEditView = {
   name: string;
   slug: string;
   description: RichTextSchema;
-  display_order: number | null;
+  display_order?: number | null;
 };
-
-export type SaveSimpleTaxonomyClaims = (
-  slug: string,
-  body: SimpleTaxonomySectionPatchBody,
-) => Promise<SaveResult>;

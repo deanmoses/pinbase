@@ -3,7 +3,8 @@
   import NumberField from '$lib/components/form/NumberField.svelte';
   import type { SectionEditorProps } from './editor-contract';
   import { diffScalarFields } from '$lib/edit-helpers';
-  import type { FieldErrors, SaveMeta, SaveResult } from './save-claims-shared';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import type { SaveMeta, SaveResult } from './save-claims-shared';
 
   type DisplayOrderFields = {
     display_order: string | number;

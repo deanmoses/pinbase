@@ -3,7 +3,8 @@
   import SearchableSelect from '$lib/components/SearchableSelect.svelte';
   import type { SectionEditorProps } from './editor-contract';
   import { slugSetChanged } from '$lib/edit-helpers';
-  import type { FieldErrors, SaveMeta, SaveResult } from './save-claims-shared';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import type { SaveMeta, SaveResult } from './save-claims-shared';
 
   type ParentRef = { slug: string; name?: string };
   type ParentOption = { slug: string; label: string; count?: number };

@@ -8,12 +8,8 @@
     fetchModelEditOptions,
     type ModelEditOptions,
   } from './model-edit-options';
-  import {
-    saveModelClaims,
-    type FieldErrors,
-    type SaveResult,
-    type SaveMeta,
-  } from './save-model-claims';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
 
   const TECHNOLOGY_FIELDS = [
     {

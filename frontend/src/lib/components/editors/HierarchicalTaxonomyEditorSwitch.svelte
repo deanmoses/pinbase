@@ -5,10 +5,12 @@
   import ParentsSectionEditor from './ParentsSectionEditor.svelte';
   import type { SectionEditorHandle } from './editor-contract';
   import type { HierarchicalTaxonomyEditSectionKey } from './hierarchical-taxonomy-edit-sections';
-  import type {
-    HierarchicalTaxonomyEditView,
-    SaveHierarchicalTaxonomyClaims,
-  } from './hierarchical-taxonomy-edit-types';
+  import type { HierarchicalTaxonomyEditView } from './hierarchical-taxonomy-edit-types';
+  import {
+    saveHierarchicalTaxonomyClaims,
+    type HierarchicalTaxonomyClaimsPath,
+    type HierarchicalTaxonomySectionPatchBody,
+  } from './save-claims-shared';
 
   type ParentOption = { slug: string; label: string; count?: number };
   type ParentOptionsLoader = () => Promise<ParentOption[]>;
@@ -17,7 +19,7 @@
     sectionKey,
     initialData,
     slug,
-    saveClaims,
+    claimsPath,
     parentOptionsLoader,
     parentsLabel,
     editorRef = $bindable<SectionEditorHandle | undefined>(undefined),
@@ -28,7 +30,7 @@
     sectionKey: HierarchicalTaxonomyEditSectionKey;
     initialData: HierarchicalTaxonomyEditView;
     slug: string;
-    saveClaims: SaveHierarchicalTaxonomyClaims;
+    claimsPath: HierarchicalTaxonomyClaimsPath;
     parentOptionsLoader: ParentOptionsLoader;
     /** Field label for the parents picker (e.g. "This feature is a type of..."). Defaults to ParentsSectionEditor's default. */
     parentsLabel?: string;
@@ -37,6 +39,9 @@
     onerror: (message: string) => void;
     ondirtychange: (dirty: boolean) => void;
   } = $props();
+
+  const saveClaims = (s: string, body: HierarchicalTaxonomySectionPatchBody) =>
+    saveHierarchicalTaxonomyClaims(claimsPath, s, body);
 </script>
 
 {#if sectionKey === 'name'}

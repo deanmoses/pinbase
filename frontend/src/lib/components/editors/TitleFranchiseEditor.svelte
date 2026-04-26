@@ -3,7 +3,8 @@
   import SearchableSelect from '$lib/components/SearchableSelect.svelte';
   import { diffScalarFields } from '$lib/edit-helpers';
   import type { SectionEditorProps } from './editor-contract';
-  import { type FieldErrors, type SaveResult, type SaveMeta } from './save-claims-shared';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import type { SaveResult, SaveMeta } from './save-claims-shared';
   import { saveTitleClaims } from './save-title-claims';
   import {
     fetchFranchiseOptions,

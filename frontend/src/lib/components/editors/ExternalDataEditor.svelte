@@ -6,12 +6,8 @@
   import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
   import { diffScalarFields } from '$lib/edit-helpers';
   import type { SectionEditorProps } from './editor-contract';
-  import {
-    saveModelClaims,
-    type FieldErrors,
-    type SaveResult,
-    type SaveMeta,
-  } from './save-model-claims';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import { saveModelClaims, type SaveResult, type SaveMeta } from './save-model-claims';
 
   type ExternalDataModel = {
     ipdb_id?: number | null;

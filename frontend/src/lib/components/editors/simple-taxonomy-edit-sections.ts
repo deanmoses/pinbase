@@ -31,3 +31,7 @@ export const SIMPLE_TAXONOMY_EDIT_SECTIONS: SimpleTaxonomyEditSectionDef[] = [
 export function defaultSimpleTaxonomySectionSegment(): string {
   return 'name';
 }
+
+/** Variant for taxonomies whose models lack a `display_order` field. */
+export const SIMPLE_TAXONOMY_EDIT_SECTIONS_NO_DISPLAY_ORDER: SimpleTaxonomyEditSectionDef[] =
+  SIMPLE_TAXONOMY_EDIT_SECTIONS.filter((s) => s.key !== 'display-order');

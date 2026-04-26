@@ -5,7 +5,8 @@
 import { invalidateAll } from '$app/navigation';
 import client from '$lib/api/client';
 import type { components } from '$lib/api/schema';
-import { parseApiError, type SaveResult } from './save-claims-shared';
+import { parseApiError } from '$lib/api/parse-api-error';
+import type { SaveResult } from './save-claims-shared';
 
 type TitleClaimsBody = components['schemas']['TitleClaimPatchSchema'];
 

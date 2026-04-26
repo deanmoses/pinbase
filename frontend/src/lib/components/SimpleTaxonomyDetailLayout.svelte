@@ -3,38 +3,40 @@
   import TaxonomyDetailBaseLayout from '$lib/components/TaxonomyDetailBaseLayout.svelte';
   import {
     SIMPLE_TAXONOMY_EDIT_SECTIONS,
+    type SimpleTaxonomyEditSectionDef,
     type SimpleTaxonomyEditSectionKey,
   } from '$lib/components/editors/simple-taxonomy-edit-sections';
   import SimpleTaxonomyEditorSwitch from '$lib/components/editors/SimpleTaxonomyEditorSwitch.svelte';
-  import type {
-    SaveSimpleTaxonomyClaims,
-    SimpleTaxonomyEditView,
-  } from '$lib/components/editors/simple-taxonomy-edit-types';
+  import type { SimpleTaxonomyClaimsPath } from '$lib/components/editors/save-claims-shared';
+  import type { SimpleTaxonomyEditView } from '$lib/components/editors/simple-taxonomy-edit-types';
 
   let {
     profile,
     parentLabel,
     basePath,
     parentHref,
-    saveClaims,
+    claimsPath,
     deleteHref,
     createChild,
+    sections: sectionsProp = SIMPLE_TAXONOMY_EDIT_SECTIONS,
     children,
   }: {
     profile: SimpleTaxonomyEditView;
     parentLabel: string;
     basePath: string;
     parentHref?: string;
-    saveClaims: SaveSimpleTaxonomyClaims;
+    claimsPath: SimpleTaxonomyClaimsPath;
     deleteHref?: string;
     createChild?: { href: string; label: string };
+    /** Override the default section list. Defaults to all 3 simple-taxonomy
+     * sections; pass a subset to omit sections that don't apply. */
+    sections?: SimpleTaxonomyEditSectionDef[];
     children: Snippet;
   } = $props();
 
-  let sections = SIMPLE_TAXONOMY_EDIT_SECTIONS.map((section) => ({
-    ...section,
-    usesSectionEditorForm: true,
-  }));
+  let sections = $derived(
+    sectionsProp.map((section) => ({ ...section, usesSectionEditorForm: true })),
+  );
 </script>
 
 <TaxonomyDetailBaseLayout
@@ -51,7 +53,7 @@
       sectionKey={key}
       initialData={profile}
       slug={profile.slug}
-      {saveClaims}
+      {claimsPath}
       bind:editorRef={ref.current}
       {onsaved}
       {onerror}

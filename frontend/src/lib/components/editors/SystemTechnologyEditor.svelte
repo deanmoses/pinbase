@@ -3,7 +3,8 @@
   import SearchableSelect from '$lib/components/SearchableSelect.svelte';
   import { diffScalarFields } from '$lib/edit-helpers';
   import type { SectionEditorProps } from './editor-contract';
-  import type { FieldErrors, SaveMeta, SaveResult } from './save-claims-shared';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import type { SaveMeta, SaveResult } from './save-claims-shared';
   import {
     fetchTechnologySubgenerationOptions,
     type SystemEditOption,

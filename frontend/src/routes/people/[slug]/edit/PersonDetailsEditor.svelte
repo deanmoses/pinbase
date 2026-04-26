@@ -7,12 +7,8 @@
   import { diffScalarFields } from '$lib/edit-helpers';
   import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
   import type { PersonEditView } from './person-edit-types';
-  import {
-    savePersonClaims,
-    type FieldErrors,
-    type SaveResult,
-    type SaveMeta,
-  } from './save-person-claims';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
+  import { savePersonClaims, type SaveResult, type SaveMeta } from './save-person-claims';
 
   type DetailsFields = {
     nationality: string;

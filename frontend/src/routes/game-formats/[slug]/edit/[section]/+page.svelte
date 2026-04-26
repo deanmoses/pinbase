@@ -1,6 +1,5 @@
 <script lang="ts">
   import SimpleTaxonomyEditSectionPage from '$lib/components/SimpleTaxonomyEditSectionPage.svelte';
-  import { saveGameFormatClaims } from '../../save-game-format-claims';
 
   let { data } = $props();
   let profile = $derived(data.profile);
@@ -9,5 +8,5 @@
 <SimpleTaxonomyEditSectionPage
   {profile}
   basePath="/game-formats"
-  saveClaims={saveGameFormatClaims}
+  claimsPath={'/api/game-formats/{slug}/claims/'}
 />

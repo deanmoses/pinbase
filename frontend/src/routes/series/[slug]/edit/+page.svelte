@@ -1,6 +1,6 @@
 <script lang="ts">
   import EditRedirectFallback from '$lib/components/EditRedirectFallback.svelte';
-  import { defaultSeriesSectionSegment } from '$lib/components/editors/series-edit-sections';
+  import { defaultSimpleTaxonomySectionSegment } from '$lib/components/editors/simple-taxonomy-edit-sections';
 </script>
 
-<EditRedirectFallback basePath="/series" defaultSegment={defaultSeriesSectionSegment()} />
+<EditRedirectFallback basePath="/series" defaultSegment={defaultSimpleTaxonomySectionSegment()} />

@@ -9,15 +9,10 @@
 import { invalidateAll } from '$app/navigation';
 import client from '$lib/api/client';
 import type { components } from '$lib/api/schema';
-import {
-  parseApiError,
-  type FieldErrors,
-  type SaveMeta,
-  type SaveResult,
-} from './save-claims-shared';
+import { parseApiError } from '$lib/api/parse-api-error';
+import type { SaveMeta, SaveResult } from './save-claims-shared';
 
-export { parseApiError };
-export type { FieldErrors, SaveMeta, SaveResult };
+export type { SaveMeta, SaveResult };
 
 type ModelClaimsBody = components['schemas']['ModelClaimPatchSchema'];
 

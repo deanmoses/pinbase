@@ -8,7 +8,7 @@
  */
 
 import client from '$lib/api/client';
-import { parseApiError } from '$lib/components/editors/save-claims-shared';
+import { parseApiError } from '$lib/api/parse-api-error';
 
 export type UndoOutcome =
   | { kind: 'ok'; changesetId: number }

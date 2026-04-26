@@ -5,9 +5,9 @@
   import { diffScalarFields } from '$lib/edit-helpers';
   import { fetchFieldConstraints, fc, type FieldConstraints } from '$lib/field-constraints';
   import type { CorporateEntityEditView } from './corporate-entity-edit-types';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
   import {
     saveCorporateEntityClaims,
-    type FieldErrors,
     type SaveMeta,
     type SaveResult,
   } from './save-corporate-entity-claims';

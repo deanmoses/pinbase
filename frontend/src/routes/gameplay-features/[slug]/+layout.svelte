@@ -11,7 +11,6 @@
     type HierarchicalTaxonomyEditSectionKey,
   } from '$lib/components/editors/hierarchical-taxonomy-edit-sections';
   import { displayAliasesFor } from '$lib/hierarchy-edit';
-  import { saveGameplayFeatureClaims } from './save-gameplay-feature-claims';
 
   let { data, children } = $props();
   let profile = $derived(data.profile);
@@ -65,7 +64,7 @@
       sectionKey={key}
       initialData={profile}
       slug={profile.slug}
-      saveClaims={saveGameplayFeatureClaims}
+      claimsPath={'/api/gameplay-features/{slug}/claims/'}
       parentOptionsLoader={loadParentOptions}
       parentsLabel="This feature is a type of..."
       bind:editorRef={ref.current}

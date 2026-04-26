@@ -4,9 +4,9 @@
   import type { SectionEditorProps } from '$lib/components/editors/editor-contract';
   import { diffScalarFields } from '$lib/edit-helpers';
   import type { ManufacturerEditView } from './manufacturer-edit-types';
+  import type { FieldErrors } from '$lib/api/parse-api-error';
   import {
     saveManufacturerClaims,
-    type FieldErrors,
     type SaveMeta,
     type SaveResult,
   } from './save-manufacturer-claims';
