@@ -8,10 +8,10 @@ contract carries:
 
 - 117 names ending in `Schema` (a Ninja base-class artifact, not
   domain vocabulary).
-- 18 names that don't — split between intentional choices (`Ref`),
-  divergent media-app conventions (`UploadOut`, `MediaAssetRefIn`,
-  `RenditionUrlsOut`, `AttachmentMetaOut`), and generic Python-side
-  leakage (`Input`, `JsonBody`).
+- 18 names that don't — split between intentional choices (`Ref`,
+  `JsonBody`), divergent media-app conventions (`UploadOut`,
+  `MediaAssetRefIn`, `RenditionUrlsOut`, `AttachmentMetaOut`), and
+  generic Python-side leakage (`Input`).
 - Schemas with too-generic bare names that survive suffix removal
   poorly (`Variant`, `Source`, `Stats`, `Recognition`, `Create`).
 - Schemas defined inline in endpoint files that don't follow the
@@ -88,24 +88,24 @@ ones.
 These are settled in this plan; the per-app rename tables below
 apply them mechanically.
 
-| Current name               | New name                       | Why                                                                                                                                  |
-| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `VariantSchema`            | `MachineModelVariant`          | Bare `Variant` collides with broader vocabulary; user rule reserves "variant" for machine model variants specifically.               |
-| `SourceSchema`             | `CitationSource`               | Bare `Source` is too generic at the OpenAPI level. Aligns with the citation-app naming.                                              |
-| `StatsSchema`              | `SiteStats`                    | Bare `Stats` is too generic. The schema lives in `config/api.py` and reports site-wide totals.                                       |
-| `RecognitionSchema`        | `CitationRecognition`          | Bare `Recognition` is too generic; clearly a citation-domain schema.                                                                 |
-| `Input` (auto)             | TBD — library-level fix        | Orphaned component from Ninja's `PageNumberPagination.Input`. See [ApiSvelteBoundary.md](ApiSvelteBoundary.md) §_Ghost-type fixes_.  |
-| `JsonBody`                 | (removed from OpenAPI)         | Leaks via `MachineModelDetailSchema.extra_data: JsonBody`. See [ApiSvelteBoundary.md](ApiSvelteBoundary.md) §_Ghost-type fixes_.     |
-| `UploadOut`                | `Upload`                       | Drop `Out` suffix. No collision with `UploadedMedia`.                                                                                |
-| `UploadedMediaSchema`      | `UploadedMedia`                | Drop `Schema`.                                                                                                                       |
-| `MediaAssetRefIn`          | `MediaAssetRefInput`           | Standardize on `…Input`.                                                                                                             |
-| `AttachmentMetaOut`        | `AttachmentMeta`               | Drop `Out` suffix.                                                                                                                   |
-| `RenditionUrlsOut`         | `RenditionUrls`                | Drop `Out` suffix.                                                                                                                   |
-| `BatchCitationInstanceOut` | `BatchCitationInstance`        | Drop `Out` suffix.                                                                                                                   |
-| `CitationInstanceCreateIn` | `CitationInstanceCreate`       | Use `…Create` for entity-scoped create input.                                                                                        |
-| `EditOptionItem`           | `EditOption`                   | `Item` is redundant.                                                                                                                 |
-| `CreateSchema`             | `EntityCreateInput`            | Currently a base class for entity creates in `catalog/api/schemas.py`. Scoped name avoids collision with per-entity `…Create` names. |
-| `SearchResponse`           | `CitationSourceSearchResponse` | `Response` suffix is rare; scope it to its entity since `SearchResponse` is too generic.                                             |
+| Current name               | New name                       | Why                                                                                                                                                                   |
+| -------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VariantSchema`            | `MachineModelVariant`          | Bare `Variant` collides with broader vocabulary; user rule reserves "variant" for machine model variants specifically.                                                |
+| `SourceSchema`             | `CitationSource`               | Bare `Source` is too generic at the OpenAPI level. Aligns with the citation-app naming.                                                                               |
+| `StatsSchema`              | `SiteStats`                    | Bare `Stats` is too generic. The schema lives in `config/api.py` and reports site-wide totals.                                                                        |
+| `RecognitionSchema`        | `CitationRecognition`          | Bare `Recognition` is too generic; clearly a citation-domain schema.                                                                                                  |
+| `Input` (auto)             | TBD — library-level fix        | Orphaned component from Ninja's `PageNumberPagination.Input`. See [ApiSvelteBoundary.md](ApiSvelteBoundary.md) §_Ghost-type fixes_.                                   |
+| `JsonBody`                 | (kept as-is)                   | Intentional shared name for arbitrary JSON-object fields. Not a ghost; do not rename or inline. See [ApiSvelteBoundary.md](ApiSvelteBoundary.md) §_Ghost-type fixes_. |
+| `UploadOut`                | `Upload`                       | Drop `Out` suffix. No collision with `UploadedMedia`.                                                                                                                 |
+| `UploadedMediaSchema`      | `UploadedMedia`                | Drop `Schema`.                                                                                                                                                        |
+| `MediaAssetRefIn`          | `MediaAssetRefInput`           | Standardize on `…Input`.                                                                                                                                              |
+| `AttachmentMetaOut`        | `AttachmentMeta`               | Drop `Out` suffix.                                                                                                                                                    |
+| `RenditionUrlsOut`         | `RenditionUrls`                | Drop `Out` suffix.                                                                                                                                                    |
+| `BatchCitationInstanceOut` | `BatchCitationInstance`        | Drop `Out` suffix.                                                                                                                                                    |
+| `CitationInstanceCreateIn` | `CitationInstanceCreate`       | Use `…Create` for entity-scoped create input.                                                                                                                         |
+| `EditOptionItem`           | `EditOption`                   | `Item` is redundant.                                                                                                                                                  |
+| `CreateSchema`             | `EntityCreateInput`            | Currently a base class for entity creates in `catalog/api/schemas.py`. Scoped name avoids collision with per-entity `…Create` names.                                  |
+| `SearchResponse`           | `CitationSourceSearchResponse` | `Response` suffix is rare; scope it to its entity since `SearchResponse` is too generic.                                                                              |
 
 Names that already conform and pass through unchanged
 (`EditCitationInput`, `CreditInput`, `GameplayFeatureInput`,
@@ -349,16 +349,20 @@ shapes (if the field divergence isn't load-bearing) is tracked in
 
 ## Ghost-type fixes
 
-Two names in the OpenAPI doc don't come from explicit Ninja schemas
-and need source-side fixes alongside the rename:
+One name in the OpenAPI doc doesn't come from an explicit Ninja
+schema and needs a source-side fix alongside the rename:
 
 - **`Input` (Ninja-auto-named pagination query model)** — replaced
   with a real Pydantic schema named `PaginationParams` in
   `apps/core/schemas.py` (or wherever pagination is currently
   defined). Endpoints using inline pagination params switch to the
   named model.
-- **`JsonBody`** — `apps/core/types.py` defines
-  `type JsonBody = dict[str, object]` for test typing. It's leaking
-  into OpenAPI through some endpoint declaration. Find and fix the
-  call site so `JsonBody` is no longer exposed as an OpenAPI
-  component. The Python type alias itself stays.
+
+`JsonBody` also surfaces as an OpenAPI component without a Ninja
+`Schema` subclass, but it is **not** a ghost-type fix: the PEP 695
+`type JsonBody = dict[str, object]` alias in
+[apps/core/types.py](../../../../backend/apps/core/types.py) is the
+project-wide name for "an arbitrary JSON object," used pervasively
+in the backend. Pydantic correctly registers it as a single named
+component that every JSON-shaped field `$ref`s. Leave it alone — do
+not rename, inline, or wrap it in a `Schema` subclass.

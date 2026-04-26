@@ -46,7 +46,7 @@ This split was chosen over interleaving rename + import-style per app because:
 
 The remainder of this section assumes that split. PR 0 is described first; PR 1+ follow.
 
-#### Op-ID stability — verified
+#### Op-ID stability — VERIFIED
 
 Renaming Ninja schema classes does not shift `operationId` values. Verified empirically against the current `openapi.json`: op IDs follow the `<module>_<function_name>` pattern (e.g., `config_api_stats`), derived from the view function's qualified name, not from any schema class. No endpoint declares `operation_id=` explicitly, so this is the actual mechanism in use.
 
@@ -155,24 +155,19 @@ PR 0 is also revertible — it's a pure import-style change with no semantic eff
 
 ### Ghost-type fixes
 
-Two component names in the OpenAPI doc don't come from explicit Ninja schemas. They need source-side fixes alongside (or before) the renames. Each is a separate small PR — neither is a Python class rename and neither fits the codemod machinery.
+One component name in the OpenAPI doc doesn't come from an explicit Ninja schema. It needs a source-side fix alongside (or before) the renames. It's a separate small PR — not a Python class rename and doesn't fit the codemod machinery.
+
+`JsonBody` is **not** a ghost type to fix — it's the deliberate, project-wide name for "an arbitrary JSON object" and is used pervasively in the backend (see [apps/core/types.py:19](../../../../backend/apps/core/types.py#L19)). It surfaces as a named OpenAPI component because the PEP 695 `type` alias is what Pydantic registers, and that's the desired outcome: every `extra_data`-style field `$ref`s the same `JsonBody` component, frontend consumers can `import type { JsonBody }`, and the meaning is unambiguous. Do not rename, inline, or otherwise touch `JsonBody`.
 
 #### Status
 
 | Step                                                | Status                                                                |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | `Input` ghost fix (`NamedPageNumberPagination`)     | DONE                                                                  |
-| `JsonBody` ghost fix                                | TODO                                                                  |
 | PR 0 (TS-side indexed-access → named-imports sweep) | TODO                                                                  |
 | PR 1+ (per-app schema renames via codemod)          | TODO — STOP and check with the user before running the rename codemod |
 
 When picking this up in a fresh session: read this plan top-to-bottom, then `git log refactor/api-renaming` to see what's already landed, then start at the next TODO.
-
-#### `JsonBody` — single call site
-
-`JsonBody` only enters OpenAPI via [backend/apps/catalog/api/machine_models.py:178](../../../../backend/apps/catalog/api/machine_models.py#L178): `extra_data: JsonBody` on `MachineModelDetailSchema`. The other `JsonBody` uses (`apps/catalog/resolve/`, `apps/catalog/claims.py`) are internal Python and never reach OpenAPI.
-
-**Fix**: change the field annotation to `dict[str, Any]` in place. Ninja will inline this as `additionalProperties: true, type: object` rather than registering a named component. The `JsonBody` type alias in `apps/core/types.py` stays — it's used elsewhere for test typing. One-line change plus regeneration.
 
 #### `Input` — orphan from Ninja's pagination
 
@@ -256,15 +251,15 @@ Per per-app rename PR (partial — only the schemas in that PR's scope have been
 
 Ghost-type fix PRs:
 
-- After the `JsonBody` PR: `jq '.components.schemas.JsonBody' backend/openapi.json` returns `null`.
 - After the `Input` PR (whichever option is chosen): either `jq '.components.schemas.Input' backend/openapi.json` returns `null`, or the orphan is renamed to a non-generic name and added to the boundary-test allowlist.
 
 After the final rename PR lands:
 
 - `frontend/src/lib/api/schema.d.ts` contains zero `…Schema` component
   names, zero `…In` / `…Out` component names, and no generic-name components
-  (`Variant`, `Source`, `Stats`, `Recognition`, `Create`, `JsonBody`, and
-  `Input` modulo the spike outcome above).
+  (`Variant`, `Source`, `Stats`, `Recognition`, `Create`, and `Input` modulo
+  the spike outcome above). `JsonBody` is intentionally retained as the
+  shared name for arbitrary JSON-object fields.
 - Every schema in `components.schemas` is exposed as a top-level type alias
   in `schema.d.ts` (the `--root-types` flag is on).
 - No `components['schemas']` indexed access remains outside `client.ts`
