@@ -31,8 +31,8 @@ from .helpers import (
     _serialize_uploaded_media,
 )
 from .schemas import (
-    GameplayFeatureSchema,
     HierarchyClaimPatchSchema,
+    Ref,
 )
 
 # ---------------------------------------------------------------------------
@@ -53,8 +53,8 @@ class GameplayFeatureDetailSchema(Schema):
     slug: str
     description: RichTextSchema = RichTextSchema()
     aliases: list[str] = []
-    parents: list[GameplayFeatureSchema] = []
-    children: list[GameplayFeatureSchema] = []
+    parents: list[Ref] = []
+    children: list[Ref] = []
     uploaded_media: list[UploadedMediaSchema] = []
 
 
@@ -79,13 +79,9 @@ def _serialize_detail(feature: GameplayFeature) -> GameplayFeatureDetailSchema:
         slug=feature.slug,
         description=_build_rich_text(feature, "description", active_claims(feature)),
         aliases=[a.value for a in feature.aliases.all()],
-        parents=[
-            GameplayFeatureSchema(name=p.name, slug=p.slug)
-            for p in feature.parents.all()
-        ],
+        parents=[Ref(name=p.name, slug=p.slug) for p in feature.parents.all()],
         children=[
-            GameplayFeatureSchema(name=c.name, slug=c.slug)
-            for c in feature.children.order_by("name")
+            Ref(name=c.name, slug=c.slug) for c in feature.children.order_by("name")
         ],
         uploaded_media=_serialize_uploaded_media(all_media(feature)),
     )
