@@ -10,6 +10,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
+from apps.core.schemas import ValidationErrorSchema
 from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
@@ -132,7 +133,7 @@ def list_gameplay_features(
 @gameplay_features_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=GameplayFeatureDetailSchema,
+    response={200: GameplayFeatureDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_gameplay_feature_claims(

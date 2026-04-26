@@ -21,6 +21,7 @@ from apps.catalog.claims import build_media_attachment_claim
 from apps.catalog.resolve import resolve_media_attachments
 from apps.core.api_helpers import authed_user
 from apps.core.entity_types import get_linkable_model
+from apps.core.schemas import ErrorDetailSchema
 from apps.media.constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     DISPLAY_MAX_DIMENSION,
@@ -143,7 +144,11 @@ def _resolve_entity(entity_type: str, slug: str) -> tuple[ContentType, MediaSupp
     return ct, entity
 
 
-@media_router.post("/upload/", response=UploadOut, auth=django_auth)
+@media_router.post(
+    "/upload/",
+    response={200: UploadOut, 429: ErrorDetailSchema},
+    auth=django_auth,
+)
 def upload_media(
     request: HttpRequest,
     file: File[UploadedFile],

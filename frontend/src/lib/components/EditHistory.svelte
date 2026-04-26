@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import client from '$lib/api/client';
+  import { parseApiError } from '$lib/api/parse-api-error';
   import type { components } from '$lib/api/schema';
   import { auth } from '$lib/auth.svelte';
   import FocusContentShell from './FocusContentShell.svelte';
@@ -111,7 +112,7 @@
     revertLoading = false;
 
     if (error) {
-      revertError = (error as { detail?: string }).detail ?? 'Revert failed.';
+      revertError = parseApiError(error).message || 'Revert failed.';
     } else {
       revertingClaimId = null;
       revertNote = '';

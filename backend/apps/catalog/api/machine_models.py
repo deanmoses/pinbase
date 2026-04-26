@@ -16,7 +16,11 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
-from apps.core.schemas import ErrorDetailSchema
+from apps.core.schemas import (
+    ErrorDetailSchema,
+    RateLimitErrorSchema,
+    ValidationErrorSchema,
+)
 from apps.core.types import JsonBody
 from apps.media.helpers import all_media, primary_media
 from apps.media.models import EntityMedia
@@ -924,7 +928,7 @@ _SELF_REF_FIELDS = frozenset({"variant_of", "converted_from", "remake_of"})
 @models_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=MachineModelDetailSchema,
+    response={200: MachineModelDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_model_claims(
@@ -1036,6 +1040,7 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
     response={
         200: DeleteResponseSchema,
         422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
+        429: RateLimitErrorSchema,
     },
     tags=["private"],
 )
@@ -1083,6 +1088,7 @@ def delete_model(
         200: MachineModelDetailSchema,
         422: ErrorDetailSchema,
         404: ErrorDetailSchema,
+        429: RateLimitErrorSchema,
     },
     tags=["private"],
 )

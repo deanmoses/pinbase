@@ -18,6 +18,7 @@ from ninja.security import django_auth
 from apps.catalog.naming import normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.core.schemas import RateLimitErrorSchema, ValidationErrorSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.rate_limits import CREATE_RATE_LIMIT_SPEC, check_and_record
 from apps.provenance.schemas import RichTextSchema
@@ -213,7 +214,10 @@ def list_all_systems(request: HttpRequest) -> list[SystemListSchema]:
 
 
 @systems_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=SystemDetailSchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: SystemDetailSchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_system_claims(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -238,7 +242,11 @@ def patch_system_claims(
 @systems_router.post(
     "/",
     auth=django_auth,
-    response={201: SystemDetailSchema},
+    response={
+        201: SystemDetailSchema,
+        422: ValidationErrorSchema,
+        429: RateLimitErrorSchema,
+    },
     tags=["private"],
 )
 def create_system(

@@ -57,12 +57,11 @@ describe('systems/new route', () => {
     mockPost.mockResolvedValue({
       data: undefined,
       error: {
-        detail: [
-          {
-            loc: ['body', 'payload', 'manufacturer_slug'],
-            msg: 'Manufacturer not found.',
-          },
-        ],
+        detail: {
+          message: 'Validation failed.',
+          field_errors: { manufacturer_slug: 'Manufacturer not found.' },
+          form_errors: [],
+        },
       },
       response: { status: 422, headers: new Headers() } as Response,
     });

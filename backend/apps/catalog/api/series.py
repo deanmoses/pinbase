@@ -14,6 +14,7 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.core.schemas import ValidationErrorSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
@@ -158,7 +159,10 @@ def list_series(request: HttpRequest) -> list[SeriesListSchema]:
 
 
 @series_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=SeriesDetailSchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: SeriesDetailSchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_series_claims(
     request: HttpRequest, slug: str, data: ClaimPatchSchema

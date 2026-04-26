@@ -13,6 +13,7 @@ from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
 from apps.core.models import active_status_q
+from apps.core.schemas import ValidationErrorSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
@@ -161,7 +162,7 @@ def list_corporate_entities(
 @corporate_entities_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=CorporateEntityDetailSchema,
+    response={200: CorporateEntityDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_corporate_entity_claims(

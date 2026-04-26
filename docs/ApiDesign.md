@@ -2,10 +2,11 @@
 
 This document defines how backend APIs should be designed for the web application, and how the frontend should consume them.
 
-It covers two concerns:
+It covers three concerns:
 
 - **Endpoint design** — how to shape endpoints (page-oriented vs resource), where data should come from, and how SvelteKit pages should obtain it from Django.
 - **Schema design** — how to structure individual Django Ninja schemas: when to consolidate, when to keep separate, and what inheritance patterns smell.
+- **Error response declarations** — which 4xx/429 shapes to declare in `response={…}` and which to leave silent.
 
 ## Endpoint design
 
@@ -225,3 +226,33 @@ The cost isn't free, though: every named schema is another OpenAPI component, an
 When two response schemas participate in a union and Pydantic discriminates between them by shape (presence/absence of fields, `extra="forbid"` to reject sibling fields), document it in the schema's docstring. These constraints look like noise without context and are easy to break in an unrelated refactor.
 
 See `AlreadyDeletedSchema` and `SoftDeleteBlockedSchema` in [`backend/apps/catalog/api/schemas.py`](../backend/apps/catalog/api/schemas.py) for the pattern: required fields and `extra="forbid"` together force union dispatch to route the right body to the right arm.
+
+## Error response declarations
+
+Mutating endpoints should declare their 4xx/429 failure shapes in `response={…}` so the OpenAPI doc reflects what callers can actually receive. Stock 400/401/403/404 from `HttpError(...)` don't need declaration — they always produce `{"detail": str}` and every contract reader knows that. Read paths (authenticated or not) stay silent on 4xx.
+
+### Error schemas
+
+Three shared shapes live in [`backend/apps/core/schemas.py`](../backend/apps/core/schemas.py):
+
+| Schema                  | Wire shape                                         | Produced by                                                         |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
+| `ErrorDetailSchema`     | `{"detail": str}`                                  | Plain `HttpError(…)`, throttle middleware                           |
+| `ValidationErrorSchema` | `{"detail": {message, field_errors, form_errors}}` | `StructuredValidationError`, Ninja's malformed-body 422 (see below) |
+| `RateLimitErrorSchema`  | `{"detail": {message, bucket, retry_after}}`       | `check_and_record(…)` (`RateLimitExceededError`)                    |
+
+A global handler in [`backend/config/api.py`](../backend/config/api.py) reshapes Ninja's stock malformed-body 422 (`{"detail": [{loc, msg}, …]}`) into the `ValidationErrorSchema` envelope so the frontend has one fewer wire shape to parse.
+
+### When to declare each
+
+Apply the rule that fits what your view body (and one level of helpers) can produce. Don't over-declare — `response={200: Foo, 422: ValidationErrorSchema}` on an endpoint that can't produce 422 lies to contract readers.
+
+- **422 structured** (`ValidationErrorSchema`): endpoint calls `execute_claims`, or any helper that can raise `StructuredValidationError` (`validate_name`, `validate_slug_format`, `assert_name_available`, `create_entity_with_claims`).
+- **422 plain** (`ErrorDetailSchema`): endpoint raises `HttpError(422, "msg")` directly, or returns `(422, ErrorDetailSchema(...))` explicitly.
+- **422 union** (`ErrorDetailSchema | ValidationErrorSchema`): endpoint can produce both shapes.
+- **429 structured** (`RateLimitErrorSchema`): endpoint calls `check_and_record`.
+- **429 plain** (`ErrorDetailSchema`): endpoint raises `HttpError(429, "msg")` directly, or is decorated with `throttle=[…]` (Ninja's `Throttled` subclasses `HttpError`).
+
+### Known gap: body-validation 422s
+
+Ninja's body validation runs _before_ the view and produces `ValidationErrorSchema` on any body-accepting endpoint, regardless of whether the view explicitly raises 422. The rules above enumerate by what views raise, not by whether they accept a body, so endpoints whose only 422 path is body-validation are currently silent in the OpenAPI doc. Tracked in [`docs/plans/types/apiboundary/ApiSvelteBoundaryFollowups.md`](plans/types/apiboundary/ApiSvelteBoundaryFollowups.md). The convention above was established by [`ApiErrors.md`](plans/types/apiboundary/ApiErrors.md).

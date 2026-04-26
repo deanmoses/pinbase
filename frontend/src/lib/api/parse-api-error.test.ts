@@ -47,7 +47,25 @@ describe('parseApiError', () => {
     expect(result.fieldErrors).toEqual({});
   });
 
-  it('handles Pydantic validation array', () => {
+  it('handles a malformed-body 422 reshaped by the global ValidationError handler', () => {
+    // After the backend ValidationError override, malformed bodies arrive
+    // in the structured envelope with field keys derived from `loc[-1]`.
+    const result = parseApiError({
+      detail: {
+        message: 'Invalid request.',
+        field_errors: { count: 'Input should be a valid integer' },
+        form_errors: [],
+      },
+    });
+    expect(result.fieldErrors).toEqual({ count: 'Input should be a valid integer' });
+    expect(result.message).toBe('count: Input should be a valid integer');
+  });
+
+  it('falls back to JSON for the legacy Pydantic-array shape', () => {
+    // The ValidationError override (config/api.py) intercepts malformed
+    // bodies before they can produce this shape, so it should never reach
+    // the parser. This test pins the defensive fallback in case a future
+    // upgrade reintroduces the array shape through an uncovered path.
     const result = parseApiError({
       detail: [
         {
@@ -57,8 +75,8 @@ describe('parseApiError', () => {
         },
       ],
     });
-    expect(result.message).toBe('year: value is not a valid integer');
-    expect(result.fieldErrors).toEqual({ year: 'value is not a valid integer' });
+    expect(result.fieldErrors).toEqual({});
+    expect(result.message).toContain('value is not a valid integer');
   });
 
   it('handles plain string error', () => {

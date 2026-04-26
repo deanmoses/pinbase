@@ -142,6 +142,15 @@ internals.
 
 ## Approach
 
+The four sections below are written in a logical order, but the
+recommended **implementation order** is §1 → §2 → §4 → §3.
+Landing the parser rewrite (§4) before the backend sweep (§3)
+means the sweep is pure contract annotation — no behavior change
+left to verify after each declaration. Ninja's response-map
+validation is runtime-only, so misclassifications during §3 are
+silent until the failure path executes; a stable parser before
+the sweep gives the spot-checks in Verification a fixed target.
+
 ### 1. Add the schemas
 
 Edit [backend/apps/core/schemas.py](../../../../backend/apps/core/schemas.py):
@@ -258,7 +267,7 @@ behavior in before the sweep.
 Per-endpoint, expand `response={…}` based on what the function
 body (and the helpers it calls one level deep) can raise.
 
-**Status-code-first rules:**
+**Status-code-first rules** (canonical reference: [docs/ApiDesign.md](../../../ApiDesign.md#error-response-declarations)):
 
 - **422 structured** (`ValidationErrorSchema`): endpoint calls
   `execute_claims`, or any helper that can raise
@@ -277,6 +286,13 @@ body (and the helpers it calls one level deep) can raise.
 - **429 plain** (`ErrorDetailSchema`): endpoint raises
   `HttpError(429, "msg")` directly. Currently only
   [media/api.py:76](../../../../backend/apps/media/api.py).
+- **429 plain from throttle decorator** (`ErrorDetailSchema`):
+  endpoint decorated with `throttle=[…]`. Ninja's `Throttled`
+  subclasses `HttpError` and produces `{"detail": "Too many
+requests."}` via the stock `HttpError` handler — same shape
+  as `HttpError(429, …)`. Currently only
+  [citation/api.py:499](../../../../backend/apps/citation/api.py)
+  (`_ExtractThrottle`).
 
 Read each view carefully and apply the rule that fits. Don't
 over-declare to be safe — `response={200: Foo, 422: ValidationErrorSchema}`
@@ -305,24 +321,50 @@ AlreadyDeletedSchema`; restore already declares
 declarations to change.
 
 **Bespoke catalog endpoints (structured 422 via `execute_claims`)
-→ add `422: ValidationErrorSchema`:**
+→ add `422: ValidationErrorSchema`. Apply the rule per-endpoint;
+the counts below are guidance, not a checklist — read each file
+and declare based on what each view actually produces.**
 
-- [titles.py](../../../../backend/apps/catalog/api/titles.py) (3 mutating views)
-- [people.py](../../../../backend/apps/catalog/api/people.py) (3)
-- [machine_models.py](../../../../backend/apps/catalog/api/machine_models.py) (3)
-- [systems.py](../../../../backend/apps/catalog/api/systems.py) (1 bespoke create; delete/restore inherit from the generator)
+The big "named-fields" entities have multiple bespoke mutating
+views (patch claims + bespoke creates for sub-entities like
+aliases, credits, etc.):
+
+- [titles.py](../../../../backend/apps/catalog/api/titles.py) — `execute_claims` at lines 948, 1179
+- [people.py](../../../../backend/apps/catalog/api/people.py) — `execute_claims` at lines 296, 507
+- [machine_models.py](../../../../backend/apps/catalog/api/machine_models.py) — `execute_claims` at line 1000, 1105; raises `StructuredValidationError` at 955
+- [systems.py](../../../../backend/apps/catalog/api/systems.py) — `execute_claims` at 225; raises `StructuredValidationError` at 267, 273 (bespoke create); delete/restore inherit from the generator
+
+The simpler entities each have one bespoke
+`@*_router.patch("/{slug}/claims/")` edit view that calls
+`execute_claims` directly. Creates and delete/restore for these
+flow through the generators (covered above), but the **edits are
+bespoke** and need declaration:
+
+- [franchises.py:117](../../../../backend/apps/catalog/api/franchises.py)
+- [series.py:160](../../../../backend/apps/catalog/api/series.py)
+- [gameplay_features.py:132](../../../../backend/apps/catalog/api/gameplay_features.py)
+- [themes.py:137](../../../../backend/apps/catalog/api/themes.py)
+- [corporate_entities.py:161](../../../../backend/apps/catalog/api/corporate_entities.py)
+- [manufacturers.py:468](../../../../backend/apps/catalog/api/manufacturers.py)
+- [taxonomy.py](../../../../backend/apps/catalog/api/taxonomy.py) — 9 bespoke patch views, one per taxonomy router: `technology_generations` (L319), `display_types` (L370), `technology_subgenerations` (L386), `display_subtypes` (L402), `cabinets` (L424), `game_formats` (L448), `reward_types` (L499), `tags` (L532), `credit_roles` (L673). All route through the shared `_patch_taxonomy` helper (L177) which calls `execute_claims`.
 
 **Bespoke endpoints with plain `HttpError(422, …)` raises → add
 `422: ErrorDetailSchema`:**
 
 - [citation/api.py](../../../../backend/apps/citation/api.py)
-  (8 raise sites — lines 267, 273, 274, 444, 511, 519, 589, 654).
+  (8 raise sites — lines 267, 273, 274, 443, 511, 519, 589, 654;
+  line 443 is a multi-line raise spanning 443–446).
 - [provenance/api.py](../../../../backend/apps/provenance/api.py)
-  — already declares `422: ErrorDetailSchema` on lines 174, 220,
-  303, 350. Verified (grep): zero `StructuredValidationError`
-  raises and zero `execute_claims` calls. Audit and add
-  `422: ErrorDetailSchema` to any mutating endpoint that raises
-  but doesn't yet declare it. **Do not swap any existing
+  — **no §3 changes needed**. All three POST endpoints
+  (`revert_claim` L167, `undo_changeset` L213,
+  `create_citation_instance` L348) already declare
+  `422: ErrorDetailSchema` at lines 174, 220, and 350. The fourth
+  declaration at line 303 sits on a GET (`batch_citation_instances`)
+  that's strictly out of scope but already covered. The remaining
+  raise at L269 (`list_citation_instances`) is on a GET — out of
+  scope per the GET exclusion. Verified (grep): zero
+  `StructuredValidationError` raises and zero `execute_claims`
+  calls in this file. **Do not swap any existing
   `ErrorDetailSchema` to `ValidationErrorSchema`** — provenance
   produces only plain bodies.
 
@@ -376,19 +418,37 @@ types from there; otherwise use the indexed-access form
 
 Update [parse-api-error.test.ts](../../../../frontend/src/lib/api/parse-api-error.test.ts):
 
-- Add a test asserting that a malformed-body 422 (the kind Ninja
-  used to produce as an array) now arrives as
-  `ValidationErrorSchema` after the override.
-- **Keep one Pydantic-array test case** that asserts the parser
-  falls through gracefully to the unknown-shape fallback. Defensive
-  coverage in case a future Ninja upgrade reintroduces the array
-  shape through a path the override doesn't intercept.
-- Cover both branches plus the unknown-shape fallback.
+- **Keep all existing structured-validation, string-detail,
+  plain-string, and unknown-shape tests** — they cover the two
+  retained branches and the fallback unchanged.
+- **Delete the existing Pydantic-array test** at lines 50–62 that
+  asserts the array shape parses into a structured error. After
+  §2 lands, no API path produces the array, so this assertion is
+  no longer the contract.
+- **Add a replacement Pydantic-array test** that asserts the
+  parser falls through to the unknown-shape JSON-stringify
+  fallback when handed an array `detail`. Defensive coverage in
+  case a future Ninja upgrade reintroduces the array shape
+  through a path the override doesn't intercept.
+- **Add a malformed-body test** asserting that the structured
+  envelope produced by §2's override (with `field_errors` keyed
+  on `loc[-1]`) parses cleanly through the structured branch.
 
 ## Out of scope
 
 - **Sweep of 400 / 401 / 403 / 404 declarations.** Stock Ninja
   shape; not worth the verbosity.
+- **Body-validation 422 sweep.** §2's global override means _any_
+  body-accepting endpoint can produce `ValidationErrorSchema`
+  when Pydantic rejects the input — independent of whether the
+  view explicitly raises 422. §3 enumerates targets by what views
+  raise, not by whether they accept a body, so ~15–20 endpoints
+  declare a 422 shape that doesn't include `ValidationErrorSchema`
+  (or declare none). Tracked in
+  [ApiSvelteBoundaryFollowups.md](ApiSvelteBoundaryFollowups.md).
+  Deferred because it's a categorically different sweep — "declare
+  what Pydantic body validation can raise on every body-accepting
+  endpoint" — that's easier to review as its own PR than mixed in.
 - **Authenticated GET endpoints.** Read paths are silent on 4xx
   today and can stay that way.
 - **Converting raises to explicit `Status[…]` returns** at the

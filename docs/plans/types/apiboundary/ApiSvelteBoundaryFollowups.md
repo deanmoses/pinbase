@@ -34,6 +34,47 @@ or could a single schema cover both uses with optional/computed
 fields? Deferred because consolidation is an API-shape decision that
 benefits from seeing the renamed contract in place first.
 
+## Sweep body-validation 422s onto every request-body endpoint
+
+[ApiErrors.md](ApiErrors.md)'s §2 made a global behavioral change:
+Ninja's malformed-body 422 now reshapes to `ValidationErrorSchema`.
+That means _any_ endpoint that accepts a request body can produce
+`ValidationErrorSchema` when Pydantic rejects the input —
+independent of whether the view explicitly raises 422.
+
+§3's sweep enumerated targets by what views _raise_
+(`execute_claims`, `HttpError(422, …)`), not by whether they
+accept a body. Roughly 15–20 endpoints declare a 422 shape that
+doesn't include `ValidationErrorSchema`, or declare no 422 at
+all:
+
+- Catalog delete endpoints (generator + bespoke): currently
+  `422: SoftDeleteBlockedSchema | AlreadyDeletedSchema`.
+- Catalog restore endpoints (generator + bespoke): currently
+  `422: ErrorDetailSchema`.
+- Citation writes (5 endpoints in
+  [citation/api.py](../../../../backend/apps/citation/api.py)):
+  currently `422: ErrorDetailSchema`.
+- Provenance `revert_claim`, `undo_changeset`,
+  `create_citation_instance`: currently `422: ErrorDetailSchema`.
+- Media `upload`, `detach`, `set_primary`: 0 / 0 / 0 declared.
+
+The fix is mechanical: union `ValidationErrorSchema` into each
+endpoint's 422 declaration (or add it where 422 is undeclared).
+
+**Why deferred.** ApiErrors.md's §3 was a coherent sweep —
+"declare what views explicitly raise." Body-validation 422s are
+a categorically different sweep — "declare what Pydantic body
+validation can raise on every body-accepting endpoint." Two PRs
+with clear charters are easier to review than one mixed.
+
+**No runtime breakage today.** The frontend parser dispatches by
+body shape, not status code, and no frontend code imports error
+schemas at type level. The miscoverage shows up as `/api/docs`
+inaccuracy and as wrong types if a future consumer narrows on
+the declared 422 shape. Worth fixing for contract honesty; not
+urgent.
+
 ## Split schema per-tag
 
 If after the boundary work lands, `frontend/src/lib/api/schema.d.ts`

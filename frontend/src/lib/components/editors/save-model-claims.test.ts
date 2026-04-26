@@ -81,17 +81,18 @@ describe('saveModelClaims', () => {
     });
   });
 
-  it('joins array-of-objects detail into a readable message', async () => {
+  it('parses a malformed-body 422 reshaped by the global ValidationError handler', async () => {
+    // The backend ValidationError handler (config/api.py) reshapes
+    // Pydantic's malformed-body errors into the structured envelope
+    // with field keys derived from `loc[-1]`.
     PATCH.mockResolvedValue({
       data: undefined,
       error: {
-        detail: [
-          {
-            loc: ['body', 'fields', 'year'],
-            msg: 'value is not a valid integer',
-            type: 'type_error',
-          },
-        ],
+        detail: {
+          message: 'Invalid request.',
+          field_errors: { year: 'Input should be a valid integer' },
+          form_errors: [],
+        },
       },
     });
 
@@ -101,8 +102,8 @@ describe('saveModelClaims', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'year: value is not a valid integer',
-      fieldErrors: { year: 'value is not a valid integer' },
+      error: 'year: Input should be a valid integer',
+      fieldErrors: { year: 'Input should be a valid integer' },
     });
   });
 

@@ -8,10 +8,15 @@ export type FieldErrors = Record<string, string>;
 type ParsedError = { message: string; fieldErrors: FieldErrors };
 
 /**
- * Handles three response shapes:
+ * Handles two response shapes:
  * 1. Structured validation: `{ detail: { message, field_errors, form_errors } }`
- * 2. Legacy string: `{ detail: "message" }`
- * 3. Pydantic array: `{ detail: [{ loc, msg }] }`
+ *    — produced by `StructuredValidationError` and by Ninja's malformed-body
+ *    handler (see `backend/config/api.py`).
+ * 2. Plain detail: `{ detail: "message" }` — produced by `HttpError(...)`
+ *    raises and stock Ninja 401/404/etc.
+ *
+ * The 422 and 429 statuses can arrive in either envelope; dispatch is by
+ * body shape, not by status code.
  */
 export function parseApiError(error: unknown): ParsedError {
   if (typeof error === 'object' && error !== null && 'detail' in error) {
@@ -21,6 +26,7 @@ export function parseApiError(error: unknown): ParsedError {
       typeof detail === 'object' &&
       detail !== null &&
       'message' in detail &&
+      typeof (detail as { message: unknown }).message === 'string' &&
       'field_errors' in detail
     ) {
       const d = detail as {
@@ -38,22 +44,6 @@ export function parseApiError(error: unknown): ParsedError {
     }
 
     if (typeof detail === 'string') return { message: detail, fieldErrors: {} };
-
-    if (Array.isArray(detail)) {
-      const fieldErrors: FieldErrors = {};
-      const messages: string[] = [];
-      for (const e of detail) {
-        const loc = Array.isArray(e.loc) ? String(e.loc[e.loc.length - 1]) : '';
-        const msg: string = e.msg ?? String(e);
-        if (loc) {
-          fieldErrors[loc] = msg;
-          messages.push(`${loc}: ${msg}`);
-        } else {
-          messages.push(msg);
-        }
-      }
-      return { message: messages.join('; '), fieldErrors };
-    }
   }
 
   if (typeof error === 'string') return { message: error, fieldErrors: {} };

@@ -15,6 +15,7 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.core.schemas import ValidationErrorSchema
 from apps.provenance.helpers import claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
@@ -317,7 +318,10 @@ def _bulk_title_counts_for_subgenerations(
 
 
 @technology_generations_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_technology_generation(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -368,7 +372,10 @@ def list_display_types(request: HttpRequest) -> list[DisplayTypeListSchema]:
 
 
 @display_types_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_display_type(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -384,7 +391,10 @@ technology_subgenerations_router = Router(tags=["technology-subgenerations"])
 
 
 @technology_subgenerations_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_technology_subgeneration(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -400,7 +410,10 @@ display_subtypes_router = Router(tags=["display-subtypes"])
 
 
 @display_subtypes_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_display_subtype(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -422,7 +435,10 @@ def list_cabinets(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
 
 
 @cabinets_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_cabinet(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -446,7 +462,10 @@ def list_game_formats(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema
 
 
 @game_formats_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_game_format(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -499,7 +518,7 @@ def list_reward_types(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema
 @reward_types_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=RewardTypeDetailSchema,
+    response={200: RewardTypeDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_reward_type(
@@ -530,7 +549,10 @@ def list_tags(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
 
 
 @tags_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=TaxonomySchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: TaxonomySchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_tag(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -673,7 +695,7 @@ def get_credit_role(request: HttpRequest, slug: str) -> CreditRoleDetailSchema:
 @credit_roles_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=CreditRoleDetailSchema,
+    response={200: CreditRoleDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_credit_role(

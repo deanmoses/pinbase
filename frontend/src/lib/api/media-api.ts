@@ -7,6 +7,7 @@
 
 import type { components } from './schema';
 import { getCsrfToken } from './client';
+import { parseApiError } from './parse-api-error';
 
 export type UploadResult = components['schemas']['UploadOut'];
 
@@ -69,7 +70,8 @@ export function uploadMedia(
         let message = `Upload failed (${xhr.status})`;
         try {
           const body = JSON.parse(xhr.responseText);
-          if (body.detail) message = body.detail;
+          const parsed = parseApiError(body).message;
+          if (parsed) message = parsed;
         } catch {
           // ignore parse errors
         }
@@ -112,7 +114,8 @@ async function mediaAction(
     let message = `Request failed (${resp.status})`;
     try {
       const body = await resp.json();
-      if (body.detail) message = body.detail;
+      const parsed = parseApiError(body).message;
+      if (parsed) message = parsed;
     } catch {
       // ignore parse errors
     }

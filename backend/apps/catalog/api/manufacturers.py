@@ -17,6 +17,7 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.core.schemas import ValidationErrorSchema
 from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
@@ -468,7 +469,7 @@ def list_all_manufacturers(
 @manufacturers_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=ManufacturerDetailSchema,
+    response={200: ManufacturerDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_manufacturer_claims(

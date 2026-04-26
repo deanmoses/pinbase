@@ -30,7 +30,11 @@ from ninja.security import django_auth
 from apps.catalog.naming import MAX_CATALOG_NAME_LENGTH, normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
-from apps.core.schemas import ErrorDetailSchema
+from apps.core.schemas import (
+    ErrorDetailSchema,
+    RateLimitErrorSchema,
+    ValidationErrorSchema,
+)
 from apps.media.helpers import all_media
 from apps.media.schemas import MediaRenditionsSchema
 from apps.media.storage import build_public_url, build_storage_key
@@ -911,7 +915,7 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
 @titles_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=TitleDetailSchema,
+    response={200: TitleDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_title_claims(
@@ -961,7 +965,11 @@ def patch_title_claims(
 @titles_router.post(
     "/",
     auth=django_auth,
-    response={201: TitleDetailSchema},
+    response={
+        201: TitleDetailSchema,
+        422: ValidationErrorSchema,
+        429: RateLimitErrorSchema,
+    },
     tags=["private"],
 )
 def create_title(request: HttpRequest, data: CreateSchema) -> Status[TitleDetailSchema]:
@@ -1001,7 +1009,11 @@ def create_title(request: HttpRequest, data: CreateSchema) -> Status[TitleDetail
 @titles_router.post(
     "/{title_slug}/models/",
     auth=django_auth,
-    response={201: MachineModelDetailSchema},
+    response={
+        201: MachineModelDetailSchema,
+        422: ValidationErrorSchema,
+        429: RateLimitErrorSchema,
+    },
     tags=["private"],
 )
 def create_model(
@@ -1104,6 +1116,7 @@ def title_delete_preview(request: HttpRequest, slug: str) -> TitleDeletePreviewS
     response={
         200: TitleDeleteResponseSchema,
         422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
+        429: RateLimitErrorSchema,
     },
     tags=["private"],
 )
@@ -1155,6 +1168,7 @@ def delete_title(
         200: TitleDetailSchema,
         422: ErrorDetailSchema,
         404: ErrorDetailSchema,
+        429: RateLimitErrorSchema,
     },
     tags=["private"],
 )

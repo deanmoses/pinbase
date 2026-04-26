@@ -23,6 +23,7 @@ from ninja.throttling import AuthRateThrottle
 from pydantic import field_validator
 
 from apps.core.api_helpers import authed_user
+from apps.core.schemas import ErrorDetailSchema
 
 from .extraction import classify_input, extract_isbn, normalize_isbn
 from .extractors import EXTRACTORS, Recognition, recognize_url
@@ -418,7 +419,7 @@ def search_citation_sources(request: HttpRequest, q: str = "") -> SearchResponse
 
 @citation_sources_router.post(
     "/",
-    response={201: CitationSourceDetailSchema},
+    response={201: CitationSourceDetailSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
 def create_citation_source(
@@ -498,7 +499,11 @@ class _ExtractThrottle(AuthRateThrottle):
 
 @citation_sources_router.post(
     "/extract/",
-    response=ExtractResponseSchema,
+    response={
+        200: ExtractResponseSchema,
+        422: ErrorDetailSchema,
+        429: ErrorDetailSchema,
+    },
     auth=django_auth,
     throttle=[_ExtractThrottle("10/m")],
 )
@@ -575,7 +580,7 @@ def get_citation_source(
 
 @citation_sources_router.patch(
     "/{source_id}/",
-    response=CitationSourceDetailSchema,
+    response={200: CitationSourceDetailSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
 def update_citation_source(
@@ -609,7 +614,7 @@ def update_citation_source(
 
 @citation_sources_router.post(
     "/{source_id}/links/",
-    response={201: CitationSourceLinkSchema},
+    response={201: CitationSourceLinkSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
 def create_citation_source_link(
@@ -635,7 +640,7 @@ def create_citation_source_link(
 
 @citation_sources_router.patch(
     "/{source_id}/links/{link_id}/",
-    response=CitationSourceLinkSchema,
+    response={200: CitationSourceLinkSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
 def update_citation_source_link(

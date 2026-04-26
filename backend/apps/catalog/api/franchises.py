@@ -14,6 +14,7 @@ from ninja.security import django_auth
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
+from apps.core.schemas import ValidationErrorSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
@@ -117,7 +118,7 @@ def _serialize_franchise_detail(franchise: Franchise) -> FranchiseDetailSchema:
 @franchises_router.patch(
     "/{slug}/claims/",
     auth=django_auth,
-    response=FranchiseDetailSchema,
+    response={200: FranchiseDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_franchise_claims(

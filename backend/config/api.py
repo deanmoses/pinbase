@@ -4,7 +4,7 @@ from django.apps import apps
 from django.db import connection
 from django.http import HttpRequest, JsonResponse
 from ninja import NinjaAPI, Schema
-from ninja.errors import HttpError
+from ninja.errors import HttpError, ValidationError
 
 from apps.catalog.api.edit_claims import FieldConstraint, StructuredValidationError
 from apps.provenance.rate_limits import RateLimitExceededError
@@ -86,11 +86,63 @@ _discover_routers()
 # ---------------------------------------------------------------------------
 
 
+def _structured_422_body(
+    *, message: str, field_errors: dict[str, str], form_errors: list[str]
+) -> dict[str, object]:
+    return {
+        "detail": {
+            "message": message,
+            "field_errors": field_errors,
+            "form_errors": form_errors,
+        }
+    }
+
+
+# Pydantic ``loc`` paths begin with the request source — strip these so the
+# leaf names align with StructuredValidationError's flat field keys.
+_REQUEST_SOURCES = frozenset({"body", "query", "path", "header", "cookie", "form"})
+
+
 @api.exception_handler(StructuredValidationError)
 def _handle_structured_validation_error(
     request: HttpRequest, exc: StructuredValidationError
 ) -> JsonResponse:
-    return JsonResponse({"detail": exc.to_response_body()}, status=422)
+    return JsonResponse(_structured_422_body(**exc.to_response_body()), status=422)
+
+
+@api.exception_handler(ValidationError)
+def _handle_pydantic_validation_error(
+    request: HttpRequest, exc: ValidationError
+) -> JsonResponse:
+    field_errors: dict[str, str] = {}
+    form_errors: list[str] = []
+    for err in exc.errors:
+        loc = err.get("loc") or ()
+        msg = err.get("msg", "Invalid value.")
+        # Use the last loc segment as the field key. Pinbase's per-field
+        # error renderer keys on bare names ("year", "slug") — matching
+        # what application-thrown StructuredValidationError uses. Loc
+        # paths from Pydantic include request source + nesting
+        # ("body", "gameplay_features", 0, "slug"); collapsing to the leaf
+        # preserves UI compatibility. Trade-off: leaf-name collisions in
+        # nested payloads (two fields named "slug") map to the same key.
+        # Acceptable because malformed-body errors are programmer bugs,
+        # not user-facing field corrections; the inline-render path that
+        # *does* care about per-field accuracy is fed by
+        # StructuredValidationError, which produces flat keys directly.
+        leaf = str(loc[-1]) if loc else ""
+        if leaf and leaf not in _REQUEST_SOURCES:
+            field_errors[leaf] = msg
+        else:
+            form_errors.append(msg)
+    return JsonResponse(
+        _structured_422_body(
+            message="Invalid request.",
+            field_errors=field_errors,
+            form_errors=form_errors,
+        ),
+        status=422,
+    )
 
 
 @api.exception_handler(RateLimitExceededError)

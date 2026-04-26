@@ -79,6 +79,24 @@ class TestPatchClaimsValidation:
         body = resp.json()
         assert "title" in body["detail"]["field_errors"]
 
+    def test_malformed_nested_body_uses_structured_422_envelope(self, client, user, pm):
+        """Pydantic's malformed-body 422 reshapes to ``{detail: {message,
+        field_errors, form_errors}}`` via the global ``ValidationError``
+        handler, with field keys derived from ``loc[-1]``."""
+        client.force_login(user)
+        resp = client.patch(
+            f"/api/models/{pm.slug}/claims/",
+            data='{"gameplay_features": [{"slug": "tilt", "count": "not-an-int"}]}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+        body = resp.json()
+        detail = body["detail"]
+        assert set(detail.keys()) == {"message", "field_errors", "form_errors"}
+        # ``loc`` is ("body", "gameplay_features", 0, "count") — leaf wins.
+        assert "count" in detail["field_errors"]
+        assert "gameplay_features" not in detail["field_errors"]
+
 
 @pytest.mark.django_db
 class TestPatchClaimsPersistence:

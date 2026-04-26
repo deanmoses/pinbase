@@ -17,6 +17,31 @@ class ErrorDetailSchema(Schema):
     detail: str
 
 
+class ValidationErrorBodySchema(Schema):
+    message: str
+    field_errors: dict[str, str]
+    form_errors: list[str]
+
+
+class ValidationErrorSchema(Schema):
+    """Structured 422 body produced by ``StructuredValidationError`` and by
+    Ninja's malformed-body handler (see ``config/api.py``)."""
+
+    detail: ValidationErrorBodySchema
+
+
+class RateLimitErrorBodySchema(Schema):
+    message: str
+    bucket: str
+    retry_after: int
+
+
+class RateLimitErrorSchema(Schema):
+    """Structured 429 body produced by ``RateLimitExceededError``."""
+
+    detail: RateLimitErrorBodySchema
+
+
 class LinkTypeSchema(Schema):
     """One entry in the autocomplete type picker."""
 

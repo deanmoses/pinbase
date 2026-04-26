@@ -19,7 +19,11 @@ from ninja.security import django_auth
 from apps.catalog.naming import normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
-from apps.core.schemas import ErrorDetailSchema
+from apps.core.schemas import (
+    ErrorDetailSchema,
+    RateLimitErrorSchema,
+    ValidationErrorSchema,
+)
 from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
@@ -283,7 +287,10 @@ def list_all_people(
 
 
 @people_router.patch(
-    "/{slug}/claims/", auth=django_auth, response=PersonDetailSchema, tags=["private"]
+    "/{slug}/claims/",
+    auth=django_auth,
+    response={200: PersonDetailSchema, 422: ValidationErrorSchema},
+    tags=["private"],
 )
 def patch_person_claims(
     request: HttpRequest, slug: str, data: ClaimPatchSchema
@@ -309,7 +316,11 @@ def patch_person_claims(
 @people_router.post(
     "/",
     auth=django_auth,
-    response={201: PersonDetailSchema},
+    response={
+        201: PersonDetailSchema,
+        422: ValidationErrorSchema,
+        429: RateLimitErrorSchema,
+    },
     tags=["private"],
 )
 def create_person(
@@ -420,6 +431,7 @@ def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePrevie
     response={
         200: DeleteResponseSchema,
         422: PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema,
+        429: RateLimitErrorSchema,
     },
     tags=["private"],
 )
@@ -486,6 +498,7 @@ def delete_person(
         200: PersonDetailSchema,
         422: ErrorDetailSchema,
         404: ErrorDetailSchema,
+        429: RateLimitErrorSchema,
     },
     tags=["private"],
 )

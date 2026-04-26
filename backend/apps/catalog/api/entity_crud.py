@@ -29,7 +29,11 @@ from ninja.security import django_auth
 
 from apps.catalog.models import CatalogModel
 from apps.catalog.naming import normalize_catalog_name
-from apps.core.schemas import ErrorDetailSchema
+from apps.core.schemas import (
+    ErrorDetailSchema,
+    RateLimitErrorSchema,
+    ValidationErrorSchema,
+)
 from apps.provenance.models import ChangeSetAction
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
@@ -192,6 +196,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
         response={
             200: DeleteResponseSchema,
             422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
+            429: RateLimitErrorSchema,
         },
         tags=["private"],
     )(_delete)
@@ -235,6 +240,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
             200: response_schema,
             422: ErrorDetailSchema,
             404: ErrorDetailSchema,
+            429: RateLimitErrorSchema,
         },
         tags=["private"],
     )(_restore)
@@ -357,7 +363,11 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         router.post(
             f"/{{parent_slug}}/{route_suffix}/",
             auth=django_auth,
-            response={201: response_schema},
+            response={
+                201: response_schema,
+                422: ValidationErrorSchema,
+                429: RateLimitErrorSchema,
+            },
             tags=["private"],
         )(_create_parented)
     else:
@@ -369,6 +379,10 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         router.post(
             "/",
             auth=django_auth,
-            response={201: response_schema},
+            response={
+                201: response_schema,
+                422: ValidationErrorSchema,
+                429: RateLimitErrorSchema,
+            },
             tags=["private"],
         )(_create_unparented)

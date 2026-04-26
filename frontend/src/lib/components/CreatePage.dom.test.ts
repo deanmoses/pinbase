@@ -189,10 +189,14 @@ describe('CreatePage', () => {
     const submit = vi.fn().mockResolvedValue({
       data: undefined,
       error: {
-        detail: [
-          { loc: ['body', 'payload', 'name'], msg: 'Name already exists.' },
-          { loc: ['body', 'payload', 'slug'], msg: 'Slug already taken.' },
-        ],
+        detail: {
+          message: 'Validation failed.',
+          field_errors: {
+            name: 'Name already exists.',
+            slug: 'Slug already taken.',
+          },
+          form_errors: [],
+        },
       },
       response: makeResponse(422),
     });
@@ -300,12 +304,11 @@ describe('CreatePage extras', () => {
     const submit = vi.fn().mockResolvedValue({
       data: undefined,
       error: {
-        detail: [
-          {
-            loc: ['body', 'payload', 'manufacturer_slug'],
-            msg: 'Manufacturer not found.',
-          },
-        ],
+        detail: {
+          message: 'Validation failed.',
+          field_errors: { manufacturer_slug: 'Manufacturer not found.' },
+          form_errors: [],
+        },
       },
       response: makeResponse(422),
     });
