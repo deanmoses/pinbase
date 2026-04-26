@@ -85,11 +85,11 @@ from .helpers import (
 from .schemas import (
     AlreadyDeletedSchema,
     CreditSchema,
+    DeleteResponseSchema,
     EditOptionItem,
     GameplayFeatureSchema,
     ModelClaimPatchSchema,
     ModelDeletePreviewSchema,
-    ModelDeleteResponseSchema,
     ModelEditOptionsSchema,
     Ref,
     SoftDeleteBlockedSchema,
@@ -1035,14 +1035,14 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
     "/{slug}/delete/",
     auth=django_auth,
     response={
-        200: ModelDeleteResponseSchema,
+        200: DeleteResponseSchema,
         422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
     },
     tags=["private"],
 )
 def delete_model(
     request: HttpRequest, slug: str, data: ChangeSetInputSchema
-) -> ModelDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
+) -> DeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a MachineModel.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1071,9 +1071,9 @@ def delete_model(
     if changeset is None:
         return Status(422, AlreadyDeletedSchema(detail="Model is already deleted."))
 
-    return ModelDeleteResponseSchema(
+    return DeleteResponseSchema(
         changeset_id=changeset.pk,
-        affected_models=[e.slug for e in deleted if isinstance(e, MachineModel)],
+        affected_slugs=[e.slug for e in deleted if isinstance(e, MachineModel)],
     )
 
 

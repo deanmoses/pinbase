@@ -10,8 +10,8 @@ Series / Franchise / System schemas without duplicating code.
 
 Create / delete / restore inputs use the shared ``CreateSchema`` and
 ``ChangeSetInputSchema`` from the catalog/provenance schema modules; only
-the preview and response shapes (``TaxonomyDeletePreviewSchema``,
-``TaxonomyDeleteResponseSchema``) are entity-specific to this module.
+the preview shape (``TaxonomyDeletePreviewSchema``) is entity-specific to
+this module — the response uses the shared ``DeleteResponseSchema``.
 """
 
 from __future__ import annotations
@@ -50,6 +50,7 @@ from .schemas import (
     AlreadyDeletedSchema,
     BlockingReferrerSchema,
     CreateSchema,
+    DeleteResponseSchema,
     SoftDeleteBlockedSchema,
 )
 from .soft_delete import (
@@ -76,19 +77,6 @@ class TaxonomyDeletePreviewSchema(Schema):
     # Populated on subgen/subtype so the UI can show a parent breadcrumb.
     parent_name: str | None = None
     parent_slug: str | None = None
-
-
-class TaxonomyDeleteResponseSchema(Schema):
-    """Success body for entity soft-delete.
-
-    ``affected_slugs`` is always ``[obj.slug]`` for leaf entities — taxonomy
-    deletes block rather than cascade — but the list shape keeps parity with
-    ``ModelDeleteResponseSchema.affected_models`` (which can be >1 for the
-    Title cascade) so the frontend delete helper can be shared.
-    """
-
-    changeset_id: int
-    affected_slugs: list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -165,10 +153,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
 
     def _delete(
         request: HttpRequest, slug: str, data: ChangeSetInputSchema
-    ) -> (
-        TaxonomyDeleteResponseSchema
-        | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]
-    ):
+    ) -> DeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
         check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
         obj = get_object_or_404(model_cls.objects.active(), slug=slug)
@@ -215,7 +200,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
                 AlreadyDeletedSchema(detail=f"{friendly_sentence} is already deleted."),
             )
 
-        return TaxonomyDeleteResponseSchema(
+        return DeleteResponseSchema(
             changeset_id=changeset.pk,
             affected_slugs=[e.slug for e in deleted if isinstance(e, model_cls)],
         )
@@ -225,7 +210,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
         "/{slug}/delete/",
         auth=django_auth,
         response={
-            200: TaxonomyDeleteResponseSchema,
+            200: DeleteResponseSchema,
             422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
         },
         tags=["private"],

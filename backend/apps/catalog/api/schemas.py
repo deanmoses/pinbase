@@ -142,11 +142,6 @@ class ModelDeletePreviewSchema(Schema):
     blocked_by: list[BlockingReferrerSchema] = []
 
 
-class ModelDeleteResponseSchema(Schema):
-    changeset_id: int
-    affected_models: list[str]
-
-
 class PersonDeletePreviewSchema(Schema):
     person_name: str
     person_slug: str
@@ -159,9 +154,19 @@ class PersonDeletePreviewSchema(Schema):
     blocked_by: list[BlockingReferrerSchema] = []
 
 
-class PersonDeleteResponseSchema(Schema):
+class DeleteResponseSchema(Schema):
+    """Success body for entity soft-delete.
+
+    Shared by taxonomy, machine-model, and person delete endpoints.
+    ``affected_slugs`` lists the slugs of entities of the deleted type that
+    were soft-deleted in the operation (the target plus any owned cascade
+    children of the same type). Title delete is structurally different —
+    it cascades into a different type (machine models) — and uses its own
+    response schema.
+    """
+
     changeset_id: int
-    affected_people: list[str]
+    affected_slugs: list[str]
 
 
 class EditOptionItem(Schema):

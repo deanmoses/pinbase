@@ -53,8 +53,8 @@ from .schemas import (
     AlreadyDeletedSchema,
     ClaimPatchSchema,
     CreateSchema,
+    DeleteResponseSchema,
     PersonDeletePreviewSchema,
-    PersonDeleteResponseSchema,
     PersonSoftDeleteBlockedSchema,
     RelatedTitleSchema,
 )
@@ -418,7 +418,7 @@ def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePrevie
     "/{slug}/delete/",
     auth=django_auth,
     response={
-        200: PersonDeleteResponseSchema,
+        200: DeleteResponseSchema,
         422: PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema,
     },
     tags=["private"],
@@ -426,8 +426,7 @@ def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePrevie
 def delete_person(
     request: HttpRequest, slug: str, data: ChangeSetInputSchema
 ) -> (
-    PersonDeleteResponseSchema
-    | Status[PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema]
+    DeleteResponseSchema | Status[PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema]
 ):
     """Soft-delete a Person.
 
@@ -474,9 +473,9 @@ def delete_person(
     if changeset is None:
         return Status(422, AlreadyDeletedSchema(detail="Person is already deleted."))
 
-    return PersonDeleteResponseSchema(
+    return DeleteResponseSchema(
         changeset_id=changeset.pk,
-        affected_people=[e.slug for e in deleted if isinstance(e, Person)],
+        affected_slugs=[e.slug for e in deleted if isinstance(e, Person)],
     )
 
 

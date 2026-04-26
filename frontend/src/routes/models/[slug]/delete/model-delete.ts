@@ -9,7 +9,7 @@ import { createDeleteSubmitter } from '$lib/delete-flow';
 import type { components } from '$lib/api/schema';
 
 export type DeletePreview = components['schemas']['ModelDeletePreviewSchema'];
-export type DeleteResponse = components['schemas']['ModelDeleteResponseSchema'];
+export type DeleteResponse = components['schemas']['DeleteResponseSchema'];
 export type BlockingReferrer = components['schemas']['BlockingReferrerSchema'];
 
 export type { DeleteOutcome } from '$lib/delete-flow';

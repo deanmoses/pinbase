@@ -132,7 +132,7 @@ class TestDeleteHappyPath:
         resp = _post_delete(client, "pat-lawlor", {"note": "bye"})
         assert resp.status_code == 200, resp.content
         body = resp.json()
-        assert body["affected_people"] == ["pat-lawlor"]
+        assert body["affected_slugs"] == ["pat-lawlor"]
 
         p.refresh_from_db()
         assert p.status == "deleted"
