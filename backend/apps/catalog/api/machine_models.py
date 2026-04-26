@@ -28,7 +28,11 @@ from apps.provenance.rate_limits import (
     DELETE_RATE_LIMIT_SPEC,
     check_and_record,
 )
-from apps.provenance.schemas import AttributionSchema, RichTextSchema
+from apps.provenance.schemas import (
+    AttributionSchema,
+    ChangeSetInputSchema,
+    RichTextSchema,
+)
 
 from ..cache import MODELS_ALL_KEY, get_cached_response, set_cached_response
 from ..models import (
@@ -81,20 +85,14 @@ from .helpers import (
 from .schemas import (
     AlreadyDeletedSchema,
     CreditSchema,
+    DeleteResponseSchema,
     EditOptionItem,
-    FranchiseRefSchema,
     GameplayFeatureSchema,
     ModelClaimPatchSchema,
     ModelDeletePreviewSchema,
-    ModelDeleteResponseSchema,
-    ModelDeleteSchema,
     ModelEditOptionsSchema,
-    ModelRestoreSchema,
     Ref,
-    RewardTypeSchema,
-    SeriesRefSchema,
     SoftDeleteBlockedSchema,
-    ThemeSchema,
     TitleMachineSchema,
 )
 from .soft_delete import (
@@ -132,7 +130,7 @@ class MachineModelListSchema(Schema):
     ipdb_id: int | None = None
     ipdb_rating: float | None = None
     pinside_rating: float | None = None
-    themes: list[ThemeSchema] = []
+    themes: list[Ref] = []
     thumbnail_url: str | None = None
 
 
@@ -162,7 +160,7 @@ class MachineModelDetailSchema(Schema):
     technology_subgeneration: Ref | None = None
     display_type: Ref | None = None
     player_count: int | None = None
-    themes: list[ThemeSchema] = []
+    themes: list[Ref] = []
     production_quantity: str
     system: Ref | None = None
     flipper_count: int | None = None
@@ -187,9 +185,9 @@ class MachineModelDetailSchema(Schema):
     display_subtype: Ref | None = None
     gameplay_features: list[GameplayFeatureSchema] = []
     tags: list[Ref] = []
-    reward_types: list[RewardTypeSchema] = []
-    franchise: FranchiseRefSchema | None = None
-    series: SeriesRefSchema | None = None
+    reward_types: list[Ref] = []
+    franchise: Ref | None = None
+    series: Ref | None = None
     variant_of: ModelRefSchema | None = None
     variant_siblings: list[VariantSchema] = []
     converted_from: ModelRefSchema | None = None
@@ -420,7 +418,7 @@ def _serialize_model_detail(pm: MachineModel) -> MachineModelDetailSchema:
             else None
         ),
         player_count=pm.player_count,
-        themes=[ThemeSchema(name=t.name, slug=t.slug) for t in pm.themes.all()],
+        themes=[Ref(name=t.name, slug=t.slug) for t in pm.themes.all()],
         production_quantity=pm.production_quantity,
         system=(Ref(name=pm.system.name, slug=pm.system.slug) if pm.system else None),
         flipper_count=pm.flipper_count,
@@ -499,18 +497,14 @@ def _serialize_model_detail(pm: MachineModel) -> MachineModelDetailSchema:
             for t in pm.machinemodelgameplayfeature_set.all()
         ],
         tags=[Ref(name=t.name, slug=t.slug) for t in pm.tags.all()],
-        reward_types=[
-            RewardTypeSchema(name=rt.name, slug=rt.slug) for rt in pm.reward_types.all()
-        ],
+        reward_types=[Ref(name=rt.name, slug=rt.slug) for rt in pm.reward_types.all()],
         franchise=(
-            FranchiseRefSchema(
-                name=pm.title.franchise.name, slug=pm.title.franchise.slug
-            )
+            Ref(name=pm.title.franchise.name, slug=pm.title.franchise.slug)
             if pm.title and pm.title.franchise
             else None
         ),
         series=(
-            SeriesRefSchema(name=pm.title.series.name, slug=pm.title.series.slug)
+            Ref(name=pm.title.series.name, slug=pm.title.series.slug)
             if pm.title and pm.title.series
             else None
         ),
@@ -1028,10 +1022,9 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
     plan = plan_soft_delete(pm)
     changeset_count = 0 if plan.is_blocked else count_entity_changesets(pm)
     return ModelDeletePreviewSchema(
-        model_name=pm.name,
-        model_slug=pm.slug,
-        title_name=pm.title.name,
-        title_slug=pm.title.slug,
+        name=pm.name,
+        slug=pm.slug,
+        parent=Ref(name=pm.title.name, slug=pm.title.slug),
         changeset_count=changeset_count,
         blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
     )
@@ -1041,14 +1034,14 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
     "/{slug}/delete/",
     auth=django_auth,
     response={
-        200: ModelDeleteResponseSchema,
+        200: DeleteResponseSchema,
         422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
     },
     tags=["private"],
 )
 def delete_model(
-    request: HttpRequest, slug: str, data: ModelDeleteSchema
-) -> ModelDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
+    request: HttpRequest, slug: str, data: ChangeSetInputSchema
+) -> DeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a MachineModel.
 
     Writes a single user ChangeSet with ``action=delete`` containing one
@@ -1077,9 +1070,9 @@ def delete_model(
     if changeset is None:
         return Status(422, AlreadyDeletedSchema(detail="Model is already deleted."))
 
-    return ModelDeleteResponseSchema(
+    return DeleteResponseSchema(
         changeset_id=changeset.pk,
-        affected_models=[e.slug for e in deleted if isinstance(e, MachineModel)],
+        affected_slugs=[e.slug for e in deleted if isinstance(e, MachineModel)],
     )
 
 
@@ -1094,7 +1087,7 @@ def delete_model(
     tags=["private"],
 )
 def restore_model(
-    request: HttpRequest, slug: str, data: ModelRestoreSchema
+    request: HttpRequest, slug: str, data: ChangeSetInputSchema
 ) -> MachineModelDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Model.
 

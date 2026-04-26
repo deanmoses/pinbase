@@ -1,8 +1,10 @@
 /**
- * Shared types and helpers used by both model-claims and title-claims save flows.
+ * Shared types and helpers used by claims save flows.
  */
 
-import type { components } from '$lib/api/schema';
+import { invalidateAll } from '$app/navigation';
+import client from '$lib/api/client';
+import type { components, paths } from '$lib/api/schema';
 
 /** Metadata that the modal passes through to an editor's save(). */
 export type SaveMeta = {
@@ -15,6 +17,29 @@ export type FieldErrors = Record<string, string>;
 export type SaveResult =
   | { ok: true; updatedSlug?: string }
   | { ok: false; error: string; fieldErrors: FieldErrors };
+
+type ClaimsBody = components['schemas']['ClaimPatchSchema'];
+
+export type SimpleTaxonomySectionPatchBody = Partial<
+  Pick<ClaimsBody, 'fields' | 'note' | 'citation'>
+>;
+
+/**
+ * Any OpenAPI path whose PATCH operation accepts the flat `ClaimPatchSchema`
+ * body and identifies the resource by `slug`. Derived from the schema, so new
+ * simple-taxonomy endpoints qualify automatically; hierarchical and
+ * entity-specific endpoints (which use richer body schemas) do not.
+ */
+export type SimpleTaxonomyClaimsPath = {
+  [K in keyof paths]: paths[K] extends {
+    patch: {
+      parameters: { path: { slug: string } };
+      requestBody: { content: { 'application/json': ClaimsBody } };
+    };
+  }
+    ? K
+    : never;
+}[keyof paths];
 
 type ParsedError = { message: string; fieldErrors: FieldErrors };
 
@@ -72,4 +97,28 @@ export function parseApiError(error: unknown): ParsedError {
 
   if (typeof error === 'string') return { message: error, fieldErrors: {} };
   return { message: JSON.stringify(error), fieldErrors: {} };
+}
+
+/**
+ * Save handler for any simple-taxonomy claims endpoint. Callers supply the
+ * literal API path so the typed openapi-fetch client can validate it; the body
+ * is the flat `ClaimPatchSchema` shape (`fields` / `note` / `citation`).
+ */
+export async function saveSimpleTaxonomyClaims(
+  path: SimpleTaxonomyClaimsPath,
+  slug: string,
+  body: SimpleTaxonomySectionPatchBody,
+): Promise<SaveResult> {
+  const { data, error } = await client.PATCH(path, {
+    params: { path: { slug } },
+    body: { fields: {}, note: '', ...body },
+  });
+
+  if (error) {
+    const parsed = parseApiError(error);
+    return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
+  }
+
+  await invalidateAll();
+  return { ok: true, updatedSlug: data?.slug ?? slug };
 }

@@ -9,6 +9,7 @@ check definition site via `__module__` rather than re-export presence.
 from apps.catalog.api import schemas as catalog_schemas
 from apps.media import schemas as media_schemas
 from apps.provenance import schemas as provenance_schemas
+from config.api import api
 
 
 class TestSharedSchemaOwnership:
@@ -19,6 +20,8 @@ class TestSharedSchemaOwnership:
             "CitationLinkSchema",
             "InlineCitationSchema",
             "RichTextSchema",
+            "ChangeSetInputSchema",
+            "ChangeSetBaseSchema",
         ):
             cls = getattr(provenance_schemas, name)
             assert cls.__module__ == "apps.provenance.schemas", (
@@ -26,12 +29,54 @@ class TestSharedSchemaOwnership:
                 f"got {cls.__module__}"
             )
 
+    def test_create_schema_is_defined_in_catalog(self):
+        # ``CreateSchema`` adds ``name`` + ``slug`` (catalog domain concepts)
+        # to ``ChangeSetInputSchema``, so it lives in catalog. Pin against a
+        # future move into provenance, which would force provenance to import
+        # catalog vocabulary.
+        cls = catalog_schemas.CreateSchema
+        assert cls.__module__ == "apps.catalog.api.schemas"
+
     def test_media_owned_shapes_are_defined_in_media(self):
         for name in ("MediaRenditionsSchema", "UploadedMediaSchema"):
             cls = getattr(media_schemas, name)
             assert cls.__module__ == "apps.media.schemas", (
                 f"{name} should be defined in apps.media.schemas, got {cls.__module__}"
             )
+
+    def test_openapi_changeset_input_consolidation(self):
+        """Pin the dedup structurally: any component whose property set is
+        exactly ``{note, citation}`` must be ``ChangeSetInputSchema``, and
+        any whose set is exactly ``{name, slug, note, citation}`` must be
+        ``CreateSchema``. A name-blocklist would silently rot the moment
+        someone added e.g. ``FranchiseDeleteSchema``; the property-set
+        check catches the fork regardless of name.
+        """
+        components = api.get_openapi_schema()["components"]["schemas"]
+
+        delete_input_shape = frozenset({"note", "citation"})
+        create_input_shape = frozenset({"name", "slug", "note", "citation"})
+
+        delete_matches = {
+            name
+            for name, comp in components.items()
+            if frozenset(comp.get("properties", {})) == delete_input_shape
+        }
+        assert delete_matches == {"ChangeSetInputSchema"}, (
+            "Expected only ChangeSetInputSchema to have shape {note, citation}; "
+            f"found {sorted(delete_matches)}"
+        )
+
+        create_matches = {
+            name
+            for name, comp in components.items()
+            if frozenset(comp.get("properties", {})) == create_input_shape
+        }
+        assert create_matches == {"CreateSchema"}, (
+            "Expected only CreateSchema to have shape "
+            "{name, slug, note, citation}; "
+            f"found {sorted(create_matches)}"
+        )
 
     def test_catalog_schemas_does_not_redefine_shared_shapes(self):
         # Catalog may import and compose these, but must not define them.
@@ -41,6 +86,8 @@ class TestSharedSchemaOwnership:
             "CitationLinkSchema",
             "InlineCitationSchema",
             "RichTextSchema",
+            "ChangeSetInputSchema",
+            "ChangeSetBaseSchema",
             "MediaRenditionsSchema",
             "UploadedMediaSchema",
         )

@@ -30,7 +30,7 @@ ____________________________
 
 ## Exception: Page API endpoints
 
-Page API endpoints (see [WebApiDesign.md § Two API types](WebApiDesign.md#two-api-types)) are expected to cross app layers. A page endpoint's job is to return one route's full rendering payload, which routinely means reading from several apps and returning a composed page model.
+Page API endpoints (see [ApiDesign.md § Two API types](ApiDesign.md#two-api-types)) are expected to cross app layers. A page endpoint's job is to return one route's full rendering payload, which routinely means reading from several apps and returning a composed page model.
 
 A page endpoint lives in the app that owns the _page concept_, not the app that owns the most data it reads. The title detail page is about a title, so `/api/pages/title/{slug}` lives in catalog even though it reads claims from provenance and attachments from media. The user profile page is about a user, so `/api/pages/user/{username}/` lives in accounts even though it reads ChangeSets and Claims from provenance.
 

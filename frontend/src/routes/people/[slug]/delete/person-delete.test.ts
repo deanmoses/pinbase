@@ -24,7 +24,7 @@ describe('person submitDelete', () => {
   // ``outcome.extra``.
   it('posts to /api/people/{slug}/delete/', async () => {
     POST.mockResolvedValue({
-      data: { changeset_id: 42, affected_people: ['pat-lawlor'] },
+      data: { changeset_id: 42, affected_slugs: ['pat-lawlor'] },
       error: undefined,
       response: new Response(null, { status: 200 }),
     });

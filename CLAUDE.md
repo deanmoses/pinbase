@@ -131,7 +131,7 @@ docs/             Documentation source files
 - Backend dependencies managed with `uv`, frontend with `pnpm`
 - CSRF: Django sets `csrftoken` cookie; the frontend `client.ts` reads it and sends `X-CSRFToken` on mutating requests
 - Vite dev server proxies `/api/`, `/admin/`, `/media/`, and `/static/` to Django at `127.0.0.1:8000`
-- For SSR route conventions, see [Svelte.md](Svelte.md). For page-oriented API design, see [WebApiDesign.md](WebApiDesign.md)
+- For SSR route conventions, see [Svelte.md](Svelte.md). For API design — both endpoint shape (page-oriented vs resource) and schema design heuristics (when to consolidate, when to keep separate, inheritance smells) — see [ApiDesign.md](ApiDesign.md)
 
 ### Generated Types — `schema.d.ts` is gitignored
 

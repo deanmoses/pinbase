@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/schema';
-import type { SaveResult } from './save-claims-shared';
+import type { SaveResult, SimpleTaxonomySectionPatchBody } from './save-claims-shared';
 
 type RichTextSchema = components['schemas']['RichTextSchema'];
 
@@ -15,12 +15,6 @@ export type SimpleTaxonomyEditView = {
   description: RichTextSchema;
   display_order: number | null;
 };
-
-type ClaimsBody = components['schemas']['ClaimPatchSchema'];
-
-export type SimpleTaxonomySectionPatchBody = Partial<
-  Pick<ClaimsBody, 'fields' | 'note' | 'citation'>
->;
 
 export type SaveSimpleTaxonomyClaims = (
   slug: string,

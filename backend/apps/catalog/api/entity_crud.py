@@ -8,9 +8,10 @@ response schema) are injected as callables so the same helpers can wire
 routes for taxonomy entities *and* the richer Theme / GameplayFeature /
 Series / Franchise / System schemas without duplicating code.
 
-Public schema class names keep the ``Taxonomy`` prefix for OpenAPI
-stability — consumers already depend on
-``TaxonomyDeletePreviewSchema`` and ``TaxonomyDeleteResponseSchema``.
+All wire schemas used here — ``CreateSchema``, ``ChangeSetInputSchema``,
+``TaxonomyDeletePreviewSchema``, ``DeleteResponseSchema`` — live in the
+shared catalog/provenance schema modules. This module owns no schemas of
+its own.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ from apps.provenance.rate_limits import (
     DELETE_RATE_LIMIT_SPEC,
     check_and_record,
 )
-from apps.provenance.schemas import EditCitationInput
+from apps.provenance.schemas import ChangeSetInputSchema
 
 from .edit_claims import ClaimSpec, execute_claims
 from .entity_create import (
@@ -47,8 +48,11 @@ from .entity_create import (
 )
 from .schemas import (
     AlreadyDeletedSchema,
-    BlockingReferrerSchema,
+    CreateSchema,
+    DeleteResponseSchema,
+    Ref,
     SoftDeleteBlockedSchema,
+    TaxonomyDeletePreviewSchema,
 )
 from .soft_delete import (
     SoftDeleteBlockedError,
@@ -57,54 +61,6 @@ from .soft_delete import (
     plan_soft_delete,
     serialize_blocking_referrer,
 )
-
-# ---------------------------------------------------------------------------
-# Schemas — names kept stable for OpenAPI consumers.
-# ---------------------------------------------------------------------------
-
-
-class TaxonomyCreateSchema(Schema):
-    name: str
-    slug: str
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TaxonomyDeleteSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TaxonomyRestoreSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TaxonomyDeletePreviewSchema(Schema):
-    name: str
-    slug: str
-    changeset_count: int
-    blocked_by: list[BlockingReferrerSchema] = []
-    # 0 on leaf entities; non-zero only for parents (tech-gen, display-type)
-    # whose active children would block the delete.
-    active_children_count: int = 0
-    # Populated on subgen/subtype so the UI can show a parent breadcrumb.
-    parent_name: str | None = None
-    parent_slug: str | None = None
-
-
-class TaxonomyDeleteResponseSchema(Schema):
-    """Success body for entity soft-delete.
-
-    ``affected_slugs`` is always ``[obj.slug]`` for leaf entities — taxonomy
-    deletes block rather than cascade — but the list shape keeps parity with
-    ``ModelDeleteResponseSchema.affected_models`` (which can be >1 for the
-    Title cascade) so the frontend delete helper can be shared.
-    """
-
-    changeset_id: int
-    affected_slugs: list[str]
-
 
 # ---------------------------------------------------------------------------
 # Registrars
@@ -153,21 +109,18 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
         is_blocked = plan.is_blocked or active_children > 0
         changeset_count = 0 if is_blocked else count_entity_changesets(obj)
 
-        parent_name: str | None = None
-        parent_slug: str | None = None
+        parent_ref: Ref | None = None
         if parent_field is not None:
             parent = getattr(obj, parent_field)
-            parent_name = parent.name
-            parent_slug = parent.slug
+            parent_ref = Ref(name=parent.name, slug=parent.slug)
 
         return TaxonomyDeletePreviewSchema(
             name=obj.name,
             slug=obj.slug,
+            parent=parent_ref,
             changeset_count=changeset_count,
             blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
             active_children_count=active_children,
-            parent_name=parent_name,
-            parent_slug=parent_slug,
         )
 
     _delete_preview.__name__ = f"{entity_label.lower()}_delete_preview"
@@ -179,11 +132,8 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
     )(_delete_preview)
 
     def _delete(
-        request: HttpRequest, slug: str, data: TaxonomyDeleteSchema
-    ) -> (
-        TaxonomyDeleteResponseSchema
-        | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]
-    ):
+        request: HttpRequest, slug: str, data: ChangeSetInputSchema
+    ) -> DeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
         check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
         obj = get_object_or_404(model_cls.objects.active(), slug=slug)
@@ -230,7 +180,7 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
                 AlreadyDeletedSchema(detail=f"{friendly_sentence} is already deleted."),
             )
 
-        return TaxonomyDeleteResponseSchema(
+        return DeleteResponseSchema(
             changeset_id=changeset.pk,
             affected_slugs=[e.slug for e in deleted if isinstance(e, model_cls)],
         )
@@ -240,14 +190,14 @@ def register_entity_delete_restore[ModelT: CatalogModel, SchemaT: Schema](
         "/{slug}/delete/",
         auth=django_auth,
         response={
-            200: TaxonomyDeleteResponseSchema,
+            200: DeleteResponseSchema,
             422: SoftDeleteBlockedSchema | AlreadyDeletedSchema,
         },
         tags=["private"],
     )(_delete)
 
     def _restore(
-        request: HttpRequest, slug: str, data: TaxonomyRestoreSchema
+        request: HttpRequest, slug: str, data: ChangeSetInputSchema
     ) -> SchemaT | Status[ErrorDetailSchema]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
@@ -348,7 +298,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
 
     def _do_create(
         request: HttpRequest,
-        data: TaxonomyCreateSchema,
+        data: CreateSchema,
         parent: CatalogModel | None = None,
     ) -> Status[Any]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
@@ -398,7 +348,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         assert parent_model is not None
 
         def _create_parented(
-            request: HttpRequest, parent_slug: str, data: TaxonomyCreateSchema
+            request: HttpRequest, parent_slug: str, data: CreateSchema
         ) -> Status[Any]:
             parent = get_object_or_404(parent_model.objects.active(), slug=parent_slug)
             return _do_create(request, data, parent=parent)
@@ -412,9 +362,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         )(_create_parented)
     else:
 
-        def _create_unparented(
-            request: HttpRequest, data: TaxonomyCreateSchema
-        ) -> Status[Any]:
+        def _create_unparented(request: HttpRequest, data: CreateSchema) -> Status[Any]:
             return _do_create(request, data)
 
         _create_unparented.__name__ = f"{entity_label.lower()}_create"

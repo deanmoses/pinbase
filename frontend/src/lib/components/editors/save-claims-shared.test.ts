@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { saveTagClaims } from './save-tag-claims';
+import { saveSimpleTaxonomyClaims } from './save-claims-shared';
 
 const { PATCH, invalidateAll } = vi.hoisted(() => ({
   PATCH: vi.fn(),
@@ -15,21 +15,21 @@ vi.mock('$app/navigation', () => ({
   invalidateAll,
 }));
 
-describe('saveTagClaims', () => {
+describe('saveSimpleTaxonomyClaims', () => {
   beforeEach(() => {
     PATCH.mockReset();
     invalidateAll.mockReset();
     invalidateAll.mockResolvedValue(undefined);
   });
 
-  it('PATCHes the tags claims endpoint with the supplied body', async () => {
+  it('PATCHes the supplied claims endpoint with the merged body', async () => {
     PATCH.mockResolvedValueOnce({ data: { slug: 'widebody' }, error: undefined });
 
-    const result = await saveTagClaims('wide-body', {
+    const result = await saveSimpleTaxonomyClaims('/api/cabinets/{slug}/claims/', 'wide-body', {
       fields: { slug: 'widebody' },
     });
 
-    expect(PATCH).toHaveBeenCalledWith('/api/tags/{slug}/claims/', {
+    expect(PATCH).toHaveBeenCalledWith('/api/cabinets/{slug}/claims/', {
       params: { path: { slug: 'wide-body' } },
       body: { fields: { slug: 'widebody' }, note: '' },
     });
@@ -40,9 +40,11 @@ describe('saveTagClaims', () => {
   it('falls back to the original slug when the response omits one', async () => {
     PATCH.mockResolvedValueOnce({ data: undefined, error: undefined });
 
-    const result = await saveTagClaims('widebody', { fields: {} });
+    const result = await saveSimpleTaxonomyClaims('/api/tags/{slug}/claims/', 'arcade', {
+      fields: {},
+    });
 
-    expect(result).toEqual({ ok: true, updatedSlug: 'widebody' });
+    expect(result).toEqual({ ok: true, updatedSlug: 'arcade' });
   });
 
   it('returns a parsed error on failure and skips invalidateAll', async () => {
@@ -53,9 +55,30 @@ describe('saveTagClaims', () => {
       },
     });
 
-    const result = await saveTagClaims('widebody', { fields: { slug: 'other' } });
+    const result = await saveSimpleTaxonomyClaims('/api/series/{slug}/claims/', 'foo', {
+      fields: { slug: 'other' },
+    });
 
     expect(result).toEqual({ ok: false, error: 'slug: taken', fieldErrors: { slug: 'taken' } });
     expect(invalidateAll).not.toHaveBeenCalled();
+  });
+
+  it('forwards the citation field when supplied', async () => {
+    PATCH.mockResolvedValueOnce({ data: { slug: 'foo' }, error: undefined });
+
+    await saveSimpleTaxonomyClaims('/api/franchises/{slug}/claims/', 'foo', {
+      fields: { name: 'Foo' },
+      note: 'rename',
+      citation: { citation_instance_id: 42 },
+    });
+
+    expect(PATCH).toHaveBeenCalledWith('/api/franchises/{slug}/claims/', {
+      params: { path: { slug: 'foo' } },
+      body: {
+        fields: { name: 'Foo' },
+        note: 'rename',
+        citation: { citation_instance_id: 42 },
+      },
+    });
   });
 });

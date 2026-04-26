@@ -7,7 +7,7 @@ from typing import Any
 from ninja import Schema
 from pydantic import ConfigDict
 
-from apps.provenance.schemas import EditCitationInput
+from apps.provenance.schemas import ChangeSetInputSchema
 
 
 class Ref(Schema):
@@ -17,30 +17,31 @@ class Ref(Schema):
     slug: str
 
 
-class ClaimPatchSchema(Schema):
+class CreateSchema(ChangeSetInputSchema):
+    """Base shape for catalog entity create operations."""
+
+    name: str
+    slug: str
+
+
+class ClaimPatchSchema(ChangeSetInputSchema):
     # ``fields`` maps claim-field name → new value. Values are polymorphic per
     # field (str, int, bool, slug string for FK-backed claims, None) and are
     # validated downstream by ``validate_claim_value``; no fixed TypedDict.
     fields: dict[str, Any]
-    note: str = ""
-    citation: EditCitationInput | None = None
 
 
-class HierarchyClaimPatchSchema(Schema):
+class HierarchyClaimPatchSchema(ChangeSetInputSchema):
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     parents: list[str] | None = None
     aliases: list[str] | None = None
-    note: str = ""
-    citation: EditCitationInput | None = None
 
 
-class CorporateEntityClaimPatchSchema(Schema):
+class CorporateEntityClaimPatchSchema(ChangeSetInputSchema):
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     aliases: list[str] | None = None
-    note: str = ""
-    citation: EditCitationInput | None = None
 
 
 class GameplayFeatureInput(Schema):
@@ -53,7 +54,7 @@ class CreditInput(Schema):
     role: str
 
 
-class ModelClaimPatchSchema(Schema):
+class ModelClaimPatchSchema(ChangeSetInputSchema):
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     themes: list[str] | None = None
@@ -62,15 +63,12 @@ class ModelClaimPatchSchema(Schema):
     gameplay_features: list[GameplayFeatureInput] | None = None
     credits: list[CreditInput] | None = None
     abbreviations: list[str] | None = None
-    note: str = ""
-    citation: EditCitationInput | None = None
 
 
-class ModelCreateSchema(Schema):
-    name: str
-    slug: str
-    note: str = ""
-    citation: EditCitationInput | None = None
+class TitleClaimPatchSchema(ChangeSetInputSchema):
+    # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
+    fields: dict[str, Any] = {}
+    abbreviations: list[str] | None = None
 
 
 class BlockingReferrerSchema(Schema):
@@ -135,62 +133,65 @@ class PersonSoftDeleteBlockedSchema(Schema):
     active_credit_count: int = 0
 
 
-class ModelDeleteSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
+class DeletePreviewBase(Schema):
+    """Common shape for every entity delete-preview response.
 
+    ``blocked_by`` lists active PROTECT referrers from the generic
+    soft-delete walker. Subclasses extend this with entity-specific count
+    fields whose semantics the generic shape can't express — typically
+    either (a) a blocker count that lives outside ``blocked_by`` because
+    the relationship isn't a PROTECT FK the walker can see, or (b) a
+    cascade-impact count surfaced so the UI can warn what else will be
+    deleted. Those fields are deliberately not collapsed into a single
+    shared name: same int shape can mean very different things to the
+    consuming UI.
+    """
 
-class ModelRestoreSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class ModelDeletePreviewSchema(Schema):
-    model_name: str
-    model_slug: str
-    title_name: str
-    title_slug: str
+    name: str
+    slug: str
     changeset_count: int
     blocked_by: list[BlockingReferrerSchema] = []
 
 
-class ModelDeleteResponseSchema(Schema):
-    changeset_id: int
-    affected_models: list[str]
+class ModelDeletePreviewSchema(DeletePreviewBase):
+    parent: Ref
 
 
-class PersonCreateSchema(Schema):
-    name: str
-    slug: str
-    note: str = ""
-    citation: EditCitationInput | None = None
+class TaxonomyDeletePreviewSchema(DeletePreviewBase):
+    parent: Ref | None = None
+    # 0 on leaf entities; non-zero only for parents (tech-gen, display-type)
+    # whose active children would block the delete.
+    active_children_count: int = 0
 
 
-class PersonDeleteSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class PersonRestoreSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class PersonDeletePreviewSchema(Schema):
-    person_name: str
-    person_slug: str
-    changeset_count: int
+class PersonDeletePreviewSchema(DeletePreviewBase):
     # Count of Credits whose parent Model or Series is still active.
     # When non-zero the UI refuses the delete (see people.py:delete_person);
     # Credit rows are owned children of Model/Series so the generic
     # soft-delete walker doesn't see them.
     active_credit_count: int
-    blocked_by: list[BlockingReferrerSchema] = []
 
 
-class PersonDeleteResponseSchema(Schema):
+class TitleDeletePreviewSchema(DeletePreviewBase):
+    # Cascade impact, NOT a blocker — Title delete cascades into its active
+    # MachineModels (see titles.py:delete_title). Surfaced so the UI can
+    # warn "this will also delete N machines."
+    active_model_count: int
+
+
+class DeleteResponseSchema(Schema):
+    """Success body for entity soft-delete.
+
+    Shared by taxonomy, machine-model, and person delete endpoints.
+    ``affected_slugs`` lists the slugs of entities of the deleted type that
+    were soft-deleted in the operation (the target plus any owned cascade
+    children of the same type). Title delete is structurally different —
+    it cascades into a different type (machine models) — and uses its own
+    response schema.
+    """
+
     changeset_id: int
-    affected_people: list[str]
+    affected_slugs: list[str]
 
 
 class EditOptionItem(Schema):
@@ -215,11 +216,6 @@ class ModelEditOptionsSchema(Schema):
     credit_roles: list[EditOptionItem]
     titles: list[EditOptionItem]
     models: list[EditOptionItem]
-
-
-class ThemeSchema(Schema):
-    name: str
-    slug: str
 
 
 class TitleMachineVariantSchema(Schema):
@@ -253,9 +249,7 @@ class RelatedTitleSchema(Schema):
     thumbnail_url: str | None = None
 
 
-class TitleRefSchema(Schema):
-    name: str
-    slug: str
+class TitleRefSchema(Ref):
     abbreviations: list[str] = []
     model_count: int = 0
     manufacturer_name: str | None = None  # display-only, no paired slug
@@ -263,25 +257,8 @@ class TitleRefSchema(Schema):
     thumbnail_url: str | None = None
 
 
-class SeriesRefSchema(Schema):
-    name: str
-    slug: str
-
-
-class GameplayFeatureSchema(Schema):
-    name: str
-    slug: str
+class GameplayFeatureSchema(Ref):
     count: int | None = None
-
-
-class RewardTypeSchema(Schema):
-    name: str
-    slug: str
-
-
-class FranchiseRefSchema(Schema):
-    name: str
-    slug: str
 
 
 class CreditSchema(Schema):

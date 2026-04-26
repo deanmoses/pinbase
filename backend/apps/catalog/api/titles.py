@@ -41,7 +41,11 @@ from apps.provenance.rate_limits import (
     DELETE_RATE_LIMIT_SPEC,
     check_and_record,
 )
-from apps.provenance.schemas import EditCitationInput, ReviewLinkSchema, RichTextSchema
+from apps.provenance.schemas import (
+    ChangeSetInputSchema,
+    ReviewLinkSchema,
+    RichTextSchema,
+)
 
 from ..cache import TITLES_ALL_KEY, get_cached_response, set_cached_response
 from ..models import (
@@ -82,14 +86,13 @@ from .machine_models import (
 )
 from .schemas import (
     AlreadyDeletedSchema,
-    BlockingReferrerSchema,
+    CreateSchema,
     CreditSchema,
     GameplayFeatureSchema,
-    ModelCreateSchema,
     Ref,
-    SeriesRefSchema,
     SoftDeleteBlockedSchema,
-    ThemeSchema,
+    TitleClaimPatchSchema,
+    TitleDeletePreviewSchema,
     TitleMachineSchema,
 )
 from .soft_delete import (
@@ -141,7 +144,7 @@ class AgreedSpecsSchema(Schema):
     cabinet: Ref | None = None
     game_format: Ref | None = None
     display_subtype: Ref | None = None
-    themes: list[ThemeSchema] = []
+    themes: list[Ref] = []
     gameplay_features: list[GameplayFeatureSchema] = []
     reward_types: list[Ref] = []
     tags: list[Ref] = []
@@ -181,46 +184,12 @@ class TitleDetailSchema(Schema):
     hero_image_url: str | None = None
     franchise: Ref | None = None
     machines: list[TitleMachineSchema]
-    series: SeriesRefSchema | None = None
+    series: Ref | None = None
     credits: list[CreditSchema] = []
     agreed_specs: AgreedSpecsSchema = AgreedSpecsSchema()
     related_titles: list[CrossTitleLinkSchema] = []
     media: list[AggregatedMediaSchema] = []
     model_detail: MachineModelDetailSchema | None = None
-
-
-class TitleClaimPatchSchema(Schema):
-    # See schemas.ClaimPatchSchema.fields — polymorphic per claim field,
-    # validated downstream by ``validate_claim_value``.
-    fields: dict[str, Any] = {}
-    abbreviations: list[str] | None = None
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TitleCreateSchema(Schema):
-    name: str
-    slug: str
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TitleDeleteSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TitleRestoreSchema(Schema):
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class TitleDeletePreviewSchema(Schema):
-    title_name: str
-    title_slug: str
-    active_model_count: int
-    changeset_count: int
-    blocked_by: list[BlockingReferrerSchema] = []
 
 
 class TitleDeleteResponseSchema(Schema):
@@ -410,13 +379,13 @@ def _compute_agreed_specs(models: Sequence[MachineModel]) -> AgreedSpecsSchema:
 
     # Themes: only roll up when every model has the same set.
     theme_sets = [frozenset((t.slug, t.name) for t in m.themes.all()) for m in models]
-    themes: list[ThemeSchema] = []
+    themes: list[Ref] = []
     if (
         theme_sets
         and all(ts for ts in theme_sets)
         and all(ts == theme_sets[0] for ts in theme_sets)
     ):
-        themes = [ThemeSchema(name=n, slug=s) for s, n in sorted(theme_sets[0])]
+        themes = [Ref(name=n, slug=s) for s, n in sorted(theme_sets[0])]
 
     # Gameplay features: intersection across all models (with count agreement).
     gf_maps: list[dict[str, tuple[str, int | None]]] = []
@@ -549,9 +518,7 @@ def _serialize_title_detail(title: Title) -> TitleDetailSchema:
     model_objs = list(title.machine_models.all())
     machines = [_serialize_title_machine(pm, min_rank=min_rank) for pm in model_objs]
     series = (
-        SeriesRefSchema(name=title.series.name, slug=title.series.slug)
-        if title.series
-        else None
+        Ref(name=title.series.name, slug=title.series.slug) if title.series else None
     )
     review_links = _build_review_links(title) if title.needs_review else []
 
@@ -997,9 +964,7 @@ def patch_title_claims(
     response={201: TitleDetailSchema},
     tags=["private"],
 )
-def create_title(
-    request: HttpRequest, data: TitleCreateSchema
-) -> Status[TitleDetailSchema]:
+def create_title(request: HttpRequest, data: CreateSchema) -> Status[TitleDetailSchema]:
     """Create a new Title from a user-supplied name and slug.
 
     Writes a user ChangeSet with ``action=create`` and three claims — name,
@@ -1040,7 +1005,7 @@ def create_title(
     tags=["private"],
 )
 def create_model(
-    request: HttpRequest, title_slug: str, data: ModelCreateSchema
+    request: HttpRequest, title_slug: str, data: CreateSchema
 ) -> Status[MachineModelDetailSchema]:
     """Create a new MachineModel under an existing Title.
 
@@ -1125,8 +1090,8 @@ def title_delete_preview(request: HttpRequest, slug: str) -> TitleDeletePreviewS
         0 if plan.is_blocked else count_entity_changesets(*plan.entities_to_delete)
     )
     return TitleDeletePreviewSchema(
-        title_name=title.name,
-        title_slug=title.slug,
+        name=title.name,
+        slug=title.slug,
         active_model_count=len(model_pks),
         changeset_count=changeset_count,
         blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
@@ -1143,7 +1108,7 @@ def title_delete_preview(request: HttpRequest, slug: str) -> TitleDeletePreviewS
     tags=["private"],
 )
 def delete_title(
-    request: HttpRequest, slug: str, data: TitleDeleteSchema
+    request: HttpRequest, slug: str, data: ChangeSetInputSchema
 ) -> TitleDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a Title and cascade to its active MachineModels.
 
@@ -1194,7 +1159,7 @@ def delete_title(
     tags=["private"],
 )
 def restore_title(
-    request: HttpRequest, slug: str, data: TitleRestoreSchema
+    request: HttpRequest, slug: str, data: ChangeSetInputSchema
 ) -> TitleDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Title.
 

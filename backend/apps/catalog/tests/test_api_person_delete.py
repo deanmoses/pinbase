@@ -132,7 +132,7 @@ class TestDeleteHappyPath:
         resp = _post_delete(client, "pat-lawlor", {"note": "bye"})
         assert resp.status_code == 200, resp.content
         body = resp.json()
-        assert body["affected_people"] == ["pat-lawlor"]
+        assert body["affected_slugs"] == ["pat-lawlor"]
 
         p.refresh_from_db()
         assert p.status == "deleted"
@@ -296,8 +296,8 @@ class TestDeletePreview:
         resp = _get_preview(client, "pat-lawlor")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["person_name"] == p.name
-        assert body["person_slug"] == "pat-lawlor"
+        assert body["name"] == p.name
+        assert body["slug"] == "pat-lawlor"
         assert body["active_credit_count"] == 0
         assert body["changeset_count"] >= 1
         assert body["blocked_by"] == []

@@ -23,7 +23,7 @@ describe('model submitDelete', () => {
   // the right endpoint.
   it('posts to /api/models/{slug}/delete/', async () => {
     POST.mockResolvedValue({
-      data: { changeset_id: 42, affected_models: ['mm-pro'] },
+      data: { changeset_id: 42, affected_slugs: ['mm-pro'] },
       error: undefined,
       response: new Response(null, { status: 200 }),
     });

@@ -87,11 +87,11 @@ Pinbase uses both SSR and CSR, but not for the same kinds of routes.
 - Internal or highly interactive application routes may deliberately opt out with `ssr = false`.
 - The decision is per route, not all-or-nothing for the whole frontend.
 
-See [Svelte.md](Svelte.md) for route-level guidance and [WebApiDesign.md](WebApiDesign.md) for page-oriented API design.
+See [Svelte.md](Svelte.md) for route-level guidance and [ApiDesign.md](ApiDesign.md) for page-oriented API design.
 
 ## Read Next
 
 - [Architecture.md](Architecture.md)
 - [Svelte.md](Svelte.md)
-- [WebApiDesign.md](WebApiDesign.md)
+- [ApiDesign.md](ApiDesign.md)
 - [Hosting.md](Hosting.md)

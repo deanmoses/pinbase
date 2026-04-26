@@ -6,7 +6,7 @@ Page-oriented endpoints need cross-app reads. This document defines where that c
 
 ## Problem
 
-Page endpoints ([WebApiDesign.md](../WebApiDesign.md)) need data from multiple apps, but [AppBoundaries.md](../AppBoundaries.md) restricts cross-app dependencies. Today, the cross-app reads happen in general API modules (`catalog/api/titles.py` imports from `provenance`, `media`, `core`) with no structural distinction from domain-native code. The exception is implicit.
+Page endpoints ([ApiDesign.md](../ApiDesign.md)) need data from multiple apps, but [AppBoundaries.md](../AppBoundaries.md) restricts cross-app dependencies. Today, the cross-app reads happen in general API modules (`catalog/api/titles.py` imports from `provenance`, `media`, `core`) with no structural distinction from domain-native code. The exception is implicit.
 
 ## Proposal
 

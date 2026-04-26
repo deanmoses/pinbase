@@ -30,7 +30,7 @@ from .helpers import (
 )
 from .schemas import (
     HierarchyClaimPatchSchema,
-    ThemeSchema,
+    Ref,
     TitleMachineSchema,
 )
 
@@ -52,8 +52,8 @@ class ThemeDetailSchema(Schema):
     slug: str
     description: RichTextSchema = RichTextSchema()
     aliases: list[str] = []
-    parents: list[ThemeSchema] = []
-    children: list[ThemeSchema] = []
+    parents: list[Ref] = []
+    children: list[Ref] = []
     machines: list[TitleMachineSchema]
 
 
@@ -85,10 +85,9 @@ def _serialize_detail(theme: Theme) -> ThemeDetailSchema:
         slug=theme.slug,
         description=_build_rich_text(theme, "description", active_claims(theme)),
         aliases=[a.value for a in theme.aliases.all()],
-        parents=[ThemeSchema(name=t.name, slug=t.slug) for t in theme.parents.all()],
+        parents=[Ref(name=t.name, slug=t.slug) for t in theme.parents.all()],
         children=[
-            ThemeSchema(name=t.name, slug=t.slug)
-            for t in theme.children.order_by("name")
+            Ref(name=t.name, slug=t.slug) for t in theme.children.order_by("name")
         ],
         machines=[
             _serialize_title_machine(pm, min_rank=min_rank)

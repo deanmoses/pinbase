@@ -30,6 +30,7 @@ from .evidence import build_cited_changesets
 from .helpers import active_claims, build_sources, claims_prefetch
 from .history import build_edit_history
 from .schemas import (
+    ChangeSetBaseSchema,
     ChangeSetSchema,
     CitationLinkSchema,
     ClaimSchema,
@@ -38,18 +39,19 @@ from .schemas import (
 )
 
 
-class ChangeSetSummarySchema(Schema):
-    id: int
-    user_display: str | None = None
+class ChangeSetWithEntitySchema(ChangeSetBaseSchema):
+    """Adds the entity-link fields shown on the changes page list/detail."""
+
     is_ingest: bool = False
     source_name: str | None = None
-    note: str
-    created_at: str
-    changes_count: int
-    retractions_count: int
     entity_href: str
     entity_name: str
     entity_type_label: str
+
+
+class ChangeSetSummarySchema(ChangeSetWithEntitySchema):
+    changes_count: int
+    retractions_count: int
 
 
 class ChangeSetListSchema(Schema):
@@ -57,16 +59,7 @@ class ChangeSetListSchema(Schema):
     next_cursor: str | None = None
 
 
-class ChangeSetDetailSchema(Schema):
-    id: int
-    user_display: str | None = None
-    is_ingest: bool = False
-    source_name: str | None = None
-    note: str
-    created_at: str
-    entity_href: str
-    entity_name: str
-    entity_type_label: str
+class ChangeSetDetailSchema(ChangeSetWithEntitySchema):
     changes: list[FieldChangeSchema]
     retractions: list[RetractionSchema]
 
@@ -80,11 +73,7 @@ class CitedChangeSetCitationSchema(Schema):
     links: list[CitationLinkSchema] = []
 
 
-class CitedChangeSetSchema(Schema):
-    id: int
-    user_display: str | None = None
-    note: str
-    created_at: str
+class CitedChangeSetSchema(ChangeSetBaseSchema):
     fields: list[str]
     citations: list[CitedChangeSetCitationSchema]
 

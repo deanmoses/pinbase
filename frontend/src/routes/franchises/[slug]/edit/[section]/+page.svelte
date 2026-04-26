@@ -11,7 +11,7 @@
     findFranchiseSectionBySegment,
   } from '$lib/components/editors/franchise-edit-sections';
   import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
-  import type { SaveMeta } from '../save-franchise-claims';
+  import type { SaveMeta } from '$lib/components/editors/save-claims-shared';
   import FranchiseEditorSwitch from '../FranchiseEditorSwitch.svelte';
 
   let { data } = $props();

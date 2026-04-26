@@ -29,7 +29,7 @@ from apps.provenance.rate_limits import (
     DELETE_RATE_LIMIT_SPEC,
     check_and_record,
 )
-from apps.provenance.schemas import RichTextSchema
+from apps.provenance.schemas import ChangeSetInputSchema, RichTextSchema
 
 from ..cache import PEOPLE_ALL_KEY, get_cached_response, set_cached_response
 from ..models import Credit, MachineModel, Person
@@ -52,11 +52,9 @@ from .helpers import (
 from .schemas import (
     AlreadyDeletedSchema,
     ClaimPatchSchema,
-    PersonCreateSchema,
+    CreateSchema,
+    DeleteResponseSchema,
     PersonDeletePreviewSchema,
-    PersonDeleteResponseSchema,
-    PersonDeleteSchema,
-    PersonRestoreSchema,
     PersonSoftDeleteBlockedSchema,
     RelatedTitleSchema,
 )
@@ -315,7 +313,7 @@ def patch_person_claims(
     tags=["private"],
 )
 def create_person(
-    request: HttpRequest, data: PersonCreateSchema
+    request: HttpRequest, data: CreateSchema
 ) -> Status[PersonDetailSchema]:
     """Create a new Person from a user-supplied name and slug.
 
@@ -408,8 +406,8 @@ def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePrevie
     is_blocked = plan.is_blocked or active_credits > 0
     changeset_count = 0 if is_blocked else count_entity_changesets(person)
     return PersonDeletePreviewSchema(
-        person_name=person.name,
-        person_slug=person.slug,
+        name=person.name,
+        slug=person.slug,
         changeset_count=changeset_count,
         active_credit_count=active_credits,
         blocked_by=[serialize_blocking_referrer(b) for b in plan.blockers],
@@ -420,16 +418,15 @@ def person_delete_preview(request: HttpRequest, slug: str) -> PersonDeletePrevie
     "/{slug}/delete/",
     auth=django_auth,
     response={
-        200: PersonDeleteResponseSchema,
+        200: DeleteResponseSchema,
         422: PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema,
     },
     tags=["private"],
 )
 def delete_person(
-    request: HttpRequest, slug: str, data: PersonDeleteSchema
+    request: HttpRequest, slug: str, data: ChangeSetInputSchema
 ) -> (
-    PersonDeleteResponseSchema
-    | Status[PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema]
+    DeleteResponseSchema | Status[PersonSoftDeleteBlockedSchema | AlreadyDeletedSchema]
 ):
     """Soft-delete a Person.
 
@@ -476,9 +473,9 @@ def delete_person(
     if changeset is None:
         return Status(422, AlreadyDeletedSchema(detail="Person is already deleted."))
 
-    return PersonDeleteResponseSchema(
+    return DeleteResponseSchema(
         changeset_id=changeset.pk,
-        affected_people=[e.slug for e in deleted if isinstance(e, Person)],
+        affected_slugs=[e.slug for e in deleted if isinstance(e, Person)],
     )
 
 
@@ -493,7 +490,7 @@ def delete_person(
     tags=["private"],
 )
 def restore_person(
-    request: HttpRequest, slug: str, data: PersonRestoreSchema
+    request: HttpRequest, slug: str, data: ChangeSetInputSchema
 ) -> PersonDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Person.
 

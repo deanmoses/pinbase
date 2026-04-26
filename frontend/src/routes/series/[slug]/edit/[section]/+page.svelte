@@ -11,7 +11,7 @@
     findSeriesSectionBySegment,
   } from '$lib/components/editors/series-edit-sections';
   import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
-  import type { SaveMeta } from '../save-series-claims';
+  import type { SaveMeta } from '$lib/components/editors/save-claims-shared';
   import SeriesEditorSwitch from '../SeriesEditorSwitch.svelte';
 
   let { data } = $props();

@@ -35,13 +35,18 @@ class RetractionSchema(Schema):
     old_value: object
 
 
-class ChangeSetSchema(Schema):
-    """A grouped edit session with per-field diffs."""
+class ChangeSetBaseSchema(Schema):
+    """Common fields for any read-side ChangeSet representation."""
 
     id: int
     user_display: str | None = None
     note: str
     created_at: str
+
+
+class ChangeSetSchema(ChangeSetBaseSchema):
+    """A grouped edit session with per-field diffs."""
+
     changes: list[FieldChangeSchema]
     retractions: list[RetractionSchema] = []
 
@@ -64,6 +69,13 @@ class EditCitationInput(Schema):
     """Reference an existing CitationInstance to clone onto a user edit."""
 
     citation_instance_id: int
+
+
+class ChangeSetInputSchema(Schema):
+    """Base shape for any user-attributed mutation that produces a ChangeSet."""
+
+    note: str = ""
+    citation: EditCitationInput | None = None
 
 
 class AttributionSchema(Schema):

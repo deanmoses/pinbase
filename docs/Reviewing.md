@@ -51,7 +51,7 @@ In particular:
 
 ### Page-oriented APIs
 
-When a change introduces or changes web-facing endpoints for pages, check [WebApiDesign.md](WebApiDesign.md).
+When a change introduces or changes web-facing endpoints for pages, check [ApiDesign.md](ApiDesign.md).
 
 In particular:
 

@@ -4,7 +4,7 @@
 
 How to migrate an existing catalog or provenance API module from the current flat structure into the `pages/` namespace.
 
-For the target state (code structure, import rules, composition patterns), see [WebApiDesign.md](../WebApiDesign.md). For the architectural rationale behind the split, see [BFF.md](BFF.md).
+For the target state (code structure, import rules, composition patterns), see [ApiDesign.md](../ApiDesign.md). For the architectural rationale behind the split, see [BFF.md](BFF.md).
 
 ## Before you start
 
@@ -32,7 +32,7 @@ Each entity API module (e.g. `catalog/api/titles.py`) currently contains two kin
 
 ## Triaging helpers.py
 
-`catalog/api/helpers.py` contains shared utilities. Audit each helper during migration — see [WebApiDesign.md § Shared page helpers](../WebApiDesign.md#shared-page-helpers) for the decision rule.
+`catalog/api/helpers.py` contains shared utilities. Audit each helper during migration — see [ApiDesign.md § Shared page helpers](../ApiDesign.md#shared-page-helpers) for the decision rule.
 
 Current assessment:
 
@@ -67,7 +67,7 @@ Move the identified functions and their page-specific schemas into `pages/{entit
 
 ### 4. Improve as you move
 
-As you move page composition code, refactor it to match the patterns in [WebApiDesign.md § Writing page composition code](../WebApiDesign.md#writing-page-composition-code):
+As you move page composition code, refactor it to match the patterns in [ApiDesign.md § Writing page composition code](../ApiDesign.md#writing-page-composition-code):
 
 - Decompose monolithic serializers into focused builder functions
 - Name builders for what they produce, not with `_serialize_` prefixes

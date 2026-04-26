@@ -20,7 +20,7 @@ from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.rate_limits import CREATE_RATE_LIMIT_SPEC, check_and_record
-from apps.provenance.schemas import EditCitationInput, RichTextSchema
+from apps.provenance.schemas import RichTextSchema
 
 from ..models import MachineModel, Manufacturer, System
 from ._typing import HasModelCount
@@ -44,6 +44,7 @@ from .helpers import (
 )
 from .schemas import (
     ClaimPatchSchema,
+    CreateSchema,
     Ref,
     RelatedTitleSchema,
 )
@@ -60,17 +61,8 @@ class SystemListSchema(Schema):
     model_count: int = 0
 
 
-class SystemCreateSchema(Schema):
-    name: str
-    slug: str
+class SystemCreateSchema(CreateSchema):
     manufacturer_slug: str
-    note: str = ""
-    citation: EditCitationInput | None = None
-
-
-class SiblingSystemSchema(Schema):
-    name: str
-    slug: str
 
 
 class SystemDetailSchema(Schema):
@@ -80,7 +72,7 @@ class SystemDetailSchema(Schema):
     manufacturer: Ref | None = None
     technology_subgeneration: Ref | None = None
     titles: list[RelatedTitleSchema]
-    sibling_systems: list[SiblingSystemSchema] = []
+    sibling_systems: list[Ref] = []
 
 
 # ---------------------------------------------------------------------------
@@ -148,10 +140,10 @@ def _serialize_system_detail(system: System) -> SystemDetailSchema:
         for a in accum.values()
     ]
 
-    sibling_systems: list[SiblingSystemSchema] = []
+    sibling_systems: list[Ref] = []
     if system.manufacturer:
         sibling_systems = [
-            SiblingSystemSchema(name=row["name"], slug=row["slug"])
+            Ref(name=row["name"], slug=row["slug"])
             for row in System.objects.active()
             .filter(manufacturer=system.manufacturer)
             .exclude(pk=system.pk)

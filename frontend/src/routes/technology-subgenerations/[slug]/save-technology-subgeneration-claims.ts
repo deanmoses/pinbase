@@ -1,28 +1,9 @@
-import { invalidateAll } from '$app/navigation';
-import client from '$lib/api/client';
-import type { components } from '$lib/api/schema';
-import { parseApiError, type SaveResult } from '$lib/components/editors/save-claims-shared';
+import {
+  saveSimpleTaxonomyClaims,
+  type SimpleTaxonomySectionPatchBody,
+} from '$lib/components/editors/save-claims-shared';
 
-type TechnologySubgenerationClaimsBody = components['schemas']['ClaimPatchSchema'];
-
-type TechnologySubgenerationSectionPatchBody = Partial<
-  Pick<TechnologySubgenerationClaimsBody, 'fields' | 'note' | 'citation'>
->;
-
-export async function saveTechnologySubgenerationClaims(
+export const saveTechnologySubgenerationClaims = (
   slug: string,
-  body: TechnologySubgenerationSectionPatchBody,
-): Promise<SaveResult> {
-  const { data, error } = await client.PATCH('/api/technology-subgenerations/{slug}/claims/', {
-    params: { path: { slug } },
-    body: { fields: {}, note: '', ...body },
-  });
-
-  if (error) {
-    const parsed = parseApiError(error);
-    return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
-  }
-
-  await invalidateAll();
-  return { ok: true, updatedSlug: data?.slug ?? slug };
-}
+  body: SimpleTaxonomySectionPatchBody,
+) => saveSimpleTaxonomyClaims('/api/technology-subgenerations/{slug}/claims/', slug, body);
