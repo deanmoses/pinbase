@@ -1,32 +1,7 @@
-import { invalidateAll } from '$app/navigation';
-import client from '$lib/api/client';
-import type { components } from '$lib/api/schema';
 import {
-  parseApiError,
-  type SaveMeta,
-  type SaveResult,
+  saveSimpleTaxonomyClaims,
+  type SimpleTaxonomySectionPatchBody,
 } from '$lib/components/editors/save-claims-shared';
 
-export type { SaveMeta };
-
-type SeriesClaimsBody = components['schemas']['ClaimPatchSchema'];
-
-type SeriesSectionPatchBody = Partial<Pick<SeriesClaimsBody, 'fields' | 'note' | 'citation'>>;
-
-export async function saveSeriesClaims(
-  slug: string,
-  body: SeriesSectionPatchBody,
-): Promise<SaveResult> {
-  const { data, error } = await client.PATCH('/api/series/{slug}/claims/', {
-    params: { path: { slug } },
-    body: { fields: {}, note: '', ...body },
-  });
-
-  if (error) {
-    const parsed = parseApiError(error);
-    return { ok: false, error: parsed.message, fieldErrors: parsed.fieldErrors };
-  }
-
-  await invalidateAll();
-  return { ok: true, updatedSlug: data?.slug ?? slug };
-}
+export const saveSeriesClaims = (slug: string, body: SimpleTaxonomySectionPatchBody) =>
+  saveSimpleTaxonomyClaims('/api/series/{slug}/claims/', slug, body);
