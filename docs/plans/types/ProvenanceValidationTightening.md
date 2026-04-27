@@ -1,5 +1,9 @@
 # Provenance Validation Tightening
 
+## Status: DONE
+
+Landed in commits `3d7b68f27` (`refactor(provenance): unify relationship registries into one schema`) and `11f249af5` (`refactor(provenance): tighten relationship claim validation`). Follow-up read-side cleanup lives in [ResolverReadsTightening.md](ResolverReadsTightening.md).
+
 ## Context
 
 This is **Step 2** of [ResolveHardening.md](ResolveHardening.md) — the write-path foundation of a multi-step sequence that tightens the claim-value contract across `catalog/resolve/*`:

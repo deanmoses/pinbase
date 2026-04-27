@@ -1,5 +1,9 @@
 # Claims Exempt
 
+## Status: DONE
+
+Landed in PR #281 (`refactor/model-driven-claims-metadata`). No follow-up work remains in this doc's scope.
+
 ## Context
 
 This work is part of the family described in [ModelDrivenClaimsMetadata.md](ModelDrivenClaimsMetadata.md), and an instance of the broader pattern in [ModelDrivenMetadata.md](ModelDrivenMetadata.md): encode per-model behavior on the model itself, consume it generically from shared infrastructure.
@@ -22,18 +26,19 @@ claims_exempt: ClassVar[frozenset[str]] = frozenset({"location_path"})
 
 `location_path` is materialized from `parent` + `slug` at create time, never edited afterward, and never carries a claim. Listing it in `claims_exempt` keeps `get_claim_fields` from treating it as a claim-controlled field.
 
-`get_claim_fields(model_class)` in `apps/core/models.py` reads `claims_exempt` to filter the discovered claim fields. Downstream consumers (resolvers, validators, the claim executor) see only the unfiltered set; nothing else needs to know about exemption.
+`get_claim_fields(model_class)` in `apps/provenance/models/introspection.py` reads `model_class.claims_exempt` to filter the discovered claim fields. Downstream consumers (resolvers, validators, the claim executor) see only the filtered set; nothing else needs to know about exemption.
 
-## Current state and hoist plan
+## Landed state
 
-Today `claims_exempt` is typed (`ClassVar[frozenset[str]]`, per [ModelDrivenMetadataCleanup.md](ModelDrivenMetadataCleanup.md)) but only declared on subclasses that need it. `get_claim_fields` reads it via `getattr(model_class, "claims_exempt", frozenset())` — the [field-on-model antipattern](ModelDrivenMetadata.md#antipattern-field-on-model) shape.
+This hoist landed in PR #281. `claims_exempt` is now the contract on `ClaimControlledModel`, not an ad-hoc subclass attr discovered by consumer-side `getattr`.
 
-Hoist:
+What changed:
 
-- Declare `claims_exempt: ClassVar[frozenset[str]] = frozenset()` on `ClaimControlledModel`.
-- Subclass declarations remain — they become overrides of the base default rather than ad-hoc additions.
-- Replace the `getattr(model_class, "claims_exempt", frozenset())` read in `get_claim_fields` with a direct attribute access (`model_class.claims_exempt`).
-- No semantic change. Existing test coverage of `get_claim_fields` carries over.
+- `ClaimControlledModel` declares `claims_exempt: ClassVar[frozenset[str]] = frozenset()`.
+- Subclass declarations remain as overrides of the base default.
+- `get_claim_fields()` accepts `type[ClaimControlledModel]` and reads `model_class.claims_exempt` directly.
+- `get_claim_fields()` now lives in `apps.provenance.models.introspection`, with a public re-export from `apps.provenance.models`.
+- Runtime behavior is unchanged: exempt fields are simply omitted from the claim-controlled field set.
 
 ## Why this lives on `ClaimControlledModel`
 

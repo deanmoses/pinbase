@@ -1,5 +1,9 @@
 # API Boundary Improvements
 
+## Status: DONE
+
+All scoped work in this plan is complete: PR 0-4, the `Input` ghost fix, and the OpenAPI boundary tests are all landed. Remaining ideas live in [ApiSvelteBoundaryFollowups.md](ApiSvelteBoundaryFollowups.md).
+
 This is a plan to improve the ergonomics of working with both the backend and frontend API surface area.
 
 ## Context

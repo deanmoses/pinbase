@@ -8,19 +8,17 @@ This doc is the roadmap for bringing the codebase into line with [ModelDrivenMet
 
 Each item has its own per-feature doc with the full design, examples, and step-by-step plan; this table sequences them.
 
-| #   | Item                                    | Type              | Doc                                                                          | Blast radius       | Depends on |
-| --- | --------------------------------------- | ----------------- | ---------------------------------------------------------------------------- | ------------------ | ---------- |
-| 1   | `claims_exempt` hoist                   | Hoist             | [ModelDrivenClaimsExemptMetadata.md](ModelDrivenClaimsExemptMetadata.md)     | Small              | —          |
-| 2   | `claim_fk_lookups` hoist                | Hoist             | [ModelDrivenClaimFkLookupsMetadata.md](ModelDrivenClaimFkLookupsMetadata.md) | Small              | —          |
-| 3   | Soft-delete attrs hoist                 | Hoist             | [ModelDrivenSoftDeleteMetadata.md](ModelDrivenSoftDeleteMetadata.md)         | Small              | —          |
-| 4   | `immutable_after_create` (new)          | New behavior      | [ModelDrivenImmutableAfterCreate.md](ModelDrivenImmutableAfterCreate.md)     | Small-medium       | —          |
-| 5   | Linkability (LinkableModel + factories) | Steel thread      | [ModelDrivenLinkability.md](ModelDrivenLinkability.md)                       | Large (in flight)  | #4         |
-| 6   | Location CRUD validation                | Steel thread      | [LocationCrud.md](LocationCrud.md)                                           | Large              | #5         |
-| 7   | `WikilinkableModel` mixin               | New mixin + hoist | [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md)     | Medium             | (after #5) |
-| 8   | `NamedModel` base                       | New base          | [ModelDrivenNamedMetadata.md](ModelDrivenNamedMetadata.md)                   | Large (~14 models) | —          |
-| 9   | Resolver signature standardization      | Cleanup           | (inline below)                                                               | Small              | —          |
+| #   | Item                                    | Type              | Doc                                                                      | Blast radius       | Depends on |
+| --- | --------------------------------------- | ----------------- | ------------------------------------------------------------------------ | ------------------ | ---------- |
+| 1   | Soft-delete attrs hoist                 | Hoist             | [ModelDrivenSoftDeleteMetadata.md](ModelDrivenSoftDeleteMetadata.md)     | Small              | —          |
+| 2   | `immutable_after_create` (new)          | New behavior      | [ModelDrivenImmutableAfterCreate.md](ModelDrivenImmutableAfterCreate.md) | Small-medium       | —          |
+| 3   | Linkability (LinkableModel + factories) | Steel thread      | [ModelDrivenLinkability.md](ModelDrivenLinkability.md)                   | Large (in flight)  | #2         |
+| 4   | Location CRUD validation                | Steel thread      | [LocationCrud.md](LocationCrud.md)                                       | Large              | #3         |
+| 5   | `WikilinkableModel` mixin               | New mixin + hoist | [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md) | Medium             | (after #3) |
+| 6   | `NamedModel` base                       | New base          | [ModelDrivenNamedMetadata.md](ModelDrivenNamedMetadata.md)               | Large (~14 models) | —          |
+| 7   | Resolver signature standardization      | Cleanup           | (inline below)                                                           | Small              | —          |
 
-**Suggested order:** **1 → 2 → 3** (the three small hoists; same recipe — declare ClassVar on base, drop `getattr` in consumer; confidence-building), then **4** (pre-condition for #5), then **5** (the active steel thread), then **6** (proves #5 against Location's multi-segment public ID), then **7** (uses Linkability outputs), then **8** (broadest reach, lowest urgency, save for after the patterns and tooling are well-exercised). Item **9** is independent and can land any time.
+**Suggested order:** **1** (remaining small hoist), then **2** (pre-condition for #3), then **3** (the active steel thread), then **4** (proves #3 against Location's multi-segment public ID), then **5** (uses Linkability outputs), then **6** (broadest reach, lowest urgency, save for after the patterns and tooling are well-exercised). Item **7** is independent and can land any time.
 
 ### Resolver signature standardization
 
@@ -47,6 +45,8 @@ Items where the right moment hasn't arrived. Each links to its own status doc.
 Shipped work, kept as a record so the lessons stay attached to the worked examples that produced them.
 
 - **Shape 2 typing sweep.** Typed `claim_fk_lookups`, `claims_exempt`, `soft_delete_cascade_relations`, `soft_delete_usage_blockers` as proper `ClassVar`s. The `soft_delete_*` attrs went through a tuple-then-frozenset correction that surfaced the "semantics over RHS shape" principle.
+- **`claims_exempt` hoist.** Moved the default onto `ClaimControlledModel`, relocated `get_claim_fields()` to `apps.provenance.models.introspection`, narrowed it to `type[ClaimControlledModel]`, and replaced the consumer-side `getattr` fallback with direct attribute access.
+- **`claim_fk_lookups` hoist.** Moved the default onto `ClaimControlledModel`, narrowed FK claim resolution/validation to `type[ClaimControlledModel]`, and replaced resolver/validator `getattr` fallbacks with direct attribute access.
 - **`entity_type` / `entity_type_plural` typing.** Promoted to `ClassVar[str]` on `LinkableModel`. `Literal[...]` was considered and rejected — see the "`Literal[...]` over abstract bases recreates drift" principle.
 - **`AliasBase` explicit identity attr.** Replaced the `_meta.verbose_name`-derived claim namespace with an explicit `alias_claim_field: ClassVar[str]` declared per subclass, enforced by `__init_subclass__`, parity-tested. Surfaced the "enforce at startup" and "parity tests pin derived sets" principles.
 - **Cache-invalidation signal list.** Replaced the hand-maintained 8-model list with an app-registry walk at `ready()` time, widening to 22 models and fixing latent staleness for taxonomy edits made outside the claims pipeline. Surfaced the "blanket inclusion beats opt-in markers" principle.

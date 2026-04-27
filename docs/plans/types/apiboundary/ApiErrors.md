@@ -1,5 +1,9 @@
 # Type API Error Responses
 
+## Status: DONE
+
+All scoped work in this plan landed in `0f1605ee4` (`refactor: type API error responses`). Follow-up contract-honesty work, including the body-validation 422 sweep, lives in [ApiSvelteBoundaryFollowups.md](ApiSvelteBoundaryFollowups.md).
+
 ## Context
 
 The Django Ninja contract is silent on the failure path. Roughly 80%

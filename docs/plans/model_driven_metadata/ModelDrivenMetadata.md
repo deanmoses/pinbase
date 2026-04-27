@@ -59,7 +59,7 @@ The toolkit for moving knowledge onto models. The patterns are in order of incre
 - **M2M through-models** → `Model.m2m_attr.through` or explicit `through="..."` declarations.
 - **Reverse relations** → `_meta.get_fields()` / attribute access.
 
-Canonical example in the codebase: [`get_claim_fields(model)`](../../backend/apps/core/models.py) — walks `_meta.get_fields()`, filters by field type and per-model `claims_exempt`, returns a dict. No registry, no caching (cheap enough to recompute), no base class. Hand-maintained lists like the cache-invalidation signal list and `_SOURCE_FIELDS` are the natural targets for this pattern.
+Canonical example in the codebase: [`get_claim_fields(model)`](../../backend/apps/provenance/models/introspection.py) — walks `_meta.get_fields()`, filters by field type and per-model `claims_exempt`, returns a dict. No registry, no caching (cheap enough to recompute). Hand-maintained lists like `_SOURCE_FIELDS` are the natural targets for this pattern.
 
 A `_meta` walk can also read ClassVars inherited from a [base class / mixin](#pattern-base-class--mixin) as per-model inputs — `claims_exempt` declared on `ClaimControlledModel` is the canonical case, used as a filter input by `get_claim_fields` above.
 
@@ -72,7 +72,7 @@ This pattern covers the full range, from "marker base with one ClassVar and zero
 Examples in the codebase:
 
 - **`LinkableModel`**: provides `get_absolute_url()`, the `public_id` property, and a default `link_url_pattern` derivation; subclasses declare `entity_type`, `entity_type_plural`, `public_id_field`.
-- **`ClaimControlledModel`**: provides claim-related machinery shared across catalog models; the natural home for `claims_exempt`, `claim_fk_lookups`, and `immutable_after_create` ClassVars (with defaults of `frozenset()` / `{}` / `frozenset()` respectively), letting every claim-controlled model be reasoned about generically.
+- **`ClaimControlledModel`**: provides claim-related machinery shared across catalog models; the home for the landed `claims_exempt` and `claim_fk_lookups` ClassVars (with defaults of `frozenset()` and `{}` respectively), and the planned home for `immutable_after_create`.
 - **`AliasBase`**: provides alias-table conventions; subclasses declare the FK to their owning entity.
 - **`MediaSupported`**: marker base whose only job is to host `MEDIA_CATEGORIES` declarations and let the media pipeline enumerate participants.
 
@@ -112,11 +112,17 @@ Rank-ordering the existing "correct examples" surfaced inconsistencies; this is 
 | Return type           | Typed `NamedTuple` or `@dataclass(frozen=True)` of derived schemas                                              | Avoids callers indexing into raw dicts.                                                                                         |
 | Public API            | Single lookup function, e.g. `get_relationship_schema(namespace, content_type=None)`                            | Internals stay module-private; consumers don't know about the walk.                                                             |
 
-#### Existing examples, ranked
+#### Best current examples
 
-- **Gold — [`core/entity_types.py`](../../backend/apps/core/entity_types.py)** — class attr + subclass walk + cache + `check_apps_ready()` + duplicate validation + typed return + tight API. Closest template to copy.
-- **Silver — [`_alias_registry.py`](../../backend/apps/catalog/_alias_registry.py)** — same shape, cleaner caching (`lru_cache`), `NamedTuple` return. Identity is fragile (derived from `_meta.verbose_name`) and the `check_apps_ready()` guard is missing — copy the caching and return-type ideas, not the identity convention. Planned fix lives in [ModelDrivenMetadataCleanup.md](ModelDrivenMetadataCleanup.md).
-- **Don't copy:** `MEDIA_CATEGORIES` + `MediaSupported` (no discovery helper, no validator); `claim_fk_lookups` (untyped ad-hoc `getattr`); `export_catalog_meta` (different axis — codegen/distribution).
+There is no single perfect file to copy. The current best examples are best for different parts of the pattern:
+
+- **Best `_meta` walk:** [`get_claim_fields()`](../../backend/apps/provenance/models/introspection.py) — derives claim-controlled fields from Django field metadata, with `ClaimControlledModel.claims_exempt` as the only per-model input.
+- **Best base-ClassVar contract:** [`ClaimControlledModel`](../../backend/apps/provenance/models/base.py) — declares typed defaults for `claims_exempt` and `claim_fk_lookups`; consumers read direct attributes from `type[ClaimControlledModel]`, not `getattr(..., default)`.
+- **Best subclass registry skeleton:** [`core/entity_types.py`](../../backend/apps/core/entity_types.py) — class attr + recursive subclass walk + app-readiness guard + duplicate validation + narrow public lookup API. Still uses a nullable module cache; use `lru_cache(maxsize=1)` for new code.
+- **Best discovery-helper cache:** [`_alias_registry.py`](../../backend/apps/catalog/_alias_registry.py) — subclass walk over `AliasBase`, `lru_cache(maxsize=1)`, typed `NamedTuple` return, and explicit `alias_claim_field` identity enforced by `AliasBase.__init_subclass__`.
+- **Best runtime schema validator:** [`provenance/validation.py`](../../backend/apps/provenance/validation.py)'s `RelationshipSchema` / `ValueKeySpec` registry — typed frozen schemas, registration-time invariant checks, duplicate-schema rejection, and a small public API. Caveat: it is intentionally hand-registered today, not model-owned metadata; use it for validation shape, not discovery shape.
+
+**Don't copy:** `MEDIA_CATEGORIES` + `MediaSupported` (no discovery helper, no validator); `export_catalog_meta` for runtime metadata (it is a codegen/distribution pattern, not a Python runtime registry).
 
 #### Worked example
 
@@ -172,11 +178,12 @@ The fix is the same in every case: hoist the ClassVar onto the relevant base or 
 
 Concrete examples in the current codebase:
 
-- **`claim_fk_lookups`**: declared on `Location` only ([location.py](../../backend/apps/catalog/models/location.py)); read via `getattr(model_class, "claim_fk_lookups", {})` in [resolve/\_helpers.py](../../backend/apps/catalog/resolve/_helpers.py) (two call sites) and [validate_catalog.py](../../backend/apps/catalog/management/commands/validate_catalog.py). Three consumers, none typed; a typo in any of them silently returns `{}`. Belongs on `ClaimControlledModel` as `ClassVar[dict[str, str]] = {}`.
-- **`claims_exempt`**: declared per-model where the model has fields to exempt (e.g. [location.py](../../backend/apps/catalog/models/location.py)); read via `getattr(model_class, "claims_exempt", frozenset())` in [core/models.py](../../backend/apps/core/models.py). Belongs on `ClaimControlledModel` as `ClassVar[frozenset[str]] = frozenset()`.
 - **Wikilink-picker `link_*` attrs** (`link_sort_order`, `link_label`, `link_description`, `link_autocomplete_*`): declared bare on the four ordered linkable types (Title, MachineModel, Manufacturer, Person); read via `getattr(model, "link_*", default)` six times in [catalog/apps.py](../../backend/apps/catalog/apps.py)'s wikilink registration loop. Belong on a new `WikilinkableModel` mixin — see [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md).
 
-Counter-example showing the right shape: `alias_claim_field` is declared on `AliasBase` in [catalog/models/base.py](../../backend/apps/catalog/models/base.py) as `ClassVar[str]`, with `__init_subclass__` enforcement in the same file. Consumers in [\_alias_registry.py](../../backend/apps/catalog/_alias_registry.py) read `alias_cls.alias_claim_field` directly — no `getattr` fallback needed because the contract is enforced at the base.
+Fixed examples that now show the right shape:
+
+- `claims_exempt` and `claim_fk_lookups` are declared on `ClaimControlledModel` in [provenance/models/base.py](../../backend/apps/provenance/models/base.py), and consumers read them directly from `type[ClaimControlledModel]`.
+- `alias_claim_field` is declared on `AliasBase` in [catalog/models/base.py](../../backend/apps/catalog/models/base.py) as `ClassVar[str]`, with `__init_subclass__` enforcement in the same file. Consumers in [\_alias_registry.py](../../backend/apps/catalog/_alias_registry.py) read `alias_cls.alias_claim_field` directly — no `getattr` fallback needed because the contract is enforced at the base.
 
 ## Rules of thumb
 

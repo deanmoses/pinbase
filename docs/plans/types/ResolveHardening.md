@@ -1,5 +1,9 @@
 # Claim-Value Shape Hardening
 
+## Status: PARTIALLY DONE
+
+Steps 1-4 have landed. Step 5 remains open: [ResolverReadsTightening.md](ResolverReadsTightening.md) has not landed yet, and resolver code still uses `.get()` for required relationship payload keys.
+
 ## Context
 
 Sequence that tightens the claim-value _shape_ layer — the surfaces that decide what a relationship claim's payload can carry and how resolvers read it back:
