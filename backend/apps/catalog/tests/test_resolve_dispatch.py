@@ -84,7 +84,7 @@ class TestDiscoverAliasTypes:
         """
         from django.db import models
 
-        from apps.core.models import AliasBase
+        from apps.catalog.models import AliasBase
 
         with pytest.raises(TypeError, match="alias_claim_field"):
 

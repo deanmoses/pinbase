@@ -103,3 +103,16 @@ This tells the claims layer: "when writing the `parent` FK claim, the value is t
 Strictly speaking `claim_fk_lookups` is a `ClaimControlledModel` ClassVar — it governs claim writes, not linkability. It's documented here because the linkability layer is the consumer that exposes the need: as soon as a related model's `public_id_field` isn't `slug`, the FK claim value must follow.
 
 The shared factories and the claims executor both read this map. Hardcoding `parent.slug` anywhere in the write path is a [field-on-model antipattern](ModelDrivenMetadata.md#antipattern-field-on-model) waiting to happen.
+
+## Follow-up: retype the entity registry as `type[CatalogModel]`
+
+Once Location lands as a `LinkableModel` it also satisfies `CatalogModel` by composition (it already has `EntityStatusMixin + ClaimControlledModel`). At that point the registry walked by `get_linkable_model` is, in fact, a `CatalogModel` registry — every entry is linkable _and_ claim-controlled _and_ status-tracked.
+
+That makes a small typing cleanup possible:
+
+- Walk `CatalogModel.__subclasses__()` rather than `LinkableModel.__subclasses__()`.
+- Return `type[CatalogModel]` and rename to match (`get_entity_model` or `get_catalog_model`).
+- Delete the `issubclass(model_class, ClaimControlledModel)` guard at [`backend/config/api.py:196`](../../../backend/config/api.py#L196) — `type[CatalogModel]` is already a `type[ClaimControlledModel]`.
+- Leave `LinkableModel` as a pure structural contract (no registry, no `__subclasses__()` walk), so a future linkable-but-not-CCM model can still adopt it independently.
+
+Out of scope for this plan — it's a typing/naming cleanup that piggybacks on Location becoming a `CatalogModel`, not part of the contract-widening work. Track as its own small PR after [LocationCrud.md](LocationCrud.md) lands.

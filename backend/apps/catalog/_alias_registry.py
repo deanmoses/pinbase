@@ -1,7 +1,7 @@
 """Alias-type discovery from AliasBase subclasses.
 
-Shared module that both ``claims.py`` and ``resolve/`` can import without
-creating circular dependencies — it only touches ``core.models.AliasBase``.
+Catalog-private. Lives in its own module so ``claims.py`` and ``resolve/``
+can both import it without creating a cycle between them.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ from typing import NamedTuple
 from django.apps import apps
 
 from apps.provenance.models import ClaimControlledModel
+
+from .models import AliasBase
 
 
 class AliasType(NamedTuple):
@@ -34,8 +36,6 @@ def discover_alias_types() -> tuple[AliasType, ...]:
     creation, not here.
     """
     apps.check_models_ready()
-
-    from apps.core.models import AliasBase
 
     result: list[AliasType] = []
     for alias_cls in AliasBase.__subclasses__():

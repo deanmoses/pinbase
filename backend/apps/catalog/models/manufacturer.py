@@ -8,7 +8,6 @@ from django.db import models
 from django.db.models.functions import Lower
 
 from apps.core.models import (
-    AliasBase,
     MarkdownField,
     SluggedModel,
     TimeStampedModel,
@@ -20,7 +19,7 @@ from apps.core.models import (
 from apps.core.validators import validate_no_mojibake
 from apps.media.models import MediaSupported
 
-from .base import CatalogModel
+from .base import AliasBase, CatalogModel
 
 __all__ = [
     "CorporateEntity",

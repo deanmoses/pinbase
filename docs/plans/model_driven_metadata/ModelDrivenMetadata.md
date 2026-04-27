@@ -176,7 +176,7 @@ Concrete examples in the current codebase:
 - **`claims_exempt`**: declared per-model where the model has fields to exempt (e.g. [location.py](../../backend/apps/catalog/models/location.py)); read via `getattr(model_class, "claims_exempt", frozenset())` in [core/models.py](../../backend/apps/core/models.py). Belongs on `ClaimControlledModel` as `ClassVar[frozenset[str]] = frozenset()`.
 - **Wikilink-picker `link_*` attrs** (`link_sort_order`, `link_label`, `link_description`, `link_autocomplete_*`): declared bare on the four ordered linkable types (Title, MachineModel, Manufacturer, Person); read via `getattr(model, "link_*", default)` six times in [catalog/apps.py](../../backend/apps/catalog/apps.py)'s wikilink registration loop. Belong on a new `WikilinkableModel` mixin — see [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md).
 
-Counter-example showing the right shape: `alias_claim_field` is declared on `AliasBase` in [core/models.py](../../backend/apps/core/models.py) as `ClassVar[str]`, with `__init_subclass__` enforcement in the same file. Consumers in [\_alias_registry.py](../../backend/apps/catalog/_alias_registry.py) read `alias_cls.alias_claim_field` directly — no `getattr` fallback needed because the contract is enforced at the base.
+Counter-example showing the right shape: `alias_claim_field` is declared on `AliasBase` in [catalog/models/base.py](../../backend/apps/catalog/models/base.py) as `ClassVar[str]`, with `__init_subclass__` enforcement in the same file. Consumers in [\_alias_registry.py](../../backend/apps/catalog/_alias_registry.py) read `alias_cls.alias_claim_field` directly — no `getattr` fallback needed because the contract is enforced at the base.
 
 ## Rules of thumb
 

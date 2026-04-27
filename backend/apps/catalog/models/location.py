@@ -7,9 +7,11 @@ from typing import ClassVar
 from django.db import models
 from django.db.models.functions import Lower, Now
 
-from apps.core.models import AliasBase, EntityStatusMixin, field_not_blank, status_valid
+from apps.core.models import EntityStatusMixin, field_not_blank, status_valid
 from apps.core.validators import validate_no_mojibake
 from apps.provenance.models import ClaimControlledModel
+
+from .base import AliasBase
 
 __all__ = [
     "CorporateEntityLocation",
