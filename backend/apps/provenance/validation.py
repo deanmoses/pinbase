@@ -107,7 +107,7 @@ def register_relationship_schema(
     means this guard does not protect every (namespace, model) pair — only
     those where the namespace is registered for the subject.
     """
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     for spec in value_keys:
         if spec.identity is not None and not spec.required:
@@ -206,7 +206,7 @@ def classify_claim(
     single-claim use in ``assert_claim``).
     """
     if claim_fields is None:
-        from apps.core.models import get_claim_fields
+        from apps.provenance.models import get_claim_fields
 
         claim_fields = get_claim_fields(model_class)
 
@@ -443,7 +443,7 @@ def validate_claims_batch(
     """
     from django.contrib.contenttypes.models import ContentType
 
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     rejected: list[Claim] = []
     fk_claims: list[tuple[Claim, type[models.Model]]] = []

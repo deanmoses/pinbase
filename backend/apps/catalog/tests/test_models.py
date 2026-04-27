@@ -12,9 +12,8 @@ from apps.catalog.models import (
     System,
 )
 from apps.catalog.tests.conftest import make_machine_model
-from apps.core.models import get_claim_fields
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import Claim, Source
+from apps.provenance.models import Claim, Source, get_claim_fields
 
 
 @pytest.fixture

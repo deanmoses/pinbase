@@ -281,7 +281,7 @@ def check_unresolved_fk_claims(result: ValidationResult) -> None:
     This catches cases where ingestion asserted a claim like
     manufacturer=some-slug but no Manufacturer with that slug exists.
     """
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     ct = ContentType.objects.get_for_model(MachineModel)
     claim_fields = get_claim_fields(MachineModel)

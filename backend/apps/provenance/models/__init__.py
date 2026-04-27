@@ -15,4 +15,5 @@ from .claim import (
     make_claim_key,
 )
 from .ingest_run import IngestRun
+from .introspection import get_claim_fields
 from .source import Source, SourceFieldLicense

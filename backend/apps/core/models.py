@@ -291,47 +291,6 @@ def get_markdown_fields(model: type[models.Model]) -> list[str]:
     return [f.name for f in model._meta.get_fields() if isinstance(f, MarkdownField)]
 
 
-# Infrastructure fields exempt from claims on every model.
-_CLAIMS_EXEMPT_NAMES = frozenset(
-    {"id", "uuid", "created_at", "updated_at", "extra_data"}
-)
-
-
-def get_claim_fields(model_class: type[models.Model]) -> dict[str, str]:
-    """Discover claim-controlled fields by introspecting a Django model.
-
-    Returns ``{field_name: field_name}`` for every concrete field that is
-    claim-controlled.  Fields are excluded if they are:
-
-    * primary keys
-    * in ``_CLAIMS_EXEMPT_NAMES`` (infrastructure fields)
-    * listed in the model's ``claims_exempt`` class attribute
-    * GenericForeignKey helper columns (``content_type``, ``object_id``)
-
-    FK fields are included — the resolver handles slug lookup automatically.
-    """
-    per_model_exempt: frozenset[str] = getattr(
-        model_class, "claims_exempt", frozenset()
-    )
-    fields: dict[str, str] = {}
-    for f in model_class._meta.get_fields():
-        if not isinstance(f, models.Field):
-            continue
-        if not getattr(f, "concrete", False):
-            continue
-        if f.primary_key:
-            continue
-        if f.name in _CLAIMS_EXEMPT_NAMES:
-            continue
-        if f.name in per_model_exempt:
-            continue
-        # Skip GenericForeignKey helper columns (content_type_id, object_id).
-        if f.name in ("content_type", "object_id"):
-            continue
-        fields[f.name] = f.name
-    return fields
-
-
 # ---------------------------------------------------------------------------
 # LinkableModel mixin (link target registration)
 # ---------------------------------------------------------------------------

@@ -92,7 +92,7 @@ def resolve_model(machine_model: MachineModel) -> MachineModel:
             winners[claim.claim_key] = claim
 
     # Apply field values (shared with bulk path).
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     claim_fields = get_claim_fields(MachineModel)
     field_defaults = get_field_defaults(MachineModel, claim_fields)
@@ -232,7 +232,7 @@ def resolve_machine_models(stdout: OutputWrapper | None = None) -> int:
     resolve_all_title_abbreviations()
 
     # 1. Pre-fetch lookup tables.
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     claim_fields = get_claim_fields(MachineModel)
     field_defaults = get_field_defaults(MachineModel, claim_fields)

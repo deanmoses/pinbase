@@ -27,13 +27,13 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
-from apps.core.models import get_claim_fields
 from apps.provenance.models import (
     ChangeSet,
     ChangeSetAction,
     CitationInstance,
     Claim,
     ClaimControlledModel,
+    get_claim_fields,
 )
 from apps.provenance.schemas import CitationReferenceInputSchema
 from apps.provenance.validation import validate_claim_value

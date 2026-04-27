@@ -256,7 +256,7 @@ def _validate_entity_claim_consistency(plan: IngestPlan) -> None:
     """Every claim-controlled field populated by a PlannedEntityCreate
     (via kwargs or handle_refs) must have a matching PlannedClaimAssert
     targeting the same handle."""
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     asserted_by_handle: dict[str, set[str]] = defaultdict(set)
     for pca in plan.assertions:

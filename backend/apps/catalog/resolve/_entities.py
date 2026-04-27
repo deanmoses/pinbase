@@ -271,7 +271,7 @@ def resolve_entity[T: ClaimControlledModel](obj: T) -> T:
     ``get_claim_fields``), resolves winners, applies them (including FK
     fields), saves, and syncs markdown references.
     """
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     model_class = type(obj)
     fields = get_claim_fields(model_class)
@@ -321,7 +321,7 @@ def resolve_all_entities(
 
     Discovers claim-controlled fields by introspecting the model.
     """
-    from apps.core.models import get_claim_fields
+    from apps.provenance.models import get_claim_fields
 
     fields = get_claim_fields(model_class)
     return _resolve_bulk(model_class, fields, object_ids=object_ids)
