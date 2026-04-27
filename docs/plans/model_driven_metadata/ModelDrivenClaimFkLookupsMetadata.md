@@ -1,5 +1,9 @@
 # Claim FK Lookups
 
+## Status: DONE
+
+Landed in PR #281 (`refactor/model-driven-claims-metadata`). No follow-up work remains in this doc's scope.
+
 ## Context
 
 This work is part of the family described in [ModelDrivenClaimsMetadata.md](ModelDrivenClaimsMetadata.md), and an instance of the broader pattern in [ModelDrivenMetadata.md](ModelDrivenMetadata.md): encode per-model behavior on the model itself, consume it generically from shared infrastructure.
@@ -24,17 +28,19 @@ claim_fk_lookups: ClassVar[dict[str, str]] = {"parent": "location_path"}
 
 When writing the `parent` FK claim, the resolver reads `getattr(parent, "location_path")` rather than `parent.slug`. The same map drives FK resolution at materialization time: `_resolve_fk_generic` in `apps/catalog/resolve/_helpers.py` looks up the related row by its `location_path` instead of its `slug`.
 
-## Current state and hoist plan
+The same map also drives FK claim validation: `validate_fk_claims_batch()` groups pending FK claims and checks target existence with `model_class.claim_fk_lookups.get(field_name, "slug")`, so write-time validation and materialization agree on the lookup key.
 
-Today `claim_fk_lookups` is typed (`ClassVar[dict[str, str]]`, per [ModelDrivenMetadataCleanup.md](ModelDrivenMetadataCleanup.md)) but only declared on subclasses that need it (Location is the only one). Consumers in `apps/catalog/resolve/_helpers.py` (two call sites) and `apps/catalog/management/commands/validate_catalog.py` read it via `getattr(model_class, "claim_fk_lookups", {})` — the [field-on-model antipattern](ModelDrivenMetadata.md#antipattern-field-on-model) shape, three call sites with no typed contract.
+## Landed state
 
-Hoist:
+This hoist landed in PR #281. `claim_fk_lookups` is now the contract on `ClaimControlledModel`, not an ad-hoc subclass attr discovered by consumer-side `getattr`.
 
-- Declare `claim_fk_lookups: ClassVar[dict[str, str]] = {}` on `ClaimControlledModel`.
-- Subclass declarations remain — they become overrides of the base default rather than ad-hoc additions.
-- Replace the three `getattr(model_class, "claim_fk_lookups", {})` reads with direct attribute access (`model_class.claim_fk_lookups`).
-- The shared write factories described in [ModelDrivenLinkability.md](ModelDrivenLinkability.md) also read this map when constructing parent FK claims; that read becomes direct attribute access too.
-- No semantic change. Existing test coverage of FK claim writes and FK resolution carries over.
+What changed:
+
+- `ClaimControlledModel` declares `claim_fk_lookups: ClassVar[dict[str, str]] = {}`.
+- Subclass declarations remain as overrides of the base default.
+- FK resolution, FK validation, catalog validation, and shared write factories read `model_class.claim_fk_lookups` directly.
+- The claims chain signatures were narrowed to `type[ClaimControlledModel]` where these reads happen, so the direct attribute access is type-visible.
+- Runtime behavior is unchanged: the default lookup remains `slug`, and Location's `parent` FK uses `location_path`.
 
 ## Why this lives on `ClaimControlledModel`
 

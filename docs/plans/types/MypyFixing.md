@@ -6,7 +6,7 @@ We recently introduced mypy and grandfathered in a lot of exceptions in backend/
 
 ## Status
 
-Steps 1–11 complete. Step 12 and Step 7.1 remain open.
+Mostly DONE. Steps 1–11 complete. Step 12 and Step 7.1 remain open.
 
 ## Running mypy
 

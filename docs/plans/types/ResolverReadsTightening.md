@@ -1,5 +1,9 @@
 # Resolver Reads Tightening
 
+## Status: OPEN
+
+Not landed. Resolver code still uses `.get()` for required relationship payload keys; this remains Step 5 of [ResolveHardening.md](ResolveHardening.md).
+
 Follow-up to [ProvenanceValidationTightening.md](ProvenanceValidationTightening.md): once the write-path validator guarantees relationship-claim payloads have all their required keys at the right scalar types, the read side in `catalog/resolve/*.py` can drop defensive `.get()` calls in favor of subscript access. Behavior-preserving; the runtime contract didn't change, only mypy's knowledge of it did.
 
 This is Step 5 of [ResolveHardening.md](ResolveHardening.md) (originally Step 10.4 of [MypyFixing.md](MypyFixing.md)). Its own PR with its own gates — see Prerequisites.

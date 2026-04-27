@@ -261,7 +261,7 @@ Discoverability cost: a reader looking at `Credit` alone doesn't see the resolve
 
 ### App boundary: catalog vs. provenance
 
-`AppBoundaries.md` keeps provenance peer-isolated from catalog. The current `_relationship_target_registry` mechanism preserves this via _inversion_: catalog's `ready()` calls `register_relationship_targets()` to push mappings into provenance; provenance never imports catalog.
+`AppBoundaries.md` keeps provenance peer-isolated from catalog. The previous `_relationship_target_registry` mechanism preserved this via _inversion_: catalog's `ready()` called `register_relationship_targets()` to push mappings into provenance; provenance never imported catalog. The current `_relationship_schemas` registry keeps the same boundary-preserving push shape with a richer schema.
 
 A naïve reading of "validation reads derived schemas from model-owned specs" would break that boundary. The preserved design is:
 
