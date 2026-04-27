@@ -285,7 +285,7 @@ def check_unresolved_fk_claims(result: ValidationResult) -> None:
 
     ct = ContentType.objects.get_for_model(MachineModel)
     claim_fields = get_claim_fields(MachineModel)
-    fk_lookups_map = getattr(MachineModel, "claim_fk_lookups", {})
+    fk_lookups_map = MachineModel.claim_fk_lookups
 
     for field_name in claim_fields:
         field = MachineModel._meta.get_field(field_name)

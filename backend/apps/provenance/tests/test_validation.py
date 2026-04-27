@@ -713,6 +713,54 @@ class TestValidateClaimsBatchRelationships:
         assert id(good) in valid_ids
 
 
+@pytest.mark.django_db
+class TestValidateClaimsBatchContentTypeNarrowing:
+    """Claims whose ``content_type`` points at a non-``ClaimControlledModel``
+    are rejected at the ``ContentType.model_class()`` boundary.
+
+    Two-claim shape is load-bearing: it confirms that the rejection path
+    does NOT poison ``model_cache``/``fields_cache`` and short-circuit
+    later iterations as if the ct_id were resolved.
+    """
+
+    def test_rejects_claims_for_non_ccm_content_type(self, caplog):
+        import logging
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from apps.core.models import License
+
+        # License extends TimeStampedModel, not ClaimControlledModel.
+        license_ct = ContentType.objects.get_for_model(License)
+
+        bad_a = Claim(
+            content_type_id=license_ct.pk,
+            object_id=1,
+            field_name="name",
+            claim_key="",
+            value="x",
+        )
+        bad_b = Claim(
+            content_type_id=license_ct.pk,
+            object_id=2,
+            field_name="name",
+            claim_key="",
+            value="y",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="apps.provenance.validation"):
+            valid, rejected_count = validate_claims_batch([bad_a, bad_b])
+
+        assert rejected_count == 2
+        valid_ids = {id(c) for c in valid}
+        assert id(bad_a) not in valid_ids
+        assert id(bad_b) not in valid_ids
+        non_ccm_warnings = [
+            r for r in caplog.records if "non-claim-controlled" in r.getMessage()
+        ]
+        assert len(non_ccm_warnings) == 2
+
+
 # ---------------------------------------------------------------------------
 # validate_single_relationship_claim — shape-rejection rules
 # ---------------------------------------------------------------------------
@@ -994,7 +1042,7 @@ class TestRegisterRelationshipSchemaGuards:
                         identity="x",
                     ),
                 ),
-                valid_subjects=frozenset({Theme}),
+                valid_subjects={Theme},
             )
         # Pin "raise before insert" — a future refactor that inserts and
         # then validates would pass the exception assertion but pollute the
@@ -1023,7 +1071,7 @@ class TestRegisterRelationshipSchemaGuards:
                         identity="x",
                     ),
                 ),
-                valid_subjects=frozenset({Theme}),
+                valid_subjects={Theme},
             )
         # Same "raise before insert" invariant. Compared against any
         # pre-existing entry (there shouldn't be one) to stay robust if a

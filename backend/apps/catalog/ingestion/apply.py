@@ -81,7 +81,7 @@ class PlannedEntityCreate:
     anything they reference — the adapter controls ordering.
     """
 
-    model_class: type[models.Model]
+    model_class: type[ClaimControlledModel]
     # kwargs are spread into ``model_class(**kwargs)`` — schema varies per
     # model class, so the value type is genuinely heterogeneous.
     kwargs: dict[str, Any]
@@ -507,7 +507,7 @@ def _create_entities(
 
     for batch in batches:
         model_class = batch[0].model_class
-        pairs: list[tuple[PlannedEntityCreate, models.Model]] = []
+        pairs: list[tuple[PlannedEntityCreate, ClaimControlledModel]] = []
         for entity in batch:
             # Resolve handle_refs into kwargs before instantiation.
             resolved_kwargs = entity.kwargs.copy()
@@ -516,7 +516,7 @@ def _create_entities(
             pairs.append((entity, model_class(**resolved_kwargs)))
 
         instances = [inst for _, inst in pairs]
-        model_class.objects.bulk_create(instances)
+        model_class._default_manager.bulk_create(instances)
         ct_id = ContentType.objects.get_for_model(model_class).pk
         for entity, instance in pairs:
             handle_map[entity.handle] = EntityKey(ct_id, instance.pk)

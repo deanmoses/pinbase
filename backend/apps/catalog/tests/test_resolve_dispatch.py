@@ -17,7 +17,7 @@ from apps.catalog.models import (
 )
 from apps.catalog.resolve._dispatch import resolve_after_mutation
 from apps.catalog.tests.conftest import make_machine_model
-from apps.provenance.models import Claim, Source
+from apps.provenance.models import Claim, ClaimControlledModel, Source
 from apps.provenance.validation import get_relationship_schema
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ class TestDiscoverAliasTypes:
     def test_known_types_present(self):
         # Full (parent_model, claim_field) tuples — catches typos AND
         # misdeclarations like the right claim_field on the wrong class.
-        assert set(discover_alias_types()) == {
+        expected: set[tuple[type[ClaimControlledModel], str]] = {
             (Theme, "theme_alias"),
             (Manufacturer, "manufacturer_alias"),
             (Person, "person_alias"),
@@ -74,6 +74,7 @@ class TestDiscoverAliasTypes:
             (CorporateEntity, "corporate_entity_alias"),
             (Location, "location_alias"),
         }
+        assert set(discover_alias_types()) == expected
 
     def test_subclass_without_alias_claim_field_fails_at_creation(self):
         """AliasBase.__init_subclass__ must fire at class definition, not

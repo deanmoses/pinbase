@@ -16,7 +16,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.types import JsonBody
-from apps.provenance.models import IdentityPart, make_claim_key
+from apps.provenance.models import ClaimControlledModel, IdentityPart, make_claim_key
 from apps.provenance.validation import (
     RelationshipSchema,
     ValueKeySpec,
@@ -81,7 +81,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(CreditRole, "pk"),
             ),
         ),
-        valid_subjects=frozenset({MachineModel, Series}),
+        valid_subjects={MachineModel, Series},
     )
 
     # Gameplay feature M2M on MachineModel — with optional integer count.
@@ -102,7 +102,7 @@ def register_catalog_relationship_schemas() -> None:
                 nullable=True,
             ),
         ),
-        valid_subjects=frozenset({MachineModel}),
+        valid_subjects={MachineModel},
     )
 
     # Simple M2Ms on MachineModel — theme / tag / reward_type.
@@ -117,7 +117,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(Theme, "pk"),
             ),
         ),
-        valid_subjects=frozenset({MachineModel}),
+        valid_subjects={MachineModel},
     )
     register_relationship_schema(
         namespace="tag",
@@ -130,7 +130,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(Tag, "pk"),
             ),
         ),
-        valid_subjects=frozenset({MachineModel}),
+        valid_subjects={MachineModel},
     )
     register_relationship_schema(
         namespace="reward_type",
@@ -143,7 +143,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(RewardType, "pk"),
             ),
         ),
-        valid_subjects=frozenset({MachineModel}),
+        valid_subjects={MachineModel},
     )
 
     # Abbreviation (literal) on Title + MachineModel.
@@ -157,7 +157,7 @@ def register_catalog_relationship_schemas() -> None:
                 identity="value",
             ),
         ),
-        valid_subjects=frozenset({Title, MachineModel}),
+        valid_subjects={Title, MachineModel},
     )
 
     # Location on CorporateEntity.
@@ -172,7 +172,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(Location, "pk"),
             ),
         ),
-        valid_subjects=frozenset({CorporateEntity}),
+        valid_subjects={CorporateEntity},
     )
 
     # Hierarchy parents (self-referential).
@@ -187,7 +187,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(Theme, "pk"),
             ),
         ),
-        valid_subjects=frozenset({Theme}),
+        valid_subjects={Theme},
     )
     register_relationship_schema(
         namespace="gameplay_feature_parent",
@@ -200,7 +200,7 @@ def register_catalog_relationship_schemas() -> None:
                 fk_target=(GameplayFeature, "pk"),
             ),
         ),
-        valid_subjects=frozenset({GameplayFeature}),
+        valid_subjects={GameplayFeature},
     )
 
     # Alias namespaces — one schema per AliasBase subclass.
@@ -220,7 +220,7 @@ def register_catalog_relationship_schemas() -> None:
                     required=False,
                 ),
             ),
-            valid_subjects=frozenset({alias_type.parent_model}),
+            valid_subjects={alias_type.parent_model},
         )
 
     # Media attachment — derived at registration by walking all concrete
@@ -229,11 +229,11 @@ def register_catalog_relationship_schemas() -> None:
     # abstract base is ever introduced.
     from django.apps import apps as _apps
 
-    media_subjects = frozenset(
+    media_subjects: set[type[ClaimControlledModel]] = {
         m
         for m in _apps.get_models()
         if issubclass(m, MediaSupported) and not m._meta.abstract
-    )
+    }
     register_relationship_schema(
         namespace="media_attachment",
         value_keys=(

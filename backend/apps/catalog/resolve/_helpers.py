@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any, cast
 from django.db import models
 from django.db.models import QuerySet
 
+from apps.provenance.models import ClaimControlledModel
+
 if TYPE_CHECKING:
     from apps.provenance.models import Claim
 
@@ -56,7 +58,7 @@ class FKInfo:
 
 
 def _resolve_fk_generic(
-    model_class: type[models.Model],
+    model_class: type[ClaimControlledModel],
     field_name: str,
     value: object,
     lookup: dict[str, models.Model] | None = None,
@@ -85,8 +87,7 @@ def _resolve_fk_generic(
             "FK field %s on %s has no related model", field_name, model_class
         )
         return None
-    fk_lookups_map = getattr(model_class, "claim_fk_lookups", {})
-    lookup_key = fk_lookups_map.get(field_name, "slug")
+    lookup_key = model_class.claim_fk_lookups.get(field_name, "slug")
 
     if lookup is not None:
         result = lookup.get(key)
@@ -100,17 +101,16 @@ def _resolve_fk_generic(
 
 
 def build_fk_info(
-    model_class: type[models.Model],
+    model_class: type[ClaimControlledModel],
     claim_fields: dict[str, str],
 ) -> FKInfo:
     """Identify FK fields and pre-build slug-to-instance lookups for bulk resolution."""
     info = FKInfo()
-    fk_lookups_map = getattr(model_class, "claim_fk_lookups", {})
     for attr in claim_fields.values():
         f = model_class._meta.get_field(attr)
         if f.is_relation:
             info.fk_fields.add(attr)
-            lookup_key = fk_lookups_map.get(attr, "slug")
+            lookup_key = model_class.claim_fk_lookups.get(attr, "slug")
             target_model = f.related_model
             if target_model is None:
                 continue

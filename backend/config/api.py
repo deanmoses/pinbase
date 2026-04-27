@@ -183,10 +183,19 @@ def get_field_constraints(
     """Return numeric field constraints derived from model validators."""
     from apps.catalog.api.edit_claims import get_field_constraints as _get
     from apps.core.entity_types import get_linkable_model
+    from apps.provenance.models import ClaimControlledModel
 
     try:
         model_class = get_linkable_model(entity_type)
     except ValueError:
         raise HttpError(404, f"Unknown entity type: {entity_type}") from None
 
+    # All registered linkable models extend ClaimControlledModel via
+    # CatalogModel — surface a misconfigured registry as a server error
+    # rather than disguising it as 404.
+    if not issubclass(model_class, ClaimControlledModel):
+        raise RuntimeError(
+            f"Linkable model for entity_type={entity_type!r} "
+            f"({model_class.__name__}) is not a ClaimControlledModel subclass"
+        )
     return _get(model_class)

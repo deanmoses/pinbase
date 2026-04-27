@@ -43,7 +43,6 @@ apps/catalog/ingestion/bulk_utils.py:0: error: Missing type arguments for generi
 apps/catalog/ingestion/bulk_utils.py:0: error: Incompatible types in assignment (expression has type "CorporateEntityAlias", variable has type "ManufacturerAlias")  [assignment]
 apps/catalog/ingestion/bulk_utils.py:0: error: "ManufacturerAlias" has no attribute "corporate_entity"  [attr-defined]
 apps/catalog/ingestion/apply.py:0: error: Invalid index type "str | None" for "dict[str, int]"; expected type "str"  [index]
-apps/catalog/ingestion/apply.py:0: error: "type[Model]" has no attribute "objects"  [attr-defined]
 apps/catalog/ingestion/apply.py:0: error: Incompatible type for "content_type_id" of "Claim" (got "int | None", expected "Combinable | int | str")  [misc]
 apps/catalog/ingestion/apply.py:0: error: Incompatible type for "object_id" of "Claim" (got "int | None", expected "float | int | str | Combinable")  [misc]
 apps/catalog/tests/test_models.py:0: error: Incompatible type for "manufacturer" of "System" (got "None", expected "Manufacturer | Combinable")  [misc]

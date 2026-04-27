@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,8 @@ from django.core.exceptions import (
     ValidationError,
 )
 from django.db import models
+
+from apps.provenance.models import ClaimControlledModel, get_claim_fields
 
 if TYPE_CHECKING:
     from apps.provenance.models import Claim
@@ -71,7 +74,7 @@ class RelationshipSchema:
 
     namespace: str
     value_keys: tuple[ValueKeySpec, ...]
-    valid_subjects: frozenset[type[models.Model]]
+    valid_subjects: frozenset[type[ClaimControlledModel]]
 
 
 _relationship_schemas: dict[str, RelationshipSchema] = {}
@@ -88,7 +91,7 @@ _namespaces_cache: frozenset[str] | None = None
 def register_relationship_schema(
     namespace: str,
     value_keys: tuple[ValueKeySpec, ...],
-    valid_subjects: frozenset[type[models.Model]],
+    valid_subjects: Iterable[type[ClaimControlledModel]],
 ) -> None:
     """Register a relationship schema. Idempotent; conflicting re-registration raises.
 
@@ -107,8 +110,6 @@ def register_relationship_schema(
     means this guard does not protect every (namespace, model) pair — only
     those where the namespace is registered for the subject.
     """
-    from apps.provenance.models import get_claim_fields
-
     for spec in value_keys:
         if spec.identity is not None and not spec.required:
             raise ImproperlyConfigured(
@@ -117,7 +118,10 @@ def register_relationship_schema(
                 f"(identity={spec.identity!r}, required=False)"
             )
 
-    for subject_model in valid_subjects:
+    # Lock down the input here so the schema's invariant (immutability) is
+    # an internal guarantee, not something callers must satisfy.
+    frozen_subjects = frozenset(valid_subjects)
+    for subject_model in frozen_subjects:
         if namespace in get_claim_fields(subject_model):
             raise ImproperlyConfigured(
                 f"namespace {namespace!r} collides with a concrete claim field "
@@ -127,7 +131,7 @@ def register_relationship_schema(
     new = RelationshipSchema(
         namespace=namespace,
         value_keys=value_keys,
-        valid_subjects=valid_subjects,
+        valid_subjects=frozen_subjects,
     )
     existing = _relationship_schemas.get(namespace)
     if existing is not None:
@@ -165,14 +169,14 @@ def get_relationship_namespaces() -> frozenset[str]:
 
 
 def is_valid_subject(
-    schema: RelationshipSchema, subject_model: type[models.Model]
+    schema: RelationshipSchema, subject_model: type[ClaimControlledModel]
 ) -> bool:
     """Whether ``subject_model`` is a registered subject for this schema."""
     return subject_model in schema.valid_subjects
 
 
 def classify_claim(
-    model_class: type[models.Model],
+    model_class: type[ClaimControlledModel],
     field_name: str,
     claim_key: str,
     value: Any,  # noqa: ANN401 - signature preserved for call-site stability
@@ -206,8 +210,6 @@ def classify_claim(
     single-claim use in ``assert_claim``).
     """
     if claim_fields is None:
-        from apps.provenance.models import get_claim_fields
-
         claim_fields = get_claim_fields(model_class)
 
     if field_name in claim_fields:
@@ -224,7 +226,7 @@ def classify_claim(
 
 def validate_single_relationship_claim(
     *,
-    subject_model: type[models.Model],
+    subject_model: type[ClaimControlledModel],
     field_name: str,
     claim_key: str,
     value: Any,  # noqa: ANN401 - claim value is arbitrary JSON
@@ -330,14 +332,19 @@ def validate_single_relationship_claim(
         )
 
 
-def _has_extra_data(model_class: type[models.Model]) -> bool:
+def _has_extra_data(model_class: type[ClaimControlledModel]) -> bool:
     """Check whether a model has a concrete ``extra_data`` field.
 
     Uses ``_meta`` field introspection rather than ``hasattr`` to avoid
     matching non-field attributes (properties, methods, etc.).
     """
     try:
-        model_class._meta.get_field("extra_data")
+        # django-stubs validates string-literal field lookups against the
+        # model's declared fields. ``extra_data`` is declared on some
+        # concrete catalog subclasses (e.g. MachineModel), not on the
+        # abstract ``ClaimControlledModel`` we accept here, so the literal
+        # lookup type-fails at the base — runtime semantics are correct.
+        model_class._meta.get_field("extra_data")  # type: ignore[misc]
         return True
     except FieldDoesNotExist:
         return False
@@ -346,7 +353,7 @@ def _has_extra_data(model_class: type[models.Model]) -> bool:
 def validate_claim_value(
     field_name: str,
     value: Any,  # noqa: ANN401 - claim value is arbitrary JSON (scalar/dict/list/null)
-    model_class: type[models.Model],
+    model_class: type[ClaimControlledModel],
 ) -> Any:  # noqa: ANN401 - returns the (possibly coerced) claim value, same shape as input
     """Validate and possibly transform a scalar claim value.
 
@@ -443,14 +450,12 @@ def validate_claims_batch(
     """
     from django.contrib.contenttypes.models import ContentType
 
-    from apps.provenance.models import get_claim_fields
-
     rejected: list[Claim] = []
-    fk_claims: list[tuple[Claim, type[models.Model]]] = []
+    fk_claims: list[tuple[Claim, type[ClaimControlledModel]]] = []
     rel_claims: list[Claim] = []
 
     # Cache model_class and claim_fields per content_type_id.
-    model_cache: dict[int, type[models.Model]] = {}
+    model_cache: dict[int, type[ClaimControlledModel]] = {}
     fields_cache: dict[int, dict[str, str]] = {}
 
     for claim in pending_claims:
@@ -458,13 +463,19 @@ def validate_claims_batch(
 
         if ct_id not in model_cache:
             model_class = ContentType.objects.get_for_id(ct_id).model_class()
-            if model_class is None:
+            if model_class is None or not issubclass(model_class, ClaimControlledModel):
                 logger.warning(
-                    "Rejected claim for unknown content type id %s (object_id=%s)",
+                    "Rejected claim for unknown or non-claim-controlled "
+                    "content type id %s (object_id=%s)",
                     ct_id,
                     claim.object_id,
                 )
                 rejected.append(claim)
+                # NB: we deliberately do not write model_cache[ct_id] /
+                # fields_cache[ct_id] on the rejection path. Subsequent claims
+                # with the same ct_id will re-check and re-reject; that's
+                # correct — we never want a poisoned ct_id to silently
+                # short-circuit later iterations as if it were resolved.
                 continue
             model_cache[ct_id] = model_class
             fields_cache[ct_id] = get_claim_fields(model_cache[ct_id])
@@ -545,7 +556,7 @@ def validate_claims_batch(
 
 
 def validate_fk_claims_batch(
-    fk_claims: list[tuple[Claim, type[models.Model]]],
+    fk_claims: list[tuple[Claim, type[ClaimControlledModel]]],
 ) -> list[Claim]:
     """Batch-validate FK scalar claims. Returns list of rejected claims.
 
@@ -554,7 +565,8 @@ def validate_fk_claims_batch(
     convention from the resolver.
     """
     groups: dict[
-        tuple[type[models.Model], str], list[tuple[Claim, type[models.Model]]]
+        tuple[type[ClaimControlledModel], str],
+        list[tuple[Claim, type[ClaimControlledModel]]],
     ] = defaultdict(list)
     for claim, model_class in fk_claims:
         groups[(model_class, claim.field_name)].append((claim, model_class))
@@ -566,8 +578,7 @@ def validate_fk_claims_batch(
         assert isinstance(target_model, type)
         assert issubclass(target_model, models.Model)
         target_manager = target_model._default_manager
-        fk_lookups_map = getattr(model_class, "claim_fk_lookups", {})
-        lookup_key = fk_lookups_map.get(field_name, "slug")
+        lookup_key = model_class.claim_fk_lookups.get(field_name, "slug")
 
         # Collect all non-empty slug values, keyed by claim identity.
         slug_by_claim: dict[int, str] = {}
