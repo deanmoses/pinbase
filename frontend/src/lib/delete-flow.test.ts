@@ -26,7 +26,7 @@ beforeEach(() => {
 });
 
 describe('createDeleteSubmitter', () => {
-  const submit = createDeleteSubmitter<{ changeset_id: number }>('/api/fake/{public_id}/delete/');
+  const submit = createDeleteSubmitter('themes');
 
   it('passes the slug through to the configured endpoint', async () => {
     POST.mockResolvedValue({
@@ -35,7 +35,7 @@ describe('createDeleteSubmitter', () => {
       response: makeResponse(null, 200),
     });
     await submit('abc');
-    expect(POST).toHaveBeenCalledWith('/api/fake/{public_id}/delete/', expect.anything());
+    expect(POST).toHaveBeenCalledWith('/api/themes/{public_id}/delete/', expect.anything());
     const callBody = POST.mock.calls[0][1];
     expect(callBody.params.path.public_id).toBe('abc');
   });
