@@ -3,8 +3,7 @@
 Mounts ``GET /{entity_type}/{public_id}`` on a Ninja router. The route
 segment comes from ``model_cls.entity_type``; the lookup field from
 ``model_cls.public_id_field``. ``{public_id}`` uses the Ninja ``path``
-converter so multi-segment ids (Location) round-trip through one
-registration.
+converter so multi-segment ids round-trip through one registration.
 
 Used exclusively by :mod:`apps.catalog.api.page_endpoints`; lives next
 to :mod:`apps.catalog.api.entity_crud` because the contract over

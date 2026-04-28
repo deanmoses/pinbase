@@ -70,7 +70,6 @@ from apps.catalog.resolve import (
     resolve_theme_aliases,
     resolve_theme_parents,
 )
-from apps.core.models import LinkableModel
 from apps.core.validators import bulk_create_validated
 from apps.provenance.models import Claim, Source
 
@@ -107,10 +106,13 @@ def _normalize_credit_role(raw: str) -> str:
 
 # Model class → source slug suffix for per-entity AI description sources.
 # Derived from CatalogModel subclasses so new catalog entities are picked up
-# automatically. Location is not a CatalogModel but has its own AI source.
-AI_DESC_SOURCE_REGISTRY: Sequence[tuple[type, str]] = tuple(
-    (cls, cls.entity_type) for cls in CatalogModel.__subclasses__()
-) + ((Location, "location"),)
+# automatically. Lazy because the catalog-app helper requires the app registry
+# to be ready, which it isn't at module import time.
+def _ai_desc_source_registry() -> Sequence[tuple[type, str]]:
+    from apps.catalog._walks import catalog_app_subclasses
+
+    return tuple((cls, cls.entity_type) for cls in catalog_app_subclasses(CatalogModel))
+
 
 # Taxonomy ingest registry: (json_filename, model_class, has_display_order, parent_config)
 # parent_config: (model_fk_field, parent_model, json_fk_key) or None
@@ -150,26 +152,30 @@ def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
     import json
     import re
 
-    from django.apps import apps
+    from apps.catalog._walks import catalog_app_subclasses
 
-    # Values are concrete LinkableModel subclasses, but mypy/django-stubs
+    # Values are concrete CatalogModel subclasses, but mypy/django-stubs
     # treats ``type[Model]`` as lacking ``.objects`` (managers are added
     # to concrete subclasses); leaving the value type open avoids needing
     # ``# type: ignore`` on every ``.objects`` access below.
-    linkable_models: dict[str, Any] = {}
-    for model in apps.get_models():
-        if issubclass(model, LinkableModel) and hasattr(model, "slug"):
-            model_name = model._meta.model_name
-            if model_name is None:
-                raise RuntimeError(f"{model.__name__} has no model_name")
-            link_type = getattr(
-                model,
-                "link_type_name",
-                model_name.replace("_", "-"),
-            )
-            linkable_models[link_type] = model
+    #
+    # Keys mirror the names the markdown renderer registers in
+    # ``apps/catalog/apps.py:_register_link_types`` (``link_type_name`` if
+    # declared, else ``model.__name__.lower()``). Using ``entity_type``
+    # here would diverge from the renderer — pindata uses the
+    # non-hyphenated form (``[[gameplayfeature:...]]``).
+    catalog_models: dict[str, Any] = {}
+    for model in catalog_app_subclasses(CatalogModel):
+        link_type = getattr(model, "link_type_name", model.__name__.lower())
+        catalog_models[link_type] = model
 
-    pattern = re.compile(r"\[\[([a-z0-9-]+):([a-zA-Z0-9_-]+)\]\]")
+    # Permissive on the id capture group — Location's ``location_path``
+    # contains ``/``. The rendering parser at
+    # ``apps/core/markdown_links.py`` is equally permissive (``[^\]]+``);
+    # well-formedness is a lookup concern, not a tokenization concern, so
+    # broken/malformed refs surface as broken-ref warnings rather than
+    # being silently skipped.
+    pattern = re.compile(r"\[\[([a-z0-9-]+):([a-zA-Z0-9_/-]+)\]\]")
     broken: list[str] = []
 
     for json_file, _, _, _ in TAXONOMY_REGISTRY:
@@ -181,16 +187,18 @@ def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
             description = entry.get("description", "")
             if not description:
                 continue
-            for link_type, slug in pattern.findall(description):
-                target_model = linkable_models.get(link_type)
+            for link_type, public_id in pattern.findall(description):
+                target_model = catalog_models.get(link_type)
                 if target_model is None:
                     broken.append(
                         f"  {json_file} {entry['slug']}: unknown link type {link_type!r}"
                     )
-                elif not target_model.objects.filter(slug=slug).exists():
-                    broken.append(
-                        f"  {json_file} {entry['slug']}: [[{link_type}:{slug}]] not found"
-                    )
+                else:
+                    lookup = {target_model.public_id_field: public_id}
+                    if not target_model.objects.filter(**lookup).exists():
+                        broken.append(
+                            f"  {json_file} {entry['slug']}: [[{link_type}:{public_id}]] not found"
+                        )
 
     if broken:
         stderr.write(
@@ -234,7 +242,7 @@ class Command(BaseCommand):
         # Per-entity-type AI description sources. Each can be toggled
         # independently via is_enabled in admin.
         self._ai_desc_sources: dict[type, Source] = {}
-        for model_class, slug_suffix in AI_DESC_SOURCE_REGISTRY:
+        for model_class, slug_suffix in _ai_desc_source_registry():
             src, _ = Source.objects.get_or_create(
                 slug=f"pinbase-ai-desc-{slug_suffix}",
                 defaults={

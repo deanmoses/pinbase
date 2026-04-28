@@ -28,22 +28,16 @@ def _build_map() -> dict[str, type[LinkableModel]]:
     # Ensure all apps are loaded so every LinkableModel subclass is imported.
     apps.check_apps_ready()
     result: dict[str, type[LinkableModel]] = {}
-
-    def walk(cls: type[LinkableModel]) -> None:
-        for subclass in cls.__subclasses__():
-            walk(subclass)
-            meta = getattr(subclass, "_meta", None)
-            if meta is None or meta.abstract:
-                continue
-            key = subclass.entity_type
-            if key in result:
-                raise ImproperlyConfigured(
-                    f"Duplicate entity_type {key!r}: "
-                    f"{result[key].__name__} and {subclass.__name__}"
-                )
-            result[key] = subclass
-
-    walk(LinkableModel)
+    for cls in apps.get_models():
+        if not issubclass(cls, LinkableModel) or cls._meta.abstract:
+            continue
+        key = cls.entity_type
+        if key in result:
+            raise ImproperlyConfigured(
+                f"Duplicate entity_type {key!r}: "
+                f"{result[key].__name__} and {cls.__name__}"
+            )
+        result[key] = cls
     return result
 
 

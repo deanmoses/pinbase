@@ -348,8 +348,8 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
             assert parent_field is not None
             row_kwargs[parent_field] = parent
             # FK claim value reads from claim_fk_lookups (defaults to parent's
-            # slug); models with multi-segment URL identity (e.g. Location)
-            # override to the parent's path-encoded field.
+            # slug); models override per-field when the parent's identity
+            # lives on a non-slug field.
             fk_lookup = model_cls.claim_fk_lookups.get(parent_field, "slug")
             claim_specs.append(
                 ClaimSpec(field_name=parent_field, value=getattr(parent, fk_lookup))

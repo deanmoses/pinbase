@@ -79,16 +79,15 @@ class CatalogModel(LinkableModel, LifecycleStatusModel, ClaimControlledModel):
     defines its own ``Meta``.
     """
 
-    # Re-declare ``objects`` here (originally on ``LifecycleStatusModel``) so
-    # ``Self`` rebinds at the catalog level. Without this, mypy resolves
-    # ``model_cls.objects.active()`` (where ``model_cls: type[ModelT:
-    # CatalogModel]``) by walking the type bound and binds ``Self`` to
-    # ``LifecycleStatusModel`` — the class where the descriptor is declared —
-    # rather than ``ModelT``. Runtime is unaffected: same ``CatalogManager``
-    # class, Django's ManagerDescriptor rebinds per concrete model anyway.
-    # ``LifecycleStatusModel.objects`` stays put so ``Location`` (which uses
-    # ``LifecycleStatusModel`` without ``CatalogModel``) keeps its ``.active()``
-    # queryset.
+    # ``ClassVar[CatalogManager[Self]]`` gets us both halves: the custom
+    # manager type (so ``.active()`` is visible) and per-subclass model binding
+    # (so ``Manufacturer.objects`` types as ``CatalogManager[Manufacturer]``,
+    # not ``CatalogManager[CatalogModel]``). Without ``Self``, django-types'
+    # default descriptor strips the custom manager class. Declared here rather
+    # than on ``LifecycleStatusModel`` because every concrete
+    # ``LifecycleStatusModel`` subclass goes through ``CatalogModel`` —
+    # there's no consumer that needs ``.active()`` typed against the bare
+    # lifecycle base.
     objects: ClassVar[CatalogManager[Self]] = CatalogManager()
 
     class Meta:

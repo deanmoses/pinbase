@@ -36,22 +36,14 @@ def _cache_invalidating_models() -> list[type[models.Model]]:
     """Derive the set of models whose saves/deletes should bust the /all/ cache.
 
     Walks the catalog app registry for concrete ``CatalogModel`` subclasses,
-    then appends explicit extras: ``Location`` (a catalog entity that predates
-    the ``CatalogModel`` base and inherits only ``LifecycleStatusModel``) and the
-    two through-rows (``CorporateEntityLocation``, ``Credit``) that surface in
-    cached ``/all/`` payloads but aren't top-level entities.
+    then appends the two through-rows (``CorporateEntityLocation``, ``Credit``)
+    that surface in cached ``/all/`` payloads but aren't top-level entities.
     """
-    from django.apps import apps
+    from ._walks import catalog_app_subclasses
+    from .models import CatalogModel, CorporateEntityLocation, Credit
 
-    from .models import CatalogModel, CorporateEntityLocation, Credit, Location
-
-    catalog_app = apps.get_app_config("catalog")
-    derived = [
-        m
-        for m in catalog_app.get_models()
-        if issubclass(m, CatalogModel) and not m._meta.abstract
-    ]
-    extras: list[type[models.Model]] = [Location, CorporateEntityLocation, Credit]
+    derived = catalog_app_subclasses(CatalogModel)
+    extras: list[type[models.Model]] = [CorporateEntityLocation, Credit]
     # Not covered here: MachineModel* through-rows (MachineModelTheme, etc.)
     # and AliasModel subclasses. Those are written by the claims resolver,
     # which calls invalidate_all() directly via transaction.on_commit (see

@@ -8,16 +8,13 @@ from django.db import models
 from django.db.models.functions import Lower
 
 from apps.core.models import (
-    LifecycleStatusModel,
-    LinkableModel,
     TimeStampedModel,
     field_not_blank,
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.provenance.models import ClaimControlledModel
 
-from .base import AliasModel
+from .base import AliasModel, CatalogModel
 
 __all__ = [
     "CorporateEntityLocation",
@@ -26,9 +23,7 @@ __all__ = [
 ]
 
 
-class Location(
-    LifecycleStatusModel, TimeStampedModel, ClaimControlledModel, LinkableModel
-):
+class Location(CatalogModel, TimeStampedModel):
     """A canonical geographic location at any level of the hierarchy.
 
     The hierarchy is self-referential: a city's parent is its subdivision,
@@ -56,8 +51,11 @@ class Location(
     claims_exempt: ClassVar[frozenset[str]] = frozenset({"location_path"})
     claim_fk_lookups: ClassVar[dict[str, str]] = {"parent": "location_path"}
 
+    # system-derived from ``parent.location_path + "/" + slug`` — the
+    # underlying claims live on ``slug`` and ``parent``, so this field is
+    # claims_exempt to avoid two sources of truth for the same fact.
     location_path = models.CharField(max_length=500, unique=True)
-    slug = models.SlugField(max_length=200)
+    slug = models.SlugField(max_length=200)  # claim-controlled
     name = models.CharField(
         max_length=300, blank=True, validators=[validate_no_mojibake]
     )  # claim-controlled
@@ -76,6 +74,7 @@ class Location(
     # claim-controlled; list of level-type labels for countries only
     # e.g. ["state", "city"] or ["region", "department", "city"]
     divisions = models.JSONField(null=True, blank=True)
+    # claim-controlled
     parent = models.ForeignKey(
         "self",
         null=True,

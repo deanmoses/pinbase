@@ -1,6 +1,6 @@
-"""Generate frontend/src/lib/api/catalog-meta.ts from linkable models.
+"""Generate frontend/src/lib/api/catalog-meta.ts from catalog models.
 
-Iterates ``LinkableModel`` subclasses to produce a TypeScript file with:
+Iterates ``CatalogModel`` subclasses to produce a TypeScript file with:
 - CATALOG_META: per-entity record keyed by entity_type, exposing
   entity_type, entity_type_plural, label, and label_plural. Consumed by
   polymorphic frontend code that needs a typed registry of catalog
@@ -14,14 +14,14 @@ Run via ``make api-gen`` or directly::
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.core.models import LinkableModel
+from apps.catalog._walks import catalog_app_subclasses
+from apps.catalog.models import CatalogModel
 
 
 class CatalogEntry(NamedTuple):
@@ -32,7 +32,7 @@ class CatalogEntry(NamedTuple):
 
 
 class Command(BaseCommand):
-    help = "Generate frontend/src/lib/api/catalog-meta.ts from linkable models."
+    help = "Generate frontend/src/lib/api/catalog-meta.ts from catalog models."
 
     def handle(
         self,
@@ -41,7 +41,7 @@ class Command(BaseCommand):
         catalog_meta: list[CatalogEntry] = []
         media_categories: dict[str, list[str]] = {}
 
-        for cls in _iter_concrete_subclasses(LinkableModel):  # type: ignore[type-abstract]
+        for cls in catalog_app_subclasses(CatalogModel):
             key = cls.entity_type
             label = str(cls._meta.verbose_name).title()
             label_plural = str(cls._meta.verbose_name_plural).title()
@@ -83,13 +83,3 @@ class Command(BaseCommand):
         )
         output_path.write_text("\n".join(lines))
         self.stdout.write(self.style.SUCCESS(f"Wrote {output_path}"))
-
-
-def _iter_concrete_subclasses(
-    root: type[LinkableModel],
-) -> Iterator[type[LinkableModel]]:
-    for cls in root.__subclasses__():
-        yield from _iter_concrete_subclasses(cls)
-        if cls._meta.abstract:
-            continue
-        yield cls
