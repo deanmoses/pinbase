@@ -6,9 +6,18 @@ This plan implements Location create, edit, delete, restore, edit-history, sourc
 
 This is the second of three sequential plans in the Location-promotion chain:
 
-1. The Location → `CatalogModel` promotion + walk collapse (the small structural prep).
+1. The Location → `CatalogModel` promotion + walk collapse (the small structural prep). - DONE
 2. **This plan** — the full Location CRUD surface (write router, frontend, tests).
 3. [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md) — the wikilink picker mixin (Location stays out by absent inheritance).
+
+This plan ships as a set of **sequential PRs**. Three are contained, cross-cutting prerequisites that touch every existing caller and must stay behavior-identical for shipped entities; bundling any of them with the Location surface would force a reviewer to evaluate independent abstractions in one diff. Each prerequisite gets its own focused PR and a fresh AI session implements against the landed result:
+
+1. Backend: extend `register_entity_create` with extension hooks (see §"Prerequisite: extend `register_entity_create` with extension hooks").
+2. Frontend: preserve slashes in `public_id` path params at the openapi-fetch boundary (see §"Prerequisite: preserve slashes in `public_id` path params").
+3. Frontend: make `catalog-meta.test.ts` segment-aware (see §"Prerequisite: make `catalog-meta.test.ts` segment-aware").
+4. The Location CRUD surface itself — everything else in this plan.
+
+The frontend `slug` → `public_id` rename in the shared delete / provenance / DeletePage layer landed separately on this branch as a self-contained cleanup; the shared layer now consistently uses `public_id`, so Location's wrappers can pass `public_id={path}` without naming drift.
 
 Foundational work landed earlier in [ModelDrivenLinkability.md](ModelDrivenLinkability.md): generic URL identity and shared CRUD-factory contracts (`public_id_field`, `public_id`, `:path` route params, page-level edit-history / sources lookup by `(entity_type, public_id)`, and factory support for non-`slug` public IDs).
 
@@ -17,36 +26,64 @@ Location CRUD is the proof that that work actually generalized. Location is the 
 The validation criterion:
 
 - Location create uses `register_entity_create` for both top-level countries and child locations.
-- Location restore uses `register_entity_restore`.
+- Location delete, delete-preview, and restore use `register_entity_delete_restore`. Subtree cascade and active-CorporateEntityLocation blocking are driven by `soft_delete_cascade_relations` / `soft_delete_usage_blockers` class attributes — no bespoke delete handler.
 - Location edit-history and sources use the generic `/api/pages/edit-history/{entity_type}/{public_id:path}/` and `/api/pages/sources/{entity_type}/{public_id:path}/` endpoints.
-- Bespoke Location code exists only where hierarchy semantics genuinely differ: PATCH claims, delete-preview subtree analysis, and cascade delete.
+- The only Location-specific write code is the PATCH-claims route (no shared PATCH-claims factory yet).
 
 ## Decisions
 
 - Location is a `CatalogModel` (post chain step 1) and declares `entity_type = "location"`, `entity_type_plural = "locations"`, `public_id_field = "location_path"`, `claim_fk_lookups = {"parent": "location_path"}`, and `claims_exempt = frozenset({"location_path"})` — `location_path` is a derived field written into `row_kwargs` at create time, not through a claim.
 - **Re-parenting and slug-renaming are not supported.** `location_path` is computed from `parent.location_path + slug` and materialized on the row, so changing `parent` _or_ `slug` would invalidate the path on every descendant and every reference. The model-level enforcement (`immutable_after_create = frozenset({"parent", "slug"})`) is deferred per [ModelDrivenLinkability.md](ModelDrivenLinkability.md)'s "Deferred: re-parenting protection" section. **For this PR, the protection is UI- and route-level**:
-  - The Location editor does **not** register `NameEditor` (which edits `name` + `slug` together). Name edits are exposed through a Location-specific section that mutates `name` only, leaving `slug` frozen.
+  - The Location editor does **not** register `NameEditor` (which edits `name` + `slug` together) and provides no replacement: name editing is omitted from this PR. It returns once `NameEditor` learns to render name-only when slug is frozen (driven by `immutable_after_create` or an equivalent profile bit), at which point Location registers the same shared editor as every other entity.
   - The PATCH-claims route below explicitly rejects `parent`, `slug`, and `location_type` in the body.
   - When `immutable_after_create` lands later, drop both workarounds and let the model enforce.
 - Top-level Location create always creates a `country`.
 - Child Location create derives `location_type` from the country ancestor's `divisions`, using `country.divisions[parent_depth - 1]`.
-- Name and slug uniqueness are sibling-scoped for children; top-level countries collide at the root scope.
-- Location delete is blocked if any row in the subtree has an active `CorporateEntityLocation`.
-- Unblocked Location delete soft-deletes the root and descendants in one `ChangeSet`.
+- Name and slug are sibling-scoped at every tier, enforced at the DB by four partial `UniqueConstraint`s on `Location`: `catalog_location_unique_slug_per_parent` and `catalog_location_unique_name_per_parent` (for `parent IS NOT NULL`), and `catalog_location_unique_slug_at_root` and `catalog_location_unique_name_at_root` (for `parent IS NULL`). Name constraints use `Lower("name")`, so name uniqueness is case-insensitive. The sibling set is rows sharing the same `parent`, including the root tier where the siblings are all countries. The route does not need `scope_filter_builder` for either field — the DB is the source of truth; the route layer just surfaces violations as 422s instead of `IntegrityError`s.
+- Location delete is blocked if any row in the subtree has an active `CorporateEntityLocation`. Enforced by listing `corporate_entities` (a new M2M through `CorporateEntityLocation`) in `Location.soft_delete_usage_blockers`; `manager.active()` filters by the CorporateEntity's status, matching Theme's existing pattern.
+- Unblocked Location delete soft-deletes the root and descendants in one `ChangeSet`. Enforced by `Location.soft_delete_cascade_relations = frozenset({"children"})`; the soft-delete walker recurses to arbitrary depth.
 
 ## Backend
 
+### Model setup
+
+Add to `Location`:
+
+```python
+class Location(CatalogModel, TimeStampedModel):
+    soft_delete_cascade_relations: ClassVar[frozenset[str]] = frozenset({"children"})
+    soft_delete_usage_blockers: ClassVar[frozenset[str]] = frozenset({"corporate_entities"})
+
+    # Reverse accessor intentionally suppressed (`related_name="+"`); CorporateEntity
+    # already reaches Location through `CorporateEntityLocation` directly.
+    corporate_entities = models.ManyToManyField(
+        "catalog.CorporateEntity",
+        through="CorporateEntityLocation",
+        related_name="+",
+    )
+```
+
+The M2M is the join-table reverse manager Theme uses for `machine_models` — `location.corporate_entities.active()` resolves through `CorporateEntityLocation` and filters by the CE's status, which is exactly the "block if any row in the subtree has an active `CorporateEntityLocation`" semantic. No data migration is required (the through table already exists); only the Django-side relationship descriptor is added.
+
 ### Prerequisite: extend `register_entity_create` with extension hooks
 
-Today's [`register_entity_create`](../../../backend/apps/catalog/api/entity_crud.py) is slug-shaped: it calls `validate_slug_format`, `assert_slug_available`, writes `row_kwargs={"slug": slug}`, and emits a `slug` `ClaimSpec` unconditionally. That works for every shipped model because all default `public_id_field = "slug"`. Location can't plug in without three new keyword-only params on the factory:
+**This prerequisite ships in its own PR, before any of the Location work below.** It is a focused, contained change to the shared create factory; bundling it with Location CRUD would force a reviewer to evaluate two independent abstractions in one diff. After that PR lands, a fresh AI session implements the rest of this plan against the extended factory.
 
-- `extra_claim_specs_builder: Callable[[EntityCreateInputSchema, CatalogModel | None], list[ClaimSpec]] | None = None` — appended to the per-create `claim_specs` list. Location uses it to add `location_type` and (for top-level country create) `divisions`.
-- `extra_row_kwargs_builder: Callable[[EntityCreateInputSchema, CatalogModel | None], dict[str, Any]] | None = None` — merged into `row_kwargs` before `create_entity_with_claims`. Location uses it to materialize `location_path` and to set `location_type`.
-- `body_schema: type[Schema] | None = None` — when set, replaces `EntityCreateInputSchema` as the request body type so endpoints can accept extra fields (Location: top-level country needs `divisions`).
+Today's [`register_entity_create`](../../../backend/apps/catalog/api/entity_crud.py) is slug-shaped: it calls `validate_slug_format`, `assert_slug_available`, writes `row_kwargs={"slug": slug}`, and emits a `slug` `ClaimSpec` unconditionally. That works for every shipped model because all default `public_id_field = "slug"`. Location can't plug in without two new keyword-only params on the factory, plus a signature change on the existing `scope_filter_builder` and a rename of the slug-availability helper.
 
-All three default to `None`/no-op so the existing 10+ callers stay byte-identical. Add unit tests that assert each of the three params behaves correctly: `extra_claim_specs_builder` and `extra_row_kwargs_builder` fire with the resolved `parent` (or `None`), their returned keys reach the persisted row / claim list, and `body_schema` replaces the request body type when set (verified via the OpenAPI schema or a request that carries an extra field accepted by `LocationCreateSchema` but rejected by the default `EntityCreateInputSchema`).
+New params:
 
-The slug-availability check (`assert_slug_available(model_cls, slug)`) also needs to become `public_id_field`-aware: when `model_cls.public_id_field != "slug"`, the freshly-built `location_path` is what must be unique, not the bare slug. Either generalize `assert_slug_available` to query on `public_id_field`, or add a parallel `assert_public_id_available` that the factory dispatches to. The latter keeps the slug-shaped helper intact for the common case.
+- `extra_create_fields_builder: Callable[[EntityCreateInputSchema, CatalogModel | None], tuple[dict[str, Any], list[ClaimSpec]]] | None = None` — returns `(extra_row_kwargs, extra_claim_specs)`. Merged into `row_kwargs` and appended to `claim_specs` before `create_entity_with_claims`. One builder rather than two so callers derive shared values (e.g. Location derives `location_type` once and uses it in both row kwargs and the claim list) without memoization gymnastics.
+- `body_schema: type[EntityCreateInputSchema] | None = None` — when set, replaces `EntityCreateInputSchema` as the request body type so endpoints can accept extra fields (Location: top-level country needs `divisions`). Constrained to `EntityCreateInputSchema` subclasses (not arbitrary `Schema`) because the factory reads `data.name`, `data.slug`, `data.note`, `data.citation`; a non-conforming schema must fail at registration, not at request time.
+
+Existing-param changes:
+
+- `scope_filter_builder` signature changes from `Callable[[CatalogModel], Q]` (parent only) to `Callable[[EntityCreateInputSchema, CatalogModel | None], Q]` (data + resolved parent, matching the new `extra_create_fields_builder` shape). Also drop the current `TypeError` gate that requires `parent_field` to be set when `scope_filter_builder` is provided — top-level Location create needs `Q(parent__isnull=True)` at the unparented country tier. Update existing callers (CorporateEntity is the only one today) to ignore the new `data` arg.
+- Rename `assert_slug_available(model_cls, slug)` → `assert_public_id_available(model_cls, value)`, reading `model_cls.public_id_field` to decide which column to query. Every existing caller stays byte-identical (their `public_id_field == "slug"`); for Location, the factory passes the freshly-built `location_path`, which is what must be globally unique. Generalize rather than add a parallel helper — the slug-shaped name has no remaining beneficiaries once `public_id_field` is consulted.
+
+The new params default to `None`/no-op and the renamed helper is a mechanical rename, so the existing 10+ callers stay byte-identical. Add unit tests that assert each new param behaves correctly: `extra_create_fields_builder` fires with the resolved `parent` (or `None`), its returned `row_kwargs` and `claim_specs` reach the persisted row and claim list, and `body_schema` replaces the request body type when set (verified via the OpenAPI schema or a request that carries an extra field accepted by `LocationCreateSchema` but rejected by the default `EntityCreateInputSchema`). Also test that `scope_filter_builder` works in unparented mode (top-level Location case).
+
+The factory continues to accept route-level `scope_filter_builder` lambdas as the override seam for sibling-scoped models. Location's two routes pass explicit lambdas (see §"Write router"). Replacing those lambdas with model-driven constraint derivation is its own follow-up — see §"Follow-ups: Derive uniqueness scope from `model._meta.constraints`".
 
 ### Path and type helpers
 
@@ -58,23 +95,50 @@ def compute_location_path(parent: Location | None, slug: str) -> str:
 
 
 def derive_child_location_type(parent: Location) -> str:
+    """Raises ValidationError if divisions are missing or the tree is too deep."""
     ...
+
+
+def try_derive_child_location_type(parent: Location) -> str | None:
+    try:
+        return derive_child_location_type(parent)
+    except ValidationError:
+        return None
 ```
 
 `derive_child_location_type` walks from `parent.location_path` to the country ancestor, then indexes the country's `divisions` by parent depth. When `parent` is already the country, use `parent.divisions` directly instead of doing another DB fetch. Raise `ValidationError` with a useful message if the country has no divisions or the tree is deeper than the declared divisions.
 
+The two callsites want opposite things on failure, so we expose two helpers rather than one `str | None`:
+
+- Child create calls `derive_child_location_type` and lets the `ValidationError` bubble up to a 422 with the original "no divisions" / "tree too deep" message intact.
+- The detail serializer calls `try_derive_child_location_type` so `expected_child_type` can be `None` when derivation fails, letting the frontend suppress the "+ New …" action.
+
 ### Write router
 
 Add `backend/apps/catalog/api/locations_write.py` and register it under `/locations/`.
+
+Two sibling body schemas, both `extra=forbid`, so "client-supplied `location_type`" and "client-supplied `divisions` on child create" are rejected by schema validation before any handler code runs:
+
+```python
+class LocationTopLevelCreateSchema(EntityCreateInputSchema):
+    divisions: list[str]  # required, non-empty, validated
+
+class LocationChildCreateSchema(EntityCreateInputSchema):
+    pass  # name, slug, note, citation only — server derives location_type
+```
+
+The OpenAPI split also gives the generated TS client a typed `divisions` field on `/locations/new` and not on `/locations/[...path]/new`, instead of one optional field on both forms.
 
 Top-level create:
 
 - Route: `POST /api/locations/`
 - Factory: `register_entity_create`
 - `public_id_field="location_path"`
-- `body_schema=LocationCreateSchema`
-- Extra claims: `location_type="country"`, `divisions=data.divisions`
-- Extra row kwargs: `location_type`, `divisions`, `location_path=compute_location_path(None, data.slug)`
+- `body_schema=LocationTopLevelCreateSchema`
+- `scope_filter_builder=lambda data, parent: Q(parent__isnull=True)` — pre-check is scoped to the country tier, matching the `parent IS NULL` partial UNIQUE constraints on `Location`. `parent` is `None` here.
+- `extra_create_fields_builder` returns:
+  - row kwargs: `location_type="country"`, `divisions=data.divisions`, `location_path=compute_location_path(None, data.slug)`
+  - claims: `location_type="country"`, `divisions=data.divisions`
 
 Child create:
 
@@ -83,40 +147,36 @@ Child create:
 - `parent_field="parent"`
 - `parent_model=Location`
 - `route_suffix="children"`
-- `scope_filter_builder=lambda parent: Q(parent=parent)`
-- Extra claims: derived `location_type`
-- Extra row kwargs: derived `location_type`, `location_path=compute_location_path(parent, data.slug)`
+- `body_schema=LocationChildCreateSchema` (may be omitted if identical to the factory default)
+- `scope_filter_builder=lambda data, parent: Q(parent=parent)` — pre-check is scoped to siblings of the resolved `parent`, matching the `parent IS NOT NULL` partial UNIQUE constraints on `Location`. Both lambdas are temporary; see §"Follow-ups: Derive uniqueness scope from `model._meta.constraints`".
+- `extra_create_fields_builder` returns (with `location_type = derive_child_location_type(parent)` computed once):
+  - row kwargs: `location_type`, `location_path=compute_location_path(parent, data.slug)`
+  - claims: `location_type`
 
 PATCH claims:
 
 - Route: `PATCH /api/locations/{public_id:path}/claims/`
 - Bespoke for now because there is no shared PATCH-claims factory.
 - Body allows scalar edits for `name`, `description`, `short_name`, `code`, plus aliases, note, and citation.
-- `divisions` is editable only for top-level country rows.
-- Body must not allow `parent`, `slug`, or `location_type`.
+- Body must not allow `parent`, `slug`, or `location_type` — schema-rejected (`extra=forbid`), mirroring the create split.
+- Two sibling body schemas, dispatched by the resolved row's `location_type`, so `divisions` is schema-rejected on non-country rows rather than handled as a 422 in the handler:
+  - `LocationCountryPatchSchema` — adds `divisions: list[str] | None`.
+  - `LocationChildPatchSchema` — no `divisions` field; `extra=forbid` rejects it.
 - Use the same primitives as themes: `validate_scalar_fields`, `plan_alias_claims`, and `execute_claims`.
 
-Delete preview:
+Delete, delete-preview, and restore:
 
-- Route: `GET /api/locations/{public_id:path}/delete-preview/`
-- Walk the root plus descendants by `location_path`.
-- Return descendant counts by `location_type`, total count, active `CorporateEntityLocation` blockers, and `is_blocked`.
-- Only active referrers block deletion.
+- Single call to `register_entity_delete_restore(router, Location, ..., parent_field="parent")`.
+- Do **not** pass `child_related_name` — that adds a "block on active children" check, which is the opposite of what we want. Active children cascade-delete via `soft_delete_cascade_relations`.
+- Mounts the standard wire shape used by every other entity:
+  - `GET /api/locations/{public_id:path}/delete-preview/` returning `TaxonomyDeletePreviewSchema`.
+  - `POST /api/locations/{public_id:path}/delete/` returning 200 on success or 422 with `blocked_by` populated from active `CorporateEntityLocation`-reachable CEs across the subtree.
+  - `POST /api/locations/{public_id:path}/restore/` rejecting restore while the parent is deleted (via `parent_field="parent"`).
+- Cascade and blocker semantics ride on the model-level class attributes (see §"Model setup").
+- Restore affects only the requested row; descendants remain deleted unless restored separately. This is standard factory behavior — `execute_claims` writes a single-entity status claim — but creates a deliberate asymmetry with delete (delete cascades, restore does not). A user who deletes `usa` and then restores it will find every state and city still soft-deleted with no bulk recovery path; each descendant has to be restored individually. Subtree restore is out of scope for this PR (see §"Out of Scope") and is the cleanest follow-up if the asymmetry proves painful in practice.
+- The frontend gets `createDeleteSubmitter('locations')` and the shared `DeletePage.svelte` for free once `make api-gen` regenerates `schema.d.ts`.
 
-Delete:
-
-- Route: `DELETE /api/locations/{public_id:path}/`
-- Recompute delete-preview server-side.
-- Return `409` if blocked.
-- Otherwise write `status=deleted` claims for root and descendants in one transaction and one `ChangeSet` with `action=DELETE`.
-- Cascading delete consumes one delete rate-limit bucket.
-
-Restore:
-
-- Route: `POST /api/locations/{public_id:path}/restore/`
-- Factory: `register_entity_restore`
-- Pass `parent_field="parent"` so restore is rejected while the parent is deleted.
-- Restore affects only the requested row; descendants remain deleted unless restored separately.
+The plan previously specified a bespoke `DELETE` verb with 409 status and a per-`location_type` descendant breakdown in the preview. We dropped both: the wire shape now matches every other delete, and the standard preview (`active_children_count` for direct children + `blocked_by` for blockers) is enough. If we later want a full subtree count in the preview, generalize the factory to report `len(plan.entities_to_delete) - 1` — that's a one-line change benefiting Title delete too, and lives in `register_entity_delete_restore`, not in Location code.
 
 ### Read API
 
@@ -126,9 +186,36 @@ Extend `LocationDetailSchema` with:
 expected_child_type: str | None
 ```
 
-Populate it with `derive_child_location_type(location)`, or `None` if derivation fails because divisions are missing or exhausted. This lets the frontend stop hardcoding country-specific child labels.
+Populate it with `try_derive_child_location_type(location)` — `None` when divisions are missing or exhausted. This lets the frontend stop hardcoding country-specific child labels.
 
 ## Frontend
+
+### Prerequisite: preserve slashes in `public_id` path params
+
+**This prerequisite ships in its own PR, before any of the Location frontend work below.** Like the `slug` → `public_id` rename that landed earlier on this branch, it's a cross-cutting shared-layer change that must stay byte-equivalent for shipped entities and unblocks the first multi-segment caller (Location). After it lands, a fresh AI session implements the Location frontend against the slash-safe shared layer.
+
+The typed client uses [`openapi-fetch`](../../../frontend/src/lib/api/client.ts), which percent-encodes `/` in path parameters by default — verified: `params.path.public_id = 'usa/il/chicago'` produces `/api/.../usa%2Fil%2Fchicago/`. No shipped entity has a multi-segment `public_id` today, so the bug is latent. Location is the first caller for which it manifests, and the fix has nothing Location-specific about it; it belongs at the shared boundary.
+
+The fix lives in `createApiClient` in [`client.ts`](../../../frontend/src/lib/api/client.ts) as an `onRequest` middleware that rewrites the outgoing request's URL pathname, decoding `%2F` → `/` before the request is sent. We already have an `onRequest` middleware there for CSRF; the URL rewrite is a sibling concern and can sit in the same middleware (or a second `client.use()` — either is fine).
+
+This is a one-place change with zero caller migration: every shared loader (`delete-flow.ts`, `provenance-loaders.ts`, `delete-preview-loader.ts`, `media-api.ts`, and every future loader) goes through `client`, so they all pick up the fix for free without losing openapi-fetch's templated-path typing.
+
+Why the rewrite is safe:
+
+- `/` is a reserved URL character. No single-segment `public_id` can ever contain a literal `/`, so a `%2F` appearing in the pathname always came from openapi-fetch encoding a `/` we want preserved. Decoding it back is a no-op for shipped entities and the intended behavior for multi-segment ones.
+- Other reserved characters (`?`, `#`, `%`) stay encoded because we only target `%2F` (and `%2f`). The middleware is not a general "decode reserved chars" hammer.
+- The query string is untouched — only `URL.pathname` is rewritten.
+
+The "server round-trip" question (does Caddy / gunicorn preserve `%2F` in `PATH_INFO`?) is moot: the middleware sends `/` literal, so the server never sees `%2F` to mishandle.
+
+Tests (all in `client.test.ts`):
+
+- Unit: a request to a templated path with a multi-segment param (`/api/locations/{public_id}/delete/` with `public_id: 'usa/il/chicago'`) hits `fetch` with URL pathname `/api/locations/usa/il/chicago/delete/`, slashes preserved.
+- Unit: a single-segment `public_id` (`'usa'`) is byte-identical before and after — regression check that shipped entities are untouched.
+- Negative: a `public_id` containing `?`, `#`, `%`, or other reserved characters stays correctly encoded — the middleware decodes only `%2F`/`%2f`, not arbitrary percent-escapes.
+- Negative: `%2F` in the **query string** is left alone (only `URL.pathname` is rewritten).
+
+### Routes and components
 
 Add the missing write routes under `frontend/src/routes/locations/`.
 
@@ -137,15 +224,19 @@ Add the missing write routes under `frontend/src/routes/locations/`.
 - `/locations/[...path]/edit` and `/edit/[section]` reuse the shared taxonomy edit base components.
 - `/locations/[...path]/edit-history` uses the generic edit-history loader with `entity_type="location"` and `public_id=path`.
 - `/locations/[...path]/sources` uses the generic sources loader.
-- `/locations/[...path]/delete` uses the shared delete page, adapting descendant counts and blockers into the existing UI contract.
+- `/locations/[...path]/delete` reuses the shared `DeletePage.svelte` component and `createDeleteSubmitter('locations')` (the wire shape matches every other entity once `make api-gen` regenerates `schema.d.ts`), but still needs the standard per-entity wrapper that every existing delete route has — see [`series-delete.ts`](../../../frontend/src/routes/series/[slug]/delete/series-delete.ts) and [`+page@.svelte`](../../../frontend/src/routes/series/[slug]/delete/+page@.svelte) for the canonical shape. Concretely:
+  - `frontend/src/routes/locations/[...path]/delete/location-delete.ts` exporting `submitDelete = createDeleteSubmitter('locations')`.
+  - `frontend/src/routes/locations/[...path]/delete/+page.ts` (or `+page.server.ts`) — load `params.path` (a string for `[...path]`), fetch the delete-preview, and pass `{ preview, path }` to the page.
+  - `frontend/src/routes/locations/[...path]/delete/+page@.svelte` — builds `BlockedState` from `preview.blocked_by` with a Location-specific lead ("This location can't be deleted because active corporate-entity locations across this subtree still point at it"), `renderReferrerHref: (r) => r.slug ? '/corporate-entities/' + r.slug : null`, and a hint that mentions the subtree relationship; builds `impact` describing the subtree cascade ("this location and all descendants", `pluralize(preview.changeset_count, 'change set')`); wires `cancelHref` and `editHistoryHref` from `path` (not `slug`); and chooses `redirectAfterDelete` per tier — for a country, redirect to `/locations`; for a child, redirect to the parent's detail page (`/locations/{parent_path}`, computed by stripping the last segment of `path`).
+  - The wrapper is ~40 lines and structurally a copy of the Series version; the Location-specific decisions above are the only meaningful work.
 
 Add Location editor wiring:
 
-- `frontend/src/lib/components/editors/location-edit-sections.ts` — registers the Location-editable sections. **Do not register `NameEditor`** here; `NameEditor` edits `name` and `slug` together, and `slug` is frozen for Location (see Decisions §"Re-parenting and slug-renaming are not supported"). Provide a Location-specific name section that mutates `name` only.
+- `frontend/src/lib/components/editors/location-edit-sections.ts` — registers the Location-editable sections. **Do not register `NameEditor`** here; `NameEditor` edits `name` and `slug` together, and `slug` is frozen for Location (see Decisions §"Re-parenting and slug-renaming are not supported"). No replacement is provided in this PR — name editing is unavailable until `NameEditor` is taught to render name-only when slug is frozen.
 - `frontend/src/lib/components/editors/LocationEditorSwitch.svelte`
 - `frontend/src/routes/locations/[...path]/save-location-claims.ts`
 
-The edit menu does **not** offer `parent`, `slug`, or `location_type` edits. `divisions` is editable only on top-level country rows. Other scalars (`name`, `description`, `short_name`, `code`) and aliases edit normally.
+The edit menu does **not** offer `name`, `parent`, `slug`, or `location_type` edits. `name` is omitted in this PR (see above); the others are frozen by design. `divisions` is editable only on top-level country rows. Other scalars (`description`, `short_name`, `code`) and aliases edit normally.
 
 ### Child labels
 
@@ -155,7 +246,18 @@ Remove the frontend `EXPECTED_CHILD` fallback. `newChildLabel(profile)` should p
 2. `profile.expected_child_type`, when there are no children.
 3. `null`, which suppresses the "+ New ..." action rather than showing a wrong label.
 
-Once Location is fully mapped, remove `locations` from the `UNMAPPED_ROUTE_DIRS` skip list in `catalog-meta.test.ts`.
+### Prerequisite: make `catalog-meta.test.ts` segment-aware
+
+**This prerequisite ships in its own PR, before un-deferring Location.** It's a contained change to a single test file, but it touches the discovery shape every other entity already passes under, so it deserves its own focused diff against the existing callers (where `'location'` stays in `DEFERRED_KEYS` until the Location frontend lands).
+
+The parity test in [`catalog-meta.test.ts`](../../../frontend/src/lib/api/catalog-meta.test.ts) currently hardcodes `[slug]` in its discovery glob, regex, subroute glob, and subroute path construction (lines 39, 42, 93, 99). Location uses `[...path]`, so just removing `'location'` from `DEFERRED_KEYS` (line 35) is not enough — the test would either silently miss Location (the `[slug]` glob doesn't match) or fail at the subroute check looking for `locations/[slug]/edit-history` instead of `locations/[...path]/edit-history`.
+
+Extend the test to be segment-aware before un-deferring Location. Replace `ROUTE_DIR_TO_KEY: Record<string, CatalogEntityKey>` with `Record<string, { key: CatalogEntityKey; segment: '[slug]' | '[...path]' }>`, set `locations: { key: 'location', segment: '[...path]' }`, and update both the discovery and subroute checks:
+
+- Discovery: union two globs (`'/src/routes/*/[slug]/+*'` and `'/src/routes/*/[...path]/+*'`) and update the regex to capture either segment.
+- Subroute: read `segment` from the entry instead of literal `[slug]` when constructing `${plural}/${segment}/${subroute}`.
+
+After the test extension lands, drop `'location'` from `DEFERRED_KEYS` so Location parity is enforced like every other entity.
 
 ## Tests
 
@@ -163,15 +265,17 @@ Backend tests:
 
 - `compute_location_path` covers top-level, child, and deeper paths.
 - `derive_child_location_type` covers USA, France, missing divisions, and too-deep trees.
-- Top-level create succeeds, rejects name collisions, rejects `location_path` collisions, and rejects missing divisions.
-- Top-level create rejects extra fields such as a client-supplied `location_type`.
-- Child create succeeds, rejects sibling name/slug collisions, allows same slug under different parents, and writes the parent FK claim using `parent.location_path`.
+- Top-level create succeeds, rejects another country with the same slug (DB `catalog_location_unique_slug_at_root`), rejects another country with the same name case-insensitively — e.g. `Georgia` vs `georgia` — (DB `catalog_location_unique_name_at_root` over `Lower("name")`), and rejects missing divisions.
+- Top-level create _allows_ a country whose name or slug matches a non-sibling descendant — e.g. creating country `Georgia` succeeds when a state `Georgia` already exists under USA. Verifies the root-tier `scope_filter_builder` lambda is wired (without it, the pre-check would do an unscoped global scan and falsely reject).
+- Top-level create rejects extra fields such as a client-supplied `location_type` (schema-level, via `extra=forbid` on `LocationTopLevelCreateSchema`).
+- Child create rejects a client-supplied `divisions` (schema-level, via `extra=forbid` on `LocationChildCreateSchema`).
+- Child create succeeds, rejects sibling slug collisions (DB `catalog_location_unique_slug_per_parent`), rejects sibling name collisions case-insensitively (DB `catalog_location_unique_name_per_parent` over `Lower("name")`), allows same slug and same name under different parents, and writes the parent FK claim using `parent.location_path`.
 - Child create derives country-specific child types.
 - PATCH edits name, description, and aliases.
 - PATCH rejects `parent`, `slug`, and `location_type`.
 - Detail includes `expected_child_type` for valid hierarchies and `null` when it cannot be derived.
-- Delete-preview counts descendants and reports active `CorporateEntityLocation` blockers.
-- DELETE returns `409` when blocked and cascade soft-deletes the subtree when unblocked.
+- Delete-preview reports active `CorporateEntityLocation`-reachable CEs across the subtree as `blocked_by`. Location is the first `soft_delete_usage_blockers` entry that resolves through an M2M-through table (every existing blocker is a reverse FK), so include a fixture where the same CE is linked to the same Location via two different `CorporateEntityLocation` rows: `blocked_by` must list that CE once, not twice. If the walker double-counts, add `.distinct()` at the iteration site rather than working around it in Location code.
+- `POST /delete/` returns 422 with `blocked_by` populated when blocked, and on the unblocked path cascade soft-deletes the subtree in one `ChangeSet`. Verified by asserting `soft_delete_cascade_relations` and `soft_delete_usage_blockers` on `Location` and exercising `plan_soft_delete` against a multi-level fixture; no Location-specific delete handler exists to test.
 - Restore reactivates only the requested row and is rejected when the parent is deleted.
 - Generic edit-history and sources endpoints resolve Location by multi-segment public ID.
 
@@ -180,7 +284,7 @@ Frontend tests:
 - Location helper tests cover existing-child label, server-supplied `expected_child_type`, and `null` suppression.
 - `saveLocationClaims` sends `public_id`, not `slug`.
 - Delete page renders blocked and unblocked states.
-- Catalog metadata parity no longer skips `locations`.
+- `catalog-meta.test.ts` is segment-aware: `ROUTE_DIR_TO_KEY` carries a `segment` per entity, both `[slug]` and `[...path]` are discovered, and the subroute test reads the per-entity segment rather than hardcoding `[slug]`. Verified by `'location'` being absent from `DEFERRED_KEYS` and Location's edit-history/sources subroutes passing under `[...path]`.
 
 ## Verification
 
@@ -197,16 +301,55 @@ Manual smoke test against `make dev` with a logged-in superuser:
 - `/locations`, `/locations/usa`, and `/locations/usa/il/chicago` still render.
 - Create a new country at `/locations/new`.
 - Create a child from the new country's action menu.
-- Edit name, description, and aliases.
+- Edit description and aliases (name editing is intentionally absent in this PR).
 - Visit edit-history and sources for the new child.
 - Delete the child.
-- Confirm deleting `/locations/usa` is blocked by active corporate-entity location referrers.
+- Confirm deleting `/locations/usa` is blocked by active corporate-entity location referrers (the standard shared delete page surfaces them via `blocked_by`).
 - Confirm existing single-segment entities such as themes and manufacturers still handle edit, edit-history, sources, and delete (regression check for the new `register_entity_create` extension hooks — every existing caller must stay byte-identical because the three new params default to `None`/no-op).
+- Confirm `catalog-meta.test.ts` discovers Location via the new `[...path]` segment and asserts the same edit-history/sources parity as every other entity (`'location'` absent from `DEFERRED_KEYS`).
+
+## Follow-ups
+
+### Derive uniqueness scope from `model._meta.constraints`
+
+Location's create routes pass explicit `scope_filter_builder` lambdas (`Q(parent__isnull=True)` for top-level, `Q(parent=data.parent)` for child). Those lambdas restate information already declared on the model — the partial `UniqueConstraint`s `catalog_location_unique_slug_per_parent`, `catalog_location_unique_slug_at_root`, etc. encode exactly the same scoping. Per [ModelDrivenMetadata.md](ModelDrivenMetadata.md), the model is the source of truth; the route layer should read the constraint declaration rather than duplicate it.
+
+The shape of the follow-up:
+
+1. In `assert_name_available` and the public-id-aware availability check, walk `model_cls._meta.constraints` for `UniqueConstraint`s whose `fields` include the field being checked.
+2. For each matching constraint, derive a scope `Q` from `(fields ∪ condition)` and the new row's values: a constraint `fields=["parent", "slug"], condition=Q(parent__isnull=False)` against a row with `parent=X` yields `Q(parent=X)`; `fields=["slug"], condition=Q(parent__isnull=True)` yields `Q(parent__isnull=True)`.
+3. Apply the union of derived scopes to the availability query. If no partial constraint matches, fall back to the existing global check — Manufacturer / Theme / etc. stay byte-identical, since none of them have partial UNIQUE constraints today.
+4. Add a startup system check (per [ModelDrivenMetadata.md](ModelDrivenMetadata.md)'s "Enforce at startup, not at first request" rule) that verifies every model whose create route runs `assert_*_available` has a coherent constraint set on the checked fields — either fully global (no partial constraints) or a complete partition (every row covered by some partial UNIQUE). Catches gaps at boot rather than at first 422.
+5. Delete Location's two `scope_filter_builder` lambdas and confirm Location's existing tests still pass — that's the proof the constraint-derived path is wired correctly. Keep `scope_filter_builder` as the documented escape hatch for cases that don't fit constraint derivation (none in the catalog today).
+
+Tests for the follow-up:
+
+- A model with a partial `UniqueConstraint` on `parent IS NULL` produces the right root-scoped pre-check.
+- A model with `(parent, slug)` UNIQUE on `parent IS NOT NULL` produces the right sibling-scoped pre-check.
+- A model with no partial constraints (e.g. Theme) produces the existing global check unchanged — regression check that the 10+ shipped callers stay byte-identical.
+- The startup system check fails fast on a deliberately-broken model with a partial constraint that doesn't cover every row.
+- Location's existing sibling-collision and root-collision tests pass after removing the lambdas.
+
+Splitting this out lets Location land with contained, reviewable scoping (two five-line lambdas), and gives constraint derivation its own focused PR where the "complete partition" verification logic and the system check can be reviewed against more than one concrete caller.
+
+### Consolidate PATCH-claims handlers into a shared factory
+
+Each catalog model with editable claims today has its own hand-rolled PATCH-claims route — themes, manufacturers, franchises, corporate-entities, gameplay-features, series, taxonomy, and (after this PR) locations. They all do roughly the same work: parse the body, validate scalar fields, plan alias claims, and call `execute_claims`. The duplication is real but not yet uniform enough to factor cleanly — name/slug rules, alias shapes, and which scalars are editable vary per model.
+
+Location's PATCH route adds one more instance to the pile. Once it lands, the next consolidation target is a `register_entity_patch_claims` factory in `entity_crud.py` that mirrors the create / delete-restore factories. Likely shape:
+
+- Generic body-parsing for `name`, scalar fields, aliases, note, citation.
+- `editable_scalar_fields: frozenset[str]` per model (drives both schema validation and the claim list).
+- `immutable_after_create: frozenset[str]` per model (rejected from the body — folds in the Location-specific rejection of `parent`, `slug`, `location_type`).
+- Hooks for model-specific extras (Location: `divisions` editable only on top-level rows).
+
+Doing it now would be scope creep — the factory's right shape will be clearer with N+1 concrete callers than with N. Doing it never means accepting hand-rolled PATCH handlers as the steady state.
 
 ## Out of Scope
 
 - **Model-level `immutable_after_create` enforcement.** Re-parenting and slug-renaming are blocked at the UI / route level in this PR (see Decisions). The model-level frozen-fields enforcement is its own follow-up; once it lands, drop the UI/route workarounds.
 - Re-parenting Location.
+- Subtree restore. Restore is row-only in this PR (see Decisions §"Delete, delete-preview, and restore"); cascading restore is a follow-up if the row-only behavior proves painful.
 - Restore UI on deleted-entity pages.
 - Rich divisions editor UI.
 - Undoing a specific past delete `ChangeSet`.

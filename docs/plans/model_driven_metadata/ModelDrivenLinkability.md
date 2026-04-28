@@ -38,7 +38,7 @@ A linkable catalog model inherits `LinkableModel` and declares three ClassVars:
 
 This is a [base class / mixin](ModelDrivenMetadata.md#pattern-base-class--mixin) — discovery is `LinkableModel.__subclasses__()`, no hand-maintained registry of who participates.
 
-Location is currently `EntityStatusMixin, ClaimControlledModel` only ([`apps/catalog/models/location.py:23`](../../../backend/apps/catalog/models/location.py#L23)) — adding `LinkableModel` to its bases (with `entity_type = "location"`, `entity_type_plural = "locations"`, `public_id_field = "location_path"`) is part of this plan.
+Location is currently `LifecycleStatusModel, ClaimControlledModel` only ([`apps/catalog/models/location.py:23`](../../../backend/apps/catalog/models/location.py#L23)) — adding `LinkableModel` to its bases (with `entity_type = "location"`, `entity_type_plural = "locations"`, `public_id_field = "location_path"`) is part of this plan.
 
 Wikilink-picker presentation (label, sort order, autocomplete config) is a separate, opt-in capability layered on top of `LinkableModel` — see [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md). A `LinkableModel` subclass that doesn't mix in `WikilinkableModel` simply doesn't appear in the wikilink picker.
 
@@ -172,7 +172,7 @@ Deferred to [LocationCrud.md](LocationCrud.md) because Location is the first cal
 
 ### Retype the entity registry as `type[CatalogModel]`
 
-Once Location lands as a `LinkableModel` it also satisfies `CatalogModel` by composition (it already has `EntityStatusMixin + ClaimControlledModel`). At that point the registry walked by `get_linkable_model` is, in fact, a `CatalogModel` registry — every entry is linkable _and_ claim-controlled _and_ status-tracked.
+Once Location lands as a `LinkableModel` it also satisfies `CatalogModel` by composition (it already has `LifecycleStatusModel + ClaimControlledModel`). At that point the registry walked by `get_linkable_model` is, in fact, a `CatalogModel` registry — every entry is linkable _and_ claim-controlled _and_ status-tracked.
 
 That makes a typing cleanup possible:
 
