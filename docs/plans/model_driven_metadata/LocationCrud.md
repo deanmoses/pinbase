@@ -12,7 +12,7 @@ This is the second of three sequential plans in the Location-promotion chain:
 
 This plan ships as a set of **sequential PRs**. Three are contained, cross-cutting prerequisites that touch every existing caller and must stay behavior-identical for shipped entities; bundling any of them with the Location surface would force a reviewer to evaluate independent abstractions in one diff. Each prerequisite gets its own focused PR and a fresh AI session implements against the landed result:
 
-1. Backend: extend `register_entity_create` with extension hooks (see §"Prerequisite: extend `register_entity_create` with extension hooks").
+1. Backend: extend `register_entity_create` with extension hooks. **DONE** — see §"Prerequisite (DONE): extension hooks on `register_entity_create`" for the API reference Location uses.
 2. Frontend: preserve slashes in `public_id` path params at the openapi-fetch boundary (see §"Prerequisite: preserve slashes in `public_id` path params").
 3. Frontend: make `catalog-meta.test.ts` segment-aware (see §"Prerequisite: make `catalog-meta.test.ts` segment-aware").
 4. The Location CRUD surface itself — everything else in this plan.
@@ -65,25 +65,21 @@ class Location(CatalogModel, TimeStampedModel):
 
 The M2M is the join-table reverse manager Theme uses for `machine_models` — `location.corporate_entities.active()` resolves through `CorporateEntityLocation` and filters by the CE's status, which is exactly the "block if any row in the subtree has an active `CorporateEntityLocation`" semantic. No data migration is required (the through table already exists); only the Django-side relationship descriptor is added.
 
-### Prerequisite: extend `register_entity_create` with extension hooks
+### Prerequisite (DONE): extension hooks on `register_entity_create`
 
-**This prerequisite ships in its own PR, before any of the Location work below.** It is a focused, contained change to the shared create factory; bundling it with Location CRUD would force a reviewer to evaluate two independent abstractions in one diff. After that PR lands, a fresh AI session implements the rest of this plan against the extended factory.
+The shared create factory at [`entity_crud.py`](../../../backend/apps/catalog/api/entity_crud.py) gained the hooks Location needs, plus a primitive extraction. The "Write router" section below uses these directly.
 
-Today's [`register_entity_create`](../../../backend/apps/catalog/api/entity_crud.py) is slug-shaped: it calls `validate_slug_format`, `assert_slug_available`, writes `row_kwargs={"slug": slug}`, and emits a `slug` `ClaimSpec` unconditionally. That works for every shipped model because all default `public_id_field = "slug"`. Location can't plug in without two new keyword-only params on the factory, plus a signature change on the existing `scope_filter_builder` and a rename of the slug-availability helper.
+API available to Location's create routes:
 
-New params:
+- `body_schema: type[EntityCreateInputSchema] | None` — replaces the request body type. Subclass-checked at registration. Used by Location top-level (carries `divisions`) and child create.
+- `extra_create_fields_builder: (data, parent) -> (row_kwargs, claim_specs)` — derived columns + matching claims, merged into the standard row/claim trio. One builder, not two, so callers derive shared values (e.g. `location_type`) once.
+- `scope_filter_builder(data, parent) -> Q` — narrows the name-uniqueness scan. Now signature `(data, parent)` (was `(parent,)`); works in both parented and unparented modes (the parented-only gate was dropped). Used by Location for sibling/root scoping.
+- `assert_public_id_available(model_cls, value)` (renamed from `assert_slug_available`) in [`entity_create.py`](../../../backend/apps/catalog/api/entity_create.py) — checks uniqueness on `model_cls.public_id_field`. Location's factory call passes the freshly-built `location_path`.
+- `validate_create_input(data, model_cls, *, scope_filter, include_deleted_name_check)` — composite primitive (name + slug validation + name uniqueness check) extracted from the factory. Available to any future outlier that needs a custom create handler instead of the factory.
 
-- `extra_create_fields_builder: Callable[[EntityCreateInputSchema, CatalogModel | None], tuple[dict[str, Any], list[ClaimSpec]]] | None = None` — returns `(extra_row_kwargs, extra_claim_specs)`. Merged into `row_kwargs` and appended to `claim_specs` before `create_entity_with_claims`. One builder rather than two so callers derive shared values (e.g. Location derives `location_type` once and uses it in both row kwargs and the claim list) without memoization gymnastics.
-- `body_schema: type[EntityCreateInputSchema] | None = None` — when set, replaces `EntityCreateInputSchema` as the request body type so endpoints can accept extra fields (Location: top-level country needs `divisions`). Constrained to `EntityCreateInputSchema` subclasses (not arbitrary `Schema`) because the factory reads `data.name`, `data.slug`, `data.note`, `data.citation`; a non-conforming schema must fail at registration, not at request time.
+The factory's docstring documents the **hooks discipline**: convergence-enforcement is the factory's value (every catalog create routes through one pipeline, so callers can't drift), so a single-caller hook is justified when the alternative is a parallel handler that copies 80%+ of the factory's pipeline. Hooks are NOT justified for hypothetical future callers. Structurally-different entities (different transactional shape, different side effects) should write a custom handler over the primitives instead of extending the factory. Each existing hook carries a "Callers: …" comment with a re-evaluation trigger when a second caller appears with a different extension pattern.
 
-Existing-param changes:
-
-- `scope_filter_builder` signature changes from `Callable[[CatalogModel], Q]` (parent only) to `Callable[[EntityCreateInputSchema, CatalogModel | None], Q]` (data + resolved parent, matching the new `extra_create_fields_builder` shape). Also drop the current `TypeError` gate that requires `parent_field` to be set when `scope_filter_builder` is provided — top-level Location create needs `Q(parent__isnull=True)` at the unparented country tier. Update existing callers (CorporateEntity is the only one today) to ignore the new `data` arg.
-- Rename `assert_slug_available(model_cls, slug)` → `assert_public_id_available(model_cls, value)`, reading `model_cls.public_id_field` to decide which column to query. Every existing caller stays byte-identical (their `public_id_field == "slug"`); for Location, the factory passes the freshly-built `location_path`, which is what must be globally unique. Generalize rather than add a parallel helper — the slug-shaped name has no remaining beneficiaries once `public_id_field` is consulted.
-
-The new params default to `None`/no-op and the renamed helper is a mechanical rename, so the existing 10+ callers stay byte-identical. Add unit tests that assert each new param behaves correctly: `extra_create_fields_builder` fires with the resolved `parent` (or `None`), its returned `row_kwargs` and `claim_specs` reach the persisted row and claim list, and `body_schema` replaces the request body type when set (verified via the OpenAPI schema or a request that carries an extra field accepted by `LocationCreateSchema` but rejected by the default `EntityCreateInputSchema`). Also test that `scope_filter_builder` works in unparented mode (top-level Location case).
-
-The factory continues to accept route-level `scope_filter_builder` lambdas as the override seam for sibling-scoped models. Location's two routes pass explicit lambdas (see §"Write router"). Replacing those lambdas with model-driven constraint derivation is its own follow-up — see §"Follow-ups: Derive uniqueness scope from `model._meta.constraints`".
+The factory's `scope_filter_builder` lambdas Location passes are temporary — see §"Follow-ups: Derive uniqueness scope from `model._meta.constraints`" for the model-driven replacement.
 
 ### Path and type helpers
 
@@ -305,7 +301,7 @@ Manual smoke test against `make dev` with a logged-in superuser:
 - Visit edit-history and sources for the new child.
 - Delete the child.
 - Confirm deleting `/locations/usa` is blocked by active corporate-entity location referrers (the standard shared delete page surfaces them via `blocked_by`).
-- Confirm existing single-segment entities such as themes and manufacturers still handle edit, edit-history, sources, and delete (regression check for the new `register_entity_create` extension hooks — every existing caller must stay byte-identical because the three new params default to `None`/no-op).
+- Confirm existing single-segment entities such as themes and manufacturers still handle edit, edit-history, sources, and delete (regression check that Location's factory hooks haven't disturbed shipped callers).
 - Confirm `catalog-meta.test.ts` discovers Location via the new `[...path]` segment and asserts the same edit-history/sources parity as every other entity (`'location'` absent from `DEFERRED_KEYS`).
 
 ## Follow-ups
