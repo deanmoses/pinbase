@@ -1,26 +1,18 @@
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('$lib/api/link-types', async () => {
+  const f = await import('$lib/components/form/link-types-fixtures');
+  return {
+    fetchLinkTypes: vi.fn().mockResolvedValue(f.LINK_TYPES),
+    searchLinkTargets: vi.fn().mockResolvedValue({ results: f.SEARCH_RESULTS }),
+  };
+});
 
 import DescriptionEditorFixture from './DescriptionEditor.fixture.svelte';
-import { _resetCache } from '$lib/api/link-types';
 
 describe('DescriptionEditor', () => {
-  beforeEach(() => {
-    _resetCache();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [],
-      }),
-    );
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('reports clean state initially and dirty state after editing', async () => {
     const user = userEvent.setup();
     render(DescriptionEditorFixture);

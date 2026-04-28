@@ -1,6 +1,8 @@
 from apps.catalog.models import (
     CorporateEntity,
     CorporateEntityAlias,
+    Credit,
+    CreditRole,
     ManufacturerAlias,
     Title,
 )
@@ -131,6 +133,29 @@ class TestManufacturersAPI:
         resp = client.get(f"/api/pages/manufacturer/{manufacturer.slug}")
         years = [t["year"] for t in resp.json()["titles"]]
         assert years == [2020, 1995, 1960]
+
+    def test_list_all_manufacturers_serializes_persons_and_tech_gens(
+        self, client, manufacturer, williams_entity, person, solid_state, db
+    ):
+        """Persons and tech generations must serialize as plain ``{slug, name}``
+        dicts in the cached response. Other tests don't exercise these fields,
+        so without this case the cache write path could ship Schema instances
+        that fail JSON serialization."""
+        role = CreditRole.objects.create(slug="design", name="Design")
+        model = make_machine_model(
+            name="Test Game",
+            slug="test-game",
+            corporate_entity=williams_entity,
+            technology_generation=solid_state,
+        )
+        Credit.objects.create(model=model, person=person, role=role)
+        resp = client.get("/api/manufacturers/all/")
+        assert resp.status_code == 200
+        mfr = resp.json()[0]
+        assert mfr["persons"] == [{"slug": "pat-lawlor", "name": "Pat Lawlor"}]
+        assert mfr["tech_generations"] == [
+            {"slug": "solid-state", "name": "Solid State"}
+        ]
 
     def test_list_all_manufacturers_search_text_includes_ce_aliases(
         self, client, williams_entity, db

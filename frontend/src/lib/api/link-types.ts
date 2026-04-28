@@ -1,25 +1,12 @@
 /**
  * API client for wikilink autocomplete endpoints.
- *
- * Separate from the openapi-fetch client because these endpoints have
- * a simple, stable contract and don't need generated types.
  */
 
-export type LinkType = {
-  name: string;
-  label: string;
-  description: string;
-  flow: 'standard' | 'custom';
-};
+import client from './client';
+import type { LinkTypeSchema, LinkTargetSchema } from './schema';
 
-export type LinkTarget = {
-  ref: string;
-  label: string;
-};
-
-type LinkTargetsResponse = {
-  results: LinkTarget[];
-};
+export type LinkType = LinkTypeSchema;
+export type LinkTarget = LinkTargetSchema;
 
 // Module-level cache — link types don't change at runtime.
 let cachedTypes: LinkType[] | null = null;
@@ -32,17 +19,26 @@ export function _resetCache(): void {
 export async function fetchLinkTypes(): Promise<LinkType[]> {
   if (cachedTypes) return cachedTypes;
 
-  const resp = await fetch('/api/link-types/');
-  if (!resp.ok) throw new Error(`Failed to fetch link types: ${resp.status}`);
+  const { data, error, response } = await client.GET('/api/link-types/');
+  const status = response.status;
+  if (error || !data) {
+    throw new Error(`Failed to fetch link types: ${status}`);
+  }
 
-  cachedTypes = (await resp.json()) as LinkType[];
+  cachedTypes = data;
   return cachedTypes;
 }
 
-export async function searchLinkTargets(type: string, query: string): Promise<LinkTargetsResponse> {
-  const params = new URLSearchParams({ type, q: query });
-  const resp = await fetch(`/api/link-types/targets/?${params}`);
-  if (!resp.ok) throw new Error(`Failed to search link targets: ${resp.status}`);
-
-  return (await resp.json()) as LinkTargetsResponse;
+export async function searchLinkTargets(
+  type: string,
+  query: string,
+): Promise<{ results: LinkTarget[] }> {
+  const { data, error, response } = await client.GET('/api/link-types/targets/', {
+    params: { query: { type, q: query } },
+  });
+  const status = response.status;
+  if (error || !data) {
+    throw new Error(`Failed to search link targets: ${status}`);
+  }
+  return data;
 }

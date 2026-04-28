@@ -14,6 +14,7 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.pagination import paginate
 from ninja.security import django_auth
+from pydantic import TypeAdapter
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
@@ -54,7 +55,7 @@ from .schemas import (
     EntityRef,
     RelatedTitleSchema,
 )
-from .titles import _dedup_facet_refs
+from .titles import _dedup_facet_dicts
 
 
 class ManufacturerGridItemSchema(Schema):
@@ -68,6 +69,11 @@ class ManufacturerGridItemSchema(Schema):
     year_max: int | None = None
     persons: list[EntityRef] = []
     tech_generations: list[EntityRef] = []
+
+
+_ALL_ADAPTER: TypeAdapter[list[ManufacturerGridItemSchema]] = TypeAdapter(
+    list[ManufacturerGridItemSchema]
+)
 
 
 class ManufacturerListItemSchema(Schema):
@@ -467,24 +473,26 @@ def list_all_manufacturers(
                 "locations": locations,
                 "year_min": year_min,
                 "year_max": year_max,
-                "persons": _dedup_facet_refs(mfr_persons.get(mfr_id, [])),
-                "tech_generations": _dedup_facet_refs(mfr_tech_gens.get(mfr_id, [])),
+                "persons": _dedup_facet_dicts(mfr_persons.get(mfr_id, [])),
+                "tech_generations": _dedup_facet_dicts(mfr_tech_gens.get(mfr_id, [])),
             }
         )
-    return set_cached_response(MANUFACTURERS_ALL_KEY, result)
+    return set_cached_response(MANUFACTURERS_ALL_KEY, _ALL_ADAPTER, result)
 
 
 @manufacturers_router.patch(
-    "/{slug}/claims/",
+    "/{path:public_id}/claims/",
     auth=django_auth,
     response={200: ManufacturerDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_manufacturer_claims(
-    request: HttpRequest, slug: str, data: ClaimPatchSchema
+    request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> ManufacturerDetailSchema:
     """Assert per-field claims from the authenticated user, then re-resolve."""
-    mfr = get_object_or_404(Manufacturer.objects.active(), slug=slug)
+    mfr = get_object_or_404(
+        Manufacturer.objects.active(), **{Manufacturer.public_id_field: public_id}
+    )
 
     specs = plan_scalar_field_claims(Manufacturer, data.fields, entity=mfr)
 

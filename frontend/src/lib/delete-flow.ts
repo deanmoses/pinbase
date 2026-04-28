@@ -2,7 +2,7 @@
  * Generic client shim for catalog soft-delete endpoints.
  *
  * Title, Model, and Person (and every future lifecycle entity) all hit a
- * ``POST /api/{collection}/{slug}/delete/`` endpoint with the same request
+ * ``POST /api/{collection}/{public_id}/delete/`` endpoint with the same request
  * body shape and the same 200 / 422 / 429 response taxonomy. The only
  * per-entity variations are the endpoint path and the typed success body,
  * so this module owns the shared classification and each entity's
@@ -11,7 +11,7 @@
  */
 import client from '$lib/api/client';
 import { parseApiError } from '$lib/api/parse-api-error';
-import type { BlockingReferrerSchema } from '$lib/api/schema';
+import type { BlockingReferrerSchema, paths } from '$lib/api/schema';
 import type { EditCitationSelection } from '$lib/edit-citation';
 import { buildEditCitationRequest } from '$lib/edit-citation';
 
@@ -31,26 +31,40 @@ export type DeleteOutcome<TResponse> =
     }
   | { kind: 'form_error'; message: string };
 
-export interface DeleteSubmitOptions {
+interface DeleteSubmitOptions {
   note?: string;
   citation?: EditCitationSelection | null;
 }
 
-type DeleteEndpoint = `/api/${string}/{slug}/delete/`;
+// Entity-segment union derived from the schema's delete routes.
+// New linkable entities pick this up automatically when api-gen runs.
+type DeleteEntity =
+  Extract<
+    keyof paths,
+    `/api/${string}/{public_id}/delete/`
+  > extends `/api/${infer E}/{public_id}/delete/`
+    ? E
+    : never;
 
-export function createDeleteSubmitter<TResponse>(endpoint: DeleteEndpoint) {
+type DeleteResponse<E extends DeleteEntity> = paths[`/api/${E}/{public_id}/delete/`] extends {
+  post: { responses: { 200: { content: { 'application/json': infer R } } } };
+}
+  ? R
+  : never;
+
+export function createDeleteSubmitter<E extends DeleteEntity>(entity: E) {
+  const endpoint = `/api/${entity}/{public_id}/delete/`;
   return async (
     slug: string,
     opts: DeleteSubmitOptions = {},
-  ): Promise<DeleteOutcome<TResponse>> => {
-    // openapi-fetch's typed POST doesn't let us parameterize the path at
-    // compile time with an arbitrary string. Each caller has already
-    // asserted the endpoint matches a real route via the typed wrapper,
-    // so the ``as never`` cast here is localized and safe.
+  ): Promise<DeleteOutcome<DeleteResponse<E>>> => {
+    // openapi-fetch can't resolve a typed body for a path it sees as a
+    // dynamic string, so the casts are localized here. `entity` is
+    // statically constrained to DeleteEntity at the call site.
     const { data, error, response } = await client.POST(
       endpoint as never,
       {
-        params: { path: { slug } },
+        params: { path: { public_id: slug } },
         body: {
           note: opts.note ?? '',
           citation: buildEditCitationRequest(opts.citation ?? null),
@@ -94,7 +108,7 @@ export function createDeleteSubmitter<TResponse>(endpoint: DeleteEndpoint) {
       return { kind: 'form_error', message: parsed.message || 'Could not delete record.' };
     }
 
-    return { kind: 'ok', data: data as TResponse };
+    return { kind: 'ok', data: data as DeleteResponse<E> };
   };
 }
 

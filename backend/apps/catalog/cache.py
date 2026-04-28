@@ -6,8 +6,10 @@ import json
 from hashlib import md5
 from typing import Any
 
+from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse
+from pydantic import TypeAdapter
 
 MODELS_ALL_KEY = "catalog:models:all"
 MANUFACTURERS_ALL_KEY = "catalog:manufacturers:all"
@@ -34,11 +36,20 @@ def get_cached_response(cache_key: str) -> HttpResponse | None:
 
 
 def set_cached_response(
-    cache_key: str, data: list[Any] | dict[str, Any]
+    cache_key: str,
+    adapter: TypeAdapter[Any],
+    data: object,
 ) -> HttpResponse:
-    """Serialize *data* to JSON, compute its ETag, cache both, and return
-    an ``HttpResponse`` ready to send.
+    """Serialize *data* to JSON, cache, and return an ``HttpResponse``.
+
+    In ``DEBUG`` mode (dev + CI), *data* is first validated against *adapter*
+    so that shape drift fails loudly at the cache boundary. In production the
+    validation step is skipped — *data* must already be JSON-serializable
+    (plain dicts/lists/scalars). Callers must therefore emit dicts, not
+    Pydantic Schema instances, to keep both paths byte-equivalent.
     """
+    if settings.DEBUG:
+        adapter.validate_python(data)
     json_bytes = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode()
     etag = f'"{md5(json_bytes, usedforsecurity=False).hexdigest()}"'
     cache.set(cache_key, (json_bytes, etag), timeout=None)

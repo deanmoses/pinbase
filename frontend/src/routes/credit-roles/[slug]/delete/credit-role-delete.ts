@@ -1,8 +1,3 @@
 import { createDeleteSubmitter } from '$lib/delete-flow';
-import type { DeleteResponseSchema } from '$lib/api/schema';
 
-export type DeleteResponse = DeleteResponseSchema;
-
-export const submitDelete = createDeleteSubmitter<DeleteResponse>(
-  '/api/credit-roles/{slug}/delete/',
-);
+export const submitDelete = createDeleteSubmitter('credit-roles');

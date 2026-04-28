@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchLinkTypes, searchLinkTargets, _resetCache } from './link-types';
+
+const GET = vi.fn();
+
+vi.mock('$lib/api/client', () => ({
+  default: { GET },
+}));
+
+const { fetchLinkTypes, searchLinkTargets, _resetCache } = await import('./link-types');
 
 const MOCK_TYPES = [
-  { name: 'title', label: 'Title', description: 'Link to a title', flow: 'standard' as const },
+  { name: 'title', label: 'Title', description: 'Link to a title', flow: 'standard' },
   {
     name: 'manufacturer',
     label: 'Manufacturer',
     description: 'Link to a manufacturer',
-    flow: 'standard' as const,
+    flow: 'standard',
   },
 ];
 
@@ -15,62 +22,62 @@ const MOCK_TARGETS = {
   results: [{ ref: 'williams', label: 'Williams' }],
 };
 
+function ok<T>(data: T) {
+  return { data, error: undefined, response: new Response(null, { status: 200 }) };
+}
+
+function fail(status: number) {
+  return {
+    data: undefined,
+    error: { detail: 'nope' },
+    response: new Response(null, { status }),
+  };
+}
+
 beforeEach(() => {
   _resetCache();
-  vi.restoreAllMocks();
+  GET.mockReset();
 });
 
 afterEach(() => {
   _resetCache();
 });
 
-function mockFetch(body: unknown, ok = true, status = 200) {
-  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-    ok,
-    status,
-    json: () => Promise.resolve(body),
-  } as Response);
-}
-
 describe('fetchLinkTypes', () => {
   it('fetches from API on first call', async () => {
-    const spy = mockFetch(MOCK_TYPES);
+    GET.mockResolvedValue(ok(MOCK_TYPES));
     const result = await fetchLinkTypes();
     expect(result).toEqual(MOCK_TYPES);
-    expect(spy).toHaveBeenCalledOnce();
-    expect(spy).toHaveBeenCalledWith('/api/link-types/');
+    expect(GET).toHaveBeenCalledOnce();
+    expect(GET).toHaveBeenCalledWith('/api/link-types/');
   });
 
   it('returns cached result on second call without fetching', async () => {
-    const spy = mockFetch(MOCK_TYPES);
+    GET.mockResolvedValue(ok(MOCK_TYPES));
     await fetchLinkTypes();
     const result = await fetchLinkTypes();
     expect(result).toEqual(MOCK_TYPES);
-    expect(spy).toHaveBeenCalledOnce();
+    expect(GET).toHaveBeenCalledOnce();
   });
 
   it('throws on non-ok response', async () => {
-    mockFetch(null, false, 500);
+    GET.mockResolvedValue(fail(500));
     await expect(fetchLinkTypes()).rejects.toThrow('Failed to fetch link types: 500');
   });
 });
 
 describe('searchLinkTargets', () => {
-  it('fetches with type and query params', async () => {
-    const spy = mockFetch(MOCK_TARGETS);
+  it('passes type and query as query params', async () => {
+    GET.mockResolvedValue(ok(MOCK_TARGETS));
     const result = await searchLinkTargets('manufacturer', 'wil');
     expect(result).toEqual(MOCK_TARGETS);
-    expect(spy).toHaveBeenCalledWith('/api/link-types/targets/?type=manufacturer&q=wil');
-  });
-
-  it('encodes query parameter', async () => {
-    const spy = mockFetch(MOCK_TARGETS);
-    await searchLinkTargets('title', 'hello world');
-    expect(spy).toHaveBeenCalledWith('/api/link-types/targets/?type=title&q=hello+world');
+    expect(GET).toHaveBeenCalledWith('/api/link-types/targets/', {
+      params: { query: { type: 'manufacturer', q: 'wil' } },
+    });
   });
 
   it('throws on non-ok response', async () => {
-    mockFetch(null, false, 400);
+    GET.mockResolvedValue(fail(400));
     await expect(searchLinkTargets('invalid', '')).rejects.toThrow(
       'Failed to search link targets: 400',
     );

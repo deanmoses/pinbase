@@ -14,6 +14,7 @@ from ninja.decorators import decorate_view
 from ninja.pagination import paginate
 from ninja.responses import Status
 from ninja.security import django_auth
+from pydantic import TypeAdapter
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.pagination import NamedPageNumberPagination
@@ -123,6 +124,11 @@ class ModelGridItemSchema(Schema):
     abbreviations: list[str] = []
     search_text: str | None = None
     title_slug: str | None = None
+
+
+_ALL_ADAPTER: TypeAdapter[list[ModelGridItemSchema]] = TypeAdapter(
+    list[ModelGridItemSchema]
+)
 
 
 class ModelListItemSchema(Schema):
@@ -881,7 +887,7 @@ def list_all_models(
                 "title_slug": r.title_slug,
             }
         )
-    return set_cached_response(MODELS_ALL_KEY, result)
+    return set_cached_response(MODELS_ALL_KEY, _ALL_ADAPTER, result)
 
 
 @models_router.get("/edit-options/", response=ModelEditOptionsSchema)
@@ -936,13 +942,13 @@ _SELF_REF_FIELDS = frozenset({"variant_of", "converted_from", "remake_of"})
 
 
 @models_router.patch(
-    "/{slug}/claims/",
+    "/{path:public_id}/claims/",
     auth=django_auth,
     response={200: ModelDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
 def patch_model_claims(
-    request: HttpRequest, slug: str, data: ModelClaimPatchSchema
+    request: HttpRequest, public_id: str, data: ModelClaimPatchSchema
 ) -> ModelDetailSchema:
     """Assert per-field claims from the authenticated user, then re-resolve the model."""
     pm = get_object_or_404(
@@ -955,7 +961,7 @@ def patch_model_claims(
             "credits__person",
             "credits__role",
         ),
-        slug=slug,
+        **{MachineModel.public_id_field: public_id},
     )
 
     specs = (
@@ -965,7 +971,7 @@ def patch_model_claims(
     )
 
     for field_name, value in data.fields.items():
-        if field_name in _SELF_REF_FIELDS and value == slug:
+        if field_name in _SELF_REF_FIELDS and value == public_id:
             raise StructuredValidationError(
                 message="A model cannot reference itself.",
                 field_errors={field_name: "A model cannot reference itself."},
@@ -1013,7 +1019,9 @@ def patch_model_claims(
 
     execute_claims(pm, specs, user=request.user, note=data.note, citation=data.citation)
 
-    pm = get_object_or_404(_model_detail_qs(), slug=pm.slug)
+    pm = get_object_or_404(
+        _model_detail_qs(), **{MachineModel.public_id_field: pm.public_id}
+    )
     return _serialize_model_detail(pm)
 
 
@@ -1023,15 +1031,18 @@ def patch_model_claims(
 
 
 @models_router.get(
-    "/{slug}/delete-preview/",
+    "/{path:public_id}/delete-preview/",
     auth=django_auth,
     response=ModelDeletePreviewSchema,
     tags=["private"],
 )
-def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewSchema:
+def model_delete_preview(
+    request: HttpRequest, public_id: str
+) -> ModelDeletePreviewSchema:
     """Return the impact summary used by the delete confirmation screen."""
     pm = get_object_or_404(
-        MachineModel.objects.active().select_related("title"), slug=slug
+        MachineModel.objects.active().select_related("title"),
+        **{MachineModel.public_id_field: public_id},
     )
     plan = plan_soft_delete(pm)
     changeset_count = 0 if plan.is_blocked else count_entity_changesets(pm)
@@ -1045,7 +1056,7 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
 
 
 @models_router.post(
-    "/{slug}/delete/",
+    "/{path:public_id}/delete/",
     auth=django_auth,
     response={
         200: DeleteResponseSchema,
@@ -1055,7 +1066,7 @@ def model_delete_preview(request: HttpRequest, slug: str) -> ModelDeletePreviewS
     tags=["private"],
 )
 def delete_model(
-    request: HttpRequest, slug: str, data: ChangeSetInputSchema
+    request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> DeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
     """Soft-delete a MachineModel.
 
@@ -1068,7 +1079,9 @@ def delete_model(
     """
     check_and_record(request.user, DELETE_RATE_LIMIT_SPEC)
 
-    pm = get_object_or_404(MachineModel.objects.active(), slug=slug)
+    pm = get_object_or_404(
+        MachineModel.objects.active(), **{MachineModel.public_id_field: public_id}
+    )
     try:
         changeset, deleted = execute_soft_delete(
             pm, user=request.user, note=data.note, citation=data.citation
@@ -1092,7 +1105,7 @@ def delete_model(
 
 
 @models_router.post(
-    "/{slug}/restore/",
+    "/{path:public_id}/restore/",
     auth=django_auth,
     response={
         200: ModelDetailSchema,
@@ -1103,7 +1116,7 @@ def delete_model(
     tags=["private"],
 )
 def restore_model(
-    request: HttpRequest, slug: str, data: ChangeSetInputSchema
+    request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> ModelDetailSchema | Status[ErrorDetailSchema]:
     """Write a fresh ``status=active`` claim on a soft-deleted Model.
 
@@ -1114,7 +1127,7 @@ def restore_model(
     check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
     # Bypass .active() — we're looking for soft-deleted models.
-    pm = get_object_or_404(MachineModel, slug=slug)
+    pm = get_object_or_404(MachineModel, **{MachineModel.public_id_field: public_id})
     if pm.status != "deleted":
         return Status(422, ErrorDetailSchema(detail="Model is not deleted."))
 
@@ -1127,5 +1140,7 @@ def restore_model(
         citation=data.citation,
     )
 
-    refreshed = get_object_or_404(_model_detail_qs(), slug=slug)
+    refreshed = get_object_or_404(
+        _model_detail_qs(), **{MachineModel.public_id_field: public_id}
+    )
     return _serialize_model_detail(refreshed)
