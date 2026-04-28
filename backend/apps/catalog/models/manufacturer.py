@@ -13,8 +13,10 @@ from apps.core.models import (
     TimeStampedModel,
     field_not_blank,
     nullable_id_not_empty,
+    slug_lowercase,
     slug_not_blank,
     status_valid,
+    unique_ci,
 )
 from apps.core.validators import validate_no_mojibake
 from apps.media.models import MediaSupportedModel
@@ -52,9 +54,7 @@ class Manufacturer(
 
     link_sort_order = 30
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     opdb_manufacturer_id = models.PositiveIntegerField(
         unique=True,
         null=True,
@@ -90,8 +90,10 @@ class Manufacturer(
         ordering = ["name"]
         constraints = [
             slug_not_blank(),
+            slug_lowercase(),
             status_valid(),
             field_not_blank("name"),
+            unique_ci("name"),
             nullable_id_not_empty("wikidata_id"),
             models.CheckConstraint(
                 condition=models.Q(opdb_manufacturer_id__isnull=True)
@@ -177,6 +179,7 @@ class CorporateEntity(
         verbose_name_plural = "corporate entities"
         constraints = [
             slug_not_blank(),
+            slug_lowercase(),
             status_valid(),
             field_not_blank("name"),
             models.CheckConstraint(

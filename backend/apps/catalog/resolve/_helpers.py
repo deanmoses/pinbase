@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 from django.db import models
 from django.db.models import QuerySet
 
+from apps.core.models import meta_unique_fields
 from apps.provenance.models import ClaimControlledModel
 
 if TYPE_CHECKING:
@@ -245,15 +246,18 @@ def get_preserve_fields(
     These fields cannot safely be reset to a shared default during resolution:
 
     * **UNIQUE** — resetting multiple objects to ``""`` causes IntegrityError.
+      Includes both ``unique=True`` fields and fields covered by Meta
+      ``UniqueConstraint`` (e.g. ``UniqueConstraint(Lower("name"))``).
     * **Non-nullable FK** — Django's FK descriptor rejects ``""`` on assignment,
       and ``None`` violates the NOT NULL constraint.
 
     Returns a set of attribute names (values from *direct_fields*).
     """
     preserve: set[str] = set()
+    constraint_unique = meta_unique_fields(model_class)
     for attr in direct_fields.values():
         field = model_class._meta.get_field(attr)
-        is_unique = bool(getattr(field, "unique", False))
+        is_unique = bool(getattr(field, "unique", False)) or attr in constraint_unique
         if is_unique or (field.many_to_one and not field.null):
             preserve.add(attr)
     return preserve

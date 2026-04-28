@@ -22,7 +22,6 @@ machinery itself (see :mod:`.edit_claims`).
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -31,6 +30,7 @@ from django.db import IntegrityError, transaction
 from django.db import models as db_models
 from django.db.models import Q
 
+from apps.core.validators import SLUG_FORMAT_MESSAGE, SLUG_RE
 from apps.provenance.models import ChangeSetAction, ClaimControlledModel
 from apps.provenance.schemas import CitationReferenceInputSchema
 
@@ -42,10 +42,6 @@ from .edit_claims import (
 
 _UserLike = AbstractBaseUser | AnonymousUser
 
-# Slug format is globally consistent across catalog record types: lowercase
-# ASCII letters/digits, single hyphens between segments, no leading/trailing
-# or repeated hyphens. The DB enforces uniqueness; this regex enforces shape.
-SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_SLUG_LENGTH = 300
 
 
@@ -67,12 +63,7 @@ def validate_slug_format(slug: str) -> str:
     if not SLUG_RE.match(slug):
         raise StructuredValidationError(
             message="Invalid slug.",
-            field_errors={
-                "slug": (
-                    "Slug may contain only lowercase letters, digits, and "
-                    "hyphens, with no leading, trailing, or repeated hyphens."
-                )
-            },
+            field_errors={"slug": SLUG_FORMAT_MESSAGE},
         )
     return slug
 
@@ -280,10 +271,13 @@ def create_entity_with_claims(
     .. warning::
 
         The IntegrityError handler unconditionally reports "slug
-        collision." If *row_kwargs* ever includes another unique-
-        constrained column (e.g. ``opdb_id`` on MachineModel) that trips
-        the constraint, the user will see a misleading slug error.
-        Callers must not pass such columns through this helper.
+        collision." Reaching it implies a TOCTOU race (the matching
+        pre-check just succeeded), so in practice the misreport surfaces
+        only when a name-uniqueness or CHECK constraint trips here
+        instead — paths that require concurrent writes or callers
+        bypassing the pre-checks. The user can retry; the pre-check will
+        then produce the right field-level message. If those paths
+        become common, swap this for constraint-name-based dispatch.
     """
     slug = row_kwargs["slug"]
     try:

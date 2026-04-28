@@ -13,6 +13,7 @@ from apps.core.models import (
     TimeStampedModel,
     field_not_blank,
     nullable_id_not_empty,
+    slug_lowercase,
     slug_not_blank,
     status_valid,
 )
@@ -105,6 +106,7 @@ class Title(
         ordering = ["name"]
         constraints = [
             slug_not_blank(),
+            slug_lowercase(),
             status_valid(),
             field_not_blank("name"),
             nullable_id_not_empty("opdb_id"),

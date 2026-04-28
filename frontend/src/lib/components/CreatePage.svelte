@@ -136,7 +136,10 @@
         response,
       } = await submit({
         name: name.trim(),
-        slug: slug.trim(),
+        // Slugs are lowercase-only — casefold at submit so users see what
+        // they typed while authoring and the backend SLUG_RE validator
+        // never trips.
+        slug: slug.trim().toLowerCase(),
         note: note || '',
         citation: buildEditCitationRequest(citation),
         ...extras,

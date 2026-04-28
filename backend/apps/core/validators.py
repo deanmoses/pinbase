@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Collection
 from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db.models import Field, Model
 from django.utils import timezone
+
+# System-wide slug shape: lowercase ASCII letters/digits, single hyphens
+# between segments, no leading/trailing/repeated hyphens. Stricter than
+# Django's stock ``validate_slug``, which allows uppercase, underscores,
+# and any hyphen placement. Owned here so the create and edit paths stay
+# in sync (see ``apps.catalog.api.entity_create.validate_slug_format``
+# and ``apps.provenance.validation.validate_claim_value``).
+SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SLUG_FORMAT_MESSAGE = (
+    "Slug may contain only lowercase letters, digits, and hyphens, "
+    "with no leading, trailing, or repeated hyphens."
+)
 
 
 def bulk_create_validated[M: Model](

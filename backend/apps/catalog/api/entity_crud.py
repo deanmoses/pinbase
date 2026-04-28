@@ -29,6 +29,7 @@ from ninja.security import django_auth
 
 from apps.catalog.models import CatalogModel
 from apps.catalog.naming import normalize_catalog_name
+from apps.core.models import meta_unique_fields
 from apps.core.schemas import (
     ErrorDetailSchema,
     RateLimitErrorSchema,
@@ -264,7 +265,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
     parent_model: type[CatalogModel] | None = None,
     route_suffix: str = "",
     scope_filter_builder: Callable[[Any], Q] | None = None,
-    include_deleted_name_check: bool = False,
+    include_deleted_name_check: bool | None = None,
 ) -> None:
     """Attach a POST create route.
 
@@ -287,9 +288,11 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
     instance and returns a ``Q`` to pass to ``assert_name_available``.
 
     *include_deleted_name_check* forwards to ``assert_name_available``'s
-    ``include_deleted``. Required for entities whose ``name`` column is
-    DB-unique (e.g. ``Manufacturer.name``) to avoid misreporting a
-    soft-deleted-name collision as a slug collision.
+    ``include_deleted``. Defaults to ``True`` whenever the model carries
+    a DB-unique constraint on ``name`` (either ``unique=True`` on the
+    field or a ``UniqueConstraint`` covering it) so a soft-deleted-name
+    collision surfaces as a name error before the insert. Pass an
+    explicit bool to override.
     """
     parented = parent_field is not None
     if parented and not (parent_model and route_suffix):
@@ -309,6 +312,10 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
     assert isinstance(name_field, db_models.Field)
     name_max = name_field.max_length
     assert name_max is not None
+    if include_deleted_name_check is None:
+        include_deleted_name_check = bool(
+            getattr(name_field, "unique", False)
+        ) or "name" in meta_unique_fields(model_cls)
     friendly = model_cls.entity_type.replace("-", " ")
     parent_lookup_field: str | None = None
     if parent_field is not None and parent_model is not None:

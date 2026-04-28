@@ -1,9 +1,9 @@
 """Tests for POST /api/manufacturers/.
 
-Manufacturer create is plain ``register_entity_create`` with
-``include_deleted_name_check=True`` because ``Manufacturer.name`` is
-DB-unique and a soft-deleted collision would otherwise surface as a
-misleading slug error from ``create_entity_with_claims``.
+Manufacturer create is plain ``register_entity_create``;
+``include_deleted_name_check`` is auto-enabled because ``Manufacturer.name``
+carries a DB-unique constraint, so a soft-deleted name collision surfaces
+as a name field error rather than a misleading slug error.
 """
 
 from __future__ import annotations

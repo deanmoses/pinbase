@@ -508,17 +508,12 @@ def patch_manufacturer_claims(
 # Create / delete / restore wiring
 # ---------------------------------------------------------------------------
 
-# ``include_deleted_name_check=True`` is load-bearing: ``Manufacturer.name``
-# is ``unique=True`` at the DB level, so a name colliding with a soft-deleted
-# Manufacturer would otherwise pass the active-only pre-check and surface as
-# a misleading slug collision from the DB constraint.
 register_entity_create(
     manufacturers_router,
     Manufacturer,
     detail_qs=_manufacturer_qs,
     serialize_detail=_serialize_manufacturer_detail,
     response_schema=ManufacturerDetailSchema,
-    include_deleted_name_check=True,
 )
 register_entity_delete_restore(
     manufacturers_router,

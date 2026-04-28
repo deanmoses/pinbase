@@ -538,17 +538,28 @@ class TestResolveEntitySlugConflictGuard:
         editorial = Source.objects.create(
             name="The Flip Editorial", source_type="editorial", priority=100
         )
-        usa = Location.objects.create(location_path="usa", slug="usa")
-        il = Location.objects.create(location_path="usa/il", slug="il", parent=usa)
-        oh = Location.objects.create(location_path="usa/oh", slug="oh", parent=usa)
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        il = Location.objects.create(
+            location_path="usa/il", slug="il", name="Illinois", parent=usa
+        )
+        oh = Location.objects.create(
+            location_path="usa/oh", slug="oh", name="Ohio", parent=usa
+        )
         Location.objects.create(
-            location_path="usa/il/springfield", slug="springfield", parent=il
+            location_path="usa/il/springfield",
+            slug="springfield",
+            name="Springfield",
+            parent=il,
         )
         target = Location.objects.create(
-            location_path="usa/oh/oldslug", slug="oldslug", parent=oh
+            location_path="usa/oh/oldslug",
+            slug="oldslug",
+            name="Oldslug",
+            parent=oh,
         )
 
         Claim.objects.assert_claim(target, "slug", "springfield", source=editorial)
+        Claim.objects.assert_claim(target, "name", "Springfield", source=editorial)
 
         # Bypass the dispatcher so the bug is reachable directly.
         resolve_entity(target)

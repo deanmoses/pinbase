@@ -61,7 +61,7 @@ class TestNonBlankConstraints:
 
     def test_location_empty_path_rejected(self, db):
         with pytest.raises(IntegrityError):
-            Location.objects.create(location_path="", slug="test")
+            Location.objects.create(location_path="", slug="test", name="Test")
 
     def test_machine_model_title_null_rejected(self, db):
         """MachineModel.title is NOT NULL — creating without one fails at the DB."""
@@ -110,31 +110,116 @@ class TestUniqueNameConstraints:
 
 class TestLocationSiblingSlugUniqueness:
     def test_duplicate_root_slug_rejected(self, db):
-        Location.objects.create(location_path="usa", slug="usa")
+        Location.objects.create(location_path="usa", slug="usa", name="USA")
         with pytest.raises(IntegrityError):
-            Location.objects.create(location_path="usa-2", slug="usa")
+            Location.objects.create(location_path="usa-2", slug="usa", name="USA Two")
 
     def test_duplicate_sibling_slug_rejected(self, db):
-        usa = Location.objects.create(location_path="usa", slug="usa")
-        Location.objects.create(location_path="usa/chicago", slug="chicago", parent=usa)
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        Location.objects.create(
+            location_path="usa/chicago",
+            slug="chicago",
+            name="Chicago",
+            parent=usa,
+        )
         with pytest.raises(IntegrityError):
             Location.objects.create(
-                location_path="usa/chicago-2", slug="chicago", parent=usa
+                location_path="usa/chicago-2",
+                slug="chicago",
+                name="Chicago Two",
+                parent=usa,
             )
 
     def test_same_slug_under_different_parents_allowed(self, db):
-        usa = Location.objects.create(location_path="usa", slug="usa")
-        canada = Location.objects.create(location_path="canada", slug="canada")
-        Location.objects.create(
-            location_path="usa/portland", slug="portland", parent=usa
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        canada = Location.objects.create(
+            location_path="canada", slug="canada", name="Canada"
         )
         Location.objects.create(
-            location_path="canada/portland", slug="portland", parent=canada
+            location_path="usa/portland",
+            slug="portland",
+            name="Portland",
+            parent=usa,
+        )
+        Location.objects.create(
+            location_path="canada/portland",
+            slug="portland",
+            name="Portland",
+            parent=canada,
         )
 
     def test_same_slug_at_root_and_under_parent_allowed(self, db):
-        usa = Location.objects.create(location_path="usa", slug="usa")
-        Location.objects.create(location_path="usa/usa", slug="usa", parent=usa)
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        Location.objects.create(
+            location_path="usa/usa", slug="usa", name="Usa City", parent=usa
+        )
+
+
+class TestLocationSiblingNameUniqueness:
+    def test_duplicate_root_name_rejected(self, db):
+        Location.objects.create(location_path="usa", slug="usa", name="USA")
+        with pytest.raises(IntegrityError):
+            Location.objects.create(location_path="usa-2", slug="usa-2", name="USA")
+
+    def test_duplicate_sibling_name_rejected(self, db):
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        Location.objects.create(
+            location_path="usa/chicago",
+            slug="chicago",
+            name="Chicago",
+            parent=usa,
+        )
+        with pytest.raises(IntegrityError):
+            Location.objects.create(
+                location_path="usa/chicago-2",
+                slug="chicago-2",
+                name="Chicago",
+                parent=usa,
+            )
+
+    def test_same_name_under_different_parents_allowed(self, db):
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        canada = Location.objects.create(
+            location_path="canada", slug="canada", name="Canada"
+        )
+        Location.objects.create(
+            location_path="usa/portland",
+            slug="portland",
+            name="Portland",
+            parent=usa,
+        )
+        Location.objects.create(
+            location_path="canada/portland",
+            slug="portland",
+            name="Portland",
+            parent=canada,
+        )
+
+    def test_same_name_at_root_and_under_parent_allowed(self, db):
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        Location.objects.create(
+            location_path="usa/usa-city", slug="usa-city", name="USA", parent=usa
+        )
+
+    def test_blank_name_rejected(self, db):
+        with pytest.raises(IntegrityError):
+            Location.objects.create(location_path="usa", slug="usa", name="")
+
+    def test_name_uniqueness_is_case_insensitive(self, db):
+        usa = Location.objects.create(location_path="usa", slug="usa", name="USA")
+        Location.objects.create(
+            location_path="usa/chicago",
+            slug="chicago",
+            name="Chicago",
+            parent=usa,
+        )
+        with pytest.raises(IntegrityError):
+            Location.objects.create(
+                location_path="usa/chicago-2",
+                slug="chicago-2",
+                name="chicago",
+                parent=usa,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +420,7 @@ class TestSelfRefConstraints:
             _raw_update(MachineModel, mm.pk, remake_of_id=mm.pk)
 
     def test_location_parent_self_rejected(self, db):
-        loc = Location.objects.create(location_path="usa", slug="usa")
+        loc = Location.objects.create(location_path="usa", slug="usa", name="USA")
         with pytest.raises(IntegrityError):
             _raw_update(Location, loc.pk, parent_id=loc.pk)
 

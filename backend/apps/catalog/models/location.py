@@ -9,6 +9,7 @@ from django.db.models.functions import Lower
 
 from apps.core.models import (
     TimeStampedModel,
+    field_lowercase,
     field_not_blank,
     status_valid,
 )
@@ -57,7 +58,7 @@ class Location(CatalogModel, TimeStampedModel):
     location_path = models.CharField(max_length=500, unique=True)
     slug = models.SlugField(max_length=200)  # claim-controlled
     name = models.CharField(
-        max_length=300, blank=True, validators=[validate_no_mojibake]
+        max_length=300, validators=[validate_no_mojibake]
     )  # claim-controlled
     location_type = models.CharField(
         max_length=50, blank=True, validators=[validate_no_mojibake]
@@ -88,6 +89,9 @@ class Location(CatalogModel, TimeStampedModel):
         constraints = [
             field_not_blank("location_path"),
             field_not_blank("slug"),
+            field_not_blank("name"),
+            field_lowercase("slug"),
+            field_lowercase("location_path"),
             status_valid(),
             models.CheckConstraint(
                 condition=models.Q(parent__isnull=True)
@@ -105,6 +109,17 @@ class Location(CatalogModel, TimeStampedModel):
                 fields=["slug"],
                 condition=models.Q(parent__isnull=True),
                 name="catalog_location_unique_slug_at_root",
+            ),
+            models.UniqueConstraint(
+                "parent",
+                Lower("name"),
+                condition=models.Q(parent__isnull=False),
+                name="catalog_location_unique_name_per_parent",
+            ),
+            models.UniqueConstraint(
+                Lower("name"),
+                condition=models.Q(parent__isnull=True),
+                name="catalog_location_unique_name_at_root",
             ),
         ]
 

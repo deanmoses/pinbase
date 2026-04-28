@@ -8,7 +8,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
-from django.db.models.functions import Now
+from django.db.models.functions import Lower, Now
 from django.db.models.signals import post_delete
 from django.utils.text import slugify
 
@@ -33,6 +33,72 @@ def field_not_blank(field_name: str) -> models.CheckConstraint:
     )
 
 
+def field_lowercase(field_name: str) -> models.CheckConstraint:
+    """CHECK constraint: field contains no ASCII uppercase letters.
+
+    The regex matches ``[A-Z]`` only — non-ASCII uppercase (Ñ, É, …)
+    would slip through. Acceptable for our current callers because the
+    upstream slug validator (``SLUG_RE``) already restricts input to
+    ``[a-z0-9-]``, and ``location_path`` is built from slugs.
+
+    Generic helper for any field that must be lowercase by shape (slugs,
+    derived path strings like Location.location_path, etc.). For slug
+    fields on SluggedModel subclasses use ``slug_lowercase()`` instead —
+    the constraint is identical, the helper just hardcodes the field name.
+
+    Once values are guaranteed lowercase, plain ``unique=True`` already
+    collapses case-equal rows; no Lower()-wrapped UniqueConstraint needed.
+    Pair with ``unique_ci()`` only when the field is mixed-case (names),
+    not when it's lowercase-shape (slugs, paths).
+    """
+    return models.CheckConstraint(
+        condition=~models.Q(**{f"{field_name}__regex": r"[A-Z]"}),
+        name=f"%(app_label)s_%(class)s_{field_name}_lowercase",
+    )
+
+
+def unique_ci(field_name: str) -> models.UniqueConstraint:
+    """Case-insensitive UniqueConstraint on a single field.
+
+    System-wide rule: name-like uniqueness collapses case. Use in Meta
+    constraints in place of ``unique=True`` so ``"Bally"`` and ``"BALLY"``
+    cannot both exist.
+    """
+    return models.UniqueConstraint(
+        Lower(field_name),
+        name=f"%(app_label)s_%(class)s_unique_{field_name}_ci",
+    )
+
+
+def meta_unique_fields(model_class: type[models.Model]) -> set[str]:
+    """Names of fields referenced by any Meta ``UniqueConstraint``.
+
+    Covers both ``fields=[...]`` and expression-based forms like
+    ``UniqueConstraint(Lower("name"))`` — both make the underlying field
+    behave as unique even though ``field.unique`` is False. Walks
+    expression trees and picks up ``F`` references; other expression
+    nodes are ignored.
+    """
+    names: set[str] = set()
+
+    def _collect(expr: object) -> None:
+        if isinstance(expr, models.F):
+            names.add(expr.name)  # type: ignore[attr-defined]  # django-stubs omits F.name
+        children = getattr(expr, "get_source_expressions", None)
+        if callable(children):
+            for child in children():
+                _collect(child)
+
+    for constraint in model_class._meta.constraints:
+        if not isinstance(constraint, models.UniqueConstraint):
+            continue
+        for fname in constraint.fields or ():
+            names.add(fname)
+        for expr in constraint.expressions or ():
+            _collect(expr)
+    return names
+
+
 def nullable_id_not_empty(field_name: str) -> models.CheckConstraint:
     """CHECK constraint: nullable string ID is NULL or non-empty.
 
@@ -44,54 +110,6 @@ def nullable_id_not_empty(field_name: str) -> models.CheckConstraint:
         | ~models.Q(**{field_name: ""}),
         name=f"%(app_label)s_%(class)s_{field_name}_not_empty",
     )
-
-
-class License(TimeStampedModel):
-    """A content license (e.g., Creative Commons, GFDL, or a policy status).
-
-    Used to track the licensing status of creative/expressive content
-    (descriptions, images, logos). Factual fields (names, years, IDs)
-    are not copyrightable and are never subject to licensing.
-    """
-
-    name = models.CharField(max_length=200, unique=True)
-    slug = models.SlugField(max_length=50, unique=True, blank=True)
-    spdx_id = models.CharField(
-        max_length=100,
-        unique=True,
-        null=True,
-        blank=True,
-        help_text="Standard SPDX identifier (e.g., CC-BY-SA-4.0). Null for non-standard entries.",
-    )
-    short_name = models.CharField(max_length=50, unique=True)
-    url = models.URLField(blank=True, help_text="Link to canonical license deed.")
-    allows_display = models.BooleanField(
-        default=False,
-        help_text="Informational: does this license permit public display? Not used as a runtime gate.",
-    )
-    requires_attribution = models.BooleanField(default=False)
-    restricts_commercial = models.BooleanField(default=False)
-    allows_derivatives = models.BooleanField(default=True)
-    requires_share_alike = models.BooleanField(default=False)
-    permissiveness_rank = models.PositiveSmallIntegerField(
-        default=0,
-        help_text="Higher = more permissive. Used by the global display threshold.",
-    )
-
-    class Meta:
-        ordering = ["-permissiveness_rank", "name"]
-        constraints = [
-            field_not_blank("name"),
-            field_not_blank("short_name"),
-        ]
-
-    def __str__(self) -> str:
-        return self.short_name
-
-    def save(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 - matches Model.save's overloaded signature
-        if not self.slug:
-            self.slug = unique_slug(self, self.short_name, "license")
-        super().save(*args, **kwargs)
 
 
 def unique_slug(obj: models.Model, source: str, fallback: str = "item") -> str:
@@ -119,9 +137,10 @@ class SluggedModel(models.Model):
     concrete model defines its own ``class Meta``::
 
         class Meta:
-            constraints = [slug_not_blank()]
+            constraints = [slug_not_blank(), slug_lowercase()]
 
-    Use ``slug_not_blank()`` to generate the constraint.
+    Use ``slug_not_blank()`` and ``slug_lowercase()`` to generate the
+    constraints — system-wide rule is lowercase-only slugs.
     """
 
     slug = models.SlugField(max_length=200, unique=True)
@@ -136,6 +155,73 @@ def slug_not_blank() -> models.CheckConstraint:
         condition=~models.Q(slug=""),
         name="%(app_label)s_%(class)s_slug_not_blank",
     )
+
+
+def slug_lowercase() -> models.CheckConstraint:
+    """CHECK constraint: slug contains no uppercase letters.
+
+    Slug-specific specialization of :func:`field_lowercase`. Use in each
+    SluggedModel subclass Meta alongside ``slug_not_blank()``. Plain
+    ``unique=True`` on the slug field is sufficient — case-sensitive
+    uniqueness already collapses case-equal rows once values are
+    guaranteed lowercase.
+    """
+    return models.CheckConstraint(
+        condition=~models.Q(slug__regex=r"[A-Z]"),
+        name="%(app_label)s_%(class)s_slug_lowercase",
+    )
+
+
+class License(SluggedModel, TimeStampedModel):
+    """A content license (e.g., Creative Commons, GFDL, or a policy status).
+
+    Used to track the licensing status of creative/expressive content
+    (descriptions, images, logos). Factual fields (names, years, IDs)
+    are not copyrightable and are never subject to licensing.
+    """
+
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=50, unique=True)
+    spdx_id = models.CharField(
+        max_length=100,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Standard SPDX identifier (e.g., CC-BY-SA-4.0). Null for non-standard entries.",
+    )
+    short_name = models.CharField(max_length=50)
+    url = models.URLField(blank=True, help_text="Link to canonical license deed.")
+    allows_display = models.BooleanField(
+        default=False,
+        help_text="Informational: does this license permit public display? Not used as a runtime gate.",
+    )
+    requires_attribution = models.BooleanField(default=False)
+    restricts_commercial = models.BooleanField(default=False)
+    allows_derivatives = models.BooleanField(default=True)
+    requires_share_alike = models.BooleanField(default=False)
+    permissiveness_rank = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Higher = more permissive. Used by the global display threshold.",
+    )
+
+    class Meta:
+        ordering = ["-permissiveness_rank", "name"]
+        constraints = [
+            field_not_blank("name"),
+            field_not_blank("short_name"),
+            slug_not_blank(),
+            slug_lowercase(),
+            unique_ci("name"),
+            unique_ci("short_name"),
+        ]
+
+    def __str__(self) -> str:
+        return self.short_name
+
+    def save(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 - matches Model.save's overloaded signature
+        if not self.slug:
+            self.slug = unique_slug(self, self.short_name, "license")
+        super().save(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------

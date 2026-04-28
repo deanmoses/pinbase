@@ -24,6 +24,7 @@ from django.core.exceptions import (
 )
 from django.db import models
 
+from apps.core.validators import SLUG_FORMAT_MESSAGE, SLUG_RE
 from apps.provenance.models import ClaimControlledModel, get_claim_fields
 
 if TYPE_CHECKING:
@@ -427,6 +428,19 @@ def validate_claim_value(
                     f"Value {value!r} is not a valid choice for "
                     f"'{field_name}'. Valid: {sorted(valid_choices)}"
                 )
+
+        # System-wide slug shape (lowercase, single hyphens between segments,
+        # no leading/trailing/repeated hyphens). Django's stock
+        # ``validate_slug`` is laxer (allows uppercase, underscores, free
+        # hyphen placement); apply the strict shared regex so the edit path
+        # surfaces the same field-level message as the create path.
+        if (
+            isinstance(field, models.SlugField)
+            and isinstance(typed, str)
+            and typed
+            and not SLUG_RE.match(typed)
+        ):
+            raise ValidationError(SLUG_FORMAT_MESSAGE)
 
     return value
 

@@ -80,7 +80,15 @@
     }
 
     const body: SaveBody = { ...meta };
-    if (Object.keys(changedFields).length > 0) body.fields = changedFields;
+    if (Object.keys(changedFields).length > 0) {
+      // Slugs are lowercase-only — casefold at submit so users see what they
+      // typed while authoring and the backend SLUG_RE validator never trips.
+      const submitFields = { ...changedFields };
+      if (typeof submitFields.slug === 'string') {
+        submitFields.slug = submitFields.slug.toLowerCase();
+      }
+      body.fields = submitFields;
+    }
     if (abbreviationsDirty) body.abbreviations = abbreviations;
 
     const result = await saveFn(slug, body);

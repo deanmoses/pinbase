@@ -6,10 +6,18 @@ from typing import Any
 
 from django.db import models
 
-from apps.core.models import TimeStampedModel, field_not_blank, unique_slug
+from apps.core.models import (
+    SluggedModel,
+    TimeStampedModel,
+    field_not_blank,
+    slug_lowercase,
+    slug_not_blank,
+    unique_ci,
+    unique_slug,
+)
 
 
-class Source(TimeStampedModel):
+class Source(SluggedModel, TimeStampedModel):
     """A data origin point (external database, book, editorial team, etc.)."""
 
     class SourceType(models.TextChoices):
@@ -19,8 +27,7 @@ class Source(TimeStampedModel):
         EDITORIAL = "editorial", "Editorial"
         OTHER = "other", "Other"
 
-    name = models.CharField(max_length=200, unique=True)
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    name = models.CharField(max_length=200)
     source_type = models.CharField(
         max_length=20, choices=SourceType.choices, default=SourceType.DATABASE
     )
@@ -47,6 +54,9 @@ class Source(TimeStampedModel):
         ordering = ["-priority", "name"]
         constraints = [
             field_not_blank("name"),
+            slug_not_blank(),
+            slug_lowercase(),
+            unique_ci("name"),
             models.CheckConstraint(
                 condition=models.Q(
                     source_type__in=[

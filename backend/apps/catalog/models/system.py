@@ -9,8 +9,10 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    slug_lowercase,
     slug_not_blank,
     status_valid,
+    unique_ci,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -33,9 +35,7 @@ class System(
     entity_type = "system"
     entity_type_plural = "systems"
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     description = MarkdownField(blank=True)
     manufacturer = models.ForeignKey(
         "Manufacturer",
@@ -53,7 +53,13 @@ class System(
 
     class Meta:
         ordering = ["name"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name

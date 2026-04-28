@@ -12,8 +12,10 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    slug_lowercase,
     slug_not_blank,
     status_valid,
+    unique_ci,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -53,15 +55,19 @@ class TechnologyGeneration(
     entity_type = "technology-generation"
     entity_type_plural = "technology-generations"
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -81,9 +87,7 @@ class TechnologySubgeneration(
     entity_type_plural = "technology-subgenerations"
     technology_generation_id: int
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
     technology_generation = models.ForeignKey(
@@ -94,7 +98,13 @@ class TechnologySubgeneration(
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -113,15 +123,19 @@ class DisplayType(
     entity_type = "display-type"
     entity_type_plural = "display-types"
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -141,9 +155,7 @@ class DisplaySubtype(
     entity_type_plural = "display-subtypes"
     display_type_id: int
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
     display_type = models.ForeignKey(
@@ -154,7 +166,13 @@ class DisplaySubtype(
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -170,15 +188,19 @@ class Cabinet(
     entity_type = "cabinet"
     entity_type_plural = "cabinets"
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -194,15 +216,19 @@ class GameFormat(
     entity_type = "game-format"
     entity_type_plural = "game-formats"
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -223,15 +249,19 @@ class RewardType(
     entity_type_plural = "reward-types"
     soft_delete_usage_blockers: ClassVar[frozenset[str]] = frozenset({"machine_models"})
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["display_order", "name"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -289,15 +319,19 @@ class Tag(
     entity_type_plural = "tags"
     soft_delete_usage_blockers: ClassVar[frozenset[str]] = frozenset({"machine_models"})
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -339,9 +373,7 @@ class CreditRole(
         {"machine_models", "series_credited"}
     )
 
-    name = models.CharField(
-        max_length=200, unique=True, validators=[validate_no_mojibake]
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     display_order = models.PositiveSmallIntegerField(default=0)
     description = MarkdownField(blank=True)
 
@@ -362,7 +394,13 @@ class CreditRole(
 
     class Meta:
         ordering = ["display_order"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name

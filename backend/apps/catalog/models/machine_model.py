@@ -14,6 +14,7 @@ from apps.core.models import (
     TimeStampedModel,
     field_not_blank,
     nullable_id_not_empty,
+    slug_lowercase,
     slug_not_blank,
     status_valid,
 )
@@ -290,6 +291,7 @@ class MachineModel(
         ordering = ["name"]
         constraints = [
             slug_not_blank(),
+            slug_lowercase(),
             status_valid(),
             field_not_blank("name"),
             # Range constraints

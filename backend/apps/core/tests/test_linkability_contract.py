@@ -272,6 +272,7 @@ class TestLocationLinkability:
         loc = Location.objects.create(
             location_path="usa/il/chicago",
             slug="chicago",
+            name="Chicago",
             status="active",
         )
         assert loc.public_id == "usa/il/chicago"

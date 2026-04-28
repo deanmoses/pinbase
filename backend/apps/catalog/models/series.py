@@ -11,8 +11,10 @@ from apps.core.models import (
     SluggedModel,
     TimeStampedModel,
     field_not_blank,
+    slug_lowercase,
     slug_not_blank,
     status_valid,
+    unique_ci,
 )
 from apps.core.validators import validate_no_mojibake
 
@@ -38,14 +40,18 @@ class Franchise(
     entity_type_plural = "franchises"
     titles: models.Manager[Title]
 
-    name = models.CharField(
-        max_length=200, validators=[validate_no_mojibake], unique=True
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["name"]
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -68,15 +74,19 @@ class Series(
     entity_type_plural = "series"
     titles: models.Manager[Title]
 
-    name = models.CharField(
-        max_length=200, validators=[validate_no_mojibake], unique=True
-    )
+    name = models.CharField(max_length=200, validators=[validate_no_mojibake])
     description = MarkdownField(blank=True)
 
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "series"
-        constraints = [slug_not_blank(), status_valid(), field_not_blank("name")]
+        constraints = [
+            slug_not_blank(),
+            slug_lowercase(),
+            status_valid(),
+            field_not_blank("name"),
+            unique_ci("name"),
+        ]
 
     def __str__(self) -> str:
         return self.name
