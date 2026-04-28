@@ -20,7 +20,7 @@ class ClaimControlledModel(models.Model):
     concerns and are layered in independently at the concrete class.
 
     **Diamond-inheritance constraint — do not weaken without refactoring.**
-    Concrete catalog models combine ``CatalogModel`` and ``MediaSupported``,
+    Concrete catalog models combine ``CatalogModel`` and ``MediaSupportedModel``,
     both of which extend ``ClaimControlledModel``, so this class is reached
     via two abstract paths.  The diamond is safe today only because every
     name-bearing thing here is either a ``GenericRelation`` (routed into

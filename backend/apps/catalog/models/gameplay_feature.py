@@ -18,7 +18,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.media.models import MediaSupported
+from apps.media.models import MediaSupportedModel
 
 from .base import AliasModel, CatalogModel
 
@@ -28,7 +28,7 @@ __all__ = ["GameplayFeature", "GameplayFeatureAlias", "MachineModelGameplayFeatu
 class GameplayFeature(
     CatalogModel,
     SluggedModel,
-    MediaSupported,
+    MediaSupportedModel,
     TimeStampedModel,
 ):
     """A gameplay mechanism: Flippers, Pop Bumpers, Ramps, Multiball, etc.

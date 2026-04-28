@@ -56,7 +56,7 @@ class ParentClaimValue(TypedDict):
 
 
 class MediaAttachmentClaimValue(TypedDict):
-    """Payload for ``media_attachment`` claims on every MediaSupported subject."""
+    """Payload for ``media_attachment`` claims on every MediaSupportedModel subject."""
 
     media_asset: Required[int]
     exists: Required[bool]

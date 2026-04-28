@@ -17,7 +17,7 @@ from apps.core.models import (
     status_valid,
 )
 from apps.core.validators import validate_no_mojibake
-from apps.media.models import MediaSupported
+from apps.media.models import MediaSupportedModel
 
 from .base import AliasModel, CatalogModel
 
@@ -31,7 +31,7 @@ DAY_MIN, DAY_MAX = 1, 31
 class Person(
     CatalogModel,
     SluggedModel,
-    MediaSupported,
+    MediaSupportedModel,
     TimeStampedModel,
 ):
     """A person involved in pinball machine design (designer, artist, etc.)."""
