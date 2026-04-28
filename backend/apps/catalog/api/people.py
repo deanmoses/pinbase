@@ -15,6 +15,7 @@ from ninja.decorators import decorate_view
 from ninja.pagination import paginate
 from ninja.responses import Status
 from ninja.security import django_auth
+from pydantic import TypeAdapter
 
 from apps.catalog.naming import normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
@@ -78,6 +79,11 @@ class PersonGridItemSchema(Schema):
     aliases: list[str] = []
     credit_count: int = 0
     thumbnail_url: str | None = None
+
+
+_ALL_ADAPTER: TypeAdapter[list[PersonGridItemSchema]] = TypeAdapter(
+    list[PersonGridItemSchema]
+)
 
 
 class PersonListItemSchema(Schema):
@@ -288,7 +294,7 @@ def list_all_people(
                 "thumbnail_url": thumb,
             }
         )
-    return set_cached_response(PEOPLE_ALL_KEY, result)
+    return set_cached_response(PEOPLE_ALL_KEY, _ALL_ADAPTER, result)
 
 
 @people_router.patch(

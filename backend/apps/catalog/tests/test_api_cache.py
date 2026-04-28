@@ -203,3 +203,35 @@ class TestConditionalGet:
         assert isinstance(json_bytes, bytes)
         assert etag.startswith('"')
         assert etag.endswith('"')
+
+
+class TestSetCachedResponseValidation:
+    """Lock down the DEBUG-mode shape check in :func:`set_cached_response`.
+
+    The prod path is raw ``json.dumps`` for speed, so the validation step is
+    the only place that catches dict/Schema drift. Tests run with DEBUG=True
+    by default; if that ever changes, this guard goes silent.
+    """
+
+    def test_debug_mode_rejects_data_not_matching_adapter(self, db, settings):
+        from pydantic import TypeAdapter, ValidationError
+
+        from apps.catalog.cache import set_cached_response
+
+        settings.DEBUG = True
+        adapter: TypeAdapter[list[dict[str, int]]] = TypeAdapter(list[dict[str, int]])
+        with pytest.raises(ValidationError):
+            set_cached_response("test:bogus", adapter, [{"x": "not-an-int"}])
+
+    def test_prod_mode_skips_validation(self, db, settings):
+        """In prod, malformed-but-JSON-serializable data is cached as-is —
+        the trade-off documented in :func:`set_cached_response`."""
+        from pydantic import TypeAdapter
+
+        from apps.catalog.cache import set_cached_response
+
+        settings.DEBUG = False
+        adapter: TypeAdapter[list[dict[str, int]]] = TypeAdapter(list[dict[str, int]])
+        resp = set_cached_response("test:bogus", adapter, [{"x": "not-an-int"}])
+        assert resp.status_code == 200
+        assert b'"x":"not-an-int"' in resp.content

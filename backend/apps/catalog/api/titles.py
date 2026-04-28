@@ -26,6 +26,7 @@ from ninja.decorators import decorate_view
 from ninja.pagination import paginate
 from ninja.responses import Status
 from ninja.security import django_auth
+from pydantic import TypeAdapter
 
 from apps.catalog.naming import MAX_CATALOG_NAME_LENGTH, normalize_catalog_name
 from apps.core.licensing import get_minimum_display_rank
@@ -137,6 +138,11 @@ class TitleListItemSchema(Schema):
     ipdb_rating_max: float | None = None
 
 
+_ALL_ADAPTER: TypeAdapter[list[TitleListItemSchema]] = TypeAdapter(
+    list[TitleListItemSchema]
+)
+
+
 class AgreedSpecsSchema(Schema):
     """Spec fields where all child models of a title agree on the value."""
 
@@ -234,6 +240,24 @@ def _dedup_facet_refs(items: Iterable[tuple[str, str]]) -> list[EntityRef]:
             seen.add(slug)
             result.append(EntityRef(slug=slug, name=name))
     return result
+
+
+def _dedup_facet_dicts(
+    items: Iterable[tuple[str, str]],
+) -> list[dict[str, str]]:
+    """Like :func:`_dedup_facet_refs` but emits plain dicts.
+
+    Used by the cached ``/all/`` endpoints, whose responses are serialized
+    via :func:`set_cached_response`'s ``json.dumps`` fast path — Pydantic
+    Schema instances are not JSON-serializable there.
+    """
+    seen: set[str] = set()
+    out: list[dict[str, str]] = []
+    for slug, name in items:
+        if slug and slug not in seen:
+            seen.add(slug)
+            out.append({"slug": slug, "name": name})
+    return out
 
 
 def _serialize_title_list(
@@ -847,23 +871,13 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
         model_persons[mid].append(SlugName(slug, name))
 
     # --- Assembly ---
-    # Build dicts directly (not TitleListSchema instances) — the cache stores
-    # JSON bytes, and this endpoint deliberately skips Schema construction to
-    # keep cold-cache rebuild fast (~5s prod vs ~30s via ORM hydration). The
-    # dict shape mirrors TitleListSchema; keep them in sync.
+    # Build dicts directly (not TitleListItemSchema instances). The cache
+    # stores JSON bytes, so handing Schemas to ``json.dumps`` would force a
+    # round-trip via ``model_dump`` — exactly what the cache exists to avoid.
+    # ``set_cached_response`` validates this dict shape against the response
+    # Schema in DEBUG mode to catch drift; the prod path is raw ``json.dumps``.
     def _ref_dict(slug: str | None, name: str | None) -> dict[str, str | None] | None:
         return {"slug": slug, "name": name} if slug else None
-
-    def _dedup_facet_dicts(
-        items: Iterable[tuple[str, str]],
-    ) -> list[dict[str, str]]:
-        seen: set[str] = set()
-        out: list[dict[str, str]] = []
-        for slug, name in items:
-            if slug and slug not in seen:
-                seen.add(slug)
-                out.append({"slug": slug, "name": name})
-        return out
 
     result: list[dict[str, Any]] = []
     for r in title_rows:
@@ -916,7 +930,7 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
                 ),
             }
         )
-    return set_cached_response(TITLES_ALL_KEY, result)
+    return set_cached_response(TITLES_ALL_KEY, _ALL_ADAPTER, result)
 
 
 @titles_router.patch(

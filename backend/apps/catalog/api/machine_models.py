@@ -14,6 +14,7 @@ from ninja.decorators import decorate_view
 from ninja.pagination import paginate
 from ninja.responses import Status
 from ninja.security import django_auth
+from pydantic import TypeAdapter
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.pagination import NamedPageNumberPagination
@@ -123,6 +124,11 @@ class ModelGridItemSchema(Schema):
     abbreviations: list[str] = []
     search_text: str | None = None
     title_slug: str | None = None
+
+
+_ALL_ADAPTER: TypeAdapter[list[ModelGridItemSchema]] = TypeAdapter(
+    list[ModelGridItemSchema]
+)
 
 
 class ModelListItemSchema(Schema):
@@ -881,7 +887,7 @@ def list_all_models(
                 "title_slug": r.title_slug,
             }
         )
-    return set_cached_response(MODELS_ALL_KEY, result)
+    return set_cached_response(MODELS_ALL_KEY, _ALL_ADAPTER, result)
 
 
 @models_router.get("/edit-options/", response=ModelEditOptionsSchema)
