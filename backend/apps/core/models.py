@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Self, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -203,13 +203,6 @@ class LifecycleStatusModel(models.Model):
         null=True,
         blank=True,
     )
-
-    # `ClassVar[CatalogManager[Self]]` gets us both halves: the custom manager
-    # type (so `.active()` is visible) and per-subclass model binding (so
-    # `Manufacturer.objects` types as `CatalogManager[Manufacturer]`, not
-    # `CatalogManager[LifecycleStatusModel]`). Without `Self`, django-types'
-    # default descriptor strips the custom manager class.
-    objects: ClassVar[CatalogManager[Self]] = CatalogManager()
 
     class Meta:
         abstract = True

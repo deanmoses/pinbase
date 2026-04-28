@@ -49,6 +49,14 @@ def check_linkable_models(
                 _check_one(subclass, seen_entity_type, seen_entity_type_plural)
             )
 
+    # Walk ``LinkableModel`` rather than ``CatalogModel``: this is the
+    # structural-contract check, and it must run against every linkable
+    # subclass so a future linkable-but-not-catalog model can't bypass the
+    # ``entity_type`` / ``public_id_field`` rules. ``apps/core`` also can't
+    # depend on ``apps/catalog`` per AppBoundaries. Catalog-local code (the
+    # /all/ cache walker, the AI source registry, the wikilink validator)
+    # walks ``CatalogModel`` instead — different role, different root.
+    #
     # ``LinkableModel`` is abstract; mypy's ``type-abstract`` check flags
     # passing it where a concrete ``type[LinkableModel]`` is expected, but
     # ``__subclasses__()`` is the documented walk entry point.
