@@ -112,29 +112,6 @@ def _convert_task_list_items(html: str) -> str:
     return _TASK_LIST_RE.sub(_replace, html)
 
 
-def fenced_code_ranges(content: str) -> list[tuple[int, int]]:
-    """Return (start, end) character-position ranges of fenced code blocks.
-
-    Uses the MarkdownIt parser to identify code fences, ensuring consistency
-    with how the content will actually be rendered.
-    """
-    tokens = _md.parse(content)
-    line_ranges = [t.map for t in tokens if t.type == "fence" and t.map]
-    if not line_ranges:
-        return []
-
-    # Build line-number -> character-offset mapping
-    offsets = [0]
-    for i, ch in enumerate(content):
-        if ch == "\n":
-            offsets.append(i + 1)
-
-    return [
-        (offsets[start], offsets[end] if end < len(offsets) else len(content))
-        for start, end in line_ranges
-    ]
-
-
 # ``metadata_out`` dicts are free-form: each link type's ``collect_metadata``
 # callback defines its own key set and core never inspects them, so a TypedDict
 # would lock in a shape core has no business enforcing.
