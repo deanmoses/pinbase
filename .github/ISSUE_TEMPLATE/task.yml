@@ -1,6 +1,6 @@
 name: Task
 description: Work that doesnt involve committing to the repo
-title: ""
+title: "Task"
 labels: ["task"]
 body:
   - type: textarea
