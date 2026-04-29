@@ -84,7 +84,7 @@ These conditions raise `CommandError` and abort ingest:
 - A `model.json` entry references a nonexistent gameplay feature slug
 - A `model.json` entry references a nonexistent reward type slug
 - A `gameplay_feature.json` entry's `is_type_of` field references a nonexistent parent slug
-- A `reward_type.json` or `gameplay_feature.json` description contains a wikilink (`[[type:slug]]`) referencing a nonexistent entity
+- A `reward_type.json` or `gameplay_feature.json` description contains a wikilink (`[[<entity-type>:<public-id>]]`) referencing a nonexistent entity
 - An IPDB `NotableFeatures` segment is quoted, contains "feature", or is > 60 characters
 
 ## External data sources

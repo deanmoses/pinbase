@@ -23,12 +23,40 @@ import hashlib
 import http.client
 import json
 import os
+import socket
 import tempfile
 import urllib.request
 from typing import Any, cast
 from urllib.error import HTTPError
 
 from django.core.management.base import BaseCommand
+
+# Force IPv4 for all socket lookups in this command. stdlib's urllib has no
+# Happy Eyeballs (RFC 8305): when DNS returns both v4 and v6 records and the
+# v6 path is unreachable, urlopen blocks for the full ~30s kernel TCP timeout
+# per request before falling back to v4. Cloudflare R2's v6 anycast prefix is
+# intermittently unreachable from consumer networks; v4 always works. Filtering
+# getaddrinfo to AF_INET takes the working path immediately.
+_orig_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_only_getaddrinfo(
+    host: Any,  # noqa: ANN401 - matches socket.getaddrinfo's overloaded signature
+    port: Any,  # noqa: ANN401
+    family: int = 0,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> Any:  # noqa: ANN401
+    return _orig_getaddrinfo(host, port, socket.AF_INET, *args, **kwargs)
+
+
+socket.getaddrinfo = _ipv4_only_getaddrinfo
+
+# Hard ceiling on every HTTP read. Without this, urlopen blocks indefinitely
+# on a stalled connection — the symptom that motivated the IPv4 forcing above.
+# 30s is long enough for the largest current manifest entry over a slow link
+# but short enough to surface real network failures as errors, not hangs.
+_TIMEOUT_SECONDS = 30
 
 _OPENER = urllib.request.build_opener()
 _OPENER.addheaders = [("User-Agent", "pinbase/1.0")]
@@ -54,7 +82,7 @@ _MANIFESTS = [
 def _urlopen(url: str) -> http.client.HTTPResponse:
     # OpenerDirector.open() is typed as Any in typeshed; the concrete return for
     # http/https URLs is an HTTPResponse.
-    return cast(http.client.HTTPResponse, _OPENER.open(url))
+    return cast(http.client.HTTPResponse, _OPENER.open(url, timeout=_TIMEOUT_SECONDS))
 
 
 def _sha256(path: str) -> str:
