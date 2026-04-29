@@ -4,6 +4,8 @@
 
 This work is an instance of the broader pattern in [ModelDrivenMetadata.md](ModelDrivenMetadata.md): encode per-model behavior as metadata, consume it generically from shared infrastructure.
 
+It is the frontend delete-page slice of the existing delete-preview / delete / restore wire shape. This doc intentionally depends only on stable route shape and catalog metadata; it does not assume a chosen model-driven API registrar.
+
 Today every catalog model that supports soft-delete has its own `frontend/src/routes/{plural}/[slug]/delete/+page@.svelte` — 19 of them at time of writing (cabinets, corporate-entities, credit-roles, display-subtypes, display-types, franchises, game-formats, gameplay-features, manufacturers, models, people, reward-types, series, systems, tags, technology-generations, technology-subgenerations, themes, titles), plus `locations` once Location CRUD lands. Each is structurally identical: read `data.preview`, build a `BlockedState` from `preview.blocked_by`, build an `impact` object, render `<DeletePage>`. The shared `DeletePage.svelte` component already does the heavy lifting; the wrappers are pure glue + per-entity copy.
 
 The shared infra is already in place. [`DeletePage.svelte`](../../../frontend/src/lib/components/DeletePage.svelte) is one component. [`createDeleteSubmitter`](../../../frontend/src/lib/delete-flow.ts) is one factory keyed by entity collection. The wire shape (`/api/{collection}/{public_id}/delete-preview/` and `/api/{collection}/{public_id}/delete/`) is identical across every entity. What's missing is a metadata registry that lets a single dynamic route resolve "given this entity_type, what label / copy / redirect should I use?" without 19 hand-rolled wrappers.
