@@ -45,7 +45,7 @@ The cache-invalidation signal list is no longer active inventory: `catalog/signa
 
 ## Notes on excluded candidates
 
-- `LinkType` registry (`core/markdown_links.py`) — populated from model class attrs (`link_label`, `link_sort_order`, …) in `CatalogConfig.ready()`. Already the correct "class-attr + derivation" pattern.
+- `LinkType` registry (`core/markdown_links.py`) — populated from model class attrs (`link_label`, `link_sort_order`, …) in `CatalogConfig.ready()`. Correct "class-attr + derivation" shape; key-naming convergence with `_ENTITY_TYPE_MAP` (both keying on `entity_type` rather than this registry's current `__name__.lower()`/`link_type_name` fallback) lands with [ModelDrivenWikilinkableMetadata.md](ModelDrivenWikilinkableMetadata.md).
 - `_ENTITY_TYPE_MAP` (`core/entity_types.py`) — derived from `LinkableModel` subclasses. Listed in the parent doc as the canonical example.
 - `ENTITY_TYPE_ALIASES` / `_ENTITY_MODEL_MAP` — no longer exist; both were removed. The `project_entity_type_alias_consolidation` memory note was retired.
 - IPDB `CLAIM_FIELDS` / `CREDIT_FIELDS`, `IPDB_TAG_MAP`, `PROP_TO_ROLE`, `_LABEL_TO_ROLE`, `_COUNTRY_NORMALIZATION`, `_STATE_NORMALIZATION` — source-specific translation tables (external-name → internal-slug). Not duplicates of Django model metadata.
