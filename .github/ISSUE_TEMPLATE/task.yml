@@ -8,5 +8,3 @@ body:
     attributes:
       label: What needs to be done?
       description: Describe the task or decision.
-    validations:
-      required: true
