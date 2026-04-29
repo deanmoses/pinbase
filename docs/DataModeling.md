@@ -10,7 +10,7 @@ Add the strictest constraint you can defend. Relaxing a constraint is a one-line
 
 ### Validate in the database
 
-Push as much validation as you can to the database. Django has multiple code paths that skip Python validation (`objects.create()`, `bulk_create()`, `update()`, management commands, raw SQL, migrations). A CHECK constraint catches all of them.
+Push as much validation as you can to the database. Data does not only enter through model forms or normal `save()` calls: Django has multiple ORM paths that skip Python validation (`objects.create()`, `bulk_create()`, `update()`), and some writes can bypass the ORM entirely through management commands, migrations, raw SQL, database tools, or our own bulk ingest code. A CHECK constraint catches all of them.
 
 ### Default to PROTECT on foreign keys
 
@@ -30,20 +30,33 @@ When adding an app-enforced uniqueness rule:
 3. State the race behavior in the endpoint's docstring so future readers know what isn't guaranteed.
 4. Prefer a stricter check over a looser one, since relaxing is a one-line change and tightening requires auditing existing rows.
 
-## Django Pitfalls
+## Abstract base classes
 
-These are the specific reasons we enforce constraints at the DB level rather than relying on Django's Python-layer validation:
+We use abstract base classes (mixins) to segregate the concerns of the system and keep things easier to reason about. For example, the wiki linking system only knows about WikilinkableModels; it doesn't have to reach in to any other part of the system.
 
-- **`CharField(blank=False)`** is only enforced at `full_clean()`, not at the DB level. Use `field_not_blank()` from `apps.core.models` to add a CHECK constraint.
-- **`PositiveIntegerField`** allows 0. If you need `> 0`, add a CHECK constraint.
-- **`choices=`** on CharField is only enforced at `full_clean()`. Add a CHECK constraint (`field__in=[...]`) to enforce valid values at the DB level.
-- **`objects.create()`** bypasses `full_clean()` entirely. Without DB constraints, invalid data enters the database from management commands, migrations, bulk operations, and raw SQL.
+```mermaid
+flowchart TD
+  CatalogModel --> LinkableModel
+  CatalogModel --> LifecycleStatusModel
+  CatalogModel --> ClaimControlledModel
+
+  MediaSupportedModel --> ClaimControlledModel
+  WikilinkableModel --> LinkableModel
+
+  AliasModel
+  TimeStampedModel
+  SluggedModel
+```
+
+- `CatalogModel`: catalog entity marker combining URL-addressability, lifecycle status, and claim control.
+- `MediaSupportedModel`: opt-in for entity media attachments; also claim-controlled because media attachments are claims.
+- `WikilinkableModel`: opt-in for markdown wikilink autocomplete for models that are already linkable.
+- `AliasModel`: shared behavior for alias rows; aliases are claim values on the parent entity, not claim-controlled entities themselves.
+- `TimeStampedModel`: created/updated bookkeeping timestamps.
+- `SluggedModel`: globally unique slug field for entities whose slug is their public identity.
+- `LinkableModel`, `LifecycleStatusModel`, and `ClaimControlledModel`: narrower capability bases used directly by higher-level catalog mixins and occasionally by outlier concrete models.
 
 ## Conventions
-
-### Timestamps
-
-Inherit from `TimeStampedModel` (in `apps.core.models`) for `created_at` / `updated_at`. Don't define these fields manually.
 
 ### GenericForeignKey
 
