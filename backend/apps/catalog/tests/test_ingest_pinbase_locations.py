@@ -157,6 +157,61 @@ class TestIngestLocationsAliases:
         assert "chi-town" in alias_values
 
 
+class TestIngestLocationsDuplicateSlugs:
+    """Slugs are only unique per parent. Two locations under different parents
+    may share a slug (e.g. Paris/France and Paris/Texas). Ingesting from an
+    empty DB must handle this without tripping the partial unique index that
+    enforces slug uniqueness among root-level rows."""
+
+    def test_duplicate_slugs_under_different_parents(
+        self, db, pinbase_source, tmp_path
+    ):
+        data = [
+            {
+                "location_path": "usa",
+                "slug": "usa",
+                "name": "USA",
+                "type": "country",
+            },
+            {
+                "location_path": "france",
+                "slug": "france",
+                "name": "France",
+                "type": "country",
+            },
+            {
+                "location_path": "usa/tx",
+                "slug": "tx",
+                "name": "Texas",
+                "type": "state",
+            },
+            {
+                "location_path": "usa/tx/paris",
+                "slug": "paris",
+                "name": "Paris",
+                "type": "city",
+            },
+            {
+                "location_path": "france/paris",
+                "slug": "paris",
+                "name": "Paris",
+                "type": "city",
+            },
+        ]
+        _run_ingest(tmp_path, data)
+        assert Location.objects.count() == 5
+        paris_tx = Location.objects.select_related("parent").get(
+            location_path="usa/tx/paris"
+        )
+        paris_fr = Location.objects.select_related("parent").get(
+            location_path="france/paris"
+        )
+        assert paris_tx.parent is not None
+        assert paris_fr.parent is not None
+        assert paris_tx.parent.location_path == "usa/tx"
+        assert paris_fr.parent.location_path == "france"
+
+
 class TestIngestLocationsIdempotency:
     def test_rerun_does_not_duplicate(self, db, pinbase_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)

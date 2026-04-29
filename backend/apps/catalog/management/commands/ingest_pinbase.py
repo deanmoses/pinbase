@@ -17,6 +17,7 @@ import logging
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import groupby
 from pathlib import Path
 
 from django.contrib.contenttypes.models import ContentType
@@ -426,40 +427,53 @@ class Command(BaseCommand):
         source = self.pinbase_source
         ct = ContentType.objects.get_for_model(Location)
 
-        # Sort: countries first (type order 0), then intermediates (1), then cities (2).
-        # Within each tier, sort by location_path so parents always precede children.
-        type_order = {"country": 0, "city": 2}
+        # Sort by depth (path segments) so parents always precede children.
+        # Required because partial unique indexes on (slug) and Lower(name) fire
+        # whenever parent IS NULL — so we must populate parent_id at insert time
+        # rather than leaving it null and backfilling via claims.
         entries_sorted = sorted(
             entries,
-            key=lambda e: (type_order.get(e["type"], 1), e["location_path"]),
+            key=lambda e: (e["location_path"].count("/"), e["location_path"]),
         )
 
-        # Pass 1: upsert Location rows (slug + display fields).
-        objs = bulk_create_validated(
-            Location,
-            [
-                Location(
-                    location_path=e["location_path"],
-                    slug=e["slug"],
-                    name=e["name"],
-                    location_type=e["type"],
-                    code=e.get("code", ""),
-                    short_name=e.get("short_name", ""),
-                    divisions=e.get("divisions"),
-                )
-                for e in entries_sorted
-            ],
-            update_conflicts=True,
-            unique_fields=["location_path"],
-            update_fields=[
-                "slug",
-                "name",
-                "location_type",
-                "code",
-                "short_name",
-                "divisions",
-            ],
-        )
+        # Pass 1: upsert Location rows tier-by-tier (parent FK populated).
+        obj_by_path: dict[str, Location] = {}
+
+        for _depth, tier in groupby(
+            entries_sorted, key=lambda e: e["location_path"].count("/")
+        ):
+            tier_entries = list(tier)
+            tier_objs = bulk_create_validated(
+                Location,
+                [
+                    Location(
+                        location_path=e["location_path"],
+                        slug=e["slug"],
+                        name=e["name"],
+                        location_type=e["type"],
+                        code=e.get("code", ""),
+                        short_name=e.get("short_name", ""),
+                        divisions=e.get("divisions"),
+                        parent=obj_by_path.get(_parent_path(e["location_path"]) or ""),
+                    )
+                    for e in tier_entries
+                ],
+                update_conflicts=True,
+                unique_fields=["location_path"],
+                update_fields=[
+                    "slug",
+                    "name",
+                    "location_type",
+                    "code",
+                    "short_name",
+                    "divisions",
+                    "parent",
+                ],
+            )
+            for obj in tier_objs:
+                obj_by_path[obj.location_path] = obj
+
+        objs = [obj_by_path[e["location_path"]] for e in entries_sorted]
 
         # Pass 2: build scalar + FK claims and alias data.
         pending_claims: list[Claim] = []
