@@ -278,6 +278,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         tuple[dict[str, Any], list[ClaimSpec]],
     ]
     | None = None,
+    op_id_suffix: str = "",
 ) -> None:
     """Attach a POST create route.
 
@@ -348,6 +349,14 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
     Callers: Location top-level + child create only. Re-evaluate the
     tuple-return shape vs. a ``CreateExtras`` dataclass if a second
     caller appears.
+
+    *op_id_suffix* is appended to the OpenAPI ``operationId`` for this
+    route. Used by entities that register the factory twice on the same
+    router (Location: top-level country + child) so the two routes don't
+    collide on the default name. Empty by default — every other caller
+    keeps the stable ``{entity}_create`` op_id.
+
+    Callers: Location's child create only (passes ``"_child"``).
     """
     parented = parent_field is not None
     if parented and not (parent_model and route_suffix):
@@ -462,7 +471,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
             )
             return _do_create(request, data, parent=parent)
 
-        _create_parented.__name__ = f"{entity_label.lower()}_create"
+        _create_parented.__name__ = f"{entity_label.lower()}_create{op_id_suffix}"
         router.post(
             f"/{{path:parent_public_id}}/{route_suffix}/",
             auth=django_auth,
@@ -481,7 +490,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         ) -> Status[Any]:
             return _do_create(request, data)
 
-        _create_unparented.__name__ = f"{entity_label.lower()}_create"
+        _create_unparented.__name__ = f"{entity_label.lower()}_create{op_id_suffix}"
         router.post(
             "/",
             auth=django_auth,

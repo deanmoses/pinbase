@@ -12,23 +12,29 @@ This is the second of three sequential plans in the Location-promotion chain:
 
 ## Status (as of last handoff)
 
-Foundations are committed on this branch. The next session picks up at `locations_write.py`. The following are done:
+Foundations + the entire backend write surface are committed on this branch. The next session picks up at the **frontend write routes**. The following are done:
 
-- `backend/apps/catalog/services/location_paths.py` exists with `compute_location_path`, `derive_child_location_type`, and `lookup_child_division` (a small shared helper that does the `divisions[parent_depth] or None` lookup — used by both the read serializer and `derive_child_location_type`, so the indexing rule has one source of truth). `derive_child_location_type` raises `StructuredValidationError(form_errors=[...])` directly when divisions are missing or the tree is exhausted — Ninja's existing 422 handler converts it. No domain exception class, no translation step, no `try_*` variant. See §"Path and type helpers" for why.
-- `Location` model carries `soft_delete_usage_blockers = frozenset({"corporate_entities"})` and the `corporate_entities` M2M with `through="CorporateEntityLocation"` and `related_name="+"`. Migration `0008_location_corporate_entities` is generated and applied; on Postgres it is a true no-op, on SQLite it emits the standard table-rebuild (no new columns, no new join table — see §"Migration sanity check" below).
-- `LocationDetailSchema` has `expected_child_type: str | None = None`. The read serializer in `locations.py` derives it from the cached tree (`_LocationNode.divisions`) via `lookup_child_division`, not from a per-request DB fetch — see §"Read API" for the shape. Empty-path root returns `"country"` (hardcoded; the form has its own divisions input). Backend tests pinning all five cases (root, country, subdivision, exhausted, missing-divisions) live in `TestExpectedChildType` in `test_api_locations.py`.
-- **Read-route consolidation**: `locations.py` collapsed five hand-fanout routes (`/{s1}`, `/{s1}/{s2}`, …) into two: `/` + `/{path:location_path}`. Frontend `+layout.server.ts` collapsed from 5-way segment dispatch to a single `path === ''` branch. The `client.ts` `%2F → /` middleware already handles slash-bearing path params for any route, so no client-side change beyond the layout was needed.
-- **`public_id_form_field` override**: new `LinkableModel.public_id_form_field: ClassVar[str] = ""` (empty = "use `public_id_field`"). `Location.public_id_form_field = "slug"`. `assert_public_id_available(model_cls, value, *, form_value=None)` now keys errors under the form field with the form value, so a slug collision on Location surfaces as `field_errors={"slug": "The slug 'chicago' is already taken."}` instead of `{"location_path": "The location_path 'usa/il/chicago' is already taken."}`. The factory threads `form_value=row_kwargs.get(form_field, public_id_value)` through; the `IntegrityError` fallback in `create_entity_with_claims` honors the same override.
-- `_AliasEntity` union in `apps.catalog.api.edit_claims` has been extended with `Location` so `plan_alias_claims` accepts Location instances. Currently orphaned prep (the PATCH route is what will use it).
-- Frontend `newChildLabel` rewritten to prefer existing children's `location_type`, fall back to `profile.expected_child_type`, return `null` otherwise. The hardcoded `EXPECTED_CHILD` map is **deleted**; tests in `location-helpers.test.ts` updated to assert the server-driven path.
+- `backend/apps/catalog/services/location_paths.py` exists with `compute_location_path`, `derive_child_location_type`, and `lookup_child_division`. `derive_child_location_type` raises `StructuredValidationError(form_errors=[...])` directly; Ninja's existing 422 handler converts it. See §"Path and type helpers" for why no domain exception / no `try_*` variant.
+- `Location` model carries `soft_delete_usage_blockers = frozenset({"corporate_entities"})` and the `corporate_entities` M2M with `through="CorporateEntityLocation"` and `related_name="+"`. Migration `0008_location_corporate_entities` is generated and applied (no-op on Postgres, identity-preserving table-rebuild on SQLite — see §"Migration sanity check").
+- `LocationDetailSchema` has `expected_child_type: str | None = None`. The read serializer in `locations.py` derives it from the cached tree (`_LocationNode.divisions`) via `lookup_child_division`. Empty-path root returns `"country"`. Backend tests pinning all five cases live in `TestExpectedChildType` in `test_api_locations.py`.
+- **Read-route consolidation**: `locations.py` collapsed five hand-fanout routes into two (`/` + `/{path:location_path}`). Frontend `+layout.server.ts` collapsed from 5-way segment dispatch to a single `path === ''` branch.
+- **`public_id_form_field` override**: `Location.public_id_form_field = "slug"`. `assert_public_id_available` keys errors under the form field with the form value; `create_entity_with_claims`'s `IntegrityError` fallback honors the same override.
+- `_AliasEntity` union in `apps.catalog.api.edit_claims` includes `Location`.
+- Frontend `newChildLabel` rewritten to prefer existing children's `location_type`, fall back to `profile.expected_child_type`, return `null` otherwise. `EXPECTED_CHILD` deleted; `location-helpers.test.ts` asserts the server-driven path.
+- **Walker audit done.** `apps/catalog/api/soft_delete.py` `_record` already dedups by `(entity_key, relation)` — no `.distinct()` needed. The "CE linked twice via two CELs" scenario is DB-impossible (`catalog_corporateentitylocation_unique_pair`), so the proposed dedup test was deleted as dead weight. See §"Tests" for the walker note.
+- **Backend write router shipped.** `backend/apps/catalog/api/locations_write.py` carries:
+  - `POST /api/locations/` (top-level country create) — `LocationTopLevelCreateSchema` with required `divisions`.
+  - `POST /api/locations/{parent_public_id}/children/` (child create) — `LocationChildCreateSchema`; server derives `location_type`. Uses the new `op_id_suffix="_child"` factory kwarg to avoid colliding with the top-level route's `location_create` op_id.
+  - `PATCH /api/locations/{public_id}/claims/` — single `LocationPatchClaimSchema` with `extra=forbid`. Handler rejects `parent`/`slug`/`location_type` in `data.fields` and rejects top-level `divisions` when `loc.location_type != "country"`. See §"PATCH claims" for why this is one schema, not two.
+  - Delete / preview / restore via `register_entity_delete_restore` with `parent_field="parent"`, `child_related_name="children"`.
+- **Factory addition.** `register_entity_create` gained an `op_id_suffix: str = ""` kwarg — Location's child-create call is the only caller; every other entity keeps its stable `{entity}_create` op_id byte-identical. See §"Create-factory hooks".
+- **Schema-boundary test amended.** `test_openapi_changeset_input_consolidation` now allows components with `additionalProperties: false` (i.e. `extra=forbid` tightenings) to share the `EntityCreateInputSchema` shape — `LocationChildCreateSchema` is the legitimate occupant of that carve-out.
+- **Backend tests for create / PATCH / delete / restore live in `test_api_locations_write.py`** (44 cases). Helper unit tests for `compute_location_path` / `derive_child_location_type` / `lookup_child_division` are in the same file.
 
-Remaining work:
+Remaining work (next session):
 
-- `backend/apps/catalog/api/locations_write.py` (create routes ×2, PATCH-claims, delete/restore registration) and wire it into `apps/catalog/api/__init__.py` under `/locations/`.
-- Walker audit per §"Tests" — confirm whether the soft-delete walker can produce duplicate blockers on M2M-through resolution and add `.distinct()` if so.
-- Backend tests per §"Tests" minus the `expected_child_type` cases (already done): `compute_location_path` / `derive_child_location_type` / `lookup_child_division` unit tests, create/PATCH/delete/restore route tests, edit-history & sources resolution tests.
-- Frontend write routes per §"Frontend": `/locations/new`, `/locations/[...path]/new`, `/edit`, `/edit-history`, `/sources`, `/delete`. Editor wiring (`location-edit-sections.ts`, `LocationEditorSwitch.svelte`, `save-location-claims.ts`). Drop `'location'` from `catalog-meta.test.ts` `DEFERRED_KEYS`. (Child-label helper is already done.)
-- Frontend tests per §"Tests" minus the helper tests (already done).
+- Frontend write routes per §"Frontend": `/locations/new`, `/locations/[...path]/new`, `/edit`, `/edit/[section]`, `/edit-history`, `/sources`, `/delete`. Editor wiring (`location-edit-sections.ts`, `LocationEditorSwitch.svelte`, `save-location-claims.ts`). Drop `'location'` from `catalog-meta.test.ts` `DEFERRED_KEYS`.
+- Frontend tests per §"Tests" minus the helper tests (already done): `saveLocationClaims` sends `public_id` not `slug`; delete page renders blocked + unblocked states; `catalog-meta.test.ts` parity for Location.
 - `make api-gen && make lint && make test`.
 
 For reference, the cross-cutting prework was:
@@ -136,9 +142,9 @@ def derive_child_location_type(parent: Location) -> str:
 
 **Why no `try_derive_child_location_type` variant:** the read serializer derives `expected_child_type` from the cached tree directly (see §"Read API"), so there is no caller for a non-raising soft variant.
 
-### Write router
+### Write router — DONE
 
-Add `backend/apps/catalog/api/locations_write.py` and register it under `/locations/`.
+Shipped in `backend/apps/catalog/api/locations_write.py`, registered under `/locations/`. The shape below documents the as-shipped routes; treat it as reference rather than a TODO.
 
 Two sibling body schemas, both `extra=forbid`, so "client-supplied `location_type`" and "client-supplied `divisions` on child create" are rejected by schema validation before any handler code runs:
 
@@ -182,11 +188,10 @@ PATCH claims:
 - Route: `PATCH /api/locations/{public_id:path}/claims/`
 - Bespoke for now because there is no shared PATCH-claims factory.
 - Body allows scalar edits for `name`, `description`, `short_name`, `code`, plus aliases, note, and citation.
-- Body must not allow `parent`, `slug`, or `location_type` — schema-rejected (`extra=forbid`), mirroring the create split.
-- Two sibling body schemas, dispatched by the resolved row's `location_type`, so `divisions` is schema-rejected on non-country rows rather than handled as a 422 in the handler:
-  - `LocationCountryPatchSchema` — adds `divisions: list[str] | None`.
-  - `LocationChildPatchSchema` — no `divisions` field; `extra=forbid` rejects it.
-- **Dispatch shape:** Django Ninja binds one schema per route, so the route signature takes the body as a `dict` (or a permissive base schema) and the handler manually re-validates against one of the two sibling schemas after resolving the row and reading its `location_type`. Do **not** declare the body as `LocationCountryPatchSchema | LocationChildPatchSchema` — Pydantic's union resolution will try each variant in order and `extra=forbid` on the first variant gets bypassed when validation falls through to the second. Concretely: `body: dict = Body(...)` → resolve row → `schema_cls = LocationCountryPatchSchema if row.location_type == "country" else LocationChildPatchSchema` → `data = schema_cls.model_validate(body)`. Surface Pydantic errors as 422s with the same shape the factory routes produce.
+- Single body schema (`LocationPatchClaimSchema`) with `extra=forbid`, accepting `fields`, `aliases`, `divisions`, plus `note`/`citation` from `ChangeSetInputSchema`. Field-level rejection lives in the handler:
+  - `parent`, `slug`, `location_type` rejected when present in `data.fields` (immutable after create).
+  - `divisions` rejected when present at the top level and `loc.location_type != "country"` (only meaningful on countries).
+- Earlier drafts split this into two sibling schemas dispatched by `location_type` so `divisions` was schema-rejected. Implementation cost was high — Pydantic's union resolution silently bypasses `extra=forbid` when the first variant fails, forcing a permissive base + manual re-validate + custom Pydantic-error remapping. Handler-level rejection of one field for a row-tier reason matches how `parent`/`slug`/`location_type` are already handled, costs ~3 lines, and produces a clearer error message. The single-schema path is the canonical shape; schema-level dispatch is the deferred option if a stronger reason emerges.
 - The PATCH route accepts `name` edits even though the frontend in this PR does not surface them (no `NameEditor` registered — see Decisions §"Re-parenting and slug-renaming are not supported"). This asymmetry is deliberate: `name` is editable on the model, just not yet exposed in the UI. Add a one-line comment on the PATCH handler noting this so a future reader doesn't "tighten" the schema by removing `name`.
 - Use the same primitives as themes: `validate_scalar_fields`, `plan_alias_claims`, and `execute_claims`.
 
@@ -266,11 +271,13 @@ Backend tests:
 - Child create rejects a client-supplied `divisions` (schema-level, via `extra=forbid` on `LocationChildCreateSchema`).
 - Child create succeeds, rejects sibling slug collisions (DB `catalog_location_unique_slug_per_parent`), rejects sibling name collisions case-insensitively (DB `catalog_location_unique_name_per_parent` over `Lower("name")`), allows same slug and same name under different parents, and writes the parent FK claim using `parent.location_path`.
 - Child create derives country-specific child types.
-- PATCH edits name, description, and aliases.
-- PATCH rejects `parent`, `slug`, and `location_type`.
+- PATCH edits name, description, and aliases on a country and on a child row.
+- PATCH rejects `parent`, `slug`, and `location_type` inside `data.fields` (handler-level immutable check).
+- PATCH on a country accepts top-level `divisions`; PATCH on any non-country row rejects top-level `divisions` with a field-level 422 ("only editable on countries"). Rejected via handler dispatch on `loc.location_type`, not via per-tier schemas — see §"PATCH claims" for the rationale.
+- PATCH rejects `divisions` inside `data.fields` (the canonical path is the top-level body field).
 - **DONE**: Detail `expected_child_type` cases — `TestExpectedChildType` in `test_api_locations.py` pins all five (root → `"country"`; USA with `divisions=["state","city"]` → `"state"`; USA/IL → `"city"`; USA/IL/Chicago → `null` (exhausted); Netherlands with no divisions → `null` (missing)). Catches `_LocationNode.divisions` regressions and `lookup_child_division` regressions.
 - Delete is blocked when the row has any active direct child Location (standard `child_related_name="children"` behavior). Verified by attempting to delete `usa` while `usa/il` is active and asserting 422 with `active_children_count > 0`.
-- Delete-preview reports active `CorporateEntityLocation`-reachable CEs on the row as `blocked_by`. Location is the first `soft_delete_usage_blockers` entry that resolves through an M2M-through table (every existing blocker is a reverse FK), so include a fixture where the same CE is linked to the same Location via two different `CorporateEntityLocation` rows: `blocked_by` must list that CE once, not twice. **Audit the walker proactively** as part of this PR — read the iteration site, confirm whether duplicates are possible on M2M-through resolution, and add `.distinct()` there if needed. Do not rely on the Location-specific dedup test to surface this; we already know the path can produce duplicates and the fix belongs in the shared walker, not Location.
+- Delete-preview reports active `CorporateEntityLocation`-reachable CEs on the row as `blocked_by`. **Walker audit done**: `apps/catalog/api/soft_delete.py` `_record` already dedups by `(entity_key, relation)`, so M2M-through duplicates collapse correctly. The "same CE linked twice" scenario the original plan called for turned out to be DB-impossible — `catalog_corporateentitylocation_unique_pair` forbids two CELs with the same `(corporate_entity, location)` pair — so the proposed dedup test was deleted as dead weight (it documented an unreachable scenario). The standard "active CEL blocks" test (single CE, single CEL) is what we ship; row-local dedup is exercised by the walker's existing test suite.
 - `POST /delete/` returns 422 with `blocked_by` populated when blocked by active CELs, and 422 with `active_children_count` populated when blocked by active children. Unblocked delete soft-deletes only the requested row in one `ChangeSet` (no descendants touched, since delete never cascades).
 - Restore reactivates only the requested row and is rejected when the parent is deleted.
 - Generic edit-history and sources endpoints resolve Location by multi-segment public ID.
