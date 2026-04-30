@@ -1,0 +1,11 @@
+name: Feature
+description: Change to user-facing functionality
+title: "[Feature] "
+type: Feature
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Description
+      description: Describe the new capability or improvement.
+

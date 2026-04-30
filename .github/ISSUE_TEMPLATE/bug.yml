@@ -1,0 +1,10 @@
+name: Bug
+description: Report something broken or behaving incorrectly
+title: "[Bug] "
+type: Bug
+body:
+  - type: textarea
+    id: actual
+    attributes:
+      label: Description
+      description: Describe the broken behavior.

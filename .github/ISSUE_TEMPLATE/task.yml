@@ -1,0 +1,10 @@
+name: Task
+description: Work that doesnt involve committing to the repo
+title: "[Task] "
+type: Task
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What needs to be done?
+      description: Describe the task or decision.
