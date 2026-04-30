@@ -1,5 +1,10 @@
 :{$PORT:8080}
 
+@www host www.flipcommons.org
+handle @www {
+	redir https://flipcommons.org{uri} permanent
+}
+
 @django path /api /api/* /admin /admin/* /media/* /static /static/*
 handle @django {
 	reverse_proxy 127.0.0.1:{$DJANGO_PORT:8000}
