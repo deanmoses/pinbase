@@ -4,13 +4,13 @@ Principles and conventions for Django models in Pinbase.
 
 ## Principles
 
-### Validate strictly, validate early
+### Validate strictly
 
-Add the strictest constraint you can defend. Relaxing a constraint is a one-line migration. Tightening one means auditing every existing row and hoping nothing breaks — so start strict.
+Add the strictest constraint you can defend. Relaxing a constraint is simple, but tightening can be extremely costly data migration.
 
 ### Validate in the database
 
-Push as much validation as you can to the database. Data does not only enter through model forms or normal `save()` calls: Django has multiple ORM paths that skip Python validation (`objects.create()`, `bulk_create()`, `update()`), and some writes can bypass the ORM entirely through management commands, migrations, raw SQL, database tools, or our own bulk ingest code. A CHECK constraint catches all of them.
+Push as much validation as you can to the database. Django has multiple ORM paths that skip Python validation (`objects.create()`, `bulk_create()`, `update()`), and some writes can bypass the ORM entirely, such as our bulk ingest code, management commands, migrations, raw SQL, database tools.
 
 ### Default to PROTECT on foreign keys
 
@@ -32,7 +32,7 @@ When adding an app-enforced uniqueness rule:
 
 ## Abstract base classes
 
-We use abstract base classes (mixins) to segregate the concerns of the system and keep things easier to reason about. For example, the wiki linking system only knows about WikilinkableModels; it doesn't have to reach in to any other part of the system.
+We use abstract base classes (mixins) to isolate each separate system concern. For example, the wiki linking system only knows about WikilinkableModels; it doesn't have to know about any model info other than that.
 
 ```mermaid
 flowchart TD
@@ -48,13 +48,13 @@ flowchart TD
   SluggedModel
 ```
 
-- `CatalogModel`: catalog entity marker combining URL-addressability, lifecycle status, and claim control.
-- `MediaSupportedModel`: opt-in for entity media attachments; also claim-controlled because media attachments are claims.
-- `WikilinkableModel`: opt-in for markdown wikilink autocomplete for models that are already linkable.
+- `CatalogModel`: the basic contract for a catalog entity: URL-addressability, claims control, and soft-delete support.
+- `MediaSupportedModel`: opt-in for entity media attachments; requires the model to be claim-controlled because media attachments are claims.
+- `WikilinkableModel`: opt-in for markdown wikilink autocomplete; requires the model to also be URL-addressable.
 - `AliasModel`: shared behavior for alias rows; aliases are claim values on the parent entity, not claim-controlled entities themselves.
-- `TimeStampedModel`: created/updated bookkeeping timestamps.
 - `SluggedModel`: globally unique slug field for entities whose slug is their public identity.
-- `LinkableModel`, `LifecycleStatusModel`, and `ClaimControlledModel`: narrower capability bases used directly by higher-level catalog mixins and occasionally by outlier concrete models.
+- `LinkableModel`, `LifecycleStatusModel`, and `ClaimControlledModel`: narrower capability bases used directly by higher-level catalog mixins and other concrete models.
+- `TimeStampedModel`: created/updated bookkeeping timestamps.
 
 ## Conventions
 
