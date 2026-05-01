@@ -26,8 +26,8 @@ def build_storage_key(asset_uuid: UUID, rendition_type: str) -> str:
     """Derive the storage key for a rendition.
 
     Keys are deterministic from asset UUID + rendition type alone.
-    Content-Type is stored as object metadata by S3/R2, not encoded
-    in the key.
+    Content-Type is stored as object metadata by the storage backend,
+    not encoded in the key.
     """
     if rendition_type not in _VALID_RENDITION_TYPES:
         msg = f"Invalid rendition_type: {rendition_type!r}"

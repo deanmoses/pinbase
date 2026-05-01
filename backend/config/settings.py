@@ -140,6 +140,12 @@ if os.environ.get("MEDIA_STORAGE_BUCKET"):
     AWS_S3_ENDPOINT_URL = os.environ["MEDIA_STORAGE_ENDPOINT"].strip()
     AWS_ACCESS_KEY_ID = os.environ["MEDIA_STORAGE_ACCESS_KEY"].strip()
     AWS_SECRET_ACCESS_KEY = os.environ["MEDIA_STORAGE_SECRET_KEY"].strip()
+    # Storage keys are UUID-derived and write-once, so renditions are
+    # immutable once written. `immutable` tells browsers to skip
+    # revalidation entirely, not just honor max-age.
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "public, max-age=31536000, immutable",
+    }
 else:
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",

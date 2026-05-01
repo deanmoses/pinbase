@@ -61,9 +61,12 @@ In production, one Railway service handles:
 
 - `/api/` via Django Ninja
 - `/admin/` via Django admin
-- `/media/` via Django storage/media handling
 - `/static/` via Django/WhiteNoise
 - frontend routes via SvelteKit Node SSR
+
+Uploaded media is served outside the Railway request path: API payloads return
+URLs on `media.flipcommons.org`, where Bunny CDN pulls from the private iDrive
+e2 bucket.
 
 At a high level:
 
@@ -72,9 +75,13 @@ Browser
   -> Caddy
      -> /api/* handled by Django/Gunicorn
      -> /admin/* handled by Django admin
-     -> /media/* handled by Django/media storage
      -> /static/* handled by Django/WhiteNoise
      -> frontend routes handled by SvelteKit Node SSR
+
+Browser
+  -> media.flipcommons.org
+     -> Bunny CDN
+        -> iDrive e2 private bucket
 ```
 
 See [Hosting.md](Hosting.md) for the production serving details.

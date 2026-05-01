@@ -1,5 +1,7 @@
 # Video Plan
 
+> **⚠️ Outdated.** This plan predates the move to iDrive e2 + Bunny CDN and needs to be updated before it drives any work. The transcoding/playback vendor referenced below should be revisited; the rest of the architecture (claims, ownership boundary, separation of catalog truth from delivery infrastructure) still applies.
+
 Plan date: 2026-04-03
 
 This document describes the product and architecture direction for user-uploaded video in Pinbase. It covers Pinbase-owned video uploads only. Third-party videos remain external.

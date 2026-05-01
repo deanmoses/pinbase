@@ -1,7 +1,5 @@
 # Media Support Plan
 
-Plan date: 2026-03-31
-
 This document outlines photo and video upload and storage support for Pinbase. Decisions are informed by reviewing the Flipfix sister project's production media system (which AIs are encouraged to inspect at ~/dev/flipfix/) and adapting its patterns to Pinbase's claims-based architecture. The database will be reset; no migration/backfill is needed.
 
 ## Goals
@@ -265,57 +263,42 @@ These can be tuned after seeing real usage.
 
 ## Storage
 
-### Cloudflare R2 via django-storages
+### S3-compatible object storage + CDN
 
-Use **Cloudflare R2** as the storage backend, accessed through `django-storages` with the S3-compatible API. R2 is the recommended provider because:
+Use S3-compatible object storage as the backend, accessed through `django-storages`. Production uses **iDrive e2** for the bucket, with **Bunny CDN** in front at `media.flipcommons.org`.
 
-- **We already have it** — Pinbase pulls ingest sources from an R2 bucket today. Same Cloudflare account, new bucket (or same bucket, different prefix).
-- **Zero egress fees** — for a media-heavy catalog site, this matters. Every thumbnail in a grid view, every hero image on a detail page — free to serve.
-- **Hosting-independent** — R2 is durable storage decoupled from Railway. If we change hosting providers, media doesn't move.
-- **Integrated CDN path** — Cloudflare's CDN (free tier) sits natively in front of R2. No cross-provider wiring needed. When CDN time comes, it's a DNS change, not an architecture change.
+Architecture:
 
-Using django-storages with R2's S3-compatible API also gives us:
-
-- Same file locations whether uploaded through Django or later via presigned URLs. No migration needed when switching upload path.
-- Swappable to any other S3-compatible service if needed (AWS S3, Backblaze B2, etc.).
+- **Private origin.** The media bucket is private. The CDN authenticates to the origin with S3 access key + secret. Nothing in the bucket is publicly readable directly; clients must come through the CDN.
+- **Custom domain serving.** Public URLs are `https://media.flipcommons.org/<storage-key>`. Django is not in the serving path.
+- **US-Central origin proximity.** The bucket lives in iDrive's Chicago datacenter, close to the museum's location and the CDN's Chicago PoP. This location was chosen so that cold reads to Chicago users are fast.
+- **Provider-neutral wiring.** `MEDIA_STORAGE_BUCKET`, `MEDIA_STORAGE_ENDPOINT`, `MEDIA_STORAGE_REGION`, `MEDIA_STORAGE_ACCESS_KEY`, `MEDIA_STORAGE_SECRET_KEY`, `MEDIA_PUBLIC_BASE_URL`. Swapping to another S3-compatible vendor (Wasabi, Backblaze B2, etc.) is an env-var change plus a one-time bucket copy. Nothing in the application code or storage keys names a vendor.
+- **Hosting-independent.** Object storage is durable and decoupled from Railway. If we change app hosting, media doesn't move.
 
 ### Cost Expectations
 
-Rough order-of-magnitude estimate, using Cloudflare R2 Standard pricing as of 2026-04-02. Check the current [Cloudflare R2 pricing page](https://developers.cloudflare.com/r2/pricing/) before relying on these numbers — pricing and free-tier limits can change.
+Rough order-of-magnitude estimate at near-term scale. Pricing varies by provider; verify current numbers before relying on these.
 
-Assumptions for a near-term Pinbase scenario:
+Assumptions:
 
 - `5,000` uploaded images.
 - Each upload creates `3` stored objects: `original`, `thumb`, `display`.
-- `60` image reads per hour on average, with little or no useful CDN cache hit rate.
-- Storage dominates cost; request volume at this scale does not.
+- `60` image reads per hour on average.
+- Storage dominates cost; request volume and egress at this scale do not.
 
-R2 price points that matter here:
+Estimated monthly storage cost at `5,000` uploaded images, assuming pay-per-GB pricing in the $0.004–$0.015/GB-month range typical of low-cost S3-compatible providers:
 
-- Storage: first `10 GB` free, then `$0.015 / GB-month`.
-- Class A operations (writes, deletes, list): first `1,000,000 / month` free, then `$4.50 / million`.
-- Class B operations (reads): first `10,000,000 / month` free, then `$0.36 / million`.
-- Egress: `$0`.
-
-Traffic math:
-
-- `60` reads/hour is about `43,200` reads/month.
-- That is far below the free `10,000,000` monthly Class B limit, so read cost is effectively `$0` even if Cloudflare CDN caching is poor.
-- `5,000` uploads means about `15,000` object writes for the initial import or early growth phase, also far below the free Class A limit.
-
-Estimated monthly storage cost at `5,000` uploaded images:
-
-| Average stored size per uploaded image set (`original` + `thumb` + `display`) | Total stored | Estimated monthly R2 cost |
-| ----------------------------------------------------------------------------- | ------------ | ------------------------- |
-| `1.4 MB`                                                                      | `~7.0 GB`    | `$0.00`                   |
-| `3.4 MB`                                                                      | `~16.8 GB`   | `~$0.10`                  |
-| `5.4 MB`                                                                      | `~26.5 GB`   | `~$0.26`                  |
-| `10.4 MB`                                                                     | `~50.9 GB`   | `~$0.61`                  |
+| Average stored size per uploaded image set (`original` + `thumb` + `display`) | Total stored | Estimated monthly cost |
+| ----------------------------------------------------------------------------- | ------------ | ---------------------- |
+| `1.4 MB`                                                                      | `~7.0 GB`    | `~$0.05`               |
+| `3.4 MB`                                                                      | `~16.8 GB`   | `~$0.10`               |
+| `5.4 MB`                                                                      | `~26.5 GB`   | `~$0.20`               |
+| `10.4 MB`                                                                     | `~50.9 GB`   | `~$0.40`               |
 
 Practical takeaway:
 
-- For the first few thousand images, R2 cost is likely to be negligible.
-- Even without strong cache hit rates, read traffic has to grow by orders of magnitude before request charges matter.
+- For the first few thousand images, total monthly cost is well under a dollar.
+- Read traffic at this scale is negligible against typical free tiers and per-request pricing.
 - The real long-term cost driver is total stored bytes, especially large originals or future video assets, not image serving.
 
 ### Key Generation
@@ -351,8 +334,7 @@ Future video rendition types (follow-up):
 
 - Storage keys are computed at runtime by `build_storage_key()` — nothing stored in the database.
 - Public URL = `settings.MEDIA_PUBLIC_BASE_URL + build_storage_key(...)`.
-- Today: `MEDIA_PUBLIC_BASE_URL` points at the storage provider's public origin.
-- Later: point a custom domain (e.g. `media.pinbase.app`) through Cloudflare DNS, which automatically enables the CDN. Change one env var, no database rewrite.
+- `MEDIA_PUBLIC_BASE_URL` points at `media.flipcommons.org`, which the CDN serves from the private bucket.
 
 ### Local Development
 
@@ -514,7 +496,7 @@ Types for media API responses come from the existing OpenAPI-generated `schema.d
 MEDIA_PUBLIC_BASE_URL = os.environ.get("MEDIA_PUBLIC_BASE_URL", "/media/")
 
 if os.environ.get("MEDIA_STORAGE_BUCKET"):
-    # Production: S3-compatible provider (Cloudflare R2, AWS S3, Backblaze B2, etc.)
+    # Production: S3-compatible provider (configured via env vars)
     STORAGES["default"] = {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
     }
@@ -642,12 +624,6 @@ Infrastructure:
 - Normalize third-party media reference shapes across OPDB/IPDB/Fandom/Wikidata.
 - Centralize "uploaded first, external fallback second" media selection in one helper.
 
-### Follow-Up: CDN Cutover
-
-- Point a custom domain (e.g. `media.pinbase.app`) through Cloudflare DNS — this automatically enables Cloudflare's CDN in front of R2 (free tier, zero additional cost).
-- Switch `MEDIA_PUBLIC_BASE_URL` to the custom domain.
-- Configure cache headers and optional purge hooks.
-
 ### Follow-Up: User Roles and Permissions
 
 - Design a cross-cutting user-role/permission model that applies to all claim types (not just media).
@@ -672,7 +648,7 @@ Infrastructure:
 | sha256 dedupe         | Deferred (far future)                     | Adds complexity without clear near-term value.                                                                                                     |
 | Task queue            | Deferred (video follow-up)                | No async work needed. Evaluate options when video lands.                                                                                           |
 | Rendition format      | WebP                                      | Good compression, universal browser support. AVIF deferred.                                                                                        |
-| Storage provider      | Cloudflare R2                             | Already in use for ingest sources. Zero egress, hosting-independent, integrated CDN path (free).                                                   |
+| Storage + CDN         | S3-compatible private bucket + CDN        | Bucket private; CDN authenticates via S3 keys. Public URLs at `media.flipcommons.org`. Provider-neutral env vars.                                  |
 | Third-party media     | Stays in `extra_data`                     | Not temporary — permanent fallback layer. API reads both uploaded and external.                                                                    |
 | Category vocabulary   | Per-entity-type registry                  | Not a global enum. `MachineModel` gets `backglass`/`playfield`/`cabinet`/`other`.                                                                  |
 | Frontend architecture | Logic in TypeScript, thin Svelte wrappers | Testable without DOM. Follows flipfix's interaction patterns in Svelte 5 runes.                                                                    |

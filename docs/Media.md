@@ -1,6 +1,8 @@
 # Media System
 
-This project hosts user-uploaded images in S3-compatible storage (Cloudflare R2). Uploads go through Django, which generates renditions synchronously and stores them directly in R2. The browser loads images straight from storage — Django is never in the serving path.
+This project hosts user-uploaded images in **iDrive e2** (S3-compatible object storage, Chicago region `us-midwest-1`, bucket `flipcommons-media`) with **Bunny CDN** in front at `media.flipcommons.org`. Uploads go through Django, which generates renditions synchronously and writes them to the iDrive bucket. The browser loads images through Bunny — Django is never in the serving path. Bunny authenticates to the iDrive bucket via S3 signature, so the bucket itself stays private.
+
+Storage and CDN are wired through provider-neutral env vars (`MEDIA_STORAGE_*`, `MEDIA_PUBLIC_BASE_URL`); nothing in the application code or storage keys names a vendor, so swapping to another S3-compatible backend is an env-var change plus a one-time bucket copy.
 
 ## Ownership Boundary
 
@@ -56,14 +58,6 @@ Infrastructure:
 - Frontend polling pattern activation in `media-upload.ts`.
 - `VideoPlayer.svelte` component with transcode state handling (adapted from flipfix's video player patterns).
 - HLS adaptive streaming only if demand justifies operational cost.
-
-### Follow-Up: CDN
-
-Put a CDN in front of the image serving. This requires no code changes.
-
-- Point a custom domain (e.g. `media.pinbase.app`) through Cloudflare DNS — this automatically enables Cloudflare's CDN in front of R2 (free tier, zero additional cost).
-- Switch `MEDIA_PUBLIC_BASE_URL` to the custom domain.
-- Configure cache headers and optional purge hooks.
 
 ### Follow-Up: Dedupe
 

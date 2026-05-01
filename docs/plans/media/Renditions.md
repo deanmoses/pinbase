@@ -1,5 +1,7 @@
 # Image Renditions Plan
 
+> **⚠️ Outdated.** This plan predates the move to iDrive e2 + Bunny CDN and needs to be updated before it drives any work. The high-level idea (canonical originals + on-demand resizing at the CDN edge) is still directionally right, but the vendor specifics and several mechanics need a refresh.
+
 Plan date: 2026-04-03
 
 This document describes the product and architecture direction for Pinbase-owned image delivery after the initial media support work. It focuses on uploaded images that Pinbase has the right to store and display. Third-party image references remain external.
