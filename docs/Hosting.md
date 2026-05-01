@@ -15,8 +15,9 @@ Browser ──→ Railway (single Caddy service)
               ├─ /_app/*                → SvelteKit Node SSR
               ├─ /api/*                 → Django Ninja API
               ├─ /admin/*               → Django Admin
-              ├─ /media/*               → Django/media storage
               └─ /static/*              → Django staticfiles / WhiteNoise
+
+Browser ──→ media.flipcommons.org       → Bunny CDN → iDrive e2 private bucket
 ```
 
 ### Runtime flow
@@ -26,15 +27,18 @@ Browser ──→ Railway (single Caddy service)
    Svelte runtime, Django, and Caddy in one container.
 
 2. **Caddy reverse proxy**: Caddy listens on Railway's public `PORT` and
-   routes `/api/`, `/admin/`, `/media/`, and `/static/` to Django on
-   `127.0.0.1:8000`. All other requests are forwarded to SvelteKit SSR on
-   `127.0.0.1:3000`.
+   routes `/api/`, `/admin/`, and `/static/` to Django on `127.0.0.1:8000`.
+   All other requests are forwarded to SvelteKit SSR on `127.0.0.1:3000`.
 
 3. **WhiteNoise static files**: Django still serves collected static files
-   for admin assets through `/static/`. Uploaded media continues to flow
-   through Django storage settings.
+   for admin assets through `/static/`.
 
-4. **Migrations on deploy**: Railway's `preDeployCommand` runs
+4. **Uploaded media serving**: Django writes uploaded media to the configured
+   S3-compatible storage backend. In production, public media URLs point at
+   Bunny CDN on `media.flipcommons.org`, which pulls from the private iDrive e2
+   bucket. Django is not in the production media-serving path.
+
+5. **Migrations on deploy**: Railway's `preDeployCommand` runs
    `manage.py migrate` before the new container accepts traffic. If the
    migration fails, the old container keeps serving.
 
