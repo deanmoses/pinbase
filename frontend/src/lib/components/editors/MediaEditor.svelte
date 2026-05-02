@@ -47,6 +47,10 @@
       actionError = err instanceof Error ? err.message : 'Failed to set primary image.';
     }
   }
+
+  function handleCategoryChange(_assetUuid: string, _category: string) {
+    actionError = 'Category changes are not yet implemented.';
+  }
 </script>
 
 <div class="media-editor">
@@ -64,6 +68,7 @@
         canEdit={true}
         ondelete={handleDelete}
         onsetprimary={handleSetPrimary}
+        oncategorychange={handleCategoryChange}
       />
     </div>
   {/if}

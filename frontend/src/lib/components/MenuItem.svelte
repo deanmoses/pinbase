@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { getContext, type Snippet } from 'svelte';
 
   let {
     href = undefined,
@@ -14,18 +14,37 @@
     current?: boolean;
     children: Snippet;
   } = $props();
+
+  const parentRole = getContext<'menu' | 'listbox'>('action-menu-role') ?? 'menu';
+  const itemRole = parentRole === 'listbox' ? 'option' : 'menuitem';
+  const ariaSelected = $derived(parentRole === 'listbox' ? current : undefined);
 </script>
 
 {#if disabled}
-  <span class:current class="menu-item disabled" role="menuitem" aria-disabled="true" tabindex="-1">
+  <span
+    class:current
+    class="menu-item disabled"
+    role={itemRole}
+    aria-disabled="true"
+    aria-selected={ariaSelected}
+    tabindex="-1"
+  >
     {@render children()}
   </span>
 {:else if href}
-  <a class="menu-item" {href} role="menuitem" tabindex="-1">
+  <a class="menu-item" {href} role={itemRole} aria-selected={ariaSelected} tabindex="-1">
     {@render children()}
   </a>
 {:else}
-  <button class:current class="menu-item" type="button" role="menuitem" tabindex="-1" {onclick}>
+  <button
+    class:current
+    class="menu-item"
+    type="button"
+    role={itemRole}
+    aria-selected={ariaSelected}
+    tabindex="-1"
+    {onclick}
+  >
     {@render children()}
   </button>
 {/if}

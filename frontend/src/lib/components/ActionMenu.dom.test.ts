@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import ActionMenuFixture from './ActionMenu.fixture.svelte';
+import ActionMenuListboxFixture from './ActionMenu.listbox.fixture.svelte';
 
 describe('ActionMenu', () => {
   function renderMenu() {
@@ -118,5 +119,69 @@ describe('ActionMenu', () => {
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  describe('pill variant + listbox role', () => {
+    it('renders listbox semantics by default for variant="pill"', async () => {
+      const user = userEvent.setup();
+      render(ActionMenuListboxFixture);
+
+      const trigger = screen.getByRole('button', { name: 'Image category: playfield' });
+      expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+
+      await user.click(trigger);
+
+      const listbox = screen.getByRole('listbox');
+      expect(listbox).toBeInTheDocument();
+      expect(listbox).toHaveClass('opens-up');
+
+      const options = screen.getAllByRole('option');
+      expect(options.map((o) => o.textContent?.trim())).toEqual([
+        'playfield',
+        'backglass',
+        'cabinet',
+      ]);
+
+      const current = screen.getByRole('option', { name: 'playfield' });
+      expect(current).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('option', { name: 'backglass' })).toHaveAttribute(
+        'aria-selected',
+        'false',
+      );
+    });
+
+    it('arrow keys move focus across options and Escape closes', async () => {
+      const user = userEvent.setup();
+      render(ActionMenuListboxFixture);
+
+      const trigger = screen.getByRole('button', { name: 'Image category: playfield' });
+      trigger.focus();
+      await user.keyboard('{ArrowDown}');
+
+      expect(screen.getByRole('option', { name: 'playfield' })).toHaveFocus();
+      await user.keyboard('{ArrowDown}');
+      expect(screen.getByRole('option', { name: 'backglass' })).toHaveFocus();
+      await user.keyboard('{End}');
+      expect(screen.getByRole('option', { name: 'cabinet' })).toHaveFocus();
+
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+
+    it('clicking an option closes the listbox and restores focus to the trigger', async () => {
+      const user = userEvent.setup();
+      const onselect = vi.fn();
+      render(ActionMenuListboxFixture, { onselect });
+
+      const trigger = screen.getByRole('button', { name: 'Image category: playfield' });
+      await user.click(trigger);
+      await user.click(screen.getByRole('option', { name: 'backglass' }));
+
+      expect(onselect).toHaveBeenCalledWith('backglass');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      // Trigger label re-renders with the new selection.
+      expect(screen.getByRole('button', { name: 'Image category: backglass' })).toHaveFocus();
+    });
   });
 });
