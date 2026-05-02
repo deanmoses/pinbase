@@ -1,4 +1,4 @@
-"""Tests for model ingestion via ingest_pinbase command."""
+"""Tests for model ingestion via ingest_pindata command."""
 
 import json
 import os
@@ -79,26 +79,26 @@ def _write_models_json(entries):
 
 @pytest.mark.django_db
 @pytest.mark.usefixtures("ingest_taxonomy")
-class TestIngestPinbaseModels:
+class TestIngestPindataModels:
     def test_creates_name_claim(self, model_with_opdb_name_simple):
         mm = model_with_opdb_name_simple
         export_dir = _write_models_json(
             [{"opdb_id": "Gtest-Mtest", "name": "Foo (Limited Edition)"}]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-catalog")
         claim = mm.claims.get(source=source, field_name="name", is_active=True)
         assert claim.value == "Foo (Limited Edition)"
 
-    def test_pinbase_wins_resolution(self, model_with_opdb_name_simple):
+    def test_pindata_wins_resolution(self, model_with_opdb_name_simple):
         mm = model_with_opdb_name_simple
         export_dir = _write_models_json(
             [{"opdb_id": "Gtest-Mtest", "name": "Foo (Limited Edition)"}]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
         resolve_model(mm)
         mm.refresh_from_db()
 
@@ -113,7 +113,7 @@ class TestIngestPinbaseModels:
             [{"opdb_id": "Gfake-Mfake", "name": "Nonexistent"}]
         )
         with pytest.raises(CommandError, match="title_slug"):
-            call_command("ingest_pinbase", export_dir=export_dir)
+            call_command("ingest_pindata", export_dir=export_dir)
 
     def test_idempotent(self, model_with_opdb_name_simple):
         mm = model_with_opdb_name_simple
@@ -121,8 +121,8 @@ class TestIngestPinbaseModels:
             [{"opdb_id": "Gtest-Mtest", "name": "Foo (Limited Edition)"}]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-catalog")
         assert (
@@ -142,7 +142,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-ai-desc-model")
         claim = mm.claims.get(source=source, field_name="description", is_active=True)
@@ -160,7 +160,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-catalog")
         claim = mm.claims.get(source=source, field_name="display_type", is_active=True)
@@ -185,7 +185,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-catalog")
         claim = child.claims.get(source=source, field_name="variant_of", is_active=True)
@@ -215,14 +215,14 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
         resolve_model(child)
         child.refresh_from_db()
 
         assert child.variant_of == parent
 
     def test_variant_of_overrides_ingest(self, db):
-        """variant_of from pinbase overrides a wrong variant_of from ingest_opdb."""
+        """variant_of from pindata overrides a wrong variant_of from ingest_opdb."""
         make_machine_model(
             name="Wrong Parent", slug="wrong-parent", opdb_id="Gtest-Mwrong"
         )
@@ -251,7 +251,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
         resolve_model(child)
         child.refresh_from_db()
 
@@ -286,7 +286,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
         # Resolution resets all FKs to None, then applies winners.
         # model_b has no variant_of claim, so it stays None.
         resolve_model(model_a)
@@ -315,7 +315,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-catalog")
         claim = conv_mm.claims.get(
@@ -343,7 +343,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
         resolve_model(conv_mm)
         conv_mm.refresh_from_db()
 
@@ -365,7 +365,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         source = Source.objects.get(slug="flipcommons-catalog")
         claim = mm.claims.get(source=source, field_name="title", is_active=True)
@@ -390,7 +390,7 @@ class TestIngestPinbaseModels:
             ]
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
         resolve_model(mm)
         mm.refresh_from_db()
 

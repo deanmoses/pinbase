@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from apps.catalog.management.commands.ingest_pinbase import (
+from apps.catalog.management.commands.ingest_pindata import (
     _ai_desc_source_registry,
     validate_cross_entity_wikilinks,
 )

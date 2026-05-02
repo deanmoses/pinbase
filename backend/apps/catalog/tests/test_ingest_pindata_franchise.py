@@ -1,4 +1,4 @@
-"""Tests for Title.franchise FK via claims in ingest_pinbase."""
+"""Tests for Title.franchise FK via claims in ingest_pindata."""
 
 import json
 import os
@@ -51,12 +51,12 @@ class TestTitleFranchiseClaims:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir_with)
+        call_command("ingest_pindata", export_dir=export_dir_with)
         title = Title.objects.get(slug="star-wars-ep1")
         franchise = Franchise.objects.get(slug="star-wars")
         assert title.franchise_id == franchise.pk
 
-        call_command("ingest_pinbase", export_dir=export_dir_without)
+        call_command("ingest_pindata", export_dir=export_dir_without)
         title.refresh_from_db()
         assert title.franchise is None
         assert not Claim.objects.filter(
