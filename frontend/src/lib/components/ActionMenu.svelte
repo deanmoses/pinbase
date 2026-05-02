@@ -1,14 +1,31 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { setContext, untrack, type Snippet } from 'svelte';
 
   type Props = {
     label: string;
     disabled?: boolean;
-    variant?: 'default' | 'heading';
+    variant?: 'default' | 'heading' | 'pill';
+    role?: 'menu' | 'listbox';
+    ariaLabel?: string;
     children: Snippet;
   };
 
-  let { label, disabled = false, variant = 'default', children }: Props = $props();
+  let {
+    label,
+    disabled = false,
+    variant = 'default',
+    role: roleProp,
+    ariaLabel,
+    children,
+  }: Props = $props();
+
+  const role: 'menu' | 'listbox' = $derived(roleProp ?? (variant === 'pill' ? 'listbox' : 'menu'));
+  // Context captures the role at construction time and is read once by descendants;
+  // role is stable for the lifetime of the component for all current call sites.
+  setContext<'menu' | 'listbox'>(
+    'action-menu-role',
+    untrack(() => role),
+  );
 
   let open = $state(false);
   let triggerEl: HTMLButtonElement | undefined = $state();
@@ -18,7 +35,9 @@
   const menuId = `${uid}-menu`;
 
   function getMenuItems() {
-    return Array.from(menuEl?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    return Array.from(
+      menuEl?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="option"]') ?? [],
+    );
   }
 
   function focusMenuItem(index: number) {
@@ -116,7 +135,13 @@
   function handleMenuClick(event: MouseEvent) {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target.closest('[role="menuitem"]')) closeMenu();
+    if (target.closest('[role="menuitem"], [role="option"]')) {
+      // For listbox semantics restore focus to trigger after selection (matches
+      // native <select> and ARIA Authoring Practices). Action menus typically
+      // hand focus off to whatever the action opens, so keep the existing
+      // behavior there.
+      closeMenu({ restoreFocus: role === 'listbox' });
+    }
   }
 
   $effect(() => {
@@ -182,10 +207,12 @@
     type="button"
     class="trigger"
     class:heading={variant === 'heading'}
+    class:pill={variant === 'pill'}
     {disabled}
-    aria-haspopup="menu"
+    aria-haspopup={role === 'listbox' ? 'listbox' : 'menu'}
     aria-expanded={open}
     aria-controls={open ? menuId : undefined}
+    aria-label={ariaLabel}
     onclick={toggleMenu}
     onkeydown={handleTriggerKeydown}
   >
@@ -196,10 +223,11 @@
       bind:this={menuEl}
       id={menuId}
       class="menu"
-      class:align-start={variant === 'heading'}
-      role="menu"
+      class:align-start={variant === 'heading' || variant === 'pill'}
+      class:opens-up={variant === 'pill'}
+      {role}
       tabindex="-1"
-      aria-label={label}
+      aria-label={ariaLabel ?? label}
       onkeydown={handleMenuKeydown}
       onclick={handleMenuClick}
     >
@@ -233,6 +261,20 @@
     font-size: inherit;
     font-weight: inherit;
     color: inherit;
+  }
+
+  .trigger.pill {
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: var(--font-size-0);
+    padding: 0.1em 0.4em;
+    border-radius: var(--radius-1);
+  }
+
+  .trigger.pill:hover,
+  .trigger.pill[aria-expanded='true'] {
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
   }
 
   .trigger:hover,
@@ -270,5 +312,10 @@
   .menu.align-start {
     right: auto;
     left: 0;
+  }
+
+  .menu.opens-up {
+    top: auto;
+    bottom: calc(100% + 4px);
   }
 </style>

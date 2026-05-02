@@ -61,7 +61,7 @@ const MOCK_MANUFACTURER = {
   uploaded_media: [
     {
       asset_uuid: 'asset-1',
-      category: 'Cabinet',
+      category: 'cabinet',
       is_primary: true,
       renditions: {
         thumb: 'https://example.com/thumb.jpg',

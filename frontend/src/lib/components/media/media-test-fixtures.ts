@@ -5,7 +5,7 @@ type UploadedMedia = UploadedMediaSchema;
 export function makeMedia(index: number, overrides: Partial<UploadedMedia> = {}): UploadedMedia {
   return {
     asset_uuid: `asset-${index}`,
-    category: 'Cabinet',
+    category: 'cabinet',
     is_primary: index === 1,
     uploaded_by_username: 'moses',
     renditions: {
@@ -17,7 +17,7 @@ export function makeMedia(index: number, overrides: Partial<UploadedMedia> = {})
 }
 
 export const MEDIA_ITEMS = [
-  makeMedia(1, { category: 'Cabinet', is_primary: true }),
-  makeMedia(2, { category: 'Backglass', uploaded_by_username: 'jane' }),
-  makeMedia(3, { category: 'Cabinet', uploaded_by_username: null as never }),
+  makeMedia(1, { category: 'cabinet', is_primary: true }),
+  makeMedia(2, { category: 'backglass', uploaded_by_username: 'jane' }),
+  makeMedia(3, { category: 'cabinet', uploaded_by_username: null as never }),
 ];

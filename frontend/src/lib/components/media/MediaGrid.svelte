@@ -13,12 +13,14 @@
     canEdit = false,
     ondelete,
     onsetprimary,
+    oncategorychange,
   }: {
     media: UploadedMedia[];
     categories?: string[];
     canEdit?: boolean;
     ondelete?: (assetUuid: string) => void;
     onsetprimary?: (assetUuid: string) => void;
+    oncategorychange?: (assetUuid: string, category: string) => void;
   } = $props();
 
   let activeCategory = $state<string | null>(null);
@@ -105,7 +107,15 @@
   {:else}
     <div class="grid">
       {#each visibleMedia as asset (asset.asset_uuid)}
-        <MediaCard {asset} {canEdit} {ondelete} {onsetprimary} onclick={openLightbox} />
+        <MediaCard
+          {asset}
+          {canEdit}
+          {categories}
+          {ondelete}
+          {onsetprimary}
+          {oncategorychange}
+          onclick={openLightbox}
+        />
       {/each}
     </div>
 

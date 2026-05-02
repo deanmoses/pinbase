@@ -37,18 +37,18 @@ describe('MediaGrid', () => {
     const user = userEvent.setup();
     render(MediaGrid, {
       media: MEDIA_ITEMS,
-      categories: ['Cabinet', 'Backglass', 'Playfield'],
+      categories: ['cabinet', 'backglass', 'playfield'],
     });
 
     await user.click(screen.getByRole('button', { name: /playfield \(0\)/i }));
-    expect(screen.getByText('No Playfield images yet.')).toBeInTheDocument();
+    expect(screen.getByText('No playfield images yet.')).toBeInTheDocument();
   });
 
   it('opens the lightbox from the filtered media set', async () => {
     const user = userEvent.setup();
     render(MediaGrid, {
       media: MEDIA_ITEMS,
-      categories: ['Cabinet', 'Backglass'],
+      categories: ['cabinet', 'backglass'],
     });
 
     await user.click(screen.getByRole('button', { name: /backglass \(1\)/i }));
@@ -62,7 +62,7 @@ describe('MediaGrid', () => {
     const media = Array.from({ length: 101 }, (_, index) => makeMedia(index + 1));
     render(MediaGrid, {
       media,
-      categories: ['Cabinet'],
+      categories: ['cabinet'],
     });
 
     expect(screen.getAllByRole('button', { name: /^open( .+)? image$/i })).toHaveLength(100);

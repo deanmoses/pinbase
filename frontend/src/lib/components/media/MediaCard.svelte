@@ -1,21 +1,33 @@
 <script lang="ts">
   import type { UploadedMediaSchema } from '$lib/api/schema';
+  import PillSelect from '$lib/components/PillSelect.svelte';
 
   type UploadedMedia = UploadedMediaSchema;
 
   let {
     asset,
     canEdit = false,
+    categories = [],
     ondelete,
     onsetprimary,
+    oncategorychange,
     onclick,
   }: {
     asset: UploadedMedia;
     canEdit?: boolean;
+    categories?: string[];
     ondelete?: (assetUuid: string) => void;
     onsetprimary?: (assetUuid: string) => void;
+    oncategorychange?: (assetUuid: string, category: string) => void;
     onclick?: (assetUuid: string) => void;
   } = $props();
+
+  const categoryOptions = $derived(categories.map((c) => ({ value: c, label: c })));
+  const showPill = $derived(canEdit && categoryOptions.length > 0);
+
+  function stopCardKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+  }
 
   function handleDelete(e: MouseEvent) {
     e.stopPropagation();
@@ -51,7 +63,20 @@
 >
   <div class="thumb-wrapper">
     <img src={asset.renditions.thumb} alt="" class="thumb" loading="lazy" />
-    {#if asset.category}
+    {#if showPill}
+      <!-- The wrapper exists to position the pill and to keep click/keydown
+           events from bubbling to the card's lightbox handler. The interactive
+           element is the <button> inside PillSelect, not this div. -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="category-pill" onclick={(e) => e.stopPropagation()} onkeydown={stopCardKeydown}>
+        <PillSelect
+          value={asset.category}
+          options={categoryOptions}
+          purpose="Image category"
+          onchange={(c) => oncategorychange?.(asset.asset_uuid, c)}
+        />
+      </div>
+    {:else if asset.category}
       <span class="badge">{asset.category}</span>
     {/if}
     {#if asset.is_primary}
@@ -115,6 +140,13 @@
     font-size: var(--font-size-0);
     padding: 0.1em 0.4em;
     border-radius: var(--radius-1);
+  }
+
+  .category-pill {
+    position: absolute;
+    bottom: var(--size-1);
+    left: var(--size-1);
+    z-index: 1;
   }
 
   .primary-badge {
