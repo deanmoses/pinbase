@@ -25,7 +25,7 @@ This document outlines photo and video upload and storage support for this proje
 The media system is for only for media that this project has a clear license to display, whether end users have uploaded it (and granted this project license to use it), or the images are actually owned by The Flip museum, which owns this project.
 
 - Uploaded media goes into `MediaAsset` + `MediaRendition`.
-- Pinbase-generated renditions go into this project storage.
+- Renditions we generate go into our storage.
 - This project serves URLs for those files.
 
 Third-party media stays outside:

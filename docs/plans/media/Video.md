@@ -2,9 +2,7 @@
 
 > **⚠️ Outdated.** This plan predates the move to iDrive e2 + Bunny CDN and needs to be updated before it drives any work. The transcoding/playback vendor referenced below should be revisited; the rest of the architecture (claims, ownership boundary, separation of catalog truth from delivery infrastructure) still applies.
 
-Plan date: 2026-04-03
-
-This document describes the product and architecture direction for user-uploaded video in this project. It covers Pinbase-owned video uploads only. Third-party videos remain external.
+This document describes the product and architecture direction for user-uploaded video in this project. It covers Flipcommons-hosted video uploads only. Third-party videos remain external.
 
 ## Background
 
@@ -40,7 +38,7 @@ Cloudflare Stream is a better fit for that layer. It provides direct uploads, as
 
 ## Decision
 
-This project should use Cloudflare Stream for Pinbase-owned video uploads and playback.
+This project should use Cloudflare Stream for Flipcommons-hosted video uploads and playback.
 
 The key distinction is:
 
@@ -51,7 +49,7 @@ This is not "transcode on every request." Stream's model is upload first, proces
 
 ## Goals
 
-- Support user-uploaded Pinbase-owned video without building a Pinbase-operated transcoding stack.
+- Support user-uploaded Flipcommons-hosted video without building our own transcoding stack.
 - Keep media attachment truth claims-based and consistent with the rest of the media system.
 - Provide a clear processing lifecycle for video assets.
 - Support reliable playback across devices and connection qualities.
@@ -150,9 +148,9 @@ This sequence keeps the work honest. This project should model the lifecycle fir
 
 This plan is successful when:
 
-- This project can support user-uploaded video without a Pinbase-operated transcoding queue
+- This project can support user-uploaded video without operating our own transcoding queue
 - large uploads do not flow through the normal application request path
 - the UI can accurately show upload, processing, ready, and failed states
 - playback is reliable across devices
 - video remains consistent with this project's claims-based media attachment model
-- third-party video remains outside Pinbase-hosted storage
+- third-party video remains outside our hosted storage

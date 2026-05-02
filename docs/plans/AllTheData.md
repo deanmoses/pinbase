@@ -2,9 +2,9 @@
 
 ## Goal
 
-Scale Pinbase-owned content to cover the full catalog of all pinball machines in existence while preserving the following:
+Scale Pindata content to cover the full catalog of all pinball machines in existence while preserving the following:
 
-- Pinbase-owned canonical facts and relationships
+- Pindata canonical facts and relationships
 - Independent source attribution for OPDB/IPDB-derived facts
 - Git-friendly review and rollback
 - AI-friendly record editing without giant monolithic files
@@ -23,12 +23,12 @@ This project should stop growing the large aggregate files like `data/models.jso
 Instead, this project should move to a three-layer architecture:
 
 1. `data/ingest_sources/` remains immutable third-party evidence.
-2. `data/pindata/` becomes the Pinbase-authored canonical layer, stored as one Markdown file per entity with YAML frontmatter.
+2. `data/pindata/` becomes the Flipcommons-authored canonical layer, stored as one Markdown file per entity with YAML frontmatter.
 3. The Django SQLite database remains the operational source of truth after ingestion and claim resolution.
 
 This keeps the provenance model, but changes the authority boundaries:
 
-- Pinbase-authored files become canonical for the runtime graph and for all relationship-shaping data.
+- Pindata files become canonical for the runtime graph and for all relationship-shaping data.
 - OPDB and IPDB remain ingested as claims only for non-relational factual fields.
 - OPDB/IPDB relationships are preserved for comparison and research, not for driving runtime resolution.
 
@@ -41,7 +41,7 @@ Problems with the current flat-file approach:
 - Large aggregate files are hard to review, diff, and safely edit.
 - AIs make ID, slug, and cross-reference mistakes when too many records live in one file.
 - Narrative descriptions are awkward inside JSON string literals.
-- The current files blur "Pinbase-authored canon" and "facts imported from external datasets."
+- The current files blur "Flipcommons-authored canon" and "facts imported from external datasets."
 - The current runtime ingest gives too much power to OPDB relationship structures like groups and aliases.
 - The OPDB ingest path has become too complex because it is trying to translate a third-party editorial model into this project's own graph.
 
@@ -55,7 +55,7 @@ Problems with making one big per-title JSON blob:
 
 ### Principle: one file per entity
 
-Pinbase-authored entities each get their own file:
+Pindata entities each get their own file:
 
 ```text
 data/
@@ -243,7 +243,7 @@ Files in `data/ingest_sources/` remain raw snapshots from OPDB, IPDB, Fandom, an
 
 ### This project files are the authored canonical layer
 
-Files in `data/pindata/` express Pinbase-authored choices:
+Files in `data/pindata/` express Flipcommons-authored choices:
 
 - canonical facts this project wants the app to resolve to
 - editorial descriptions
@@ -554,7 +554,7 @@ Note: the current standalone `data/credits.json` (series-level credits) will be 
 
 ### Critical dependency: OPDB simplification requires this project files first
 
-The plan's end-state goal is to strip relationship-shaping claims from OPDB/IPDB ingest. But this cannot happen until Pinbase-authored files supply those relationships, or the catalog will lose data.
+The plan's end-state goal is to strip relationship-shaping claims from OPDB/IPDB ingest. But this cannot happen until pindata files supply those relationships, or the catalog will lose data.
 
 The dependency chain is:
 
@@ -571,7 +571,7 @@ Produced a field-by-field ownership matrix by querying the Django claims table. 
 Key findings:
 
 - Relationship-shaping denylist: `title`, `variant_of`, `credit`, `theme`, `gameplay_feature`
-- All taxonomy fields are already Pinbase-only
+- All taxonomy fields are already Pindata-only
 - 14 non-relational fields remain in the OPDB/IPDB comparison allowlist
 
 ### Phase 1: Schemas and loader ✓
@@ -796,7 +796,7 @@ Pinball Map data (`data/ingest_sources/pinballmap_*.json`) does not have a Djang
 
 The museum sign copy ingest (`ingest_pindata_signs.py`, source `flip-signs`, priority 50) should be retired after migration.
 
-Its valuable content is the long-form educational text (MainText column), which should be absorbed into `data/pindata/titles/*.md` body text during Phase 2/3 generation. Once those descriptions live in Pinbase-authored files, they become canonical at priority 300.
+Its valuable content is the long-form educational text (MainText column), which should be absorbed into `data/pindata/titles/*.md` body text during Phase 2/3 generation. Once those descriptions live in pindata files, they become canonical at priority 300.
 
 The other claims it asserts (name, year, month, manufacturer, production_quantity, credits) are redundant with higher-priority sources (OPDB at 200, IPDB at 100, this project at 300) and add no unique value.
 
@@ -812,7 +812,7 @@ After migration:
 
 At a high level, the new orchestration should be:
 
-1. ingest Pinbase-authored canonical records (from `data/pindata/`)
+1. ingest Pindata canonical records (from `data/pindata/`)
 2. ingest OPDB/IPDB non-relational comparison claims
 3. ingest enrichment sources (Fandom, Wikidata)
 4. ingest externally sourced images with attribution
@@ -848,8 +848,8 @@ Remaining work is execution of Phases 5–8.
 Adopt the per-entity file strategy from the original plan, but refine it as follows:
 
 - one file per title, model, person, and manufacturer
-- Markdown with frontmatter for all Pinbase-authored entities
-- make Pinbase-authored files canonical for runtime facts and relationships
+- Markdown with frontmatter for all Pindata entities
+- make Pindata files canonical for runtime facts and relationships
 - keep OPDB/IPDB ingestion as independent provenance-bearing sources for non-relational fact claims only
 - remove OPDB groups/aliases from the main runtime graph-building path
 - keep DuckDB as an audit/reconciliation tool

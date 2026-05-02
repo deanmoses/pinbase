@@ -2,9 +2,7 @@
 
 > **⚠️ Outdated.** This plan predates the move to iDrive e2 + Bunny CDN and needs to be updated before it drives any work. The high-level idea (canonical originals + on-demand resizing at the CDN edge) is still directionally right, but the vendor specifics and several mechanics need a refresh.
 
-Plan date: 2026-04-03
-
-This document describes the product and architecture direction for Pinbase-owned image delivery after the initial media support work. It focuses on uploaded images that this project has the right to store and display. Third-party image references remain external.
+This document describes the product and architecture direction for Flipcommons-hosted image delivery after the initial media support work. It focuses on uploaded images that this project has the right to store and display. Third-party image references remain external.
 
 ## Background
 
@@ -27,7 +25,7 @@ This project's real source of truth is:
 
 Those facts belong in this project and in the claims-based media model. By contrast, "400px thumbnail" versus "480px thumbnail" is not a piece of catalog truth. It is a presentation choice that should be cheap to change.
 
-Cloudflare is well suited to that delivery layer. It can resize Pinbase-owned originals on demand, cache the generated result at the edge, and let the application change image presets without regenerating a library of stored files. That gives this project more product flexibility while reducing application-owned image processing work.
+Cloudflare is well suited to that delivery layer. It can resize Flipcommons-hosted originals on demand, cache the generated result at the edge, and let the application change image presets without regenerating a library of stored files. That gives this project more product flexibility while reducing application-owned image processing work.
 
 This is also a cleaner operational split:
 
@@ -36,7 +34,7 @@ This is also a cleaner operational split:
 
 ## Decision
 
-This project should move toward a model where the uploaded original is the canonical stored image and Cloudflare generates delivery variants for Pinbase-owned images.
+This project should move toward a model where the uploaded original is the canonical stored image and Cloudflare generates delivery variants for Flipcommons-hosted images.
 
 The plan is not to let arbitrary sizes leak throughout the product. Instead, this project should define a small vocabulary of named image presets such as thumbnail, card, detail, and hero. Product and frontend code should request those logical presets. Cloudflare should turn those preset requests into resized cached assets.
 
@@ -46,7 +44,7 @@ This keeps the product flexible without turning image delivery into an unbounded
 
 - Make image size and format a configuration concern rather than a migration concern.
 - Keep this project's claims-based attachment model unchanged.
-- Keep Pinbase-owned originals in storage that this project controls.
+- Keep Flipcommons-hosted originals in storage that this project controls.
 - Use Cloudflare for resizing, optimization, and CDN caching.
 - Preserve the rule that third-party media stays external.
 - Give product and frontend teams a stable set of named image variants.
@@ -75,7 +73,7 @@ This keeps image behavior consistent across cards, lists, detail pages, and futu
 
 At a high level, the architecture should be:
 
-1. This project accepts and validates uploads for Pinbase-owned images.
+1. This project accepts and validates uploads for Flipcommons-hosted images.
 2. This project stores the canonical original in R2 and records the media asset and attachment truth in its existing media models.
 3. Cloudflare sits in front of that storage on a this project media domain.
 4. Cloudflare generates and caches approved delivery variants from the original when requested.
@@ -111,7 +109,7 @@ This plan does not change the claims-based media attachment model.
 In other words:
 
 - attachment truth stays in this project
-- canonical originals stay in Pinbase-controlled storage
+- canonical originals stay in our storage
 - rendition generation moves to Cloudflare
 
 ## Rollout Direction
