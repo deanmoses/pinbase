@@ -50,3 +50,7 @@ class MediaAssetInputSchema(Schema):
     entity_type: str
     public_id: str
     asset_uuid: str
+
+
+class MediaSetCategoryInputSchema(MediaAssetInputSchema):
+    category: str

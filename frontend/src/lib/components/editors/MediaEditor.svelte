@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
-  import { detachMedia, setPrimary } from '$lib/api/media-api';
+  import { detachMedia, setCategory, setPrimary } from '$lib/api/media-api';
   import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
   import type { UploadedMediaSchema } from '$lib/api/schema';
   import MediaUploadZone from '$lib/components/media/MediaUploadZone.svelte';
@@ -49,9 +49,16 @@
     }
   }
 
-  function handleCategoryChange(assetUuid: string, category: string) {
+  async function handleCategoryChange(assetUuid: string, category: string) {
+    actionError = '';
     const previous = media.find((m) => m.asset_uuid === assetUuid)?.category ?? 'none';
-    toast.success(`Image category changed from ${previous} to ${category}.`);
+    try {
+      await setCategory(entityType, slug, assetUuid, category);
+      await invalidateAll();
+      toast.success(`Image category changed from ${previous} to ${category}.`);
+    } catch (err) {
+      actionError = err instanceof Error ? err.message : 'Failed to change image category.';
+    }
   }
 </script>
 

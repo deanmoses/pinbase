@@ -45,6 +45,7 @@ from apps.media.processing import (
 from apps.media.schemas import (
     AttachmentMetaSchema,
     MediaAssetInputSchema,
+    MediaSetCategoryInputSchema,
     RenditionUrlsSchema,
     UploadSchema,
 )
@@ -382,6 +383,65 @@ def set_primary(request: HttpRequest, body: MediaAssetInputSchema) -> Status[Non
             category=em.category,
             is_primary=True,
         )
+        Claim.objects.assert_claim(
+            entity,
+            "media_attachment",
+            claim_value,
+            user=user,
+            claim_key=claim_key,
+        )
+        resolve_media_attachments(
+            content_type_id=ct.id,
+            subject_ids={entity.pk},
+        )
+
+    return Status(204, None)
+
+
+@media_router.post(
+    "/set-category/",
+    response={
+        204: None,
+        400: ErrorDetailSchema,
+        404: ErrorDetailSchema,
+        422: ValidationErrorSchema,
+    },
+    auth=django_auth,
+)
+def set_category(
+    request: HttpRequest, body: MediaSetCategoryInputSchema
+) -> Status[None]:
+    """Change the category of a media asset already attached to an entity."""
+    user = authed_user(request)
+    ct, entity = _resolve_entity(body.entity_type, body.public_id)
+
+    try:
+        asset = MediaAsset.objects.get(uuid=body.asset_uuid)
+    except MediaAsset.DoesNotExist, ValidationError:
+        raise HttpError(404, "Media asset not found.") from None
+
+    em = EntityMedia.objects.filter(
+        content_type=ct,
+        object_id=entity.pk,
+        asset=asset,
+    ).first()
+    if em is None:
+        raise HttpError(404, "This asset is not attached to the specified entity.")
+
+    if em.category == body.category:
+        return Status(204, None)
+
+    with transaction.atomic():
+        try:
+            claim_key, claim_value = build_media_attachment_claim(
+                entity,
+                asset.pk,
+                category=body.category,
+                is_primary=False,
+            )
+        except ValueError as exc:
+            raise HttpError(400, str(exc)) from exc
+
         Claim.objects.assert_claim(
             entity,
             "media_attachment",

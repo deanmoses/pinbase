@@ -123,3 +123,22 @@ export function detachMedia(
 export function setPrimary(entityType: string, publicId: string, assetUuid: string): Promise<void> {
   return mediaAction('/api/media/set-primary/', entityType, publicId, assetUuid);
 }
+
+export async function setCategory(
+  entityType: string,
+  publicId: string,
+  assetUuid: string,
+  category: string,
+): Promise<void> {
+  const { error, response } = await client.POST('/api/media/set-category/', {
+    body: {
+      entity_type: entityType,
+      public_id: publicId,
+      asset_uuid: assetUuid,
+      category,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(error ? parseApiError(error).message : `Request failed (${response.status})`);
+  }
+}
