@@ -118,7 +118,7 @@ Specific notes:
 | -------------------------- | ---------- | ------------------------------------------------------- |
 | `created_at`, `updated_at` | All models | Set by the database engine, never by a human or source. |
 
-`slug` is **not** exempt. Slugs are editorially curated in pindata (e.g. which machine gets `breakout` vs `breakout-2` is an explicit editorial decision), written by ingest with pinbase as source, and changeable by admins. They must be claim-controlled.
+`slug` is **not** exempt. Slugs are editorially curated in pindata (e.g. which machine gets `breakout` vs `breakout-2` is an explicit editorial decision), written by ingest with flipcommons-catalog as source, and changeable by admins. They must be claim-controlled.
 
 #### No-claim M2M write
 

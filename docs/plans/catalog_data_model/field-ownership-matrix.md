@@ -6,8 +6,8 @@ Generated from runtime claims data (2026-03-16).
 
 | Source                 | Slug             | Priority | Type      | Active Claims |
 | ---------------------- | ---------------- | -------- | --------- | ------------- |
-| this project Models         | `pinbase`        | 300      | editorial | 1,627         |
-| this project Titles         | `pinbase-titles` | 300      | editorial | 683           |
+| this project Models         | `flipcommons-catalog`        | 300      | editorial | 1,627         |
+| this project Titles         | `flipcommons-catalog` | 300      | editorial | 683           |
 | Editorial (Mfrs/Corps) | `editorial`      | 300      | editorial | 256           |
 | OPDB                   | `opdb`           | 200      | database  | 25,998        |
 | IPDB                   | `ipdb`           | 100      | database  | 102,146       |
@@ -21,14 +21,14 @@ These fields are either already Pinbase-only or are relationship-shaping fields 
 
 | Field              | Current Sources                                            | Classification           | Notes                                                               |
 | ------------------ | ---------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------- |
-| `name`             | pinbase (388), ipdb (6,659), opdb (2,311), flip-signs (16) | **Pinbase-canonical**    | this project wins at priority 300; external claims remain for comparison |
-| `title`            | pinbase (388), ipdb (4,518), opdb (2,309)                  | **Relationship-shaping** | Must come from this project files; remove from OPDB/IPDB ingest          |
-| `variant_of`       | pinbase (87), opdb (116)                                   | **Relationship-shaping** | Must come from this project files; remove from OPDB ingest               |
-| `converted_from`   | pinbase (53)                                               | **Relationship-shaping** | Already Pinbase-only                                                |
-| `is_conversion`    | pinbase (75)                                               | **Relationship-shaping** | Already Pinbase-only                                                |
-| `cabinet`          | pinbase (30), opdb (30)                                    | **Pinbase-canonical**    | Move to this project files                                               |
-| `display_type`     | pinbase (1), opdb (2,115)                                  | **Pinbase-canonical**    | Move to this project files; keep OPDB for comparison                     |
-| `description`      | pinbase (1)                                                | **Pinbase-canonical**    | Move to Markdown body text                                          |
+| `name`             | flipcommons-catalog (388), ipdb (6,659), opdb (2,311), flip-signs (16) | **Pinbase-canonical**    | this project wins at priority 300; external claims remain for comparison |
+| `title`            | flipcommons-catalog (388), ipdb (4,518), opdb (2,309)                  | **Relationship-shaping** | Must come from this project files; remove from OPDB/IPDB ingest          |
+| `variant_of`       | flipcommons-catalog (87), opdb (116)                                   | **Relationship-shaping** | Must come from this project files; remove from OPDB ingest               |
+| `converted_from`   | flipcommons-catalog (53)                                               | **Relationship-shaping** | Already Pinbase-only                                                |
+| `is_conversion`    | flipcommons-catalog (75)                                               | **Relationship-shaping** | Already Pinbase-only                                                |
+| `cabinet`          | flipcommons-catalog (30), opdb (30)                                    | **Pinbase-canonical**    | Move to this project files                                               |
+| `display_type`     | flipcommons-catalog (1), opdb (2,115)                                  | **Pinbase-canonical**    | Move to this project files; keep OPDB for comparison                     |
+| `description`      | flipcommons-catalog (1)                                                | **Pinbase-canonical**    | Move to Markdown body text                                          |
 | `credit`           | ipdb (7,226)                                               | **Relationship-shaping** | Must come from this project files; remove from IPDB ingest               |
 | `theme`            | ipdb (8,543)                                               | **Relationship-shaping** | Must come from this project files; remove from IPDB ingest               |
 | `gameplay_feature` | ipdb (12,762)                                              | **Relationship-shaping** | Must come from this project files; remove from IPDB ingest               |
@@ -89,9 +89,9 @@ After migration, these are asserted only by Pinbase-authored files.
 
 | Field          | Current Sources                                  | Classification                                             |
 | -------------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| `name`         | pinbase-titles (371), ipdb (4,518), opdb (1,702) | **Pinbase-canonical**; IPDB/OPDB remain for comparison     |
-| `abbreviation` | pinbase-titles (138), opdb (326)                 | **Pinbase-canonical**; OPDB remains for comparison         |
-| `franchise`    | pinbase-titles (174)                             | **Relationship-shaping**; already Pinbase-only             |
+| `name`         | flipcommons-catalog (371), ipdb (4,518), opdb (1,702) | **Pinbase-canonical**; IPDB/OPDB remain for comparison     |
+| `abbreviation` | flipcommons-catalog (138), opdb (326)                 | **Pinbase-canonical**; OPDB remains for comparison         |
+| `franchise`    | flipcommons-catalog (174)                             | **Relationship-shaping**; already Pinbase-only             |
 | `description`  | flip-signs (13)                                  | **Pinbase-canonical**; absorb sign copy into Markdown body |
 
 ## Manufacturer Fields
@@ -114,7 +114,7 @@ Note: Fandom and Wikidata also assert manufacturer claims (founded/dissolved yea
 
 | Field  | Current Sources          | Classification                                                           |
 | ------ | ------------------------ | ------------------------------------------------------------------------ |
-| `name` | pinbase (19), ipdb (583) | **Pinbase-canonical**; IPDB creates Person records during credit parsing |
+| `name` | flipcommons-catalog (19), ipdb (583) | **Pinbase-canonical**; IPDB creates Person records during credit parsing |
 
 Note: Fandom and Wikidata also assert person claims (bio, birth/death, birthplace) but these are enrichment sources handled by separate ingest commands.
 
