@@ -15,7 +15,7 @@ function renderCard(
   }> = {},
 ) {
   return render(MediaCard, {
-    asset: makeMedia(1, { category: 'Backglass', is_primary: false }),
+    asset: makeMedia(1, { category: 'backglass', is_primary: false }),
     canEdit: true,
     onclick: vi.fn(),
     ondelete: vi.fn(),
@@ -70,18 +70,18 @@ describe('MediaCard', () => {
   });
 
   describe('category pill', () => {
-    const categories = ['Playfield', 'Backglass', 'Cabinet'];
+    const categories = ['playfield', 'backglass', 'cabinet'];
 
     it('renders the static badge when no categories are provided', () => {
       renderCard();
       expect(screen.queryByRole('button', { name: /image category/i })).not.toBeInTheDocument();
       // Visible category text still appears (as the static badge).
-      expect(screen.getByText('Backglass')).toBeInTheDocument();
+      expect(screen.getByText('backglass')).toBeInTheDocument();
     });
 
     it('replaces the static badge with a PillSelect when categories are provided', () => {
       renderCard({ categories });
-      expect(screen.getByRole('button', { name: 'Image category: Backglass' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Image category: backglass' })).toBeInTheDocument();
     });
 
     it('fires oncategorychange with (assetUuid, category) when a different option is picked', async () => {
@@ -90,10 +90,10 @@ describe('MediaCard', () => {
       const oncategorychange = vi.fn();
       renderCard({ categories, onclick, oncategorychange });
 
-      await user.click(screen.getByRole('button', { name: 'Image category: Backglass' }));
-      await user.click(screen.getByRole('option', { name: 'Playfield' }));
+      await user.click(screen.getByRole('button', { name: 'Image category: backglass' }));
+      await user.click(screen.getByRole('option', { name: 'playfield' }));
 
-      expect(oncategorychange).toHaveBeenCalledWith('asset-1', 'Playfield');
+      expect(oncategorychange).toHaveBeenCalledWith('asset-1', 'playfield');
       expect(onclick).not.toHaveBeenCalled();
     });
 
@@ -102,7 +102,7 @@ describe('MediaCard', () => {
       const onclick = vi.fn();
       renderCard({ categories, onclick });
 
-      await user.click(screen.getByRole('button', { name: 'Image category: Backglass' }));
+      await user.click(screen.getByRole('button', { name: 'Image category: backglass' }));
 
       expect(screen.getByRole('listbox')).toBeInTheDocument();
       expect(onclick).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe('MediaCard', () => {
       const onclick = vi.fn();
       renderCard({ categories, onclick });
 
-      const trigger = screen.getByRole('button', { name: 'Image category: Backglass' });
+      const trigger = screen.getByRole('button', { name: 'Image category: backglass' });
       trigger.focus();
       await user.keyboard('{Enter}');
 
@@ -126,7 +126,7 @@ describe('MediaCard', () => {
       const onclick = vi.fn();
       renderCard({ categories, onclick });
 
-      const trigger = screen.getByRole('button', { name: 'Image category: Backglass' });
+      const trigger = screen.getByRole('button', { name: 'Image category: backglass' });
       trigger.focus();
       await user.keyboard(' ');
 
@@ -137,7 +137,7 @@ describe('MediaCard', () => {
     it('falls back to the static badge when canEdit is false even if categories are provided', () => {
       renderCard({ categories, canEdit: false });
       expect(screen.queryByRole('button', { name: /image category/i })).not.toBeInTheDocument();
-      expect(screen.getByText('Backglass')).toBeInTheDocument();
+      expect(screen.getByText('backglass')).toBeInTheDocument();
     });
   });
 });
