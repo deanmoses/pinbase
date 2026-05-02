@@ -1,12 +1,12 @@
 # User Attribution
 
-How Pinbase credits contributors — on articles, on photos, and on profiles.
+How this project credits contributors — on articles, on photos, and on profiles.
 
 ## Article Attribution
 
 Wikipedia deliberately does not show author credit on articles. There's no byline. Attribution is buried in the edit history tab, where you'd have to scroll through potentially thousands of edits to see who wrote what. Wikipedia's explicit policy is "no one owns an article," and suppressing visible credit reinforces that norm. This works at Wikipedia's scale because the mission and community are strong enough to sustain contribution without personal recognition.
 
-Pinbase is not Wikipedia. At Pinbase's scale — dozens of contributors, not hundreds of thousands — recognition is personal rather than statistical. A contributor who writes a definitive history of the System 11 platform should see evidence of that contribution without digging through an edit log. One approach worth exploring: a "Contributors to this article" line on the article itself, listing the people who've meaningfully edited it. This makes contribution visible without implying single authorship, and it's compatible with the open wiki model — anyone can still edit, and their name joins the list.
+This project is not Wikipedia. At this project's scale — dozens of contributors, not hundreds of thousands — recognition is personal rather than statistical. A contributor who writes a definitive history of the System 11 platform should see evidence of that contribution without digging through an edit log. One approach worth exploring: a "Contributors to this article" line on the article itself, listing the people who've meaningfully edited it. This makes contribution visible without implying single authorship, and it's compatible with the open wiki model — anyone can still edit, and their name joins the list.
 
 The details of how this works (how many names to show, what threshold of contribution earns a listing, how to handle minor edits vs. substantial ones) are design problems to work through. The principle is: contribution to an article should be visible on the article.
 
@@ -14,7 +14,7 @@ The details of how this works (how many names to show, what threshold of contrib
 
 ### Problem Statement
 
-Pinbase now accepts user-uploaded photos. When a user uploads a photo of a pinball machine, we know internally who uploaded it — but we haven't decided what to show publicly.
+This project now accepts user-uploaded photos. When a user uploads a photo of a pinball machine, we know internally who uploaded it — but we haven't decided what to show publicly.
 
 This is a product decision with real tension between competing values:
 
@@ -24,7 +24,7 @@ This is a product decision with real tension between competing values:
 
 **Accuracy** wants flexibility. The person who uploads a photo isn't always the person who took it. A museum volunteer might upload a batch of photos taken by a visiting collector. A friend might share a great shot from a show. Without a way to credit someone other than the uploader, the UI either misattributes or stays silent.
 
-We need to decide: what does a visitor to Pinbase see when they look at a photo, and how much control does the uploader have over that?
+We need to decide: what does a visitor to this project see when they look at a photo, and how much control does the uploader have over that?
 
 ## Research
 
@@ -55,7 +55,7 @@ The most common UI pattern is two-tier display:
 - **Gallery / thumbnail view:** clean grid, no attribution clutter
 - **Detail / lightbox view:** contributor name, upload date, optionally license
 
-This two-tier approach is likely right for Pinbase regardless of which attribution model we choose.
+This two-tier approach is likely right for this project regardless of which attribution model we choose.
 
 ## Options
 
@@ -71,7 +71,7 @@ Every photo shows the uploader's display name in the detail/lightbox view. No co
 The upload form includes an optional "Photo credit" text field. When filled in, the credit is shown. When left blank, the photo appears with no public attribution. This is the IPDB model.
 
 - **Why it could work:** Respects privacy by default. Supports crediting a third-party photographer.
-- **Why it might not:** Optional fields on upload forms are overwhelmingly left blank. Expect 80-90% of photos to be uncredited, which makes the gallery feel impersonal and removes the community incentive. IPDB compensates with editorial curation; Pinbase is self-serve and can't.
+- **Why it might not:** Optional fields on upload forms are overwhelmingly left blank. Expect 80-90% of photos to be uncredited, which makes the gallery feel impersonal and removes the community incentive. IPDB compensates with editorial curation; this project is self-serve and can't.
 
 ### Option C: Credit by default, with opt-out and override
 
@@ -85,7 +85,7 @@ The uploader's display name is shown by default. The uploader can replace it wit
 Always record who the photographer is (required, defaults to the uploader's name). Separately, let the uploader choose whether that credit is shown publicly.
 
 - **Why it could work:** Cleanest data — always knows the photographer, separately from the display preference. No ambiguity between "didn't fill it in" and "wants to be anonymous." Closest to the Wikimedia model.
-- **Why it might not:** Two controls on an upload form is more friction than one. The distinction between "who took this" and "should we show it" is meaningful at Wikimedia's scale but probably over-engineered for Pinbase's current stage. A required credit field adds friction even when the uploader is the photographer (the common case).
+- **Why it might not:** Two controls on an upload form is more friction than one. The distinction between "who took this" and "should we show it" is meaningful at Wikimedia's scale but probably over-engineered for this project's current stage. A required credit field adds friction even when the uploader is the photographer (the common case).
 
 ## Decision
 

@@ -5,15 +5,15 @@ import {
   buildCanonicalUrl,
   twitterCardType,
 } from './meta-tags';
-import { SITE_NAME } from '$lib/constants';
+import { SITE_TITLE } from '$lib/constants';
 
 describe('buildFullTitle', () => {
-  test('appends site name suffix', () => {
-    expect(buildFullTitle('Medieval Madness')).toBe(`Medieval Madness — ${SITE_NAME}`);
+  test('appends site title suffix', () => {
+    expect(buildFullTitle('Medieval Madness')).toBe(`Medieval Madness — ${SITE_TITLE}`);
   });
 
-  test('does not double site name', () => {
-    expect(buildFullTitle(SITE_NAME)).toBe(SITE_NAME);
+  test('does not double site title', () => {
+    expect(buildFullTitle(SITE_TITLE)).toBe(SITE_TITLE);
   });
 });
 

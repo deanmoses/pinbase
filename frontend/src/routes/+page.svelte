@@ -3,7 +3,7 @@
   import { resolve } from '$app/paths';
   import client from '$lib/api/client';
   import MachineCard from '$lib/components/cards/MachineCard.svelte';
-  import { SITE_NAME } from '$lib/constants';
+  import { SITE_NAME, SITE_TITLE } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
   import MetaTags from '$lib/components/MetaTags.svelte';
   import { page } from '$app/state';
@@ -45,7 +45,7 @@
 </script>
 
 <MetaTags
-  title={SITE_NAME}
+  title={SITE_TITLE}
   description="The encyclopedia of pinball machines, manufacturers, and the people who make them."
   url={page.url.href}
   image={`${page.url.origin}/og-default.png`}

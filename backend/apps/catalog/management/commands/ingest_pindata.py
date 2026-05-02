@@ -1,7 +1,7 @@
-"""Ingest all Pinbase-authored data from exported JSON files.
+"""Ingest all pindata-authored data from exported JSON files.
 
-Reads JSON files from the pinbase export directory (produced by
-scripts/export_pinbase_json.py) and ingests them in dependency order:
+Reads JSON files from the pindata export directory (produced by
+scripts/export_pindata_json.py) and ingests them in dependency order:
 
   taxonomy → manufacturers → corporate entities → systems →
   people → series → titles → models
@@ -220,13 +220,13 @@ def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
 
 
 class Command(BaseCommand):
-    help = "Ingest all Pinbase-authored data from exported JSON files."
+    help = "Ingest all pindata-authored data from exported JSON files."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--export-dir",
             default=str(DEFAULT_EXPORT_DIR),
-            help="Path to exported Pinbase JSON directory.",
+            help="Path to exported pindata JSON directory.",
         )
 
     def handle(self, *args, **options):
@@ -283,7 +283,7 @@ class Command(BaseCommand):
         ]:
             self._run_timed(phase)
 
-        self.stdout.write(self.style.SUCCESS("Pinbase ingestion complete."))
+        self.stdout.write(self.style.SUCCESS("Ingestion complete."))
 
     # ------------------------------------------------------------------
     # Helpers

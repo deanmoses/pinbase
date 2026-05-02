@@ -1,4 +1,4 @@
-"""Tests for _ingest_themes() and _ingest_gameplay_features() in ingest_pinbase."""
+"""Tests for _ingest_themes() and _ingest_gameplay_features() in ingest_pindata."""
 
 import json
 import os
@@ -26,7 +26,7 @@ class TestIngestThemes:
             [{"slug": "horror", "name": "Horror", "description": "Scary stuff"}],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         theme = Theme.objects.get(slug="horror")
         assert theme.name == "Horror"
@@ -45,7 +45,7 @@ class TestIngestThemes:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         vampires = Theme.objects.get(slug="vampires")
         assert list(vampires.parents.values_list("slug", flat=True)) == ["horror"]
@@ -56,7 +56,7 @@ class TestIngestThemes:
             [{"slug": "horror", "name": "Horror", "aliases": ["Scary", "Spooky"]}],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         assert ThemeAlias.objects.filter(theme__slug="horror").count() == 2
 
@@ -66,8 +66,8 @@ class TestIngestThemes:
             [{"slug": "horror", "name": "Horror"}],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         assert Theme.objects.filter(slug="horror").count() == 1
 
@@ -78,7 +78,7 @@ class TestIngestThemes:
             [{"slug": "horror", "name": "Horror"}],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         theme = Theme.objects.get(slug="horror")
         assert theme.name == "Horror"
@@ -98,7 +98,7 @@ class TestIngestGameplayFeatures:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         feature = GameplayFeature.objects.get(slug="multiball")
         assert feature.name == "Multiball"
@@ -118,7 +118,7 @@ class TestIngestGameplayFeatures:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         drop = GameplayFeature.objects.get(slug="drop-targets")
         assert list(drop.parents.values_list("slug", flat=True)) == ["targets"]
@@ -129,7 +129,7 @@ class TestIngestGameplayFeatures:
             [{"slug": "multiball", "name": "Multiball", "aliases": ["Multi-Ball"]}],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         assert (
             GameplayFeatureAlias.objects.filter(feature__slug="multiball").count() == 1
@@ -141,7 +141,7 @@ class TestIngestGameplayFeatures:
             [{"slug": "multiball", "name": "Multiball"}],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         assert GameplayFeature.objects.filter(slug="multiball").count() == 1

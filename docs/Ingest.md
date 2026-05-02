@@ -18,19 +18,13 @@ make pull-ingest   # download R2 → local data/ingest_sources/
 
 `ingest_all` runs these steps in order:
 
-| Step                                | What it does                                    |
-| ----------------------------------- | ----------------------------------------------- |
-| `ingest_pinbase_taxonomy`           | Seeds themes, display types, and other taxonomy |
-| `ingest_pinbase_manufacturers`      | Seeds Manufacturer records from curated JSON    |
-| `ingest_pinbase_corporate_entities` | Seeds CorporateEntity records from curated JSON |
-| `ingest_pinbase_systems`            | Seeds System records from curated JSON          |
-| `ingest_ipdb`                       | Imports IPDB machine data                       |
-| `ingest_opdb`                       | Imports OPDB machines, groups, and changelog    |
-| `ingest_ipdb_titles`                | Creates Title records for IPDB-only machines    |
-| `ingest_pinbase_series`             | Seeds Series and credits from curated JSON      |
-| `ingest_pinbase_titles`             | Sets Title franchise and Series memberships     |
-| `ingest_pinbase_signs`              | Imports museum sign copy from CSV               |
-| `resolve_claims`                    | Re-resolves all catalog entities from claims    |
+| Step               | What it does                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ingest_pindata`   | Seeds curated catalog data (taxonomy, manufacturers, corporate entities, systems, people, series, titles, models) from exported pindata JSON |
+| `ingest_ipdb`      | Imports IPDB machine data                                                                                                                    |
+| `ingest_opdb`      | Imports OPDB machines, groups, and changelog                                                                                                 |
+| `resolve_claims`   | Re-resolves all catalog entities from claims                                                                                                 |
+| `validate_catalog` | Validates the resolved catalog                                                                                                               |
 
 ## Vocabulary entities
 
@@ -41,7 +35,7 @@ Two vocabulary entities drive feature and reward classification across all inges
 | `GameplayFeature` | `gameplay_feature.json` | ~159  | DAG hierarchy via `is_type_of`; aliases for lookup |
 | `RewardType`      | `reward_type.json`      | 6     | Flat; aliases for lookup                           |
 
-Both are ingested by `ingest_pinbase` and populated before any external source ingest runs. All external sources (IPDB, OPDB) only _assign_ existing features/types to models — they never create new `GameplayFeature` or `RewardType` records.
+Both are ingested by `ingest_pindata` and populated before any external source ingest runs. All external sources (IPDB, OPDB) only _assign_ existing features/types to models — they never create new `GameplayFeature` or `RewardType` records.
 
 ### Shared vocabulary maps
 
@@ -89,13 +83,13 @@ These conditions raise `CommandError` and abort ingest:
 
 ## External data sources
 
-| Source           | File                        | Used by                |
-| ---------------- | --------------------------- | ---------------------- |
-| IPDB             | `ipdbdatabase.json`         | `ingest_ipdb`          |
-| OPDB machines    | `opdb_export_machines.json` | `ingest_opdb`          |
-| OPDB groups      | `opdb_export_groups.json`   | `ingest_opdb`          |
-| OPDB changelog   | `opdb_changelog.json`       | `ingest_opdb`          |
-| Museum sign copy | `machine_sign_copy.csv`     | `ingest_pinbase_signs` |
+| Source           | File                        | Used by          |
+| ---------------- | --------------------------- | ---------------- |
+| IPDB             | `ipdbdatabase.json`         | `ingest_ipdb`    |
+| OPDB machines    | `opdb_export_machines.json` | `ingest_opdb`    |
+| OPDB groups      | `opdb_export_groups.json`   | `ingest_opdb`    |
+| OPDB changelog   | `opdb_changelog.json`       | `ingest_opdb`    |
+| Museum sign copy | `machine_sign_copy.csv`     | `ingest_pindata` |
 
 ## Optional enrichment commands
 

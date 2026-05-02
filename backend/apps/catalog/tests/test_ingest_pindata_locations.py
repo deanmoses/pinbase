@@ -1,4 +1,4 @@
-"""Tests for _ingest_locations() in ingest_pinbase.
+"""Tests for _ingest_locations() in ingest_pindata.
 
 Written before implementation (TDD). Tests verify:
 - Location rows are created with correct fields
@@ -15,13 +15,13 @@ from django.core.management import call_command
 from apps.catalog.models import Location, LocationAlias
 from apps.provenance.models import Source
 
-PINBASE_SOURCE_SLUG = "flipcommons-catalog"
+PINDATA_SOURCE_SLUG = "flipcommons-catalog"
 
 
 @pytest.fixture
-def pinbase_source(db):
+def pindata_source(db):
     return Source.objects.create(
-        slug=PINBASE_SOURCE_SLUG,
+        slug=PINDATA_SOURCE_SLUG,
         name="Flipcommons Catalog",
         source_type="editorial",
         priority=300,
@@ -62,7 +62,7 @@ def _run_ingest(tmp_path, location_data, other_files=None):
         for name, data in other_files.items():
             (tmp_path / name).write_text(json.dumps(data))
 
-    call_command("ingest_pinbase", export_dir=str(tmp_path), verbosity=0)
+    call_command("ingest_pindata", export_dir=str(tmp_path), verbosity=0)
 
 
 SAMPLE_LOCATIONS = [
@@ -94,11 +94,11 @@ SAMPLE_LOCATIONS = [
 
 
 class TestIngestLocationsCreation:
-    def test_creates_location_rows(self, db, pinbase_source, tmp_path):
+    def test_creates_location_rows(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         assert Location.objects.count() == 3
 
-    def test_location_fields(self, db, pinbase_source, tmp_path):
+    def test_location_fields(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         usa = Location.objects.get(location_path="usa")
         assert usa.name == "USA"
@@ -106,25 +106,25 @@ class TestIngestLocationsCreation:
         assert usa.code == "US"
         assert usa.slug == "usa"
 
-    def test_country_divisions(self, db, pinbase_source, tmp_path):
+    def test_country_divisions(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         usa = Location.objects.get(location_path="usa")
         assert usa.divisions == ["state", "city"]
 
-    def test_non_country_no_divisions(self, db, pinbase_source, tmp_path):
+    def test_non_country_no_divisions(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         il = Location.objects.get(location_path="usa/il")
         assert il.divisions is None
 
 
 class TestIngestLocationsParentLinks:
-    def test_parent_of_state_is_country(self, db, pinbase_source, tmp_path):
+    def test_parent_of_state_is_country(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         il = Location.objects.select_related("parent").get(location_path="usa/il")
         assert il.parent is not None
         assert il.parent.location_path == "usa"
 
-    def test_parent_of_city_is_state(self, db, pinbase_source, tmp_path):
+    def test_parent_of_city_is_state(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         chicago = Location.objects.select_related("parent").get(
             location_path="usa/il/chicago"
@@ -132,14 +132,14 @@ class TestIngestLocationsParentLinks:
         assert chicago.parent is not None
         assert chicago.parent.location_path == "usa/il"
 
-    def test_country_has_no_parent(self, db, pinbase_source, tmp_path):
+    def test_country_has_no_parent(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         usa = Location.objects.get(location_path="usa")
         assert usa.parent is None
 
 
 class TestIngestLocationsAliases:
-    def test_aliases_created(self, db, pinbase_source, tmp_path):
+    def test_aliases_created(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         usa = Location.objects.get(location_path="usa")
         alias_values = set(
@@ -148,7 +148,7 @@ class TestIngestLocationsAliases:
         # _resolve_aliases stores lowercase alias_value but original-case display
         assert any("united states" in v.lower() for v in alias_values)
 
-    def test_city_alias_created(self, db, pinbase_source, tmp_path):
+    def test_city_alias_created(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         chicago = Location.objects.get(location_path="usa/il/chicago")
         alias_values = {
@@ -164,7 +164,7 @@ class TestIngestLocationsDuplicateSlugs:
     enforces slug uniqueness among root-level rows."""
 
     def test_duplicate_slugs_under_different_parents(
-        self, db, pinbase_source, tmp_path
+        self, db, pindata_source, tmp_path
     ):
         data = [
             {
@@ -213,13 +213,13 @@ class TestIngestLocationsDuplicateSlugs:
 
 
 class TestIngestLocationsIdempotency:
-    def test_rerun_does_not_duplicate(self, db, pinbase_source, tmp_path):
+    def test_rerun_does_not_duplicate(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         assert Location.objects.count() == 3
         assert Location.objects.filter(location_path="usa").count() == 1
 
-    def test_rerun_updates_name(self, db, pinbase_source, tmp_path):
+    def test_rerun_updates_name(self, db, pindata_source, tmp_path):
         _run_ingest(tmp_path, SAMPLE_LOCATIONS)
         updated = [
             {**SAMPLE_LOCATIONS[0], "name": "United States"},

@@ -2,7 +2,7 @@
 
 ## Background
 
-Pinbase's catalog data is built on a claims/provenance system: every field value is a **Claim** asserted by either an automated Source (IPDB, OPDB, etc.) or a human User. Claim resolution picks the winning value per field based on source priority, with most-recent as a tiebreaker.
+This project's catalog data is built on a claims/provenance system: every field value is a **Claim** asserted by either an automated Source (IPDB, OPDB, etc.) or a human User. Claim resolution picks the winning value per field based on source priority, with most-recent as a tiebreaker.
 
 What was missing was a way to **group related claims** into a single logical edit. When a user updates a GameplayFeature's description and rearranges its parent hierarchy in one form submission, those changes are conceptually one action — but without grouping, each claim is an independent record with no link to the others.
 

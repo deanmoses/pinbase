@@ -1,9 +1,9 @@
-import { SITE_NAME } from '$lib/constants';
+import { SITE_TITLE } from '$lib/constants';
 
 const MAX_DESC_LENGTH = 155;
 
 export function buildFullTitle(title: string): string {
-  return title === SITE_NAME ? SITE_NAME : `${title} — ${SITE_NAME}`;
+  return title === SITE_TITLE ? SITE_TITLE : `${title} — ${SITE_TITLE}`;
 }
 
 export function truncateDescription(description: string): string {

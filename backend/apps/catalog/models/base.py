@@ -69,7 +69,7 @@ class CatalogModel(LinkableModel, LifecycleStatusModel, ClaimControlledModel):
     Combines URL-addressability (``LinkableModel``), claim-controlled
     lifecycle status (``LifecycleStatusModel``), and claim-driven display
     fields (``ClaimControlledModel``). Used to distinguish catalog-specific
-    code paths (e.g. ``ingest_pinbase``, soft-delete wire format) that must
+    code paths (e.g. ``ingest_pindata``, soft-delete wire format) that must
     not widen to other ``LinkableModel`` subclasses.
 
     Concrete subclasses inherit all three capabilities transitively and do

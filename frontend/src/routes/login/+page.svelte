@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { SITE_NAME } from '$lib/constants';
+  import { SITE_TITLE } from '$lib/constants';
 
   onMount(() => {
     const next = page.url.searchParams.get('next') || '/';
@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-  <title>Redirecting to sign in — {SITE_NAME}</title>
+  <title>Redirecting to sign in — {SITE_TITLE}</title>
 </svelte:head>
 
 <div class="login-page">

@@ -19,15 +19,15 @@ This document proposes a refreshed documentation set for the project and maps th
 ### Product docs
 
 - `docs/Overview.md`
-  New. This should be the first-stop human document. It should explain what Pinbase is, who it serves, the main product surfaces, where data comes from, and the high-level shape of the system.
+  New. This should be the first-stop human document. It should explain what this project is, who it serves, the main product surfaces, where data comes from, and the high-level shape of the system.
 
 - [docs/DomainModel.md](../DomainModel.md)
-  Keep, but narrow and strengthen it. This doc should describe the business domain of pinball as Pinbase understands it: Titles, Models, variants, remakes, manufacturers, taxonomy, locations, credits, and related concepts. This is not a technical entity-model or schema-reference doc. It is the product-facing domain model: how the public thinks about pinball, how the museum thinks about pinball, and how Pinbase organizes the world so information can slot in cleanly. It should open with a short "Terminology" or "Core distinctions" section that absorbs the most important content from [Definitions.md](../Definitions.md), then proceed into the domain concepts and their relationships. It should stop being part business-domain doc and part ingest design.
+  Keep, but narrow and strengthen it. This doc should describe the business domain of pinball as this project understands it: Titles, Models, variants, remakes, manufacturers, taxonomy, locations, credits, and related concepts. This is not a technical entity-model or schema-reference doc. It is the product-facing domain model: how the public thinks about pinball, how the museum thinks about pinball, and how this project organizes the world so information can slot in cleanly. It should open with a short "Terminology" or "Core distinctions" section that absorbs the most important content from [Definitions.md](../Definitions.md), then proceed into the domain concepts and their relationships. It should stop being part business-domain doc and part ingest design.
 
 ## Architecture & system docs
 
 - `docs/Architecture.md`
-  New. This should be the short top-level system map: the major pieces of Pinbase, how they relate, and where to go for deeper architectural docs.
+  New. This should be the short top-level system map: the major pieces of this project, how they relate, and where to go for deeper architectural docs.
 
 - `docs/WebArchitecture.md`
   New. This should describe the Django + SvelteKit web stack: same-origin auth, dev proxy, production serving model, and the API contract between backend and frontend.
@@ -142,11 +142,11 @@ The refresh should move implemented decisions into stable docs such as [Provenan
 
 After the refresh, the docs should answer these questions cleanly:
 
-- "What is Pinbase?" -> `docs/Overview.md`
+- "What is this project?" -> `docs/Overview.md`
 - "How is the system put together?" -> `docs/Architecture.md`
 - "How is the Django + SvelteKit web app structured?" -> `docs/WebArchitecture.md`
 - "What are the backend app dependency rules?" -> `docs/AppBoundaries.md`
-- "What is Pinbase's business/domain model of pinball?" -> [DomainModel.md](../DomainModel.md)
+- "What is this project's business/domain model of pinball?" -> [DomainModel.md](../DomainModel.md)
 - "What do `Title`, `Model`, `Variant`, and related terms mean?" -> [DomainModel.md](../DomainModel.md)
 - "How do provenance and claims work?" -> [Provenance.md](../Provenance.md)
 - "How does ingest work?" -> [Ingest.md](../Ingest.md)

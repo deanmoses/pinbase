@@ -1,4 +1,4 @@
-"""Tests for Title.series FK via claims in ingest_pinbase."""
+"""Tests for Title.series FK via claims in ingest_pindata."""
 
 import json
 import os
@@ -40,7 +40,7 @@ class TestTitleSeriesClaims:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         series = Series.objects.get(slug="eight-ball")
         title = Title.objects.get(slug="eight-ball")
@@ -72,8 +72,8 @@ class TestTitleSeriesClaims:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir)
-        call_command("ingest_pinbase", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
+        call_command("ingest_pindata", export_dir=export_dir)
 
         title = Title.objects.get(slug="eight-ball")
         assert (
@@ -113,11 +113,11 @@ class TestTitleSeriesClaims:
             ],
         )
 
-        call_command("ingest_pinbase", export_dir=export_dir_with)
+        call_command("ingest_pindata", export_dir=export_dir_with)
         title = Title.objects.get(slug="eight-ball")
         assert title.series is not None
 
-        call_command("ingest_pinbase", export_dir=export_dir_without)
+        call_command("ingest_pindata", export_dir=export_dir_without)
         title.refresh_from_db()
         assert title.series is None
         assert not Claim.objects.filter(
@@ -140,7 +140,7 @@ class TestTitleSeriesClaims:
                 }
             ],
         )
-        call_command("ingest_pinbase", export_dir=export_dir_initial)
+        call_command("ingest_pindata", export_dir=export_dir_initial)
         title = Title.objects.get(opdb_id="Gabc")
         generated_slug = title.slug
 
@@ -157,7 +157,7 @@ class TestTitleSeriesClaims:
                 }
             ],
         )
-        call_command("ingest_pinbase", export_dir=export_dir_rename_and_join)
+        call_command("ingest_pindata", export_dir=export_dir_rename_and_join)
 
         title.refresh_from_db()
         assert title.slug == "eight-ball-title", "slug rename did not apply"

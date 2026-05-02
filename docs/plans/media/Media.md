@@ -1,11 +1,11 @@
 # Media Support Plan
 
-This document outlines photo and video upload and storage support for Pinbase. Decisions are informed by reviewing the Flipfix sister project's production media system (which AIs are encouraged to inspect at ~/dev/flipfix/) and adapting its patterns to Pinbase's claims-based architecture. The database will be reset; no migration/backfill is needed.
+This document outlines photo and video upload and storage support for this project. Decisions are informed by reviewing the Flipfix sister project's production media system (which AIs are encouraged to inspect at ~/dev/flipfix/) and adapting its patterns to this project's claims-based architecture. The database will be reset; no migration/backfill is needed.
 
 ## Goals
 
-- Allow Pinbase users to upload images (initial PR) and video (follow-up) for MachineModel (initial PR) then all catalog entity types (follow-up).
-- Keep third-party media external. OPDB, IPDB, Fandom, Wikidata images stay where they are (`extra_data["opdb.images"]`, etc.). Never copy external images into Pinbase storage.
+- Allow this project users to upload images (initial PR) and video (follow-up) for MachineModel (initial PR) then all catalog entity types (follow-up).
+- Keep third-party media external. OPDB, IPDB, Fandom, Wikidata images stay where they are (`extra_data["opdb.images"]`, etc.). Never copy external images into this project storage.
 - Keep catalog truth claims-based. Media attachments, categories, and primary flags go through provenance.
 - Separate catalog truth from storage infrastructure. Binary files, renditions, storage keys are infrastructure.
 - Store relative object keys, not origin-specific URLs. CDN adoption becomes a config change.
@@ -22,11 +22,11 @@ This document outlines photo and video upload and storage support for Pinbase. D
 
 ## Ownership Boundary
 
-The media system is for only for media that Pinbase has a clear license to display, whether end users have uploaded it (and granted Pinbase license to use it), or the images are actually owned by The Flip museum, which owns Pinbase.
+The media system is for only for media that this project has a clear license to display, whether end users have uploaded it (and granted this project license to use it), or the images are actually owned by The Flip museum, which owns this project.
 
 - Uploaded media goes into `MediaAsset` + `MediaRendition`.
-- Pinbase-generated renditions go into Pinbase storage.
-- Pinbase serves URLs for those files.
+- Renditions we generate go into our storage.
+- This project serves URLs for those files.
 
 Third-party media stays outside:
 
@@ -34,7 +34,7 @@ Third-party media stays outside:
 - IPDB images stay as IPDB image metadata in `extra_data`.
 - Fandom/Wikidata images stay as image metadata in `extra_data`.
 
-Pinbase will not download, transcode, re-host, proxy or pretend to own third-party files. There's legal issues with doing so.
+This project will not download, transcode, re-host, proxy or pretend to own third-party files. There's legal issues with doing so.
 
 UI and APIs prefer uploaded media first, then fall back to third-party referenced media.
 
@@ -256,7 +256,7 @@ Adapted from flipfix's `core/image_processing.py` — a production-proven Pillow
 
 ### Dimensions
 
-- `THUMB_MAX_DIMENSION = 400` (smaller than flipfix's 800 — Pinbase grid items are smaller)
+- `THUMB_MAX_DIMENSION = 400` (smaller than flipfix's 800 — this project grid items are smaller)
 - `DISPLAY_MAX_DIMENSION = 1600` (smaller than flipfix's 2400 — web display, not print)
 
 These can be tuned after seeing real usage.
@@ -303,7 +303,7 @@ Practical takeaway:
 
 ### Key Generation
 
-Storage keys are derived by a `build_storage_key()` utility function (built in Phase 3, not on the model) from the asset UUID and rendition type. The storage backend stores the file at whatever key Pinbase provides — it has no say in naming. The storage prefix and rendition-to-filename mapping live in the media app's storage module, not on the ORM model.
+Storage keys are derived by a `build_storage_key()` utility function (built in Phase 3, not on the model) from the asset UUID and rendition type. The storage backend stores the file at whatever key this project provides — it has no say in naming. The storage prefix and rendition-to-filename mapping live in the media app's storage module, not on the ORM model.
 
 Format: `catalog-media/{asset_uuid}/{rendition_segment}`
 
@@ -357,9 +357,9 @@ APIs return media metadata plus public URLs for ready renditions:
       "category": "backglass",
       "is_primary": true,
       "renditions": {
-        "thumb": "https://media.pinbase.app/catalog-media/abc-123/thumb.webp",
-        "display": "https://media.pinbase.app/catalog-media/abc-123/display.webp",
-        "original": "https://media.pinbase.app/catalog-media/abc-123/original/backglass.jpg"
+        "thumb": "https://media.flipcommons.org/catalog-media/abc-123/thumb.webp",
+        "display": "https://media.flipcommons.org/catalog-media/abc-123/display.webp",
+        "original": "https://media.flipcommons.org/catalog-media/abc-123/original/backglass.jpg"
       }
     }
   ],

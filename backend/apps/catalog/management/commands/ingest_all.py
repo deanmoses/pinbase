@@ -3,7 +3,7 @@
 Curated catalog data is ingested first so it bootstraps the entities that
 external sources (IPDB, OPDB) will match against and enrich:
 
-Runs: ingest_pinbase → ingest_ipdb → ingest_opdb →
+Runs: ingest_pindata → ingest_ipdb → ingest_opdb →
       resolve_claims → validate_catalog.
 """
 
@@ -23,13 +23,13 @@ from apps.catalog.ingestion.constants import (
     DEFAULT_IPDB_PATH,
     DEFAULT_OPDB_PATH,
 )
-from apps.catalog.management.commands.ingest_pinbase import (
+from apps.catalog.management.commands.ingest_pindata import (
     validate_cross_entity_wikilinks,
 )
 
 STEPS = [
     # Phase 1: Curated catalog data — bootstrap entities.
-    "ingest_pinbase",
+    "ingest_pindata",
     # Phase 2: External sources — match existing records, assert claims.
     "ingest_ipdb",
     "ingest_opdb",
@@ -101,7 +101,7 @@ class Command(BaseCommand):
                         self.style.MIGRATE_HEADING(f"{prefix}Running {step}...")
                     )
                     kwargs = {}
-                    if step == "ingest_pinbase":
+                    if step == "ingest_pindata":
                         kwargs["export_dir"] = export_dir
                     elif step == "ingest_ipdb":
                         kwargs["ipdb"] = ipdb_path

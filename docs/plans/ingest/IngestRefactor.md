@@ -2,7 +2,7 @@
 
 ## The Problem
 
-Pinbase's ingest layer is a set of Django management commands that import catalog data from external sources (IPDB, OPDB, Fandom wiki, Wikidata) and from Pinbase's own editorial data (pindata JSON exports). Each command was written independently and evolved to handle its source's unique data shape.
+This project's ingest layer is a set of Django management commands that import catalog data from external sources (IPDB, OPDB, Fandom wiki, Wikidata) and from this project's own editorial data (pindata JSON exports). Each command was written independently and evolved to handle its source's unique data shape.
 
 The commands are fragile, hard to maintain, and a persistent source of bugs — especially for AI agents working on them. The root cause is not that the code is messy (though some of it is). The root cause is that the commands are imperative programs that mix several distinct responsibilities in one place: parsing, entity matching, claim-intent policy, direct ORM mutation, claim assertion, and resolver invocation. These concerns are interleaved in per-command control flow with no shared contracts or boundaries.
 
@@ -82,7 +82,7 @@ If none match, the entity is new (`created_by_source=True`).
 
 This default covers most entity types. Source adapters can override it when the domain requires a more specific chain. For example, Wikidata manufacturer reconciliation needs to search across both `Manufacturer` and `CorporateEntity` with normalized name matching — a domain-specific sequence that doesn't fit the generic chain.
 
-Only pindata (the Pinbase editorial export) uses slugs as identity. No external source has slugs. Slugs are editorial/display properties, not cross-source identity.
+Only pindata (the this project editorial export) uses slugs as identity. No external source has slugs. Slugs are editorial/display properties, not cross-source identity.
 
 For new entities (no match found), the reconciler does not create database rows. Instead, the claim collection step emits a `PlannedEntityCreate` alongside the claims for that entity. Claims reference the planned entity by a temporary handle (e.g. an index into the plan's create list, or the source-specific identity values). The apply layer creates the row, captures the PK, and patches it into the associated claims before persisting them.
 
@@ -215,17 +215,17 @@ Source policy declarations should include which models and fields a source is pe
 
 The architecture does not decide that company metadata belongs on `CorporateEntity` rather than `Manufacturer`. It makes that decision — once made — hard to violate accidentally.
 
-## `ingest_pinbase` is a special case
+## `ingest_pindata` is a special case
 
-The plan/apply model fits IPDB, OPDB, Fandom, and Wikidata naturally. Each is an external source that focuses on one or two entity types per run. `ingest_pinbase` is fundamentally different.
+The plan/apply model fits IPDB, OPDB, Fandom, and Wikidata naturally. Each is an external source that focuses on one or two entity types per run. `ingest_pindata` is fundamentally different.
 
-`ingest_pinbase` is the editorial source that seeds the entire catalog. It processes 12 entity types in dependency order (taxonomy, themes, gameplay features, manufacturers, corporate entities, systems, people, series, titles, models), each with its own matching logic, claim shapes, and resolution steps. Later phases depend on rows created by earlier phases (e.g. titles reference manufacturers and systems that were ingested in prior phases).
+`ingest_pindata` is the editorial source that seeds the entire catalog. It processes 12 entity types in dependency order (taxonomy, themes, gameplay features, manufacturers, corporate entities, systems, people, series, titles, models), each with its own matching logic, claim shapes, and resolution steps. Later phases depend on rows created by earlier phases (e.g. titles reference manufacturers and systems that were ingested in prior phases).
 
 This does not fit cleanly into "one source adapter produces one plan, the apply layer executes it."
 
-The right approach is a **compound plan**: the pinbase adapter produces a plan with ordered sub-plans, one per entity type (or logical group). The apply layer executes them sequentially within one transaction, making each sub-plan's entities available to the next.
+The right approach is a **compound plan**: the pindata adapter produces a plan with ordered sub-plans, one per entity type (or logical group). The apply layer executes them sequentially within one transaction, making each sub-plan's entities available to the next.
 
-This is the only option that preserves full atomicity naturally — if any phase fails, the entire pinbase ingest rolls back. The alternatives (multiple independent plan/apply cycles, or a hybrid that applies each phase independently) reintroduce the non-atomicity problem unless wrapped in an outer transaction, which negates the benefit of separate cycles.
+This is the only option that preserves full atomicity naturally — if any phase fails, the entire pindata ingest rolls back. The alternatives (multiple independent plan/apply cycles, or a hybrid that applies each phase independently) reintroduce the non-atomicity problem unless wrapped in an outer transaction, which negates the benefit of separate cycles.
 
 The compound plan also maps most closely to the current phase structure, making migration straightforward: each `_ingest_*` method becomes a sub-plan builder rather than an imperative mutate-as-you-go method. The apply layer handles entity creation, claim persistence, and resolution for each sub-plan in sequence. Each sub-plan must not have direct ORM writes to claim-controlled fields, and entity creation must be explicit and provenance-backed.
 

@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import SearchBox from '$lib/components/SearchBox.svelte';
   import SearchResults from '$lib/components/SearchResults.svelte';
-  import { SITE_NAME } from '$lib/constants';
+  import { SITE_TITLE } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
 
   let searchQuery = $state('');
@@ -35,7 +35,7 @@
 </script>
 
 <svelte:head>
-  <title>Search — {SITE_NAME}</title>
+  <title>Search — {SITE_TITLE}</title>
   <link rel="preload" as="fetch" href="/api/titles/all/" crossorigin="anonymous" />
   <link rel="preload" as="fetch" href="/api/manufacturers/all/" crossorigin="anonymous" />
   <link rel="preload" as="fetch" href="/api/models/all/" crossorigin="anonymous" />

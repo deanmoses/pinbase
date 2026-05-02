@@ -26,7 +26,7 @@ from apps.provenance.models import Claim, Source
 
 
 def _assert_alias_claims(source, parent_obj, claim_field, aliases: list[str]) -> None:
-    """Assert alias claims for *parent_obj*, mirroring ingest_pinbase._assert_alias_claims.
+    """Assert alias claims for *parent_obj*, mirroring ingest_pindata._assert_alias_claims.
 
     Passing an empty list puts the parent in scope with no pending claims,
     which causes the sweep to delete any stale alias rows.
@@ -86,7 +86,9 @@ def _create_parent(parent_model):
 
 @pytest.fixture
 def source(db):
-    return Source.objects.create(name="Pinbase", source_type="editorial", priority=300)
+    return Source.objects.create(
+        name="Flipcommons", source_type="editorial", priority=300
+    )
 
 
 # Build pytest parametrize IDs from claim field names.

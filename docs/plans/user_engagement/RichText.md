@@ -2,11 +2,11 @@
 
 ## Background
 
-The [UserEngagement](UserEngagement.md) plan bets that Pinbase wins contributors by being a better partner than the alternatives. IPDB has an opaque editorial queue. Wikipedia has intimidating bureaucracy — sourcing standards, notability guidelines, editorial norms. Pinbase's opening is: write something, it's live. No queue, no notability debate, no editorial norms to internalize.
+The [UserEngagement](UserEngagement.md) plan bets that this project wins contributors by being a better partner than the alternatives. IPDB has an opaque editorial queue. Wikipedia has intimidating bureaucracy — sourcing standards, notability guidelines, editorial norms. This project's opening is: write something, it's live. No queue, no notability debate, no editorial norms to internalize.
 
 The editor is a separate question from the engagement model. Contributors write in Markdown, which is itself a markup language — a simple one, but invisible to anyone who hasn't used it. Even basic formatting (bold, links, headings) is hidden behind keyboard shortcuts that a new contributor won't know exist. How much tooling is worth building to make that easier?
 
-The answer depends on who the contributors actually are and where the real friction lies. Wikipedia's own research (below) found that removing markup was not the intervention that moved the engagement needle — the social and bureaucratic barriers mattered far more. Pinbase won't have those barriers, so the editor experience could matter more in relative terms, but it's not clear it's the highest-value investment right now.
+The answer depends on who the contributors actually are and where the real friction lies. Wikipedia's own research (below) found that removing markup was not the intervention that moved the engagement needle — the social and bureaucratic barriers mattered far more. This project won't have those barriers, so the editor experience could matter more in relative terms, but it's not clear it's the highest-value investment right now.
 
 ## The Options
 
@@ -46,7 +46,7 @@ The Wikimedia Foundation ran controlled studies on its impact:
 - **Earlier studies:** New editors using VisualEditor weren't reverted or blocked more often (good), but showed a measurable productivity loss — they edited less, likely because the editor was slower than the wikitext editor at the time.
 - The overall measured impact was effectively zero on the metrics that mattered most: getting new people to make a first edit and getting them to come back.
 
-**What this means for Pinbase:** Wikipedia's finding was that the editor wasn't the bottleneck — social barriers were (intimidating norms, reverts of newcomer edits, notability policies, editorial bureaucracy). Pinbase won't have those barriers, so the editor might matter more in relative terms. But the Wikipedia case is strong evidence that a WYSIWYG editor alone doesn't drive engagement, and the engineering cost is high.
+**What this means for this project:** Wikipedia's finding was that the editor wasn't the bottleneck — social barriers were (intimidating norms, reverts of newcomer edits, notability policies, editorial bureaucracy). This project won't have those barriers, so the editor might matter more in relative terms. But the Wikipedia case is strong evidence that a WYSIWYG editor alone doesn't drive engagement, and the engineering cost is high.
 
 Sources: [Wikimedia May 2015 study](https://meta.wikimedia.org/wiki/Research:VisualEditor%27s_effect_on_newly_registered_editors/May_2015_study), [VisualEditor research overview](https://meta.wikimedia.org/wiki/Research:VisualEditor), [VisualEditor/Why](https://en.wikipedia.org/wiki/Wikipedia:VisualEditor/Why)
 
@@ -66,9 +66,9 @@ This is the approach GitHub, Discourse, and most developer-facing community plat
 
 Sources: [Stacks-Editor (GitHub)](https://github.com/StackExchange/Stacks-Editor), [Stack Overflow editor design blog](https://stackoverflow.blog/2008/05/22/potential-markup-and-editing-choices/)
 
-### The missing data: Pinbase's actual contributors
+### The missing data: this project's actual contributors
 
-No external study directly answers the question for Pinbase, because the answer depends on who the contributors are. The [UserEngagement](UserEngagement.md) plan describes the initial contributor base as museum-connected pinball enthusiasts — a small, known, motivated group. Key unknowns:
+No external study directly answers the question for this project, because the answer depends on who the contributors are. The [UserEngagement](UserEngagement.md) plan describes the initial contributor base as museum-connected pinball enthusiasts — a small, known, motivated group. Key unknowns:
 
 - **Technical comfort.** Do these contributors use Markdown regularly, or is it foreign? If the former, keyboard shortcuts may be sufficient. If the latter, even a toolbar is a meaningful improvement.
 - **Where the drop-off is.** Are people failing to start contributions, or starting and producing poorly-formatted content? The editor choice addresses the second problem, not the first.

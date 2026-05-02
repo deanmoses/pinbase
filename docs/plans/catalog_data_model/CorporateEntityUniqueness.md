@@ -31,7 +31,7 @@ The undisambiguated historical form should remain representable via provenance a
 
 ### 1. `CorporateEntity` is a catalog identity, not just a raw source echo
 
-Unlike a legal-registry system, Pinbase is an editorial catalog. The important invariant is that the primary label shown to users and used by APIs resolves to exactly one entity.
+Unlike a legal-registry system, this project is an editorial catalog. The important invariant is that the primary label shown to users and used by APIs resolves to exactly one entity.
 
 ### 2. Unique names simplify the whole stack
 
@@ -172,7 +172,7 @@ This step must cover the real source of truth for those rows, not only the curre
 
 Possible write paths to inspect:
 
-- `ingest_pinbase` data source for corporate entities
+- `ingest_pindata` data source for corporate entities
 - any source-specific ingest that creates or updates `CorporateEntity.name`
 - existing fixtures that may create duplicate names in tests
 
@@ -239,7 +239,7 @@ Tests, fixtures, and possibly frontend snapshots may assume the old `Shyvers` na
 
 Adopt unique canonical `CorporateEntity.name` values, disambiguate the known `Shyvers` conflict editorially, and enforce the invariant at the database level with tests first.
 
-That gives Pinbase a cleaner mental model:
+That gives this project a cleaner mental model:
 
 - `Manufacturer.name` is unique
 - `CorporateEntity.name` is unique

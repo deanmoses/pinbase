@@ -1,4 +1,10 @@
-export const SITE_NAME = 'The Flip Pinball DB';
+export const SITE_NAME = 'Flipcommons';
+
+/**
+ * Long form used in browser tab titles and the home page <title>. Body copy,
+ * nav, and og:site_name use SITE_NAME instead.
+ */
+export const SITE_TITLE = 'Flipcommons Pinball Encyclopedia';
 
 /**
  * Breakpoint (in rem) where the layout switches from single-column (mobile)
@@ -8,5 +14,5 @@ export const SITE_NAME = 'The Flip Pinball DB';
  */
 export const LAYOUT_BREAKPOINT = 52;
 
-/** Build a browser tab title like "Manufacturers — The Flip Pinball DB". */
-export const pageTitle = (name: string) => `${name} — ${SITE_NAME}`;
+/** Build a browser tab title like "Manufacturers — Flipcommons Pinball Encyclopedia". */
+export const pageTitle = (name: string) => `${name} — ${SITE_TITLE}`;

@@ -2,7 +2,7 @@
 
 ## The Problem
 
-Pinbase's catalog truth is claims-based: sources and users assert claims, claim resolution picks winners, and resolved model tables materialise the current catalog state. That architecture is sound in principle, but it was not designed as one coherent system from the beginning. Provenance, validation, entity lifecycle, and ingest were added incrementally, and the result is that correctness depends on _how_ data enters the system rather than being enforced uniformly at the claims boundary.
+This project's catalog truth is claims-based: sources and users assert claims, claim resolution picks winners, and resolved model tables materialise the current catalog state. That architecture is sound in principle, but it was not designed as one coherent system from the beginning. Provenance, validation, entity lifecycle, and ingest were added incrementally, and the result is that correctness depends on _how_ data enters the system rather than being enforced uniformly at the claims boundary.
 
 Three areas need to be addressed together:
 
@@ -90,7 +90,7 @@ Source adapters call whichever combination makes sense. Most will use `reconcile
 
 Name and alias matching carry false-positive risk for entity types with non-unique names (especially Person). Adapters for those types should add disambiguation checks or limit matching to external ID only rather than risk a bad merge — particularly since relationship claims store the matched entity's PK directly, making a false match hard to undo.
 
-Only pindata (the Pinbase editorial export) uses slugs as identity. No external source has slugs. Slugs are editorial/display properties, not cross-source identity.
+Only pindata (the this project editorial export) uses slugs as identity. No external source has slugs. Slugs are editorial/display properties, not cross-source identity.
 
 For new entities (no match found), the reconciler does not create database rows. Instead, the claim collection step emits a `PlannedEntityCreate` alongside the claims for that entity. Claims reference the planned entity by a temporary handle (e.g. an index into the plan's create list, or the source-specific identity values). The apply layer creates the row, captures the PK, and patches it into the associated claims before persisting them.
 
@@ -209,17 +209,17 @@ Source policy declarations should include which models and fields a source is pe
 
 The architecture does not decide that company metadata belongs on `CorporateEntity` rather than `Manufacturer`. It makes that decision — once made — hard to violate accidentally.
 
-## `ingest_pinbase` is a special case
+## `ingest_pindata` is a special case
 
-The plan/apply model fits IPDB, OPDB, Fandom, and Wikidata naturally. Each is an external source that focuses on one or two entity types per run. `ingest_pinbase` is fundamentally different.
+The plan/apply model fits IPDB, OPDB, Fandom, and Wikidata naturally. Each is an external source that focuses on one or two entity types per run. `ingest_pindata` is fundamentally different.
 
-`ingest_pinbase` is the editorial source that seeds the entire catalog. It processes 12 entity types in dependency order (taxonomy, themes, gameplay features, manufacturers, corporate entities, systems, people, series, titles, models), each with its own matching logic, claim shapes, and resolution steps. Later phases depend on rows created by earlier phases (e.g. titles reference manufacturers and systems that were ingested in prior phases).
+`ingest_pindata` is the editorial source that seeds the entire catalog. It processes 12 entity types in dependency order (taxonomy, themes, gameplay features, manufacturers, corporate entities, systems, people, series, titles, models), each with its own matching logic, claim shapes, and resolution steps. Later phases depend on rows created by earlier phases (e.g. titles reference manufacturers and systems that were ingested in prior phases).
 
 This does not fit cleanly into "one source adapter produces one plan, the apply layer executes it."
 
-The right approach is a **compound plan**: the pinbase adapter produces a plan with ordered sub-plans, one per entity type (or logical group). The apply layer executes them sequentially within one transaction, making each sub-plan's entities available to the next.
+The right approach is a **compound plan**: the pindata adapter produces a plan with ordered sub-plans, one per entity type (or logical group). The apply layer executes them sequentially within one transaction, making each sub-plan's entities available to the next.
 
-This is the only option that preserves full atomicity naturally — if any phase fails, the entire pinbase ingest rolls back. The alternatives (multiple independent plan/apply cycles, or a hybrid that applies each phase independently) reintroduce the non-atomicity problem unless wrapped in an outer transaction, which negates the benefit of separate cycles.
+This is the only option that preserves full atomicity naturally — if any phase fails, the entire pindata ingest rolls back. The alternatives (multiple independent plan/apply cycles, or a hybrid that applies each phase independently) reintroduce the non-atomicity problem unless wrapped in an outer transaction, which negates the benefit of separate cycles.
 
 The compound plan also maps most closely to the current phase structure, making migration straightforward: each `_ingest_*` method becomes a sub-plan builder rather than an imperative mutate-as-you-go method. The apply layer handles entity creation, claim persistence, and resolution for each sub-plan in sequence. Each sub-plan must not have direct ORM writes to claim-controlled fields, and entity creation must be explicit and provenance-backed.
 
@@ -408,11 +408,11 @@ Legacy ingest commands now build PK-based claims but remain imperative (full pla
 
 ### Phase 5: Remaining source adapters
 
-Convert `ingest_ipdb`, `ingest_fandom`, `ingest_wikidata`, `ingest_pinbase` (compound plan). Each adapter: parse, reconcile, collect claims, produce plan. Remove old imperative commands. Note: legacy commands already build PK-based claims (Phase 4), so the conversion is purely structural (plan/apply separation), not a claim format change.
+Convert `ingest_ipdb`, `ingest_fandom`, `ingest_wikidata`, `ingest_pindata` (compound plan). Each adapter: parse, reconcile, collect claims, produce plan. Remove old imperative commands. Note: legacy commands already build PK-based claims (Phase 4), so the conversion is purely structural (plan/apply separation), not a claim format change.
 
 **✅ `ingest_ipdb` converted.** Adapter in `catalog/ingestion/ipdb/adapter.py`, feature extraction in `catalog/ingestion/ipdb/features.py`, management command slimmed to ~70 lines. Creates 4 entity types (CorporateEntity, MachineModel, Person, Theme). Uses `identity_refs` for deferred credit/theme relationship claims where Person/Theme entities are created in the same plan. Deliberate behavior changes: sweep dropped (additive-only), dead manufacturer claim on MachineModel replaced with informational extra_data claims, manufacturers must pre-exist, location validation skipped for new CEs.
 
-`ingest_pinbase` is last (compound plan, most complex). The current `apply_plan` takes one flat plan. `ingest_pinbase` needs ordered sub-plans where each phase's created entities are available to the next phase's claims (e.g. titles reference manufacturers created in an earlier phase). This will require either a `list[IngestPlan]` variant that loops inside one transaction, or extending `IngestPlan` to carry ordered sub-plans. Design this when converting `ingest_pinbase`, not before — the simpler adapters don't need it.
+`ingest_pindata` is last (compound plan, most complex). The current `apply_plan` takes one flat plan. `ingest_pindata` needs ordered sub-plans where each phase's created entities are available to the next phase's claims (e.g. titles reference manufacturers created in an earlier phase). This will require either a `list[IngestPlan]` variant that loops inside one transaction, or extending `IngestPlan` to carry ordered sub-plans. Design this when converting `ingest_pindata`, not before — the simpler adapters don't need it.
 
 ### Phase 6: Source permission enforcement (deferred)
 
@@ -438,14 +438,14 @@ This plan is successful when:
 - ✅ Entity existence is provenance-backed via a claim-controlled `status` field (`active`, `deleted`)
 - ✅ Entity rows are never hard-deleted; catalog queries filter on `status=active`
 - ✅ Relationship claims reference target entities by PK, not by slug
-- All catalog facts enter the system through claims — no direct ORM writes to claim-controlled fields (OPDB, IPDB done; Fandom, Wikidata, pinbase remain)
+- All catalog facts enter the system through claims — no direct ORM writes to claim-controlled fields (OPDB, IPDB done; Fandom, Wikidata, pindata remain)
 - ✅ Every ingest run is recorded as an IngestRun with structured run metadata
 - ✅ Every entity touched in an ingest run has a ChangeSet grouping its claims
 - ✅ Retractions are linked to ChangeSets via `retracted_by_changeset`
 - ✅ The apply layer is source-agnostic — it processes explicit operations with no source-specific logic
 - ✅ The planner is non-mutating — dry run produces a report without writing to the database
 - ✅ Running the same ingest twice produces identical database state (idempotency)
-- Source adapters replace the current imperative ingest commands (OPDB, IPDB done; Fandom, Wikidata, pinbase remain)
+- Source adapters replace the current imperative ingest commands (OPDB, IPDB done; Fandom, Wikidata, pindata remain)
 - `validate_catalog` and resolver guard rails have been reviewed and trimmed post-redesign
 - `assert_claim()` validates relationship targets
 - ✅ Range limits are defined as shared constants referenced by both field validators and `CheckConstraint`

@@ -59,7 +59,7 @@ socket.getaddrinfo = _ipv4_only_getaddrinfo
 _TIMEOUT_SECONDS = 30
 
 _OPENER = urllib.request.build_opener()
-_OPENER.addheaders = [("User-Agent", "pinbase/1.0")]
+_OPENER.addheaders = [("User-Agent", "flipcommons/1.0")]
 
 _DEFAULT_DEST = os.path.join(tempfile.gettempdir(), "ingest_sources")
 

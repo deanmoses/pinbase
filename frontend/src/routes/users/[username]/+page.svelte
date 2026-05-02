@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SITE_NAME } from '$lib/constants';
+  import { SITE_TITLE } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
   import SmartDate from '$lib/components/SmartDate.svelte';
 
@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-  <title>@{profile.username} — {SITE_NAME}</title>
+  <title>@{profile.username} — {SITE_TITLE}</title>
 </svelte:head>
 
 <div class="profile-page">

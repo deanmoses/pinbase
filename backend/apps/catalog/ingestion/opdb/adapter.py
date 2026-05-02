@@ -265,7 +265,7 @@ def compute_fingerprint(opdb_path: str) -> str:
 
 def _manufacturer_diagnostics(machines: list[OpdbRecord]) -> list[str]:
     """Return warnings for OPDB manufacturers not represented in the catalog."""
-    pinbase_opdb_mfr_ids = set(
+    catalog_opdb_mfr_ids = set(
         Manufacturer.objects.filter(
             opdb_manufacturer_id__isnull=False,
         ).values_list("opdb_manufacturer_id", flat=True)
@@ -277,7 +277,7 @@ def _manufacturer_diagnostics(machines: list[OpdbRecord]) -> list[str]:
             and rec.manufacturer_id not in opdb_mfr_by_id
         ):
             opdb_mfr_by_id[rec.manufacturer_id] = rec.manufacturer_name
-    missing_ids = set(opdb_mfr_by_id) - pinbase_opdb_mfr_ids
+    missing_ids = set(opdb_mfr_by_id) - catalog_opdb_mfr_ids
     if not missing_ids:
         return []
     names = [f"{opdb_mfr_by_id[mid]} (opdb_id={mid})" for mid in sorted(missing_ids)]

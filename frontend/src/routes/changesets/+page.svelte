@@ -2,7 +2,7 @@
   import type { ChangeSetDetailSchema, ChangeSetSummarySchema } from '$lib/api/schema';
   import client from '$lib/api/client';
   import { CATALOG_META } from '$lib/api/catalog-meta';
-  import { SITE_NAME } from '$lib/constants';
+  import { SITE_TITLE } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
   import SmartDate from '$lib/components/SmartDate.svelte';
   import InlineDiff from '$lib/components/InlineDiff.svelte';
@@ -154,7 +154,7 @@
 </script>
 
 <svelte:head>
-  <title>Changelog &mdash; {SITE_NAME}</title>
+  <title>Changelog &mdash; {SITE_TITLE}</title>
 </svelte:head>
 
 <div class="changes-page">

@@ -28,7 +28,7 @@ At ~30 users (growing to perhaps a few hundred with public registration), this f
 
 **Cons:**
 
-- **Session lifetime on free tier is short** — max 3-day idle timeout and 30-day absolute session lifetime. A user who doesn't visit for 4 days gets logged out. We want sessions lasting months. Longer sessions require Enterprise pricing (~$30k/year). This is a significant UX concern for a casual wiki-style site like Pinbase.
+- **Session lifetime on free tier is short** — max 3-day idle timeout and 30-day absolute session lifetime. A user who doesn't visit for 4 days gets logged out. We want sessions lasting months. Longer sessions require Enterprise pricing (~$30k/year). This is a significant UX concern for a casual wiki-style site like this project.
 - **MFA is not available on the free tier.** Essentials plan ($35/mo B2C) gets basic TOTP; Professional ($240/mo) adds SMS/email/push.
 - **Custom email templates need more verification** — Auth0 definitely requires an external email provider for production email and branded transactional email, but it is not yet clear from the docs whether template customization itself is gated behind a paid plan.
 - Login UI is hosted by Auth0 (customizable, but not fully yours)
@@ -163,7 +163,7 @@ Create a dedicated Django auth service (or extend Flipfix) using django-allauth,
 
 Regardless of which option we pick, the integration pattern is the same for each property:
 
-- **Pinbase**: User clicks login → redirect to IdP → authenticate → redirect back → Django creates session. Fits your existing same-origin proxy architecture perfectly.
+- **this project**: User clicks login → redirect to IdP → authenticate → redirect back → Django creates session. Fits your existing same-origin proxy architecture perfectly.
 - **Flipfix**: Switches from being the OAuth provider to being an OAuth client. django-allauth or mozilla-django-oidc on the client side. Existing ~30 users migrated to the new IdP.
 - **Juice**: Swaps Flipfix's OAuth endpoint for the new IdP's. Minimal change.
 - **www**: No change now. If needed later, NextAuth.js speaks OIDC natively.

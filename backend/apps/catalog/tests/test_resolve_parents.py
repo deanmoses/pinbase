@@ -7,9 +7,9 @@ from apps.provenance.models import Claim, Source
 
 
 @pytest.fixture
-def pinbase_source(db):
+def pindata_source(db):
     return Source.objects.create(
-        name="Pinbase Catalog", source_type="editorial", priority=300
+        name="Flipcommons Catalog", source_type="editorial", priority=300
     )
 
 
@@ -19,7 +19,7 @@ class TestResolveGameplayFeatureParents:
     under 'gameplay_feature_parent'.  The resolver silently found zero
     claims and materialised nothing."""
 
-    def test_parent_m2m_materialised(self, pinbase_source):
+    def test_parent_m2m_materialised(self, pindata_source):
         parent = GameplayFeature.objects.create(name="Multiball", slug="multiball")
         child = GameplayFeature.objects.create(
             name="2-Ball Multiball", slug="2-ball-multiball"
@@ -32,7 +32,7 @@ class TestResolveGameplayFeatureParents:
             child,
             "gameplay_feature_parent",
             value,
-            source=pinbase_source,
+            source=pindata_source,
             claim_key=claim_key,
         )
 

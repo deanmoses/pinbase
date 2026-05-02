@@ -1,6 +1,6 @@
 # Who Are The Site's Target Users?
 
-The core user is someone driven by curiosity and love of the subject, not by a transactional need. They're not here to price a machine or manage a route — they're here because pinball history is interesting and they want to go deeper. The tagline of The Flip museum is "Preserving the love of pinball for future generations" and the Pinbase project is a plank of that.
+The core user is someone driven by curiosity and love of the subject, not by a transactional need. They're not here to price a machine or manage a route — they're here because pinball history is interesting and they want to go deeper. The tagline of The Flip museum is "Preserving the love of pinball for future generations" and the this project project is a plank of that.
 
 ## Who They Are
 
@@ -12,7 +12,7 @@ The core user is someone driven by curiosity and love of the subject, not by a t
 
 ## Who They Might Be In The Future
 
-- Restorers looking for specs, schematics, parts info. We already have a public read-only version of the Flipfix maintenance site that we hope to grow into a deep resource of repair information for the particular models that the museum owns: the entire maintenance history and conversations around maintenance are public. So there's deep interest from the museum in supporting this community. Adding specs, schematics, parts info to Pinbase would absolutely be right in the museum's mission. Dunno, though, whether we can improve on existing sites around this.
+- Restorers looking for specs, schematics, parts info. We already have a public read-only version of the Flipfix maintenance site that we hope to grow into a deep resource of repair information for the particular models that the museum owns: the entire maintenance history and conversations around maintenance are public. So there's deep interest from the museum in supporting this community. Adding specs, schematics, parts info to this project would absolutely be right in the museum's mission. Dunno, though, whether we can improve on existing sites around this.
 
 ## Who They Are Not
 
@@ -33,7 +33,7 @@ Users roughly fall into two profiles:
 
 We suspect there's pent-up demand among amateur pinball writers and historians becuase IPDB, the existing major encyclopedia, has been difficult to work with for years.
 
-This is Pinbase's contributor acquisition strategy: give frustrated IPDB contributors a better home.
+This is this project's contributor acquisition strategy: give frustrated IPDB contributors a better home.
 
 ### What they contribute
 

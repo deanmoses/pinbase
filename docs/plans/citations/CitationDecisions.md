@@ -4,12 +4,12 @@ This document captures the decision process behind the citation system after con
 
 ## The Problem
 
-Pinbase is trying to be a trusted encyclopedia, not just a list of facts. In pinball history, unattributed claims quickly blur into rumor, repeated lore, or database cargo-culting. Citations matter because they let a reader or editor answer two questions quickly:
+This project is trying to be a trusted encyclopedia, not just a list of facts. In pinball history, unattributed claims quickly blur into rumor, repeated lore, or database cargo-culting. Citations matter because they let a reader or editor answer two questions quickly:
 
 - what external evidence supports this claim
 - how can I inspect that evidence myself
 
-That is distinct from Pinbase's provenance system. Provenance answers who put data into Pinbase. Citations answer what external evidence supports it.
+That is distinct from this project's provenance system. Provenance answers who put data into this project. Citations answer what external evidence supports it.
 
 ## What Comparable Systems Taught Us
 
@@ -20,7 +20,7 @@ The main lessons from Wikipedia, MediaWiki-derived communities, and adjacent kno
 - Reuse matters, but mandatory central bibliographies create friction.
 - Automatic citation helpers are only good when they have strong metadata extraction and a credible manual fallback.
 
-The key product takeaway was that Pinbase should preserve the verification loop without requiring contributors to think like librarians or template engineers during ordinary editing.
+The key product takeaway was that this project should preserve the verification loop without requiring contributors to think like librarians or template engineers during ordinary editing.
 
 ## Product Constraints
 
@@ -36,16 +36,16 @@ Several constraints shaped the design:
 
 ### Citations are evidence, not provenance
 
-Pinbase keeps citations separate from claim provenance.
+This project keeps citations separate from claim provenance.
 
-- Provenance tracks which source or user asserted data into Pinbase.
+- Provenance tracks which source or user asserted data into this project.
 - Citations track the external evidence that supports a claim or passage.
 
 That separation matters because a claim can come from IPDB while the evidence that validates it is a flyer, manual, interview, or museum-held document.
 
 ### Use point citations, not text ranges
 
-Pinbase uses point citations, inserted at a position in the text, rather than wrapping exact text ranges.
+This project uses point citations, inserted at a position in the text, rather than wrapping exact text ranges.
 
 Ranges look more precise, but in practice they impose too much editorial discipline, become awkward with multi-source sentences, and create misleadingly precise-looking markup. Point citations are more honest about the level of precision contributors will reliably maintain.
 
@@ -61,7 +61,7 @@ This separation avoids collapsing unlike things into one record. The same book c
 
 ### Citation sources are shared, but reuse should assist rather than gate authoring
 
-Pinbase wants reusable citation sources because they improve consistency, deduplication, and long-term maintenance. But the system should not force contributors into a strict centralized bibliography workflow before they can save.
+This project wants reusable citation sources because they improve consistency, deduplication, and long-term maintenance. But the system should not force contributors into a strict centralized bibliography workflow before they can save.
 
 The rule is:
 
@@ -76,7 +76,7 @@ That means:
 
 ### Citation sources may be hierarchical
 
-Some sources are simple one-off records. Others are source families: work and edition, publication and issue, documentation set and specific manual. Pinbase therefore allows citation sources to have a parent source.
+Some sources are simple one-off records. Others are source families: work and edition, publication and issue, documentation set and specific manual. This project therefore allows citation sources to have a parent source.
 
 The hierarchy represents identity, not locator position. Page numbers, timestamps, sections, and similar references belong on the citation instance, not as deeper source nodes.
 
@@ -105,7 +105,7 @@ This keeps reuse primary without forcing contributors to choose between "manual"
 
 ### Pre-seed important sources where feasible
 
-For major source families that Pinbase knows it will cite repeatedly, pre-seeding is worth doing. It reduces duplicate creation, improves autocomplete quality, and makes shared citation infrastructure more likely to stick.
+For major source families that this project knows it will cite repeatedly, pre-seeding is worth doing. It reduces duplicate creation, improves autocomplete quality, and makes shared citation infrastructure more likely to stick.
 
 This is especially attractive for bounded pinball-specific corpora such as books, magazines, manuals, and major websites.
 

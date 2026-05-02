@@ -1,14 +1,14 @@
-# User Engagement: How Pinbase Builds a Self-Sustaining Knowledge Base
+# User Engagement: How this project Builds a Self-Sustaining Knowledge Base
 
 ## The Problem
 
 Pinball has a rich, deep history — and it's slowly being lost. The people who know it best are aging out. The existing reference sites are either frozen (IPDB hasn't evolved in years) or noisy (Pinside buries knowledge in forum threads). There's no place where a passionate amateur historian can write a careful essay about the evolution of pop bumpers and have it live alongside authoritative catalog data, credited to them, improvable by others, and durable enough to outlive them.
 
-That last part matters. The goal isn't just to collect knowledge — it's to build something that endures. A contribution to Pinbase should still be useful in 20 years, even if the person who wrote it has moved on. This means the knowledge can't be locked to its original author. It has to be a living document that the community maintains, corrects, and deepens over time.
+That last part matters. The goal isn't just to collect knowledge — it's to build something that endures. A contribution to this project should still be useful in 20 years, even if the person who wrote it has moved on. This means the knowledge can't be locked to its original author. It has to be a living document that the community maintains, corrects, and deepens over time.
 
 ## The Constraints
 
-Pinbase is a project of The Flip, a volunteer-run museum. This means:
+This project is a project of The Flip, a volunteer-run museum. This means:
 
 - **No dedicated moderation staff.** The museum director is motivated but time-limited. There is no team sitting in a queue approving edits. Any model that requires a human bottleneck will die the first week the bottleneck is busy.
 - **Small initial contributor base.** At launch, contributors are a known group of museum-connected pinball enthusiasts. The community is small enough that people know each other.
@@ -25,7 +25,7 @@ Edits go live immediately. No approval queue. No voting. The community self-corr
 
 This is Wikipedia's model, and it works because of a counterintuitive insight: **you don't need gatekeepers if you make bad edits cheaper to fix than to prevent.** A one-click revert takes five seconds. A moderation queue takes days and demoralizes the contributor waiting in it.
 
-### Why this works for Pinbase specifically
+### Why this works for this project specifically
 
 **The vandalism risk is near zero.** Wikipedia needs semi-protection on articles about politicians and mass shootings because millions of people visit those pages with agendas. Nobody is edit-warring over the Gorgar page. If this ever changes, protection can be added reactively — building for today's actual threat level is smarter than building for Wikipedia's.
 
@@ -35,13 +35,13 @@ This is Wikipedia's model, and it works because of a counterintuitive insight: *
 
 ## The Bet: Be a Great Partner to Contributors
 
-Before stewardship, before watchlists, before any engagement mechanics — the first thing Pinbase has to get right is the contribution experience itself. The hypothesis is simple: there are people who want to write about pinball history and upload their photo collections, and the existing options are bad enough that a good one wins by default.
+Before stewardship, before watchlists, before any engagement mechanics — the first thing this project has to get right is the contribution experience itself. The hypothesis is simple: there are people who want to write about pinball history and upload their photo collections, and the existing options are bad enough that a good one wins by default.
 
 IPDB requires submitting to an editorial team. You send in your contribution and wait. Maybe it gets published, maybe it doesn't. You have no control over how it's presented. The process is opaque and slow, and it's been this way for years. There's pent-up frustration among amateur historians who have knowledge to share and no good place to share it.
 
 Wikipedia has the opposite problem: you can publish, but the bureaucracy around formatting, sourcing standards, notability guidelines, and editorial norms is intimidating. Writing a Wikipedia article is a skill in itself, separate from actually knowing the subject.
 
-Pinbase's opening is to be neither. Write something, it's live. Upload photos, they're on the page. No queue, no notability debate, no editorial norms to internalize. The contribution experience should feel like the site is a willing partner — it wants your knowledge and makes it easy to share. (For analysis of how much editor tooling is needed to deliver on this, see [RichText.md](RichText.md).)
+This project's opening is to be neither. Write something, it's live. Upload photos, they're on the page. No queue, no notability debate, no editorial norms to internalize. The contribution experience should feel like the site is a willing partner — it wants your knowledge and makes it easy to share. (For analysis of how much editor tooling is needed to deliver on this, see [RichText.md](RichText.md).)
 
 This is the MVP of engagement. If the first contribution feels good enough that someone wants to do a second one, everything else follows. If it doesn't, no amount of gamification or community features will compensate.
 
@@ -53,7 +53,7 @@ An open wiki only works if people actually show up and write. Two motivations su
 
 The primary motivator for sustained Wikipedia editors isn't edit counts or badges — it's identity. "I am the person who maintains the article on Bally Manufacturing, and that matters." The steward doesn't own the page, but they feel responsible for it. They watch it, they improve it, they defend it against bad edits. Game mechanics (contribution counts, awards) reinforce this identity, but the identity comes first.
 
-Pinbase needs to foster this. A contributor who writes a definitive history of Williams should feel like the steward of that page — not through exclusive control, but through visible association and the tools to maintain it (watchlists, edit history, their name in the contribution record).
+This project needs to foster this. A contributor who writes a definitive history of Williams should feel like the steward of that page — not through exclusive control, but through visible association and the tools to maintain it (watchlists, edit history, their name in the contribution record).
 
 ### Visibility
 
@@ -69,7 +69,7 @@ Every version of every page is preserved. Nothing is ever truly lost. This is th
 
 ### Recent changes feed
 
-A single page showing every edit across the site, in real time. This is the most underrated feature in Wikipedia's arsenal. Experienced Wikipedia editors are genuinely addicted to the recent changes page — it's how they find problems, discover new content, and feel the pulse of the project. At Pinbase's scale, this feed is small enough to be browsable by anyone who cares. It turns passive readers into active stewards: "I just saw someone edited the Bally page — let me check if it's good."
+A single page showing every edit across the site, in real time. This is the most underrated feature in Wikipedia's arsenal. Experienced Wikipedia editors are genuinely addicted to the recent changes page — it's how they find problems, discover new content, and feel the pulse of the project. At this project's scale, this feed is small enough to be browsable by anyone who cares. It turns passive readers into active stewards: "I just saw someone edited the Bally page — let me check if it's good."
 
 ### Watchlists
 

@@ -101,7 +101,7 @@ class TestRendererValidatorParity:
         reachable from the ingest validator's CatalogModel walk and points
         to the same model class.
 
-        The validator at ``ingest_pinbase.validate_cross_entity_wikilinks``
+        The validator at ``ingest_pindata.validate_cross_entity_wikilinks``
         builds its lookup as ``{model.entity_type: model for model in
         catalog_models()}``; the renderer's registration loop builds
         ``LinkType.name = model.entity_type``.
