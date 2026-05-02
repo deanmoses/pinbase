@@ -4,7 +4,7 @@ Convert `ingest_fandom`, `ingest_wikidata`, and `ingest_wikidata_manufacturers` 
 
 ## Context
 
-Phases 1–4 of [ClaimsNextGen.md](ClaimsNextGen.md) are complete. The apply layer, OPDB adapter, IPDB adapter, entity lifecycle, DB-level validation, and relationship claim PK migration are all implemented. Two adapters remain before `ingest_pinbase` (the compound plan).
+Phases 1–4 of [ClaimsNextGen.md](ClaimsNextGen.md) are complete. The apply layer, OPDB adapter, IPDB adapter, entity lifecycle, DB-level validation, and relationship claim PK migration are all implemented. Two adapters remain before `ingest_pindata` (the compound plan).
 
 Reference implementations:
 

@@ -29,7 +29,7 @@ This works because the caller always knows the entity type and which fields it's
 Management commands call `bulk_assert_claims()` (provenance), then explicitly call catalog resolution functions in the right order:
 
 ```python
-# ingest_pinbase.py — orchestrator manually sequences resolution
+# ingest_pindata.py — orchestrator manually sequences resolution
 bulk_assert_claims(source=ipdb, pending=claims, ...)
 resolve_all_entities(MachineModel, object_ids=changed_ids)
 resolve_all_credits(model_ids=changed_ids)

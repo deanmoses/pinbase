@@ -12,7 +12,7 @@ Three pain points follow:
 
 3. **Tripwire on any future swap.** Code that imports `django.contrib.auth.models.User` directly for `isinstance` checks breaks at runtime if `AUTH_USER_MODEL` is later swapped — even though the FK would accept the new class. We have this pattern in at least `edit_claims.py` (after Step 4 cleanup) and `provenance/revert.py`.
 
-Pinbase hasn't gone live. The DB is disposable. The window to fix this cleanly is now.
+This project hasn't gone live. The DB is disposable. The window to fix this cleanly is now.
 
 ## Solution
 
@@ -36,7 +36,7 @@ Two base-class flavors:
 - **`AbstractUser`** — inherits username, email, first/last name, `is_staff`, password, groups, permissions. A straight rename of the default. Use when the default shape is roughly right.
 - **`AbstractBaseUser + PermissionsMixin`** — no predefined fields except password. Use for email-as-username, multi-tenant, or anything exotic. Forces more up-front design.
 
-For Pinbase, `AbstractUser` is the likely starting point — we already use username-based auth and the default admin/permissions plumbing.
+For this project, `AbstractUser` is the likely starting point — we already use username-based auth and the default admin/permissions plumbing.
 
 ### Why this fixes the three pain points
 

@@ -1,6 +1,6 @@
 # Citations Design
 
-This document describes the current high-level design for Pinbase citations. It is intentionally about product shape and system boundaries, not implementation detail.
+This document describes the current high-level design for this project citations. It is intentionally about product shape and system boundaries, not implementation detail.
 
 ## Goals
 
@@ -20,7 +20,7 @@ Long-form markdown content uses inline citation markers:
 The production run was 4,000 units.[[cite:12345]]
 ```
 
-`12345` is a `Citation Instance`. The marker means "this source supports the nearby claim," usually the preceding sentence or clause. Pinbase uses point citations rather than text ranges.
+`12345` is a `Citation Instance`. The marker means "this source supports the nearby claim," usually the preceding sentence or clause. This project uses point citations rather than text ranges.
 
 The existing `[[` autocomplete is the front door for citation authoring. Contributors do not choose a separate citation mode first.
 
@@ -107,7 +107,7 @@ The taxonomy should stay small and expand only when a new type clearly needs dis
 
 ## Search, Creation, and Extraction
 
-The system should always try to reuse an existing source first. When that fails and the input looks like evidence rather than ordinary text, Pinbase can help create a new source draft automatically.
+The system should always try to reuse an existing source first. When that fails and the input looks like evidence rather than ordinary text, this project can help create a new source draft automatically.
 
 That extraction layer should follow a simple principle:
 
@@ -119,7 +119,7 @@ This keeps extraction useful without making contributors trust opaque automation
 
 ## Seeding and Reuse
 
-For heavily reused source families, Pinbase should pre-seed citation sources where practical. Pre-seeding improves autocomplete quality, reduces duplicate creation, and makes shared-source reuse feel natural from the start.
+For heavily reused source families, this project should pre-seed citation sources where practical. Pre-seeding improves autocomplete quality, reduces duplicate creation, and makes shared-source reuse feel natural from the start.
 
 Shared sources still need pragmatic governance:
 

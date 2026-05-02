@@ -1,10 +1,10 @@
 # Talk Pages
 
-What a Talk Page should be in Pinbase, based on how comparable knowledge and community systems handle page-level discussion.
+What a Talk Page should be in this project, based on how comparable knowledge and community systems handle page-level discussion.
 
 ## Background and Business Rationale
 
-Pinbase is trying to solve a specific problem: durable preservation of pinball knowledge, not just short-term community activity. The project wants authoritative catalog pages and historical essays that can improve over time, survive the loss of any one contributor, and still feel alive rather than frozen. That creates a recurring product need: when two good-faith contributors disagree about a fact, a source, a timeline, or how a page should be framed, where does that disagreement go?
+This project is trying to solve a specific problem: durable preservation of pinball knowledge, not just short-term community activity. The project wants authoritative catalog pages and historical essays that can improve over time, survive the loss of any one contributor, and still feel alive rather than frozen. That creates a recurring product need: when two good-faith contributors disagree about a fact, a source, a timeline, or how a page should be framed, where does that disagreement go?
 
 If there is no answer, the disagreement gets expressed in worse ways:
 
@@ -15,18 +15,18 @@ If there is no answer, the disagreement gets expressed in worse ways:
 
 This is the business case for Talk Pages. The point is not to add "community" in the abstract. The point is to reduce the operating cost of maintaining trustworthy pages in a volunteer-run system.
 
-That matters especially for Pinbase because of the project's constraints:
+That matters especially for this project because of the project's constraints:
 
 - The site carries a museum brand, so quality failures are more expensive than on a hobby forum.
 - The contributor base is initially small, knowledgeable, and mission-driven rather than mass-market.
 - There is no dedicated moderation staff, so any solution that depends on manual editorial arbitration does not scale.
 - The long-term value is in compounding knowledge, not in maximizing comments per session.
 
-Under those conditions, the right question is not "should Pinbase have discussion?" It is "what kind of discussion makes the canonical knowledge base better, and what kind simply creates another place to manage?"
+Under those conditions, the right question is not "should this project have discussion?" It is "what kind of discussion makes the canonical knowledge base better, and what kind simply creates another place to manage?"
 
 The strongest rationale for Talk Pages is that they can turn conflict and uncertainty into durable editorial memory. A good Talk Page records why a source was preferred, why a claim was scoped narrowly, why a disputed anecdote was excluded, or what evidence would be needed to revisit a decision. That is valuable institutional memory. It lowers future confusion, lowers repeated argument, and makes the site more maintainable without paid staff.
 
-The weak rationale for Talk Pages is generic engagement. General conversation can create activity, but activity is not the same thing as durable knowledge. If Pinbase wants a place for stories, opinions, troubleshooting, buying advice, or social interaction, that is a different product surface with different incentives and moderation needs.
+The weak rationale for Talk Pages is generic engagement. General conversation can create activity, but activity is not the same thing as durable knowledge. If this project wants a place for stories, opinions, troubleshooting, buying advice, or social interaction, that is a different product surface with different incentives and moderation needs.
 
 ## Landscape Survey
 
@@ -54,15 +54,15 @@ Fandom's product split is instructive because it explicitly broke "discussion" i
 
 That split reflects a real product truth: users want different things from these surfaces, and combining them usually degrades all of them. When page-improvement discussion, reader reaction, and community chat all live in one place, the highest-noise use case tends to dominate.
 
-For Pinbase, Fandom is useful mostly as a caution. If Pinbase ships Talk Pages, they should not be asked to double as comments and not be asked to double as forums.
+For this project, Fandom is useful mostly as a caution. If this project ships Talk Pages, they should not be asked to double as comments and not be asked to double as forums.
 
 ### MusicBrainz
 
-[MusicBrainz](https://musicbrainz.org/doc/Introduction_to_Editing) is one of the closest structural analogs to Pinbase: a mission-driven, community-maintained knowledge base with a serious data quality culture. But it does not center article-like talk pages. Instead, communication is tied closely to edits themselves via [edit notes](https://musicbrainz.org/doc/Edit_Note), voting, and review.
+[MusicBrainz](https://musicbrainz.org/doc/Introduction_to_Editing) is one of the closest structural analogs to this project: a mission-driven, community-maintained knowledge base with a serious data quality culture. But it does not center article-like talk pages. Instead, communication is tied closely to edits themselves via [edit notes](https://musicbrainz.org/doc/Edit_Note), voting, and review.
 
 The lesson is that some knowledge systems do not need a broad page-level discussion layer if their dominant coordination problem is review of specific changes. MusicBrainz's approach is better when the main question is "should this edit land?" rather than "how should this page represent an unresolved topic over time?"
 
-For Pinbase, this suggests Talk Pages are most justified around long-lived pages with interpretive or historiographic questions. They are less essential if the issue is a narrow, transactional correction that could be handled by edit notes, flags, or structured review.
+For this project, this suggests Talk Pages are most justified around long-lived pages with interpretive or historiographic questions. They are less essential if the issue is a narrow, transactional correction that could be handled by edit notes, flags, or structured review.
 
 ### Discogs
 
@@ -70,7 +70,7 @@ Discogs also splits communication by job. Its database contribution workflow emp
 
 This matters because it demonstrates another recurring pattern: systems that care about authoritative catalog data tend to keep the "why I changed this" conversation close to the change, and keep opinion/reaction in a separate lane.
 
-For Pinbase, Discogs reinforces that Talk Pages should not become review surfaces, opinion surfaces, or all-purpose comments. If they exist, their value is in deliberation over the canonical page.
+For this project, Discogs reinforces that Talk Pages should not become review surfaces, opinion surfaces, or all-purpose comments. If they exist, their value is in deliberation over the canonical page.
 
 ### BoardGameGeek
 
@@ -78,23 +78,23 @@ For Pinbase, Discogs reinforces that Talk Pages should not become review surface
 
 That model works for community engagement, but it has a different outcome profile. Forums are excellent at producing activity and accumulated discussion. They are much worse at producing concise institutional memory unless someone regularly curates thread outcomes back into the page itself.
 
-BoardGameGeek shows what happens when page-attached discussion is optimized for community utility rather than editorial maintenance. It can be vibrant, but it does not automatically improve the canonical description. Pinbase should only copy this model if it wants a forum product. It should not copy it under the label of Talk Pages.
+BoardGameGeek shows what happens when page-attached discussion is optimized for community utility rather than editorial maintenance. It can be vibrant, but it does not automatically improve the canonical description. This project should only copy this model if it wants a forum product. It should not copy it under the label of Talk Pages.
 
 ### OpenStreetMap
 
 [OpenStreetMap Notes](https://wiki.openstreetmap.org/wiki/Notes) show the opposite extreme: a page- or map-attached comment surface that is tightly scoped to reporting and resolving a specific problem. The documentation explicitly frames Notes as issue-reporting rather than general discussion.
 
-This is useful because it shows another option for Pinbase. Some disputes or corrections are not "talk page" problems at all. They are issue-reporting problems. If the goal is simply "this photo is misdated" or "this attribution is wrong," a narrow flag or correction workflow may be much better than a reusable discussion page.
+This is useful because it shows another option for this project. Some disputes or corrections are not "talk page" problems at all. They are issue-reporting problems. If the goal is simply "this photo is misdated" or "this attribution is wrong," a narrow flag or correction workflow may be much better than a reusable discussion page.
 
 ### iNaturalist
 
 iNaturalist combines open contribution with mission-driven stewardship, which makes it strategically relevant even though its object model is different. Much of the discussion on the site is attached to specific observations, taxa, or curation actions, and the platform also uses flags and curator processes for issues that need attention.
 
-The lesson here is motivational rather than structural. Contributors will tolerate more editorial process when they believe they are serving a mission larger than the platform. Pinbase likely has that same advantage because preserving pinball history is intrinsically meaningful to many contributors. That makes a focused, evidence-oriented discussion surface more plausible than it would be on a generic UGC site.
+The lesson here is motivational rather than structural. Contributors will tolerate more editorial process when they believe they are serving a mission larger than the platform. This project likely has that same advantage because preserving pinball history is intrinsically meaningful to many contributors. That makes a focused, evidence-oriented discussion surface more plausible than it would be on a generic UGC site.
 
 ## Theory for How to Evaluate Features
 
-The research suggests that Pinbase should not ask "what discussion features are common?" It should ask "what jobs must a Talk Page do in order to improve the knowledge base?"
+The research suggests that this project should not ask "what discussion features are common?" It should ask "what jobs must a Talk Page do in order to improve the knowledge base?"
 
 That leads to a simple evaluation theory.
 
@@ -124,11 +124,11 @@ This is the clearest lesson from the landscape. Systems perform better when user
 - discussing the subject broadly
 - reporting a discrete issue
 
-Pinbase should evaluate Talk Page features by how well they reinforce that distinction. If a feature blurs the line and invites generic chatter, it is likely hurting the product.
+This project should evaluate Talk Page features by how well they reinforce that distinction. If a feature blurs the line and invites generic chatter, it is likely hurting the product.
 
 ### 3. Favor durable memory over ephemeral exchange
 
-Pinbase's mission is archival. So the highest-value Talk Page features are the ones that create useful records for future editors. A thread that documents why a source was rejected in 2026 may still save time in 2031. A thread full of "great article" reactions will not.
+This project's mission is archival. So the highest-value Talk Page features are the ones that create useful records for future editors. A thread that documents why a source was rejected in 2026 may still save time in 2031. A thread full of "great article" reactions will not.
 
 This implies that the best Talk Page features are those that make substantive threads easy to find, revisit, and interpret later.
 
@@ -140,19 +140,19 @@ Features should therefore reward maintenance and accountability, not territorial
 
 ### 5. Fit the museum's operating model
 
-Pinbase does not have staff capacity for heavy moderation or intricate workflow management. Talk Page features should be judged partly by whether they can function with a small, mission-aligned community and low operational overhead.
+This project does not have staff capacity for heavy moderation or intricate workflow management. Talk Page features should be judged partly by whether they can function with a small, mission-aligned community and low operational overhead.
 
 If a feature only works when staff actively triage, close, merge, coach, or mediate threads, it is probably a bad fit for the current stage.
 
 ### 6. Be honest about stage risk
 
-An empty or low-traffic Talk Page system can be worse than no system. It signals inactivity and gives users another place to check. Pinbase should evaluate features partly on whether they still make sense at small scale, with a small founding contributor cohort and relatively low disagreement volume.
+An empty or low-traffic Talk Page system can be worse than no system. It signals inactivity and gives users another place to check. This project should evaluate features partly on whether they still make sense at small scale, with a small founding contributor cohort and relatively low disagreement volume.
 
 That argues for a tight initial scope and against broad community-discussion ambitions.
 
 ## Features
 
-If Pinbase decides to have Talk Pages, the feature set should be built around the narrow editorial job described above.
+If this project decides to have Talk Pages, the feature set should be built around the narrow editorial job described above.
 
 ### Core features that fit the Talk Page job
 
@@ -187,7 +187,7 @@ These features are useful only if there is enough real editorial use to justify 
 - troubleshooting, ownership, repair, pricing, or buying advice discussions
 - social feed mechanics designed mainly to maximize participation volume
 
-Those can all be valid products. They are just not Talk Pages in the sense that best serves Pinbase.
+Those can all be valid products. They are just not Talk Pages in the sense that best serves this project.
 
 ### A practical product rule
 
@@ -197,9 +197,9 @@ A useful rule of thumb is this: if a discussion could plausibly end with "and th
 
 The landscape does not point toward Talk Pages as a generic engagement feature. It points toward Talk Pages as an editorial maintenance tool.
 
-That is good news for Pinbase, because the business case for editorial maintenance is much stronger than the business case for trying to compete as a general community platform. Pinbase does not need to out-forum Pinside. It needs to become the place where careful pinball knowledge can be built, corrected, and preserved over time.
+That is good news for this project, because the business case for editorial maintenance is much stronger than the business case for trying to compete as a general community platform. This project does not need to out-forum Pinside. It needs to become the place where careful pinball knowledge can be built, corrected, and preserved over time.
 
-If Pinbase launches Talk Pages, they should be explicitly positioned as:
+If this project launches Talk Pages, they should be explicitly positioned as:
 
 - a place to discuss how to improve a page
 - a place to resolve disputes about facts, framing, and sources
@@ -212,4 +212,4 @@ They should not be positioned as:
 - a social community feed
 - a replacement for narrower issue-reporting flows
 
-In product terms, the highest-leverage version of Talk Pages is narrow, evidence-oriented, durable, and steward-friendly. If Pinbase wants that job done, Talk Pages are a strong fit. If what it actually wants is conversation, then it should build for conversation directly rather than smuggling a forum into the encyclopedia under the wrong name.
+In product terms, the highest-leverage version of Talk Pages is narrow, evidence-oriented, durable, and steward-friendly. If this project wants that job done, Talk Pages are a strong fit. If what it actually wants is conversation, then it should build for conversation directly rather than smuggling a forum into the encyclopedia under the wrong name.

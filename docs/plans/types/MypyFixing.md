@@ -272,7 +272,7 @@ These are last. The ingestion code may be completely rewritten, so refactoring f
 
 Grouped because they share patterns (external I/O, command runners, bare dicts from JSON parsing):
 
-- [catalog/management/commands/ingest_pinbase.py](../../../backend/apps/catalog/management/commands/ingest_pinbase.py) (45 — #1 hotspot)
+- [catalog/management/commands/ingest_pindata.py](../../../backend/apps/catalog/management/commands/ingest_pindata.py) (45 — #1 hotspot)
 - [catalog/ingestion/opdb/adapter.py](../../../backend/apps/catalog/ingestion/opdb/adapter.py) (30)
 - [catalog/ingestion/ipdb/adapter.py](../../../backend/apps/catalog/ingestion/ipdb/adapter.py) (20)
 - [catalog/management/commands/validate_catalog.py](../../../backend/apps/catalog/management/commands/validate_catalog.py) (13)

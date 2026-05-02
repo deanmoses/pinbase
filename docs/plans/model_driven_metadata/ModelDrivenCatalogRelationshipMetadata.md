@@ -174,7 +174,7 @@ Today, a claim with `count=-1` is accepted, stored, and crashes bulk materializa
 
 Most M2Ms in this codebase already use explicit through-models (`MachineModelTheme`, `Credit`, `CorporateEntityLocation`, etc.). The only hidden auto-throughs are the self-parent M2Ms on `Theme.parents` and `GameplayFeature.parents`. Promoting these to `ThemeParent` and `GameplayFeatureParent` is a prerequisite to a clean spec rollout.
 
-This is engineering uniformity, not a provenance fix. These relationships already go through claims today — [`ingest_pinbase.py`](../../../backend/apps/catalog/management/commands/ingest_pinbase.py) writes `field_name="parent"` claims during ingest, and [`_resolve_parents`](../../../backend/apps/catalog/resolve/_relationships.py) materializes them into the auto-through rows. The claims infrastructure is fine; it's the representation that needs cleanup.
+This is engineering uniformity, not a provenance fix. These relationships already go through claims today — [`ingest_pindata.py`](../../../backend/apps/catalog/management/commands/ingest_pindata.py) writes `field_name="parent"` claims during ingest, and [`_resolve_parents`](../../../backend/apps/catalog/resolve/_relationships.py) materializes them into the auto-through rows. The claims infrastructure is fine; it's the representation that needs cleanup.
 
 Benefits:
 
@@ -189,7 +189,7 @@ Execution cost is near-zero because the project is pre-launch and the DB is rese
 
 The full inventory of catalog-app through-models and their proposed `CatalogRelationshipSpec` literals has been sketched and cross-checked against current `UniqueConstraint`s. All ten (including the two self-parents after promotion) fit the spec shape above: for each, the declared `identity_fields` plus the subject FK(s) exactly match an existing `UniqueConstraint`. Credit's XOR validates by asserting both conditional UCs reduce to the same `identity_fields=("person", "role")` residual.
 
-**One finding, now tracked as a prerequisite:** Credit's Series branch is not wired through claims today — the resolver hardcodes `MachineModel` ContentType and the sole Series-credit writer (`ingest_pinbase.py`) inserts `Credit(series=...)` rows directly, bypassing provenance. This is a pre-existing violation of the "all catalog fields are claims-based" rule, independent of the spec. It must land before the spec cutover, since the spec's claim that Credit fits `XorSubject` is only honest once both branches actually flow through claims end-to-end. Scoped in its own doc: [SeriesCreditClaims.md](../SeriesCreditClaims.md).
+**One finding, now tracked as a prerequisite:** Credit's Series branch is not wired through claims today — the resolver hardcodes `MachineModel` ContentType and the sole Series-credit writer (`ingest_pindata.py`) inserts `Credit(series=...)` rows directly, bypassing provenance. This is a pre-existing violation of the "all catalog fields are claims-based" rule, independent of the spec. It must land before the spec cutover, since the spec's claim that Credit fits `XorSubject` is only honest once both branches actually flow through claims end-to-end. Scoped in its own doc: [SeriesCreditClaims.md](../SeriesCreditClaims.md).
 
 ## Resolver strategy
 
@@ -226,7 +226,7 @@ BESPOKE_RESOLVERS: dict[type[models.Model], Callable[..., None]] = {
 }
 ```
 
-The dispatcher (walking through-models with a `catalog_relationship_spec`) checks `BESPOKE_RESOLVERS.get(ThroughModel)` first; a hit delegates; a miss falls through to the generic spec-driven resolver. All bespoke resolvers use the canonical `(subject_ids: set[int] | None = None) -> None` signature established by [commit 2eea1ebaf](https://github.com/deanmoses/pinbase/commit/2eea1ebaf).
+The dispatcher (walking through-models with a `catalog_relationship_spec`) checks `BESPOKE_RESOLVERS.get(ThroughModel)` first; a hit delegates; a miss falls through to the generic spec-driven resolver. All bespoke resolvers use the canonical `(subject_ids: set[int] | None = None) -> None` signature established by [commit 2eea1ebaf](https://github.com/deanmoses/pindata/commit/2eea1ebaf).
 
 Why a sibling map rather than a `resolver` field on the spec:
 

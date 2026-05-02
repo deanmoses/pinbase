@@ -14,7 +14,7 @@ There are three broad models for how user contributions work:
 
 ### MusicBrainz
 
-Open music encyclopedia, community-edited structured data. Probably the closest structural analog to Pinbase.
+Open music encyclopedia, community-edited structured data. Probably the closest structural analog to this project.
 
 - Contributors are motivated by completionism: "I will be the one who makes the Dischord Records discography perfect."
 - Uses an **open edit system** where proposed changes are visible and votable before they go live. Creates accountability without a gatekeeper.
@@ -36,14 +36,14 @@ Crowd-sourced encyclopedia of interesting places.
 - **Editorial curation as a feature, not a bottleneck.** Users submit places and descriptions, but an editorial team polishes them before they go live.
 - The result feels authoritative without being sterile.
 - Contributors get credited by name.
-- Probably the closest _tone_ model to what Pinbase could be, given the museum's involvement. The museum's team could play the editorial role that Atlas Obscura's staff does.
+- Probably the closest _tone_ model to what this project could be, given the museum's involvement. The museum's team could play the editorial role that Atlas Obscura's staff does.
 
 ### iNaturalist
 
 Community science platform.
 
 - **Contribution is inherently meaningful because it serves a cause bigger than the site.** People aren't uploading observations to build iNaturalist's database — they're contributing to scientific knowledge. The platform is the tool, not the point.
-- Maps well to the museum's mission: contributors aren't writing for Pinbase, they're _preserving pinball history_. That framing matters.
+- Maps well to the museum's mission: contributors aren't writing for this project, they're _preserving pinball history_. That framing matters.
 
 ### Fandom/Wikia
 
@@ -51,7 +51,7 @@ Thousands of niche wikis, including pinball ones.
 
 - **Pure wiki works for established fandoms but struggles with quality.** No editorial layer means anyone can write anything.
 - Niche wikis often end up with wildly uneven quality — some pages are beautifully detailed, others are stubs or nonsense.
-- The lesson for Pinbase: wiki-style openness without _some_ curation tends to produce a site that feels unfinished.
+- The lesson for this project: wiki-style openness without _some_ curation tends to produce a site that feels unfinished.
 
 ### Wikipedia
 
@@ -82,7 +82,7 @@ The largest pinball community forum and database.
 
 The sites that feel best — Atlas Obscura, the best parts of Wikipedia, MusicBrainz — share three traits:
 
-1. **Contributing serves a mission, not just the platform.** Pinbase's museum mission gives it this for free.
+1. **Contributing serves a mission, not just the platform.** this project's museum mission gives it this for free.
 2. **Contributors are visible and credited.** Not just a username in a log — their name on the thing they wrote.
 3. **There's a quality floor.** Someone, whether community or editorial, ensures the site doesn't feel sloppy.
 

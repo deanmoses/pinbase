@@ -2,7 +2,7 @@
 
 ## Background
 
-Pinbase's catalog truth is claims-based: sources and users assert Claims, claim resolution picks winners, and resolved/model tables materialize the current catalog state. That architecture is sound in principle, but provenance, ingest, end user editing, admin editing, and validation were not designed together from the beginning. Validation was added later and ended up spread across multiple write paths instead of being designed into the system from the start.
+This project's catalog truth is claims-based: sources and users assert Claims, claim resolution picks winners, and resolved/model tables materialize the current catalog state. That architecture is sound in principle, but provenance, ingest, end user editing, admin editing, and validation were not designed together from the beginning. Validation was added later and ended up spread across multiple write paths instead of being designed into the system from the start.
 
 Today, "validation" means several different things:
 
@@ -187,7 +187,7 @@ All direct ORM writes now have corresponding claim assertions in the same ingest
 
 ### A3. Bring remaining editorial relationships under claims ✓
 
-The known case was `series.titles.add(*titles)` in `ingest_pinbase`, which wrote series-title membership directly as a M2M operation with no claim. This has been replaced with claims-based membership.
+The known case was `series.titles.add(*titles)` in `ingest_pindata`, which wrote series-title membership directly as a M2M operation with no claim. This has been replaced with claims-based membership.
 
 **What was done:**
 

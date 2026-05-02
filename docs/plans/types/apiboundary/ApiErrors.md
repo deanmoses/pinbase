@@ -131,8 +131,8 @@ each endpoint actually produces.
 deliberate behavioral change to a documented framework default,
 not just a contract annotation.
 
-It's acceptable because Pinbase has one API client (the SvelteKit
-frontend), updated in this same PR. **Pinbase deploys as a single
+It's acceptable because this project has one API client (the SvelteKit
+frontend), updated in this same PR. **this project deploys as a single
 container** ([docs/Hosting.md](../../../../docs/Hosting.md): Caddy
 
 - Django + SvelteKit in one Railway service), so backend and
@@ -205,7 +205,7 @@ def handle_pydantic_validation(request, exc):
     for err in exc.errors:
         loc = err.get("loc") or ()
         msg = err.get("msg", "Invalid value.")
-        # Use the last loc segment as the field key. Pinbase's per-field
+        # Use the last loc segment as the field key. This project's per-field
         # error renderer keys on bare names ("year", "slug") — matching
         # what application-thrown StructuredValidationError uses. Loc
         # paths from Pydantic include request source + nesting
@@ -234,7 +234,7 @@ def handle_pydantic_validation(request, exc):
 Notes:
 
 - **Field-key strategy: `loc[-1]`, not dotted paths.** Verified
-  against Pinbase payloads: `ModelClaimPatchSchema` and friends
+  against this project payloads: `ModelClaimPatchSchema` and friends
   contain nested fields (`gameplay_features: list[GameplayFeatureInput]`,
   `fields: dict[str, Any]`). A dotted path like
   `"gameplay_features.0.slug"` would not match the frontend's

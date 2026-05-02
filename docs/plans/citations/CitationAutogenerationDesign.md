@@ -4,7 +4,7 @@ This document describes the planned automatic source-draft flow for citations. I
 
 ## Status
 
-Pinbase has a backend recognition layer (built April 2026) that handles:
+This project has a backend recognition layer (built April 2026) that handles:
 
 - **Extractor registry** (`backend/apps/citation/extractors.py`): URL pattern matching and identifier validation for IPDB, OPDB, and future schemes. Keyed by `CitationSource.identifier_key`.
 - **Search recognition**: the `/api/citation-sources/search/` endpoint recognizes pasted URLs (extractor match, full URL child-link match, domain matching against homepage links) and returns structured recognition metadata alongside search results.
@@ -22,7 +22,7 @@ Citation entry should accept evidence-like input such as:
 - known-site URL
 - generic URL
 
-If search does not find an existing source, Pinbase should try to turn that evidence into a proposed new source draft instead of forcing the contributor into manual data entry.
+If search does not find an existing source, this project should try to turn that evidence into a proposed new source draft instead of forcing the contributor into manual data entry.
 
 The important constraint is that this should help source creation, not silently bypass editorial review.
 
@@ -31,8 +31,8 @@ The important constraint is that this should help source creation, not silently 
 The intended flow is:
 
 1. User searches or pastes evidence into the citation input.
-2. Pinbase searches for an existing source first.
-3. If there is no strong existing match and the input looks like evidence, Pinbase runs extraction.
+2. This project searches for an existing source first.
+3. If there is no strong existing match and the input looks like evidence, this project runs extraction.
 4. Extraction returns either:
    - a proposed source draft
    - an existing-source match

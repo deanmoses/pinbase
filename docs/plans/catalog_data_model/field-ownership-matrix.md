@@ -6,8 +6,8 @@ Generated from runtime claims data (2026-03-16).
 
 | Source                 | Slug             | Priority | Type      | Active Claims |
 | ---------------------- | ---------------- | -------- | --------- | ------------- |
-| Pinbase Models         | `pinbase`        | 300      | editorial | 1,627         |
-| Pinbase Titles         | `pinbase-titles` | 300      | editorial | 683           |
+| this project Models         | `pinbase`        | 300      | editorial | 1,627         |
+| this project Titles         | `pinbase-titles` | 300      | editorial | 683           |
 | Editorial (Mfrs/Corps) | `editorial`      | 300      | editorial | 256           |
 | OPDB                   | `opdb`           | 200      | database  | 25,998        |
 | IPDB                   | `ipdb`           | 100      | database  | 102,146       |
@@ -15,31 +15,31 @@ Generated from runtime claims data (2026-03-16).
 
 ## MachineModel Fields
 
-### Pinbase-canonical (owned by Pinbase, move to Markdown files)
+### Pinbase-canonical (owned by this project, move to Markdown files)
 
-These fields are either already Pinbase-only or are relationship-shaping fields that must be owned by Pinbase.
+These fields are either already Pinbase-only or are relationship-shaping fields that must be owned by this project.
 
 | Field              | Current Sources                                            | Classification           | Notes                                                               |
 | ------------------ | ---------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------- |
-| `name`             | pinbase (388), ipdb (6,659), opdb (2,311), flip-signs (16) | **Pinbase-canonical**    | Pinbase wins at priority 300; external claims remain for comparison |
-| `title`            | pinbase (388), ipdb (4,518), opdb (2,309)                  | **Relationship-shaping** | Must come from Pinbase files; remove from OPDB/IPDB ingest          |
-| `variant_of`       | pinbase (87), opdb (116)                                   | **Relationship-shaping** | Must come from Pinbase files; remove from OPDB ingest               |
+| `name`             | pinbase (388), ipdb (6,659), opdb (2,311), flip-signs (16) | **Pinbase-canonical**    | this project wins at priority 300; external claims remain for comparison |
+| `title`            | pinbase (388), ipdb (4,518), opdb (2,309)                  | **Relationship-shaping** | Must come from this project files; remove from OPDB/IPDB ingest          |
+| `variant_of`       | pinbase (87), opdb (116)                                   | **Relationship-shaping** | Must come from this project files; remove from OPDB ingest               |
 | `converted_from`   | pinbase (53)                                               | **Relationship-shaping** | Already Pinbase-only                                                |
 | `is_conversion`    | pinbase (75)                                               | **Relationship-shaping** | Already Pinbase-only                                                |
-| `cabinet`          | pinbase (30), opdb (30)                                    | **Pinbase-canonical**    | Move to Pinbase files                                               |
-| `display_type`     | pinbase (1), opdb (2,115)                                  | **Pinbase-canonical**    | Move to Pinbase files; keep OPDB for comparison                     |
+| `cabinet`          | pinbase (30), opdb (30)                                    | **Pinbase-canonical**    | Move to this project files                                               |
+| `display_type`     | pinbase (1), opdb (2,115)                                  | **Pinbase-canonical**    | Move to this project files; keep OPDB for comparison                     |
 | `description`      | pinbase (1)                                                | **Pinbase-canonical**    | Move to Markdown body text                                          |
-| `credit`           | ipdb (7,226)                                               | **Relationship-shaping** | Must come from Pinbase files; remove from IPDB ingest               |
-| `theme`            | ipdb (8,543)                                               | **Relationship-shaping** | Must come from Pinbase files; remove from IPDB ingest               |
-| `gameplay_feature` | ipdb (12,762)                                              | **Relationship-shaping** | Must come from Pinbase files; remove from IPDB ingest               |
+| `credit`           | ipdb (7,226)                                               | **Relationship-shaping** | Must come from this project files; remove from IPDB ingest               |
+| `theme`            | ipdb (8,543)                                               | **Relationship-shaping** | Must come from this project files; remove from IPDB ingest               |
+| `gameplay_feature` | ipdb (12,762)                                              | **Relationship-shaping** | Must come from this project files; remove from IPDB ingest               |
 
 ### External comparison allowlist (keep ingesting from OPDB/IPDB)
 
-These are non-relational factual fields. External sources continue to assert claims for comparison; Pinbase files also assert them as canonical.
+These are non-relational factual fields. External sources continue to assert claims for comparison; this project files also assert them as canonical.
 
 | Field                   | Current Sources                             | Notes                                  |
 | ----------------------- | ------------------------------------------- | -------------------------------------- |
-| `name`                  | ipdb (6,659), opdb (2,311), flip-signs (16) | Comparison only; Pinbase wins          |
+| `name`                  | ipdb (6,659), opdb (2,311), flip-signs (16) | Comparison only; this project wins          |
 | `manufacturer`          | ipdb (6,282), opdb (2,311), flip-signs (16) | Comparison only                        |
 | `year`                  | ipdb (5,265), opdb (2,311), flip-signs (16) | Comparison only                        |
 | `month`                 | ipdb (3,839), opdb (2,311), flip-signs (16) | Comparison only                        |
@@ -50,19 +50,19 @@ These are non-relational factual fields. External sources continue to assert cla
 | `cabinet`               | opdb (30)                                   | Comparison only                        |
 | `ipdb_id`               | ipdb (6,659)                                | Cross-reference identity               |
 | `opdb_id`               | opdb (2,311)                                | Cross-reference identity               |
-| `ipdb_rating`           | ipdb (899)                                  | External rating; no Pinbase equivalent |
+| `ipdb_rating`           | ipdb (899)                                  | External rating; no this project equivalent |
 | `production_quantity`   | ipdb (1,451), flip-signs (12)               | Comparison only                        |
 | `abbreviation`          | opdb (493), ipdb (434)                      | Comparison only                        |
 
-### External-only fields (keep as-is, not in Pinbase files)
+### External-only fields (keep as-is, not in this project files)
 
-These fields exist only in external sources and are either raw evidence or metadata that Pinbase does not need to own.
+These fields exist only in external sources and are either raw evidence or metadata that this project does not need to own.
 
 | Field                    | Source     | Claims | Notes                                 |
 | ------------------------ | ---------- | ------ | ------------------------------------- |
 | `opdb.images`            | opdb       | 2,111  | Image media; separate ingest path     |
 | `ipdb.image_urls`        | ipdb       | 5,532  | Image media; separate ingest path     |
-| `opdb.description`       | opdb       | 6      | Raw OPDB prose; not Pinbase editorial |
+| `opdb.description`       | opdb       | 6      | Raw OPDB prose; not this project editorial |
 | `opdb.common_name`       | opdb       | 66     | OPDB-specific display name            |
 | `opdb.keywords`          | opdb       | 188    | Raw keyword buckets                   |
 | `opdb.variant_features`  | opdb       | 751    | Raw variant feature strings           |
@@ -129,5 +129,5 @@ All taxonomy entities (Cabinet, CreditRole, DisplayType, DisplaySubtype, Franchi
 | Already Pinbase-only            | All taxonomy, converted_from, is_conversion, franchise, corporate entities                                                                                            | Move to Markdown; no ingest changes needed                     |
 | Pinbase-canonical + comparison  | name, manufacturer, year, month, player_count, display_type, cabinet, technology_generation, system, abbreviation, ipdb_id, opdb_id, ipdb_rating, production_quantity | Move to Markdown; keep OPDB/IPDB claims for comparison         |
 | Relationship-shaping (denylist) | title, variant_of, credit, theme, gameplay_feature                                                                                                                    | Move to Markdown; **remove** from OPDB/IPDB ingest             |
-| External-only evidence          | opdb._, ipdb._, images, manufacturer_address                                                                                                                          | Keep as-is in external ingest; not in Pinbase files            |
+| External-only evidence          | opdb._, ipdb._, images, manufacturer_address                                                                                                                          | Keep as-is in external ingest; not in this project files            |
 | Flip-signs retirement           | name, year, month, manufacturer, production_quantity, manufacturer_address, description                                                                               | Absorb descriptions into title Markdown; retire ingest command |

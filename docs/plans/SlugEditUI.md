@@ -40,8 +40,8 @@ So the backend can do the work, but the user-facing edit path cannot actually us
 
 The model edit path shows the issue clearly:
 
-- [`model-edit.ts`](/Users/moses/dev/pinbase/frontend/src/routes/models/[slug]/edit/model-edit.ts) does not include `slug` in `ModelFormFields`
-- [`+page.svelte`](/Users/moses/dev/pinbase/frontend/src/routes/models/[slug]/edit/+page.svelte) renders no slug field
+- [`model-edit.ts`](frontend/src/routes/models/[slug]/edit/model-edit.ts) does not include `slug` in `ModelFormFields`
+- [`+page.svelte`](frontend/src/routes/models/[slug]/edit/+page.svelte) renders no slug field
 - save uses the current page slug in the PATCH URL and only `invalidateAll()` after success
 
 That means a successful slug edit would leave the user on a stale route unless the page explicitly navigates to the new slug.
@@ -134,7 +134,7 @@ Each edit helper module currently has a form-state transform and a patch-body bu
 
 For the model path, that means updating:
 
-- [`model-edit.ts`](/Users/moses/dev/pinbase/frontend/src/routes/models/[slug]/edit/model-edit.ts)
+- [`model-edit.ts`](frontend/src/routes/models/[slug]/edit/model-edit.ts)
 
 Equivalent helpers for the other entity pages should be updated the same way.
 
@@ -193,7 +193,7 @@ The redirect logic must rely on the returned entity payload, not on optimistic c
 
 ### Transitional slug identity
 
-This plan assumes the current transitional rule from [`ValidationFix.md`](/Users/moses/dev/pinbase/docs/plans/ValidationFix.md):
+This plan assumes the current transitional rule from [`ValidationFix.md`](docs/plans/ValidationFix.md):
 
 - bootstrap ingest still uses slug-based identity
 - broad slug editing is not yet intended as a high-volume workflow

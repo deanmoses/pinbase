@@ -26,13 +26,13 @@ The web app used to coordinate maintenance. There are public read-only users, mu
 - Built in Django
 - Code at https://github.com/The-Flip/flipfix
 
-#### Pinbase
+#### This project
 
 An interactive, collaborative wiki-style catalog of all pinball machines in existence. It hasn't gone live yet. It will have public read-only access, public user registration, trusted museum staff roles, and Django superuser admin roles.
 
-- Will live at something like https://pinbase.theflip.museum/
+- Will live at something like https://flipcommons.org/
 - Built in Django on the back end and Sveltekit on the front end
-- Code at https://github.com/deanmoses/pinbase/ but it will be moving under the The-Flip's account
+- Code at https://github.com/deanmoses/pindata/ but it will be moving under the The-Flip's account
 
 #### Juice
 
@@ -54,7 +54,7 @@ We're not locked in to this arrangement; if there's a better SSO system, we woul
 
 ## The Challenge
 
-Now we need authentication and authorization for Pinbase. Since the public can self-register, this involves a new set of requirements.
+Now we need authentication and authorization for this project. Since the public can self-register, this involves a new set of requirements.
 
 ### Forgot password
 
@@ -80,15 +80,15 @@ They can they still log in with their password.
 
 ### Carry over Flipfix identity
 
-Nice to have: if you are already registered with Flipfix, you are already authenticated to Pinbase and your username and full name are carried over.
+Nice to have: if you are already registered with Flipfix, you are already authenticated to this project and your username and full name are carried over.
 
-If someone already has a Flipfix account, is not logged in to the SSO system, then attempts to register on Pinbase with the same email, it says 'account already taken'... just like it would on Flipfix.
+If someone already has a Flipfix account, is not logged in to the SSO system, then attempts to register on this project with the same email, it says 'account already taken'... just like it would on Flipfix.
 
 ### Account deactivation / banning
 
 #### Admin-initiated deleting
 
-If an admin of a property deactivates / bans a user, it only applies to that property. Deactivating a Flipfix staff account does not deactivate that person's Pinbase account.
+If an admin of a property deactivates / bans a user, it only applies to that property. Deactivating a Flipfix staff account does not deactivate that person's this project account.
 
 Each property will have their own way of dealing with the deactivated user's contributions on that property.
 
@@ -110,7 +110,7 @@ Their display name should flow to each property, it's a nice to have to override
 
 When a member of the public registers, I imagine each site will put them in their lowest tier of capability.
 
-**Pinbase**. Right now Pinbase has categories for 'registered user', 'staff' (has access to admin) roles, and superuser. Publicly registered users would be assigned the 'registered user' role. It's up to Pinbase what a registered user can do; that's not the scope of this doc.
+**this project**. Right now this project has categories for 'registered user', 'staff' (has access to admin) roles, and superuser. Publicly registered users would be assigned the 'registered user' role. It's up to this project what a registered user can do; that's not the scope of this doc.
 
 **Flipfix**. Will NOT allow any escalated privileges for publicly registered users; they will be treated like unregistered guests.
 
@@ -120,11 +120,11 @@ When a member of the public registers, I imagine each site will put them in thei
 
 #### Museum staff identity across apps
 
-If someone is staff on Flipfix, I'd like to be able to use that information on Pinbase to give them escalated privileges. But the Pinbase role model has not yet been figured out. I don't believe there should be a staff role that goes across all properties. If this creates a lot of complexity, I'll probably drop this requirement.
+If someone is staff on Flipfix, I'd like to be able to use that information on this project to give them escalated privileges. But the this project role model has not yet been figured out. I don't believe there should be a staff role that goes across all properties. If this creates a lot of complexity, I'll probably drop this requirement.
 
 #### Role escalation
 
-On Pinbase, a self-registered user can only become more trusted via some sort of admin action. That will be internal to Pinbase, not visible to the SSO system.
+On this project, a self-registered user can only become more trusted via some sort of admin action. That will be internal to this project, not visible to the SSO system.
 
 #### No shared authorization
 
@@ -226,7 +226,7 @@ WorkOS also remains strong on the other important requirements:
 - Email/password, social login, email verification, forgot password, MFA, and account linking on the free tier
 - Built-in auth email sending, so we do not need a separate email provider for v1 unless we want a custom sending domain
 
-On current pricing, the expected monthly cost is still effectively zero at our projected scale. Even if Pinbase grows from 20 users in month 1 to 100 users in month 2 and 500 users by month 6, that is still far below WorkOS AuthKit's free-tier limit of 1 million monthly active users.
+On current pricing, the expected monthly cost is still effectively zero at our projected scale. Even if this project grows from 20 users in month 1 to 100 users in month 2 and 500 users by month 6, that is still far below WorkOS AuthKit's free-tier limit of 1 million monthly active users.
 
 The main downside is branding: custom auth and email domains cost $99/mo. At this point, I would rather give up custom domains than long-lived sessions, so that tradeoff appears acceptable.
 
