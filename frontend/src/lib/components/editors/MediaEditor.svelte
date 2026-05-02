@@ -29,24 +29,37 @@
     await invalidateAll();
   }
 
+  async function refreshAfterWrite() {
+    try {
+      await invalidateAll();
+    } catch {
+      // Best-effort refresh; the write already succeeded and the next
+      // navigation will pick up the new state.
+    }
+  }
+
   async function handleDelete(assetUuid: string) {
     actionError = '';
     try {
       await detachMedia(entityType, slug, assetUuid);
-      await invalidateAll();
     } catch (err) {
       actionError = err instanceof Error ? err.message : 'Failed to remove image.';
+      return;
     }
+    toast.success('Image removed.');
+    await refreshAfterWrite();
   }
 
   async function handleSetPrimary(assetUuid: string) {
     actionError = '';
     try {
       await setPrimary(entityType, slug, assetUuid);
-      await invalidateAll();
     } catch (err) {
       actionError = err instanceof Error ? err.message : 'Failed to set primary image.';
+      return;
     }
+    toast.success('Set as primary image.');
+    await refreshAfterWrite();
   }
 
   async function handleCategoryChange(assetUuid: string, category: string) {
@@ -54,11 +67,12 @@
     const previous = media.find((m) => m.asset_uuid === assetUuid)?.category ?? 'none';
     try {
       await setCategory(entityType, slug, assetUuid, category);
-      await invalidateAll();
-      toast.success(`Image category changed from ${previous} to ${category}.`);
     } catch (err) {
       actionError = err instanceof Error ? err.message : 'Failed to change image category.';
+      return;
     }
+    toast.success(`Image category changed from ${previous} to ${category}.`);
+    await refreshAfterWrite();
   }
 </script>
 
