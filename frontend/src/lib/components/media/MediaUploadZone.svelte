@@ -10,21 +10,31 @@
     entityType,
     slug,
     onuploaded,
+    onuploadingchange,
   }: {
     entityType: MediaEntityKey;
     slug: string;
-    onuploaded: () => void;
+    onuploaded: (uuids: string[], category: string) => void;
+    onuploadingchange?: (uploading: boolean) => void;
   } = $props();
 
   const categories = $derived(MEDIA_CATEGORIES[entityType]);
 
   let fileInput: HTMLInputElement | undefined = $state();
-  // svelte-ignore state_referenced_locally
-  let category = $state(categories[0] ?? '');
-  let isPrimary = $state(false);
+  let category = $state('');
   let isDragging = $state(false);
 
   const manager = createUploadManager();
+
+  let lastUploading = false;
+  $effect(() => {
+    const u = manager.isUploading;
+    if (u === lastUploading) return;
+    lastUploading = u;
+    onuploadingchange?.(u);
+  });
+
+  const canUpload = $derived(category !== '' && !manager.isUploading);
 
   function openPicker() {
     fileInput?.click();
@@ -38,18 +48,23 @@
   }
 
   async function processFiles(files: FileList) {
-    await manager.upload(files, entityType, slug, { category, isPrimary });
+    await manager.upload(files, entityType, slug, { category });
 
     const hadError = manager.files.some((f) => f.status === 'error');
 
     if (!hadError) {
+      const uuids = manager.files
+        .filter((f) => f.status === 'success' && f.result)
+        .map((f) => f.result!.asset_uuid);
+      const uploadedCategory = category;
       manager.reset();
-      onuploaded();
+      onuploaded(uuids, uploadedCategory);
     }
   }
 
   function handleDragEnter(e: DragEvent) {
     e.preventDefault();
+    if (!canUpload) return;
     isDragging = true;
   }
 
@@ -66,6 +81,7 @@
   async function handleDrop(e: DragEvent) {
     e.preventDefault();
     isDragging = false;
+    if (!canUpload) return;
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
     await processFiles(files);
@@ -77,15 +93,11 @@
     <label class="option-label">
       Category
       <select bind:value={category} class="category-select">
+        <option value="" disabled>Choose a category…</option>
         {#each categories as cat (cat)}
           <option value={cat}>{cat}</option>
         {/each}
       </select>
-    </label>
-
-    <label class="option-label">
-      <input type="checkbox" bind:checked={isPrimary} />
-      Set as primary
     </label>
   </div>
 
@@ -93,16 +105,21 @@
   <div
     class="drop-zone"
     class:dragging={isDragging}
+    class:disabled={!canUpload}
     ondragenter={handleDragEnter}
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
   >
     <div class="drop-zone-content">
-      <span class="drop-icon">&#8683;</span>
-      <p class="drop-text">Drag and drop images here</p>
-      <p class="drop-or">or</p>
-      <Button onclick={openPicker} disabled={manager.isUploading}>Choose Files</Button>
+      {#if category}
+        <span class="drop-icon">&#8683;</span>
+        <p class="drop-text">Drag and drop images here</p>
+        <p class="drop-or">or</p>
+        <Button onclick={openPicker} disabled={!canUpload}>Select Images</Button>
+      {:else}
+        <p class="drop-text">Choose category to upload images</p>
+      {/if}
     </div>
   </div>
 
@@ -148,11 +165,6 @@
         </li>
       {/each}
     </ul>
-    {#if !manager.isUploading}
-      <div class="view-uploads">
-        <Button onclick={onuploaded}>View Uploads</Button>
-      </div>
-    {/if}
   {/if}
 </div>
 
@@ -199,6 +211,11 @@
   .drop-zone.dragging {
     border-color: var(--color-accent);
     background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  }
+
+  .drop-zone.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .drop-zone-content {
@@ -295,9 +312,5 @@
     height: 100%;
     background: var(--color-accent);
     transition: width 0.15s ease;
-  }
-
-  .view-uploads {
-    margin-top: var(--size-4);
   }
 </style>

@@ -39,7 +39,7 @@ export function createUploadManager() {
     fileList: FileList,
     entityType: string,
     slug: string,
-    opts?: UploadOptions,
+    opts: UploadOptions,
   ): Promise<void> {
     const entries: FileUploadState[] = [];
 

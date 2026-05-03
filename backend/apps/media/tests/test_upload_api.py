@@ -102,7 +102,6 @@ def _post_upload(client, machine_model, file=None, **extra):
         "entity_type": "model",
         "public_id": machine_model.public_id,
         "category": "backglass",
-        "is_primary": "true",
         **extra,
     }
     return client.post(UPLOAD_URL, data, format="multipart")
@@ -196,7 +195,7 @@ class TestUploadHappyPath:
         assert attachment["entity_type"] == "model"
         assert attachment["public_id"] == "test-machine"
         assert attachment["category"] == "backglass"
-        assert attachment["is_primary"] is True
+        assert "is_primary" not in attachment
 
     def test_upload_creates_entity_media(self, client, machine_model):
         """Upload creates claim + EntityMedia with correct attachment metadata."""
@@ -214,6 +213,7 @@ class TestUploadHappyPath:
         assert em.content_type == ct
         assert em.object_id == machine_model.pk
         assert em.category == "backglass"
+        # Sole image in its category is auto-promoted to primary by claim resolution.
         assert em.is_primary is True
 
         # Claim created

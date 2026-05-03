@@ -142,8 +142,7 @@ def upload_media(
     file: File[UploadedFile],
     entity_type: Form[str],
     public_id: Form[str],
-    category: Form[str | None] = None,
-    is_primary: Form[bool] = False,
+    category: Form[str],
 ) -> UploadSchema:
     """Upload an image and create MediaAsset + MediaRendition rows."""
     user = authed_user(request)
@@ -181,7 +180,7 @@ def upload_media(
             entity,
             0,
             category=category,
-            is_primary=is_primary,
+            is_primary=False,
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
@@ -259,7 +258,7 @@ def upload_media(
                 entity,
                 asset.pk,
                 category=category,
-                is_primary=is_primary,
+                is_primary=False,
             )
             Claim.objects.assert_claim(
                 entity,
@@ -295,7 +294,6 @@ def upload_media(
             entity_type=entity_type,
             public_id=public_id,
             category=category,
-            is_primary=is_primary,
         ),
     )
 

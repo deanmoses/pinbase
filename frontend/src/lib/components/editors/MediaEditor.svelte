@@ -3,6 +3,7 @@
   import { detachMedia, setCategory, setPrimary } from '$lib/api/media-api';
   import { MEDIA_CATEGORIES } from '$lib/api/catalog-meta';
   import type { UploadedMediaSchema } from '$lib/api/schema';
+  import Button from '$lib/components/Button.svelte';
   import MediaUploadZone from '$lib/components/media/MediaUploadZone.svelte';
   import MediaGrid from '$lib/components/media/MediaGrid.svelte';
   import { toast } from '$lib/toast/toast.svelte';
@@ -23,10 +24,32 @@
   const categories = $derived(MEDIA_CATEGORIES[entityType]);
 
   let actionError = $state('');
+  let mode = $state<'list' | 'upload'>('list');
+  let isUploading = $state(false);
+  let highlightUuids = $state<string[]>([]);
+  // Seeds MediaGrid's initial filter on the post-upload remount.
+  // Cleared on every entry into upload mode so a cancel doesn't stick a stale filter.
+  let initialCategory = $state<string | null>(null);
 
-  async function handleUploaded() {
+  async function handleUploaded(uuids: string[], category: string) {
     actionError = '';
+    mode = 'list';
+    initialCategory = category;
+    // Await invalidate first so the highlight effect sees the new media
+    // when the signal lands. Reversed order would scroll against stale data.
     await invalidateAll();
+    highlightUuids = uuids;
+  }
+
+  function enterUploadMode() {
+    actionError = '';
+    initialCategory = null;
+    mode = 'upload';
+  }
+
+  function cancelUpload() {
+    if (isUploading) return;
+    mode = 'list';
   }
 
   async function refreshAfterWrite() {
@@ -81,19 +104,32 @@
     <p class="action-error">{actionError}</p>
   {/if}
 
-  <MediaUploadZone {entityType} {slug} onuploaded={handleUploaded} />
+  <div class="toolbar">
+    {#if mode === 'list'}
+      <Button onclick={enterUploadMode}>Upload images</Button>
+    {:else}
+      <Button onclick={cancelUpload} disabled={isUploading}>Cancel</Button>
+    {/if}
+  </div>
 
-  {#if media.length > 0}
-    <div class="media-grid-section">
-      <MediaGrid
-        {media}
-        categories={[...categories]}
-        canEdit={true}
-        ondelete={handleDelete}
-        onsetprimary={handleSetPrimary}
-        oncategorychange={handleCategoryChange}
-      />
-    </div>
+  {#if mode === 'upload'}
+    <MediaUploadZone
+      {entityType}
+      {slug}
+      onuploaded={handleUploaded}
+      onuploadingchange={(u) => (isUploading = u)}
+    />
+  {:else}
+    <MediaGrid
+      {media}
+      categories={[...categories]}
+      canEdit={true}
+      {highlightUuids}
+      {initialCategory}
+      ondelete={handleDelete}
+      onsetprimary={handleSetPrimary}
+      oncategorychange={handleCategoryChange}
+    />
   {/if}
 </div>
 
@@ -104,14 +140,13 @@
     gap: var(--size-4);
   }
 
+  .toolbar {
+    display: flex;
+  }
+
   .action-error {
     color: var(--color-error);
     font-size: var(--font-size-1);
     margin: 0;
-  }
-
-  .media-grid-section {
-    border-top: 1px solid var(--color-border-soft);
-    padding-top: var(--size-4);
   }
 </style>

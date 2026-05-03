@@ -71,7 +71,7 @@ describe('createUploadManager', () => {
     const mgr = createUploadManager();
     const bigFile = makeFile('huge.jpg', MAX_FILE_SIZE_BYTES + 1);
 
-    await mgr.upload(makeFileList(bigFile), 'model', 'test');
+    await mgr.upload(makeFileList(bigFile), 'model', 'test', { category: 'backglass' });
 
     expect(mgr.files).toHaveLength(1);
     expect(mgr.files[0].status).toBe('error');
@@ -85,7 +85,9 @@ describe('createUploadManager', () => {
     const mgr = createUploadManager();
     mockUpload.mockResolvedValueOnce(UPLOAD_RESULT);
 
-    await mgr.upload(makeFileList(makeFile('photo.jpg')), 'model', 'test');
+    await mgr.upload(makeFileList(makeFile('photo.jpg')), 'model', 'test', {
+      category: 'backglass',
+    });
 
     expect(mgr.files).toHaveLength(1);
     expect(mgr.files[0].status).toBe('success');
@@ -99,7 +101,9 @@ describe('createUploadManager', () => {
     const mgr = createUploadManager();
     mockUpload.mockRejectedValueOnce(new Error('Server error'));
 
-    await mgr.upload(makeFileList(makeFile('photo.jpg')), 'model', 'test');
+    await mgr.upload(makeFileList(makeFile('photo.jpg')), 'model', 'test', {
+      category: 'backglass',
+    });
 
     expect(mgr.files).toHaveLength(1);
     expect(mgr.files[0].status).toBe('error');
@@ -114,7 +118,9 @@ describe('createUploadManager', () => {
     mockUpload.mockResolvedValueOnce(UPLOAD_RESULT);
     mockUpload.mockRejectedValueOnce(new Error('Rate limited'));
 
-    await mgr.upload(makeFileList(makeFile('a.jpg'), makeFile('b.jpg')), 'model', 'test');
+    await mgr.upload(makeFileList(makeFile('a.jpg'), makeFile('b.jpg')), 'model', 'test', {
+      category: 'backglass',
+    });
 
     expect(mgr.files).toHaveLength(2);
     expect(mgr.files[0].status).toBe('success');
@@ -131,7 +137,7 @@ describe('createUploadManager', () => {
 
     const good = makeFile('photo.jpg', 1024);
     const tooBig = makeFile('huge.jpg', MAX_FILE_SIZE_BYTES + 1);
-    await mgr.upload(makeFileList(good, tooBig), 'model', 'test');
+    await mgr.upload(makeFileList(good, tooBig), 'model', 'test', { category: 'backglass' });
 
     expect(mgr.files).toHaveLength(2);
     expect(mgr.files[0].status).toBe('success');
@@ -142,21 +148,18 @@ describe('createUploadManager', () => {
 
   // --- Options forwarding ---
 
-  it('passes category and isPrimary to uploadMedia', async () => {
+  it('passes category to uploadMedia', async () => {
     const mgr = createUploadManager();
     mockUpload.mockResolvedValueOnce(UPLOAD_RESULT);
 
     const file = makeFile('photo.jpg');
-    await mgr.upload(makeFileList(file), 'model', 'test', {
-      category: 'backglass',
-      isPrimary: true,
-    });
+    await mgr.upload(makeFileList(file), 'model', 'test', { category: 'backglass' });
 
     expect(mockUpload).toHaveBeenCalledWith(
       file,
       'model',
       'test',
-      { category: 'backglass', isPrimary: true },
+      { category: 'backglass' },
       expect.any(Function),
     );
   });
@@ -167,7 +170,7 @@ describe('createUploadManager', () => {
     const mgr = createUploadManager();
     mockUpload.mockResolvedValueOnce(UPLOAD_RESULT);
 
-    await mgr.upload(makeFileList(makeFile('a.jpg')), 'model', 'test');
+    await mgr.upload(makeFileList(makeFile('a.jpg')), 'model', 'test', { category: 'backglass' });
     expect(mgr.files).toHaveLength(1);
 
     mgr.reset();
