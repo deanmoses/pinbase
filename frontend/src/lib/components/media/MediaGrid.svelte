@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { UploadedMediaSchema } from '$lib/api/schema';
   import MediaCard from './MediaCard.svelte';
   import MediaLightbox from './MediaLightbox.svelte';
@@ -11,6 +12,8 @@
     media,
     categories = [],
     canEdit = false,
+    highlightUuids = [],
+    initialCategory = null,
     ondelete,
     onsetprimary,
     oncategorychange,
@@ -18,12 +21,15 @@
     media: UploadedMedia[];
     categories?: string[];
     canEdit?: boolean;
+    highlightUuids?: string[];
+    initialCategory?: string | null;
     ondelete?: (assetUuid: string) => void;
     onsetprimary?: (assetUuid: string) => void;
     oncategorychange?: (assetUuid: string, category: string) => void;
   } = $props();
 
-  let activeCategory = $state<string | null>(null);
+  // svelte-ignore state_referenced_locally
+  let activeCategory = $state<string | null>(initialCategory);
 
   let filteredMedia = $derived(
     activeCategory ? media.filter((m) => m.category === activeCategory) : media,
@@ -63,6 +69,31 @@
       return acc;
     }, {}),
   );
+
+  let gridEl: HTMLDivElement | undefined = $state();
+  let highlightSet = $derived(new Set(highlightUuids));
+
+  // One-shot consumer: highlightUuids is a signal, not a reactive view.
+  // Track only the array reference; untrack the body so unrelated
+  // media/filter changes don't re-fire the scroll.
+  let lastHighlight: string[] | null = null;
+  $effect(() => {
+    const uuids = highlightUuids;
+    if (uuids === lastHighlight) return;
+    lastHighlight = uuids;
+    if (uuids.length === 0) return;
+    untrack(() => {
+      const idx = filteredMedia.findIndex((m) => uuids.includes(m.asset_uuid));
+      if (idx === -1) return;
+      if (idx >= visibleCount) {
+        visibleCount = Math.ceil((idx + 1) / BATCH_SIZE) * BATCH_SIZE;
+      }
+      queueMicrotask(() => {
+        const target = gridEl?.querySelector<HTMLElement>(`[data-asset-uuid="${uuids[0]}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  });
 
   // Lightbox state
   let lightboxIndex = $state<number | null>(null);
@@ -105,17 +136,23 @@
       {/if}
     </p>
   {:else}
-    <div class="grid">
+    <div class="grid" bind:this={gridEl}>
       {#each visibleMedia as asset (asset.asset_uuid)}
-        <MediaCard
-          {asset}
-          {canEdit}
-          {categories}
-          {ondelete}
-          {onsetprimary}
-          {oncategorychange}
-          onclick={openLightbox}
-        />
+        <div
+          class="card-slot"
+          class:highlight={highlightSet.has(asset.asset_uuid)}
+          data-asset-uuid={asset.asset_uuid}
+        >
+          <MediaCard
+            {asset}
+            {canEdit}
+            {categories}
+            {ondelete}
+            {onsetprimary}
+            {oncategorychange}
+            onclick={openLightbox}
+          />
+        </div>
       {/each}
     </div>
 
@@ -164,6 +201,26 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
     gap: var(--size-4);
+  }
+
+  .card-slot {
+    border-radius: var(--radius-2);
+  }
+
+  .card-slot.highlight {
+    animation: highlight-pulse 1.6s ease-out;
+  }
+
+  @keyframes highlight-pulse {
+    0% {
+      box-shadow: 0 0 0 0 var(--color-accent);
+    }
+    30% {
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 35%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
   }
 
   .empty {

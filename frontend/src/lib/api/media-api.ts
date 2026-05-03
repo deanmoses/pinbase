@@ -21,8 +21,7 @@ export const IMAGE_ACCEPT = 'image/*,.heic,.heif,.avif';
 // ---------------------------------------------------------------------------
 
 export interface UploadOptions {
-  category?: string;
-  isPrimary?: boolean;
+  category: string;
 }
 
 export class UploadError extends Error {
@@ -39,7 +38,7 @@ export function uploadMedia(
   file: File,
   entityType: string,
   publicId: string,
-  opts?: UploadOptions,
+  opts: UploadOptions,
   onProgress?: (pct: number) => void,
 ): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
@@ -47,8 +46,7 @@ export function uploadMedia(
     form.append('file', file);
     form.append('entity_type', entityType);
     form.append('public_id', publicId);
-    if (opts?.category) form.append('category', opts.category);
-    if (opts?.isPrimary) form.append('is_primary', 'true');
+    form.append('category', opts.category);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/media/upload/');

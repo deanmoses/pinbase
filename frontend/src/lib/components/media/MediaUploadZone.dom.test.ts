@@ -55,25 +55,36 @@ afterEach(() => {
 });
 
 describe('MediaUploadZone', () => {
-  it('opens the hidden file input from the choose-files button', async () => {
+  it('shows a category prompt and no select button until a category is picked', async () => {
+    const user = userEvent.setup();
+    renderZone();
+
+    expect(screen.getByText(/choose category to upload images/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /select images/i })).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole('combobox'), 'backglass');
+    expect(screen.getByRole('button', { name: /select images/i })).not.toBeDisabled();
+  });
+
+  it('opens the hidden file input from the select-images button after picking a category', async () => {
     const user = userEvent.setup();
     const { container } = renderZone();
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const clickSpy = vi.spyOn(input, 'click');
 
-    await user.click(screen.getByRole('button', { name: /choose files/i }));
+    await user.selectOptions(screen.getByRole('combobox'), 'backglass');
+    await user.click(screen.getByRole('button', { name: /select images/i }));
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('uploads selected files and calls onuploaded on success', async () => {
+  it('uploads selected files and calls onuploaded with new uuids on success', async () => {
     const user = userEvent.setup();
     const { container, onuploaded } = renderZone();
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['image'], 'cabinet.png', { type: 'image/png' });
 
     await user.selectOptions(screen.getByRole('combobox'), 'backglass');
-    await user.click(screen.getByRole('checkbox', { name: /set as primary/i }));
     setInputFiles(input, [file]);
 
     await fireEvent.change(input);
@@ -83,18 +94,21 @@ describe('MediaUploadZone', () => {
         file,
         'model',
         'attack-from-mars',
-        { category: 'backglass', isPrimary: true },
+        { category: 'backglass' },
         expect.any(Function),
       );
     });
     await vi.waitFor(() => {
-      expect(onuploaded).toHaveBeenCalledTimes(1);
+      expect(onuploaded).toHaveBeenCalledWith(['uploaded-1'], 'backglass');
     });
     expect(screen.queryByText('Upload results')).not.toBeInTheDocument();
   });
 
-  it('toggles dragging state on drag events', async () => {
+  it('toggles dragging state on drag events when a category is selected', async () => {
+    const user = userEvent.setup();
     renderZone();
+    await user.selectOptions(screen.getByRole('combobox'), 'backglass');
+
     const dropZone = screen
       .getByText('Drag and drop images here')
       .closest('.drop-zone') as HTMLElement;
@@ -106,17 +120,20 @@ describe('MediaUploadZone', () => {
     expect(dropZone).not.toHaveClass('dragging');
   });
 
-  it('shows upload errors and does not auto-open uploads on failure', async () => {
+  it('shows upload errors and stays in failure state', async () => {
     uploadMedia.mockRejectedValueOnce(new Error('Upload exploded'));
+    const user = userEvent.setup();
     const { container, onuploaded } = renderZone();
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['image'], 'backglass.png', { type: 'image/png' });
+
+    await user.selectOptions(screen.getByRole('combobox'), 'backglass');
     setInputFiles(input, [file]);
 
     await fireEvent.change(input);
 
     expect(await screen.findByText('Upload exploded')).toBeInTheDocument();
     expect(onuploaded).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /view uploads/i })).toBeInTheDocument();
+    expect(screen.getByText('Upload results')).toBeInTheDocument();
   });
 });

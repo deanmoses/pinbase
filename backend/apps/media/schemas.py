@@ -32,7 +32,6 @@ class AttachmentMetaSchema(Schema):
     entity_type: str
     public_id: str
     category: str | None
-    is_primary: bool
 
 
 class UploadSchema(Schema):
