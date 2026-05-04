@@ -395,7 +395,7 @@
     visibility: hidden;
     pointer-events: none;
     white-space: pre-wrap;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
     overflow: hidden;
     height: auto;
   }

@@ -57,8 +57,8 @@
     gap: var(--size-1);
     padding: var(--size-1) var(--size-2);
     font-size: var(--font-size-0);
-    background-color: var(--color-accent);
-    color: white;
+    background-color: var(--color-link);
+    color: var(--color-text-inverse);
     border-radius: var(--radius-2);
   }
 
@@ -73,6 +73,6 @@
   }
 
   .chip-remove:hover {
-    color: white;
+    color: var(--color-text-inverse);
   }
 </style>

@@ -90,7 +90,7 @@
   }
 
   .kicker:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   /* Heading */

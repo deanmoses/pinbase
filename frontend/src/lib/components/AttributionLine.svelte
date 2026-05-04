@@ -42,12 +42,12 @@
 <style>
   .attribution {
     font-size: var(--font-size-0);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     margin-top: var(--size-2);
   }
 
   .attribution a {
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     text-decoration: underline;
   }
 </style>

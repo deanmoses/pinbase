@@ -77,7 +77,7 @@
     gap: var(--size-2);
     margin-top: var(--size-1);
     font-size: var(--font-size-0);
-    color: var(--color-accent);
+    color: var(--color-link);
     font-weight: 500;
   }
 </style>

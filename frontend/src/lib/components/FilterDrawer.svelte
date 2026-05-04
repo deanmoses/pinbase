@@ -88,7 +88,7 @@
   }
 
   .filter-toggle:hover {
-    border-color: var(--color-accent);
+    border-color: var(--color-link);
   }
 
   /* Drawer header (close button) — hidden on desktop */

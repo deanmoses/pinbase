@@ -37,7 +37,7 @@
   }
 
   .location a {
-    color: var(--color-accent);
+    color: var(--color-link);
     text-decoration: none;
   }
 

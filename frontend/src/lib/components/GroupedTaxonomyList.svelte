@@ -73,7 +73,7 @@
 
   .parent-row:hover,
   .child-row:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .parent-name {

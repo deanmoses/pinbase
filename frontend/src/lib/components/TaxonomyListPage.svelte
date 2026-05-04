@@ -200,7 +200,7 @@
   }
 
   .item-row:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .item-name {

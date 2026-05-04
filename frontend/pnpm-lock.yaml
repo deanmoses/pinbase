@@ -84,9 +84,9 @@ importers:
       stylelint:
         specifier: ^17.10.0
         version: 17.10.0(typescript@5.9.3)
-      stylelint-config-standard:
-        specifier: ^40.0.0
-        version: 40.0.0(stylelint@17.10.0(typescript@5.9.3))
+      stylelint-value-no-unknown-custom-properties:
+        specifier: ^6.1.1
+        version: 6.1.1(stylelint@17.10.0(typescript@5.9.3))
       svelte:
         specifier: ^5.55.5
         version: 5.55.5(@typescript-eslint/types@8.59.1)
@@ -2440,17 +2440,11 @@ packages:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
 
-  stylelint-config-recommended@18.0.0:
-    resolution: {integrity: sha512-mxgT2XY6YZ3HWWe3Di8umG6aBmWmHTblTgu/f10rqFXnyWxjKWwNdjSWkgkwCtxIKnqjSJzvFmPT5yabVIRxZg==}
-    engines: {node: '>=20.19.0'}
+  stylelint-value-no-unknown-custom-properties@6.1.1:
+    resolution: {integrity: sha512-eQ1zidKD5t9zMEaskjGUY4W47lH76qMlmsDSmCAPEwtaGzB4Ls7ORTfysC1D6hamp2zFC+vN1vpQ+GFz3Tw3lw==}
+    engines: {node: '>=18.12.0'}
     peerDependencies:
-      stylelint: ^17.0.0
-
-  stylelint-config-standard@40.0.0:
-    resolution: {integrity: sha512-EznGJxOUhtWck2r6dJpbgAdPATIzvpLdK9+i5qPd4Lx70es66TkBPljSg4wN3Qnc6c4h2n+WbUrUynQ3fanjHw==}
-    engines: {node: '>=20.19.0'}
-    peerDependencies:
-      stylelint: ^17.0.0
+      stylelint: '>=16'
 
   stylelint@17.10.0:
     resolution: {integrity: sha512-cI7I6HHEYOHHVNVci+s92WlA3QfmNhjwFdgCgYV3TLEysilOjk+B3EFxMED1xY9GYB0Kre3OD+mSLj19VLTIvA==}
@@ -4983,14 +4977,11 @@ snapshots:
 
   strip-json-comments@5.0.3: {}
 
-  stylelint-config-recommended@18.0.0(stylelint@17.10.0(typescript@5.9.3)):
+  stylelint-value-no-unknown-custom-properties@6.1.1(stylelint@17.10.0(typescript@5.9.3)):
     dependencies:
+      postcss-value-parser: 4.2.0
+      resolve: 1.22.11
       stylelint: 17.10.0(typescript@5.9.3)
-
-  stylelint-config-standard@40.0.0(stylelint@17.10.0(typescript@5.9.3)):
-    dependencies:
-      stylelint: 17.10.0(typescript@5.9.3)
-      stylelint-config-recommended: 18.0.0(stylelint@17.10.0(typescript@5.9.3))
 
   stylelint@17.10.0(typescript@5.9.3):
     dependencies:

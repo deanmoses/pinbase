@@ -41,14 +41,17 @@
   .diff-container {
     font-size: var(--font-size-0);
     line-height: var(--font-lineheight-3);
-    word-break: break-word;
+    overflow-wrap: break-word;
     white-space: pre-wrap;
   }
 
   .collapsed {
     max-height: 200px;
     overflow: hidden;
+    /* `black` here is a luminance alpha for the mask, not a theme color. */
+    /* stylelint-disable-next-line color-named */
     mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    /* stylelint-disable-next-line color-named */
     -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
   }
 
@@ -70,7 +73,7 @@
   .diff-toggle {
     background: none;
     border: none;
-    color: var(--color-accent);
+    color: var(--color-link);
     font-size: var(--font-size-0);
     padding: var(--size-1) 0 0;
     cursor: pointer;

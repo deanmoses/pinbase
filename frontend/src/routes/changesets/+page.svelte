@@ -383,7 +383,7 @@
   }
 
   .byline a {
-    color: var(--color-accent);
+    color: var(--color-link);
     text-decoration: none;
   }
 
@@ -400,7 +400,7 @@
   }
 
   .entity-link:hover .entity-name {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .entity-name {
@@ -439,7 +439,7 @@
   .expand-toggle {
     background: none;
     border: none;
-    color: var(--color-accent);
+    color: var(--color-link);
     font-size: var(--font-size-0);
     padding: var(--size-1) 0 0;
     cursor: pointer;
@@ -494,7 +494,7 @@
     align-items: baseline;
     gap: var(--size-1);
     color: var(--color-text-primary);
-    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   .field-row-diff {

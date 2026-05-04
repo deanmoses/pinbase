@@ -77,7 +77,7 @@
   }
 
   nav a:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .tools-item {
@@ -88,7 +88,7 @@
   }
 
   .tools-item:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
     background: var(--color-surface);
   }
 

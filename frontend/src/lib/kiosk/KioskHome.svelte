@@ -157,7 +157,7 @@
 
   .card-overlay {
     position: absolute;
-    inset: auto 0 0 0;
+    inset: auto 0 0;
     padding: var(--size-5) var(--size-4) var(--size-3);
     background: linear-gradient(
       to top,

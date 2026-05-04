@@ -287,7 +287,7 @@
   }
 
   .site-title:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .primary-nav {
@@ -312,8 +312,8 @@
   }
 
   .nav-link.active {
-    color: var(--color-accent);
-    border-bottom-color: var(--color-accent);
+    color: var(--color-link);
+    border-bottom-color: var(--color-link);
   }
 
   .header-actions {
@@ -335,7 +335,7 @@
   }
 
   .search-link.active {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .auth-link {

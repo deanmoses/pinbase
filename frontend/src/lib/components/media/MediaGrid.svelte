@@ -193,8 +193,8 @@
   }
 
   .filter-btn.active {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
+    color: var(--color-link);
+    border-color: var(--color-link);
   }
 
   .grid {

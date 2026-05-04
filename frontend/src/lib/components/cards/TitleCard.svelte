@@ -33,7 +33,7 @@
 <style>
   .card-subtitle {
     font-size: var(--font-size-1);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     margin: 0;
   }
 

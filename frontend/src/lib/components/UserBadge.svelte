@@ -26,12 +26,12 @@
   }
 
   a.user-badge {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
+    color: var(--color-link);
+    border-color: var(--color-link);
   }
 
   a.user-badge:hover {
-    background-color: var(--color-accent);
+    background-color: var(--color-link);
     color: var(--color-surface);
   }
 </style>

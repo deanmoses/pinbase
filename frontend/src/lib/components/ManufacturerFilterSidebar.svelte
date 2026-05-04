@@ -115,7 +115,7 @@
   .clear-all {
     background: none;
     border: none;
-    color: var(--color-accent);
+    color: var(--color-link);
     cursor: pointer;
     font-size: var(--font-size-0);
     font-family: var(--font-body);

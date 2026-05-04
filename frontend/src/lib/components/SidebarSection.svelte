@@ -61,7 +61,7 @@
   }
 
   .edit-link:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .note {

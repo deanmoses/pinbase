@@ -290,7 +290,7 @@
 
   .trigger:hover,
   .trigger[aria-expanded='true'] {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   /* Bare variant defers fully to its parent's color, including on hover —
