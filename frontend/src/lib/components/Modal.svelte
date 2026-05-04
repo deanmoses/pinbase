@@ -185,7 +185,7 @@
     border-radius: var(--radius-3);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-modal);
     overflow: hidden;
   }
 

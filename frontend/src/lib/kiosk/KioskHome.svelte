@@ -134,7 +134,7 @@
   .card:hover,
   .card:focus-visible {
     transform: scale(1.02);
-    box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+    box-shadow: var(--shadow-popover);
   }
 
   .card-media {

@@ -275,7 +275,7 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-2);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+    box-shadow: var(--shadow-popover);
     font-size: var(--font-size-1);
     line-height: var(--font-lineheight-3);
     color: var(--color-text-primary);

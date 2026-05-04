@@ -112,7 +112,7 @@
     gap: var(--size-3);
     padding: var(--size-2) var(--size-4);
     border-radius: var(--size-2);
-    box-shadow: var(--shadow-2);
+    box-shadow: var(--shadow-modal);
     max-width: 28rem;
     background: var(--color-surface-inverse);
     color: var(--color-text-inverse);

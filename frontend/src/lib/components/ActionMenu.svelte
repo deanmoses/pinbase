@@ -324,7 +324,7 @@
     padding: var(--size-1) 0;
     min-width: 7rem;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-popover);
   }
 
   .menu.align-start {

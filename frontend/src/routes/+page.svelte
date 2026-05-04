@@ -140,7 +140,7 @@
 
   .explore-card:hover {
     border-color: var(--color-link);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+    box-shadow: var(--shadow-popover);
   }
 
   .explore-label {

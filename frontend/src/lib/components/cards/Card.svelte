@@ -151,9 +151,7 @@
     color: inherit;
     padding: 0.6rem 0.6rem 1.6rem;
     transform: rotate(var(--rotation, 0deg));
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.12),
-      0 4px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
     transition:
       transform 0.2s ease,
       box-shadow 0.2s ease;
@@ -172,9 +170,7 @@
 
   .card:hover {
     transform: rotate(0deg) scale(1.03);
-    box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.15),
-      0 8px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-popover);
     z-index: 1;
   }
 
@@ -215,20 +211,10 @@
       --polaroid-paper: #2e2a24;
       --polaroid-paper-dim: #3a342b;
       --polaroid-ink: #c8bfb0;
-
-      box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.4),
-        0 4px 8px rgba(0, 0, 0, 0.25);
     }
 
     .card::before {
       background: rgba(140, 110, 60, var(--paper-yellow, 0.05));
-    }
-
-    .card:hover {
-      box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.4),
-        0 8px 20px rgba(0, 0, 0, 0.3);
     }
 
     .card-img {

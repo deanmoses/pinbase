@@ -5,10 +5,12 @@
 
 /* Open Props normalize — sets sensible defaults on base elements and
    provides adaptive primitives (--surface-1..4, --text-1..2, --link,
-   --shadow-color, --shadow-strength, --shadow-6, --font-monospace-code,
+   --shadow-color, --shadow-strength, --font-monospace-code,
    --font-size-*, etc.). We don't consume the --surface-* / --text-*
    primitives directly — our own --color-* tokens defined below win the
-   cascade and carry the warm-cream brand palette. */
+   cascade and carry the warm-cream brand palette. The semantic
+   --shadow-* recipes below DO build on --shadow-color / --shadow-strength
+   so they auto-adapt to dark mode without a parallel override block. */
 @import 'open-props/normalize';
 
 /* ========================================
@@ -123,10 +125,28 @@
   --color-scrim: rgb(0 0 0 / 0.5); /* modals, action menus */
   --color-scrim-strong: rgb(0 0 0 / 0.85); /* lightbox, hero overlay */
 
-  /* ---- Shadows (elevation scale, theme-aware) ---- */
-  --shadow-1: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
-  --shadow-2: 0 4px 12px rgb(0 0 0 / 0.1), 0 2px 4px rgb(0 0 0 / 0.06);
-  --shadow-3: 0 8px 24px rgb(0 0 0 / 0.15), 0 4px 8px rgb(0 0 0 / 0.08);
+  /* ---- Shadows (semantic elevation roles) ----
+     Built on Open Props's adaptive primitives — `--shadow-color` and
+     `--shadow-strength` are bumped automatically under
+     `prefers-color-scheme: dark` (strength: 1% → 25%), so these recipes
+     don't need a parallel dark-mode block.
+
+     Pick by role:
+       --shadow-card     resting elevation for a tile sitting on the page
+       --shadow-popover  "this element floats above its siblings" —
+                         dropdowns, tooltips, action menus, AND the
+                         hover-lift state of cards (a card on hover
+                         steps up from -card to -popover)
+       --shadow-modal    overlay layer — modals, toasts, lightbox */
+  --shadow-card:
+    0 1px 3px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 7%)),
+    0 1px 2px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 3%));
+  --shadow-popover:
+    0 4px 12px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 9%)),
+    0 2px 4px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 5%));
+  --shadow-modal:
+    0 8px 24px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 14%)),
+    0 4px 8px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 7%));
 
   /* ---- Z-index scale (theme-invariant)
      Use these for global stacking layers only. Local stacking contexts
@@ -219,10 +239,9 @@
     --color-diff-ins-bg: rgb(46 160 67 / 0.25);
     --color-diff-del-bg: rgb(248 81 73 / 0.25);
 
-    /* ---- Shadows (heavier alpha — shadows are less visible on dark) ---- */
-    --shadow-1: 0 1px 3px rgb(0 0 0 / 0.3), 0 1px 2px rgb(0 0 0 / 0.2);
-    --shadow-2: 0 4px 12px rgb(0 0 0 / 0.4), 0 2px 4px rgb(0 0 0 / 0.25);
-    --shadow-3: 0 8px 24px rgb(0 0 0 / 0.5), 0 4px 8px rgb(0 0 0 / 0.3);
+    /* Shadows have no dark-mode override — Open Props bumps
+       `--shadow-strength` automatically, and the semantic shadow
+       recipes above pick up the new value. */
   }
 }
 
