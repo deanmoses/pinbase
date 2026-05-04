@@ -131,7 +131,6 @@ def list_series(request: HttpRequest) -> list[SeriesListItemSchema]:
                 "titles__machine_models",
                 queryset=MachineModel.objects.active()
                 .filter(variant_of__isnull=True)
-                .exclude(extra_data={})
                 .order_by(F("year").asc(nulls_last=True))
                 .only("id", "extra_data"),
             )
