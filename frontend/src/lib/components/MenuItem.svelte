@@ -6,12 +6,15 @@
     onclick = undefined,
     disabled = false,
     current = false,
+    reload = false,
     children,
   }: {
     href?: string;
     onclick?: () => void;
     disabled?: boolean;
     current?: boolean;
+    /** Force a full-page navigation. Set for non-SvelteKit routes (e.g. Django views). */
+    reload?: boolean;
     children: Snippet;
   } = $props();
 
@@ -32,7 +35,15 @@
     {@render children()}
   </span>
 {:else if href}
-  <a class="menu-item" {href} role={itemRole} aria-selected={ariaSelected} tabindex="-1">
+  <a
+    class:current
+    class="menu-item"
+    {href}
+    role={itemRole}
+    aria-selected={ariaSelected}
+    tabindex="-1"
+    data-sveltekit-reload={reload ? '' : undefined}
+  >
     {@render children()}
   </a>
 {:else}
@@ -50,11 +61,14 @@
 {/if}
 
 <style>
+  /* Parents may override --menu-item-font-size and --menu-item-padding via
+     inheritance to retune density (e.g. nav uses larger items than the
+     compact image-category picker). */
   .menu-item {
     display: block;
     width: 100%;
-    padding: var(--size-1) var(--size-3);
-    font-size: var(--font-size-0);
+    padding: var(--menu-item-padding, var(--size-1) var(--size-3));
+    font-size: var(--menu-item-font-size, var(--font-size-0));
     font-family: inherit;
     color: var(--color-text-primary);
     text-decoration: none;
@@ -65,17 +79,34 @@
     white-space: nowrap;
   }
 
+  /* Hover/focus uses an ink-tinted overlay in light mode (pure white on
+     warm-cream looked harsh). Dark mode keeps the existing flat surface. */
   .menu-item:hover,
   .menu-item:focus-visible {
-    background: var(--color-surface);
+    background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
     color: var(--color-accent);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .menu-item:hover,
+    .menu-item:focus-visible {
+      background: var(--color-surface);
+    }
   }
 
   .menu-item.current {
     font-weight: 600;
   }
 
-  .menu-item.current::before {
+  /* Menus: "you are here" gets a tinted background that adapts to both
+     themes (ink on warm-cream in light mode, light gray on near-black in
+     dark mode). */
+  .menu-item.current[role='menuitem'] {
+    background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  }
+
+  /* Listboxes: the selected option gets a checkmark, like a native <select>. */
+  .menu-item.current[role='option']::before {
     content: '✓ ';
   }
 

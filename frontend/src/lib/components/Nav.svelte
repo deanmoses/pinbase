@@ -1,34 +1,51 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { resolve } from '$app/paths';
-  import { faBars, faMagnifyingGlass, faXmark } from '@fortawesome/free-solid-svg-icons';
+  import { faBars, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
   import FaIcon from './FaIcon.svelte';
   import CoffeeStain from './effects/CoffeeStain.svelte';
+  import ActionMenu from './ActionMenu.svelte';
+  import MenuItem from './MenuItem.svelte';
+  import MenuSectionHeader from './MenuSectionHeader.svelte';
+  import MenuDivider from './MenuDivider.svelte';
+  import Avatar from './Avatar.svelte';
   import { SITE_NAME } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
   import { auth } from '$lib/auth.svelte';
-
-  let mobileNavOpen = $state(false);
 
   const navItems = [
     { href: '/titles' as const, label: 'Titles' },
     { href: '/manufacturers' as const, label: 'Manufacturers' },
     { href: '/people' as const, label: 'People' },
-    { href: '/changesets' as const, label: 'Changelog' },
   ];
+  const changelogHref = '/changesets' as const;
 
   function isActive(href: string) {
     return page.url.pathname.startsWith(href);
   }
 
-  let toggleIcon = $derived(mobileNavOpen ? faXmark : faBars);
+  let isMobile = $state(false);
 
   $effect(() => {
     auth.load();
   });
 
+  $effect(() => {
+    const mq = window.matchMedia('(width < 40.0625rem)');
+    isMobile = mq.matches;
+    const handler = (event: MediaQueryListEvent) => {
+      isMobile = event.matches;
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  });
+
   async function handleLogout() {
     await auth.logout();
+  }
+
+  function loginHref() {
+    return `/api/auth/login/?next=${encodeURIComponent(page.url.pathname)}`;
   }
 
   const randInt = (max: number) => Math.floor(Math.random() * max);
@@ -63,14 +80,20 @@
   <div class="header-inner">
     <a href={resolve('/')} class="site-title">{SITE_NAME}</a>
 
-    <nav class="site-nav" class:open={mobileNavOpen}>
+    <nav class="primary-nav desktop-nav" aria-label="Primary">
       {#each navItems as { href, label } (href)}
-        <a
-          href={resolve(href)}
-          class="nav-link"
-          class:active={isActive(href)}
-          onclick={() => (mobileNavOpen = false)}
-        >
+        <a href={resolve(href)} class="nav-link" class:active={isActive(href)}>
+          {label}
+        </a>
+      {/each}
+      <a href={resolve(changelogHref)} class="nav-link" class:active={isActive(changelogHref)}>
+        Changelog
+      </a>
+    </nav>
+
+    <nav class="primary-nav tablet-nav" aria-label="Primary">
+      {#each navItems as { href, label } (href)}
+        <a href={resolve(href)} class="nav-link" class:active={isActive(href)}>
           {label}
         </a>
       {/each}
@@ -87,25 +110,77 @@
       </a>
 
       {#if auth.loaded}
-        {#if auth.isAuthenticated}
-          <a href={resolveHref(`/users/${auth.username}`)} class="auth-user">{auth.username}</a>
-          <button class="auth-link" onclick={handleLogout}>Sign out</button>
-        {:else}
-          <a
-            href={`/api/auth/login/?next=${encodeURIComponent(page.url.pathname)}`}
-            class="auth-link">Sign in</a
-          >
-        {/if}
-      {/if}
+        <div class="desktop-account">
+          {#if auth.isAuthenticated}
+            <ActionMenu label="Account" variant="bare" ariaLabel="Account menu">
+              {#snippet trigger()}
+                <Avatar
+                  firstName={auth.firstName}
+                  lastName={auth.lastName}
+                  username={auth.username!}
+                />
+              {/snippet}
+              {#if auth.isSuperuser}
+                <MenuSectionHeader>admin</MenuSectionHeader>
+                <MenuItem href={resolve('/kiosk/configure')} current={isActive('/kiosk/configure')}>
+                  Kiosk Config
+                </MenuItem>
+                <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+                <MenuDivider />
+              {/if}
+              <MenuSectionHeader>{auth.username}</MenuSectionHeader>
+              <MenuItem
+                href={resolveHref(`/users/${auth.username}`)}
+                current={isActive(`/users/${auth.username}`)}
+              >
+                My Contributions
+              </MenuItem>
+              <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
+            </ActionMenu>
+          {:else}
+            <a href={loginHref()} class="auth-link" data-sveltekit-reload>Sign in</a>
+          {/if}
+        </div>
 
-      <button
-        class="mobile-toggle"
-        onclick={() => (mobileNavOpen = !mobileNavOpen)}
-        aria-label="Toggle navigation"
-        aria-expanded={mobileNavOpen}
-      >
-        <FaIcon icon={toggleIcon} size="1.25rem" />
-      </button>
+        <div class="hamburger">
+          <ActionMenu label="Menu" variant="bare" ariaLabel="Menu">
+            {#snippet trigger()}
+              <FaIcon icon={faBars} size="1.25rem" />
+            {/snippet}
+            {#if isMobile}
+              {#each navItems as { href, label } (href)}
+                <MenuItem href={resolve(href)} current={isActive(href)}>{label}</MenuItem>
+              {/each}
+              <MenuDivider />
+            {/if}
+            <MenuSectionHeader>activity</MenuSectionHeader>
+            <MenuItem href={resolve(changelogHref)} current={isActive(changelogHref)}>
+              Changelog
+            </MenuItem>
+            {#if auth.isSuperuser}
+              <MenuDivider />
+              <MenuSectionHeader>admin</MenuSectionHeader>
+              <MenuItem href={resolve('/kiosk/configure')} current={isActive('/kiosk/configure')}>
+                Kiosk Config
+              </MenuItem>
+              <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+            {/if}
+            <MenuDivider />
+            {#if auth.isAuthenticated}
+              <MenuSectionHeader>{auth.username}</MenuSectionHeader>
+              <MenuItem
+                href={resolveHref(`/users/${auth.username}`)}
+                current={isActive(`/users/${auth.username}`)}
+              >
+                My Contributions
+              </MenuItem>
+              <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
+            {:else}
+              <MenuItem href={loginHref()} reload>Sign In</MenuItem>
+            {/if}
+          </ActionMenu>
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -205,6 +280,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--size-4);
     z-index: 10;
   }
 
@@ -219,7 +295,7 @@
     color: var(--color-accent);
   }
 
-  .site-nav {
+  .primary-nav {
     display: flex;
     gap: var(--size-5);
   }
@@ -267,25 +343,10 @@
     color: var(--color-accent);
   }
 
-  .auth-user {
-    font-size: var(--font-size-2);
-    color: var(--header-ink-muted);
-    text-decoration: none;
-    transition: color 0.15s var(--ease-2);
-  }
-
-  .auth-user:hover {
-    color: var(--header-ink);
-  }
-
   .auth-link {
     font-size: var(--font-size-2);
     color: var(--header-ink-muted);
     text-decoration: none;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
     font-weight: 500;
     transition: color 0.15s var(--ease-2);
   }
@@ -294,34 +355,61 @@
     color: var(--header-ink);
   }
 
-  .mobile-toggle {
-    display: none;
-    background: none;
-    border: none;
-    color: var(--header-ink);
-    cursor: pointer;
-    padding: var(--size-1);
+  /* Hamburger / desktop-account wrappers: ActionMenu's `bare` trigger inherits
+     color from us, so we own idle and hover styling via inheritance. The
+     custom properties scale MenuItem / MenuSectionHeader densities up from
+     their compact defaults, since this menu has fewer items than e.g. the
+     image-category picker and doubles as the primary nav on mobile. */
+  .hamburger,
+  .desktop-account {
+    --menu-item-font-size: var(--font-size-2);
+    --menu-item-padding: var(--size-2) var(--size-4);
+    --menu-section-header-font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    color: var(--header-ink-muted);
+    transition: color 0.15s var(--ease-2);
   }
 
-  @media (max-width: 640px) {
-    .mobile-toggle {
-      display: block;
-    }
+  .hamburger:hover,
+  .desktop-account:hover {
+    color: var(--header-ink);
+  }
 
-    .site-nav {
+  /* ── Three responsive tiers via Media Queries Level 4 range syntax ── */
+  .tablet-nav {
+    display: none;
+  }
+  .hamburger {
+    display: none;
+  }
+
+  @media (width >= 40.0625rem) and (width < 52rem) {
+    .desktop-nav {
       display: none;
-      flex-direction: column;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background-color: var(--header-bg);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      padding: var(--size-3) var(--size-5);
-      gap: var(--size-2);
     }
+    .tablet-nav {
+      display: flex;
+    }
+    .desktop-account {
+      display: none;
+    }
+    .hamburger {
+      display: flex;
+    }
+  }
 
-    .site-nav.open {
+  @media (width < 40.0625rem) {
+    .desktop-nav {
+      display: none;
+    }
+    .tablet-nav {
+      display: none;
+    }
+    .desktop-account {
+      display: none;
+    }
+    .hamburger {
       display: flex;
     }
   }
@@ -349,12 +437,6 @@
 
     .site-header::before {
       background: none;
-    }
-
-    @media (max-width: 640px) {
-      .site-nav {
-        border-bottom-color: var(--color-border-soft);
-      }
     }
   }
 </style>

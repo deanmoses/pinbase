@@ -274,11 +274,36 @@ class TestAuthMe:
         resp = client.get("/api/auth/me/")
         data = resp.json()
         assert data["is_authenticated"] is False
+        assert data["is_superuser"] is False
+        assert data["first_name"] == ""
+        assert data["last_name"] == ""
 
     def test_me_authenticated(self, client):
-        user = User.objects.create_user(username="alice")
+        user = User.objects.create_user(
+            username="alice", first_name="Alice", last_name="Anderson"
+        )
         client.force_login(user)
         resp = client.get("/api/auth/me/")
         data = resp.json()
         assert data["is_authenticated"] is True
         assert data["username"] == "alice"
+        assert data["is_superuser"] is False
+        assert data["first_name"] == "Alice"
+        assert data["last_name"] == "Anderson"
+
+    def test_me_authenticated_no_names(self, client):
+        user = User.objects.create_user(username="bob")
+        client.force_login(user)
+        resp = client.get("/api/auth/me/")
+        data = resp.json()
+        assert data["is_authenticated"] is True
+        assert data["first_name"] == ""
+        assert data["last_name"] == ""
+
+    def test_me_superuser(self, client):
+        user = User.objects.create_superuser(username="admin", email="a@b.test")
+        client.force_login(user)
+        resp = client.get("/api/auth/me/")
+        data = resp.json()
+        assert data["is_authenticated"] is True
+        assert data["is_superuser"] is True

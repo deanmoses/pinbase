@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import ActionMenuFixture from './ActionMenu.fixture.svelte';
 import ActionMenuListboxFixture from './ActionMenu.listbox.fixture.svelte';
+import ActionMenuTriggerFixture from './ActionMenu.trigger.fixture.svelte';
 
 describe('ActionMenu', () => {
   function renderMenu() {
@@ -119,6 +120,27 @@ describe('ActionMenu', () => {
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  describe('custom trigger snippet', () => {
+    it('renders the snippet inside the button and keeps keyboard/ARIA wiring', async () => {
+      const user = userEvent.setup();
+      render(ActionMenuTriggerFixture);
+
+      const trigger = screen.getByRole('button', { name: 'Account' });
+      expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+      const customContent = screen.getByTestId('custom-trigger');
+      expect(trigger).toContainElement(customContent);
+      expect(customContent).toHaveTextContent('AB');
+
+      trigger.focus();
+      await user.keyboard('{ArrowDown}');
+
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveFocus();
+    });
   });
 
   describe('pill variant + listbox role', () => {

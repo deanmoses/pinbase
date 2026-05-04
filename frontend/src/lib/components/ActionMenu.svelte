@@ -4,9 +4,10 @@
   type Props = {
     label: string;
     disabled?: boolean;
-    variant?: 'default' | 'heading' | 'pill';
+    variant?: 'default' | 'heading' | 'pill' | 'bare';
     role?: 'menu' | 'listbox';
     ariaLabel?: string;
+    trigger?: Snippet;
     children: Snippet;
   };
 
@@ -16,6 +17,7 @@
     variant = 'default',
     role: roleProp,
     ariaLabel,
+    trigger,
     children,
   }: Props = $props();
 
@@ -208,15 +210,16 @@
     class="trigger"
     class:heading={variant === 'heading'}
     class:pill={variant === 'pill'}
+    class:bare={variant === 'bare'}
     {disabled}
     aria-haspopup={role === 'listbox' ? 'listbox' : 'menu'}
     aria-expanded={open}
     aria-controls={open ? menuId : undefined}
-    aria-label={ariaLabel}
+    aria-label={ariaLabel ?? (trigger ? label : undefined)}
     onclick={toggleMenu}
     onkeydown={handleTriggerKeydown}
   >
-    {label}
+    {#if trigger}{@render trigger()}{:else}{label}{/if}
   </button>
   {#if open}
     <div
@@ -252,9 +255,17 @@
     font-family: inherit;
   }
 
-  .trigger::after {
+  .trigger:not(.bare)::after {
     content: ' \25BE';
     font-size: 0.75em;
+  }
+
+  .trigger.bare {
+    color: inherit;
+    font-size: inherit;
+    line-height: 0;
+    display: inline-flex;
+    align-items: center;
   }
 
   .trigger.heading {
@@ -280,6 +291,13 @@
   .trigger:hover,
   .trigger[aria-expanded='true'] {
     color: var(--color-accent);
+  }
+
+  /* Bare variant defers fully to its parent's color, including on hover —
+     the parent decides idle and hover colors via inheritance. */
+  .trigger.bare:hover,
+  .trigger.bare[aria-expanded='true'] {
+    color: inherit;
   }
 
   .trigger:disabled {

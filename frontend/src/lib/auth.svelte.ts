@@ -4,19 +4,39 @@ interface AuthState {
   isAuthenticated: boolean;
   id: number | null;
   username: string | null;
+  isSuperuser: boolean;
+  firstName: string;
+  lastName: string;
 }
 
-const ANONYMOUS: AuthState = { isAuthenticated: false, id: null, username: null };
+const ANONYMOUS: AuthState = {
+  isAuthenticated: false,
+  id: null,
+  username: null,
+  isSuperuser: false,
+  firstName: '',
+  lastName: '',
+};
 
 function createAuthStore() {
   let state = $state<AuthState>({ ...ANONYMOUS });
   let loaded = $state(false);
 
-  function set(data: { is_authenticated: boolean; id?: number | null; username?: string | null }) {
+  function set(data: {
+    is_authenticated: boolean;
+    id?: number | null;
+    username?: string | null;
+    is_superuser?: boolean;
+    first_name?: string;
+    last_name?: string;
+  }) {
     state = {
       isAuthenticated: data.is_authenticated,
       id: data.id ?? null,
       username: data.username ?? null,
+      isSuperuser: data.is_superuser ?? false,
+      firstName: data.first_name ?? '',
+      lastName: data.last_name ?? '',
     };
     loaded = true;
   }
@@ -41,6 +61,15 @@ function createAuthStore() {
     },
     get username() {
       return state.username;
+    },
+    get isSuperuser() {
+      return state.isSuperuser;
+    },
+    get firstName() {
+      return state.firstName;
+    },
+    get lastName() {
+      return state.lastName;
     },
     get loaded() {
       return loaded;

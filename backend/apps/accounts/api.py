@@ -45,6 +45,9 @@ class AuthStatusSchema(Schema):
     is_authenticated: bool
     id: int | None = None
     username: str | None = None
+    is_superuser: bool = False
+    first_name: str = ""
+    last_name: str = ""
 
 
 class EntityContributionSchema(Schema):
@@ -162,6 +165,9 @@ def auth_me(request: HttpRequest) -> AuthStatusSchema:
             is_authenticated=True,
             id=user.id,
             username=user.username,
+            is_superuser=user.is_superuser,
+            first_name=user.first_name,
+            last_name=user.last_name,
         )
     assert isinstance(user, AnonymousUser)
     return AuthStatusSchema(is_authenticated=False)
