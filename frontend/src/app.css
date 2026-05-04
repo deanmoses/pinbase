@@ -5,12 +5,13 @@
 
 /* Open Props normalize — sets sensible defaults on base elements and
    provides adaptive primitives (--surface-1..4, --text-1..2, --link,
-   --shadow-color, --shadow-strength, --font-monospace-code,
-   --font-size-*, etc.). We don't consume the --surface-* / --text-*
-   primitives directly — our own --color-* tokens defined below win the
-   cascade and carry the warm-cream brand palette. The semantic
-   --shadow-* recipes below DO build on --shadow-color / --shadow-strength
-   so they auto-adapt to dark mode without a parallel override block. */
+   --font-monospace-code, --font-size-*, etc.). We don't consume the
+   --surface-* / --text-* primitives directly — our own --color-* tokens
+   defined below win the cascade and carry the warm-cream brand palette.
+   We also redeclare --shadow-color / --shadow-strength explicitly in
+   both light and dark — normalize only sets them in its dark @media
+   block, so light mode would otherwise expand shadow recipes to
+   invalid CSS. */
 @import 'open-props/normalize';
 
 /* ========================================
@@ -126,10 +127,15 @@
   --color-scrim-strong: rgb(0 0 0 / 0.85); /* lightbox, hero overlay */
 
   /* ---- Shadows (semantic elevation roles) ----
-     Built on Open Props's adaptive primitives — `--shadow-color` and
-     `--shadow-strength` are bumped automatically under
-     `prefers-color-scheme: dark` (strength: 1% → 25%), so these recipes
-     don't need a parallel dark-mode block.
+     Built on the same `--shadow-color` / `--shadow-strength` pattern Open
+     Props uses, so dark mode adapts by overriding two scalars instead of
+     every shadow recipe.
+
+     Note: Open Props's `normalize` (which we import) only sets
+     --shadow-color / --shadow-strength inside its dark @media block — it
+     leaves them undefined in light mode. We must define light-mode
+     values ourselves OR shadows expand to invalid CSS and disappear.
+     Both modes are set explicitly below.
 
      Pick by role:
        --shadow-card     resting elevation for a tile sitting on the page
@@ -138,6 +144,8 @@
                          hover-lift state of cards (a card on hover
                          steps up from -card to -popover)
        --shadow-modal    overlay layer — modals, toasts, lightbox */
+  --shadow-color: 220 3% 15%;
+  --shadow-strength: 1%;
   --shadow-card:
     0 1px 3px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 7%)),
     0 1px 2px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 3%));
@@ -239,9 +247,20 @@
     --color-diff-ins-bg: rgb(46 160 67 / 0.25);
     --color-diff-del-bg: rgb(248 81 73 / 0.25);
 
-    /* Shadows have no dark-mode override — Open Props bumps
-       `--shadow-strength` automatically, and the semantic shadow
-       recipes above pick up the new value. */
+    /* Shadows: bump strength + saturate the shadow color for dark mode.
+       Both must be set here explicitly — our :root values above are
+       source-later than Open Props's own @media dark block, so they'd
+       otherwise override Open Props's adaptation. The semantic
+       --shadow-card/-popover/-modal recipes pick up these values
+       automatically.
+
+       Strength is 25%, not the 10% Open Props's normalize uses — at 10%
+       shadows render noticeably lighter than the hardcoded values this
+       project had pre-refactor (e.g. modal: 24%/17% vs old 50%/30%).
+       25% matches Open Props's *omnibus* default and lands close to the
+       previous visual weight. */
+    --shadow-color: 220 40% 2%;
+    --shadow-strength: 25%;
   }
 }
 
