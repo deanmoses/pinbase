@@ -323,7 +323,7 @@
     border-radius: var(--radius-2);
     padding: var(--size-1) 0;
     min-width: 7rem;
-    z-index: 10;
+    z-index: var(--z-dropdown);
     box-shadow: var(--shadow-popover);
   }
 

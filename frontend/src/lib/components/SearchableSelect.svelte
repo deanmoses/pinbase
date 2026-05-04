@@ -347,7 +347,7 @@
 
   .dropdown {
     position: absolute;
-    z-index: 10;
+    z-index: var(--z-dropdown);
     top: 100%;
     left: 0;
     right: 0;

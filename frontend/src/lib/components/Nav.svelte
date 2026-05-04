@@ -234,7 +234,7 @@
 
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: var(--z-header);
     background-color: var(--header-bg);
     border-bottom: none;
   }
@@ -276,7 +276,7 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--size-4);
-    z-index: 10;
+    z-index: 4;
   }
 
   .site-title {

@@ -149,25 +149,6 @@ module.exports = {
         'csstools/value-no-unknown-custom-properties': null,
       },
     },
-    // Components with pre-tokenization raw integer z-index values. Each
-    // maps to a --z-* token (dropdown / header / drawer / modal / tooltip);
-    // remove entries as each file is migrated.
-    {
-      files: [
-        'src/lib/toast/ToastHost.svelte',
-        'src/lib/components/ActionMenu.svelte',
-        'src/lib/components/CitationTooltip.svelte',
-        'src/lib/components/FilterDrawer.svelte',
-        'src/lib/components/Modal.svelte',
-        'src/lib/components/Nav.svelte',
-        'src/lib/components/SearchableSelect.svelte',
-        'src/lib/components/form/MarkdownTextArea.svelte',
-        'src/lib/components/media/MediaLightbox.svelte',
-      ],
-      rules: {
-        'declaration-property-value-allowed-list': null,
-      },
-    },
     // Components with pre-stylelint hex/rgb violations. Remove entries as
     // each file is cleaned up.
     {

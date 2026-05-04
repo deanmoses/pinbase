@@ -404,7 +404,7 @@
 
   .link-dropdown {
     position: absolute;
-    z-index: 10;
+    z-index: var(--z-dropdown);
     min-width: 16rem;
     max-width: 24rem;
     max-height: 20rem;

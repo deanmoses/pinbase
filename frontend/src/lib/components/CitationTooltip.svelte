@@ -269,7 +269,7 @@
 <style>
   .citation-tooltip {
     position: fixed;
-    z-index: 1000;
+    z-index: var(--z-tooltip);
     max-width: 320px;
     padding: var(--size-2) var(--size-3);
     background: var(--color-surface);
