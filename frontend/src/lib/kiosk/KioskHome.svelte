@@ -120,7 +120,7 @@
   .card {
     display: flex;
     flex-direction: column;
-    background: var(--color-surface, #fff);
+    background: var(--color-surface);
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-3);
     overflow: hidden;

@@ -119,7 +119,7 @@
   }
 
   .toast--error {
-    background: var(--color-error, #b00020);
+    background: var(--color-error);
   }
 
   .text {
@@ -150,7 +150,7 @@
 
   .action:focus-visible,
   .close:focus-visible {
-    outline: 2px solid var(--color-accent, #ffb300);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
 

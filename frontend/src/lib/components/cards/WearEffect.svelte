@@ -197,7 +197,7 @@
     position: absolute;
     width: 100%;
     height: 100%;
-    background: var(--color-background, #f5f5f5);
+    background: var(--color-background);
     clip-path: polygon(
       0% 0%,
       100% 0%,
@@ -253,7 +253,7 @@
     }
 
     .torn-corner::before {
-      background: var(--color-background, #1f1f1f);
+      background: var(--color-background);
     }
 
     .crease::before {
