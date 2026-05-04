@@ -1,8 +1,10 @@
 // Responsive bar layout (desktop vs tablet vs mobile) is verified visually,
-// not in JSDOM — these tests cover the menu contents per auth state.
+// not in JSDOM — these tests cover the menu contents per auth state. The
+// mobile-menu test mocks matchMedia to flip the isMobile flag; everything
+// else relies on the default JSDOM matchMedia stub (matches: false).
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { pageState, auth } = vi.hoisted(() => ({
   pageState: {
@@ -26,6 +28,7 @@ vi.mock('$app/paths', () => ({ resolve: (p: string) => p }));
 vi.mock('$lib/auth.svelte', () => ({ auth }));
 
 import Nav from './Nav.svelte';
+import { toast } from '$lib/toast/toast.svelte';
 
 function setAuth(overrides: Partial<typeof auth>) {
   Object.assign(auth, {
@@ -43,6 +46,7 @@ function setAuth(overrides: Partial<typeof auth>) {
 describe('Nav', () => {
   beforeEach(() => {
     pageState.url = new URL('http://localhost:5173/');
+    toast._resetForTest();
   });
 
   it('anonymous: renders Sign in link, no avatar, no admin items', async () => {
@@ -50,7 +54,7 @@ describe('Nav', () => {
     setAuth({});
     render(Nav);
 
-    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign In' })).toBeInTheDocument();
     expect(screen.queryByTestId('avatar')).not.toBeInTheDocument();
 
     // Open the hamburger and confirm there's no admin section.
@@ -120,5 +124,68 @@ describe('Nav', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Sign Out' }));
 
     expect(auth.logout).toHaveBeenCalledTimes(1);
+    // Wait a microtask for the awaited logout to resolve before checking the toast.
+    await Promise.resolve();
+    expect(toast.messages.map((m) => m.text)).toContain('Signed out');
+  });
+
+  it('hamburger renders even when auth has not loaded yet', async () => {
+    setAuth({ loaded: false });
+    render(Nav);
+
+    // Hamburger trigger must always be reachable so mobile users can open
+    // the primary nav before /api/auth/me/ resolves.
+    expect(screen.getByRole('button', { name: 'Menu' })).toBeInTheDocument();
+    // Auth-dependent menu items must not appear yet.
+    expect(screen.queryByRole('menuitem', { name: 'Sign In' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Sign Out' })).not.toBeInTheDocument();
+  });
+
+  describe('mobile (width <= 40rem)', () => {
+    let originalMatchMedia: typeof window.matchMedia;
+
+    beforeEach(() => {
+      originalMatchMedia = window.matchMedia;
+      window.matchMedia = ((query: string) => ({
+        matches: query === '(max-width: 40rem)',
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+        onchange: null,
+      })) as unknown as typeof window.matchMedia;
+    });
+
+    afterEach(() => {
+      window.matchMedia = originalMatchMedia;
+    });
+
+    it('hamburger menu includes Titles / Manufacturers / People plus Changelog', async () => {
+      const user = userEvent.setup();
+      setAuth({});
+      render(Nav);
+
+      await user.click(screen.getByRole('button', { name: 'Menu' }));
+      expect(screen.getByRole('menuitem', { name: 'Titles' })).toHaveAttribute('href', '/titles');
+      expect(screen.getByRole('menuitem', { name: 'Manufacturers' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'People' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Changelog' })).toBeInTheDocument();
+    });
+  });
+
+  it('tablet (default JSDOM matchMedia): hamburger menu does NOT include primary nav items', async () => {
+    const user = userEvent.setup();
+    setAuth({});
+    render(Nav);
+
+    await user.click(screen.getByRole('button', { name: 'Menu' }));
+    // Primary nav stays in the bar at tablet width; only Changelog appears
+    // in the menu (under "activity").
+    expect(screen.queryByRole('menuitem', { name: 'Titles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Manufacturers' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'People' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Changelog' })).toBeInTheDocument();
   });
 });

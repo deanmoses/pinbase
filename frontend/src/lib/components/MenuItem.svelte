@@ -13,7 +13,9 @@
     onclick?: () => void;
     disabled?: boolean;
     current?: boolean;
-    /** Force a full-page navigation. Set for non-SvelteKit routes (e.g. Django views). */
+    /** Force a full-page navigation. Only meaningful when `href` is set —
+     *  ignored for button-style items. Set for non-SvelteKit routes
+     *  (e.g. Django views). */
     reload?: boolean;
     children: Snippet;
   } = $props();
@@ -62,8 +64,8 @@
 
 <style>
   /* Parents may override --menu-item-font-size and --menu-item-padding via
-     inheritance to retune density (e.g. nav uses larger items than the
-     compact image-category picker). */
+     inheritance to retune density. Defaults are sized for compact in-page
+     menus; the site nav scales them up. */
   .menu-item {
     display: block;
     width: 100%;
@@ -100,9 +102,15 @@
 
   /* Menus: "you are here" gets a tinted background that adapts to both
      themes (ink on warm-cream in light mode, light gray on near-black in
-     dark mode). */
+     dark mode). On hover/focus, deepen the tint so the item visibly
+     reacts even though it's already highlighted. */
   .menu-item.current[role='menuitem'] {
     background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  }
+
+  .menu-item.current[role='menuitem']:hover,
+  .menu-item.current[role='menuitem']:focus-visible {
+    background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
   }
 
   /* Listboxes: the selected option gets a checkmark, like a native <select>. */

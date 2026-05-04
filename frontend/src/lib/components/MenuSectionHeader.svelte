@@ -4,7 +4,9 @@
   let { children }: { children: Snippet } = $props();
 </script>
 
-<div class="menu-section-header">
+<!-- role="presentation" keeps this label out of the AT menu-item list while
+     leaving its text content visible to sighted users. -->
+<div class="menu-section-header" role="presentation">
   {@render children()}
 </div>
 

@@ -12,6 +12,8 @@
   import { SITE_NAME } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
   import { auth } from '$lib/auth.svelte';
+  import { createIsMobileFlag } from '$lib/use-is-mobile.svelte';
+  import { toast } from '$lib/toast/toast.svelte';
 
   const navItems = [
     { href: '/titles' as const, label: 'Titles' },
@@ -24,29 +26,27 @@
     return page.url.pathname.startsWith(href);
   }
 
-  let isMobile = $state(false);
+  // Matches the mobile CSS tier below: width <= 40rem (640px). Used to
+  // decide whether the hamburger menu duplicates the primary nav items —
+  // tablet keeps them in the bar, mobile collapses them in.
+  const isMobileFlag = createIsMobileFlag(40);
+  const isMobile = $derived(isMobileFlag.current === true);
 
   $effect(() => {
     auth.load();
   });
 
-  $effect(() => {
-    const mq = window.matchMedia('(width < 40.0625rem)');
-    isMobile = mq.matches;
-    const handler = (event: MediaQueryListEvent) => {
-      isMobile = event.matches;
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  });
-
   async function handleLogout() {
     await auth.logout();
+    toast.success('Signed out');
   }
 
   function loginHref() {
     return `/api/auth/login/?next=${encodeURIComponent(page.url.pathname)}`;
   }
+
+  const myContributionsHref = $derived(resolveHref(`/users/${auth.username}`));
+  const myContributionsActive = $derived(isActive(`/users/${auth.username}`));
 
   const randInt = (max: number) => Math.floor(Math.random() * max);
 
@@ -80,23 +80,35 @@
   <div class="header-inner">
     <a href={resolve('/')} class="site-title">{SITE_NAME}</a>
 
-    <nav class="primary-nav desktop-nav" aria-label="Primary">
+    {#snippet adminSection()}
+      <MenuSectionHeader>admin</MenuSectionHeader>
+      <MenuItem href={resolve('/kiosk/configure')} current={isActive('/kiosk/configure')}>
+        Kiosk Config
+      </MenuItem>
+      <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+    {/snippet}
+
+    {#snippet userSection()}
+      <MenuSectionHeader>{auth.username}</MenuSectionHeader>
+      <MenuItem href={myContributionsHref} current={myContributionsActive}>
+        My Contributions
+      </MenuItem>
+      <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
+    {/snippet}
+
+    <nav class="primary-nav" aria-label="Primary">
       {#each navItems as { href, label } (href)}
         <a href={resolve(href)} class="nav-link" class:active={isActive(href)}>
           {label}
         </a>
       {/each}
-      <a href={resolve(changelogHref)} class="nav-link" class:active={isActive(changelogHref)}>
+      <a
+        href={resolve(changelogHref)}
+        class="nav-link changelog-link"
+        class:active={isActive(changelogHref)}
+      >
         Changelog
       </a>
-    </nav>
-
-    <nav class="primary-nav tablet-nav" aria-label="Primary">
-      {#each navItems as { href, label } (href)}
-        <a href={resolve(href)} class="nav-link" class:active={isActive(href)}>
-          {label}
-        </a>
-      {/each}
     </nav>
 
     <div class="header-actions">
@@ -117,70 +129,53 @@
                 <Avatar
                   firstName={auth.firstName}
                   lastName={auth.lastName}
-                  username={auth.username!}
+                  username={auth.username ?? ''}
                 />
               {/snippet}
               {#if auth.isSuperuser}
-                <MenuSectionHeader>admin</MenuSectionHeader>
-                <MenuItem href={resolve('/kiosk/configure')} current={isActive('/kiosk/configure')}>
-                  Kiosk Config
-                </MenuItem>
-                <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+                {@render adminSection()}
                 <MenuDivider />
               {/if}
-              <MenuSectionHeader>{auth.username}</MenuSectionHeader>
-              <MenuItem
-                href={resolveHref(`/users/${auth.username}`)}
-                current={isActive(`/users/${auth.username}`)}
-              >
-                My Contributions
-              </MenuItem>
-              <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
+              {@render userSection()}
             </ActionMenu>
           {:else}
-            <a href={loginHref()} class="auth-link" data-sveltekit-reload>Sign in</a>
+            <a href={loginHref()} class="auth-link" data-sveltekit-reload>Sign In</a>
           {/if}
         </div>
+      {/if}
 
-        <div class="hamburger">
-          <ActionMenu label="Menu" variant="bare" ariaLabel="Menu">
-            {#snippet trigger()}
-              <FaIcon icon={faBars} size="1.25rem" />
-            {/snippet}
-            {#if isMobile}
-              {#each navItems as { href, label } (href)}
-                <MenuItem href={resolve(href)} current={isActive(href)}>{label}</MenuItem>
-              {/each}
-              <MenuDivider />
-            {/if}
-            <MenuSectionHeader>activity</MenuSectionHeader>
-            <MenuItem href={resolve(changelogHref)} current={isActive(changelogHref)}>
-              Changelog
-            </MenuItem>
+      <!-- Hamburger renders unconditionally so mobile users always have a way
+           to reach Titles / Manufacturers / People, even before auth resolves.
+           Auth-dependent sections inside skip rendering until auth.loaded. -->
+      <div class="hamburger">
+        <ActionMenu label="Menu" variant="bare" ariaLabel="Menu">
+          {#snippet trigger()}
+            <FaIcon icon={faBars} size="1.25rem" />
+          {/snippet}
+          {#if isMobile}
+            {#each navItems as { href, label } (href)}
+              <MenuItem href={resolve(href)} current={isActive(href)}>{label}</MenuItem>
+            {/each}
+            <MenuDivider />
+          {/if}
+          <MenuSectionHeader>activity</MenuSectionHeader>
+          <MenuItem href={resolve(changelogHref)} current={isActive(changelogHref)}>
+            Changelog
+          </MenuItem>
+          {#if auth.loaded}
             {#if auth.isSuperuser}
               <MenuDivider />
-              <MenuSectionHeader>admin</MenuSectionHeader>
-              <MenuItem href={resolve('/kiosk/configure')} current={isActive('/kiosk/configure')}>
-                Kiosk Config
-              </MenuItem>
-              <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+              {@render adminSection()}
             {/if}
             <MenuDivider />
             {#if auth.isAuthenticated}
-              <MenuSectionHeader>{auth.username}</MenuSectionHeader>
-              <MenuItem
-                href={resolveHref(`/users/${auth.username}`)}
-                current={isActive(`/users/${auth.username}`)}
-              >
-                My Contributions
-              </MenuItem>
-              <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
+              {@render userSection()}
             {:else}
               <MenuItem href={loginHref()} reload>Sign In</MenuItem>
             {/if}
-          </ActionMenu>
-        </div>
-      {/if}
+          {/if}
+        </ActionMenu>
+      </div>
     </div>
   </div>
 
@@ -376,20 +371,19 @@
     color: var(--header-ink);
   }
 
-  /* ── Three responsive tiers via Media Queries Level 4 range syntax ── */
-  .tablet-nav {
-    display: none;
-  }
+  /* ── Three responsive tiers via Media Queries Level 4 range syntax ──
+     Mobile (≤ 40rem / 640px): only logo, search, hamburger.
+     Tablet (40rem–52rem / 641–831px): bar shows primary nav minus Changelog,
+       plus hamburger; account menu collapses into hamburger.
+     Desktop (≥ 52rem / 832px): full bar including Changelog and account menu;
+       hamburger hidden. */
   .hamburger {
     display: none;
   }
 
-  @media (width >= 40.0625rem) and (width < 52rem) {
-    .desktop-nav {
+  @media (width <= 40rem) {
+    .primary-nav {
       display: none;
-    }
-    .tablet-nav {
-      display: flex;
     }
     .desktop-account {
       display: none;
@@ -399,11 +393,8 @@
     }
   }
 
-  @media (width < 40.0625rem) {
-    .desktop-nav {
-      display: none;
-    }
-    .tablet-nav {
+  @media (width > 40rem) and (width < 52rem) {
+    .changelog-link {
       display: none;
     }
     .desktop-account {
