@@ -53,7 +53,7 @@
 </script>
 
 <svelte:head>
-  <title>{config?.title ?? 'Kiosk'}</title>
+  <title>{config?.title || 'Kiosk'}</title>
 </svelte:head>
 
 <div class="kiosk">
@@ -68,25 +68,29 @@
       </p>
     </div>
   {:else}
-    <h1 class="title">{config.title}</h1>
+    {#if config.title}
+      <h1 class="title">{config.title}</h1>
+    {/if}
     <div class="grid">
       {#each cards as card (card.slug)}
         <a class="card" href={resolveHref(`/titles/${card.slug}`)}>
-          {#if card.thumbnailUrl}
-            <img src={card.thumbnailUrl} alt="" class="card-img" loading="lazy" />
-          {:else}
-            <div class="card-img placeholder"></div>
-          {/if}
-          <div class="card-body">
-            <h2 class="card-name">{card.name}</h2>
-            <div class="card-meta">
-              {#if card.manufacturer}<span>{card.manufacturer}</span>{/if}
-              {#if card.year}<span>{card.year}</span>{/if}
-            </div>
-            {#if card.hook}
-              <p class="card-hook">{card.hook}</p>
+          <div class="card-media">
+            {#if card.thumbnailUrl}
+              <img src={card.thumbnailUrl} alt="" class="card-img" loading="lazy" />
+            {:else}
+              <div class="card-img placeholder"></div>
             {/if}
+            <div class="card-overlay">
+              <h2 class="card-name">{card.name}</h2>
+              <div class="card-meta">
+                {#if card.manufacturer}<span>{card.manufacturer}</span>{/if}
+                {#if card.year}<span>{card.year}</span>{/if}
+              </div>
+            </div>
           </div>
+          {#if card.hook}
+            <p class="card-hook">{card.hook}</p>
+          {/if}
         </a>
       {/each}
     </div>
@@ -133,37 +137,54 @@
     box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
   }
 
-  .card-img {
+  .card-media {
+    position: relative;
     width: 100%;
     height: 14rem;
-    object-fit: cover;
     background: var(--color-surface-muted, #f0f0f0);
+  }
+
+  .card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   .card-img.placeholder {
     background: var(--color-surface-muted, #f0f0f0);
   }
 
-  .card-body {
-    padding: var(--size-4);
+  .card-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: var(--size-5) var(--size-4) var(--size-3);
+    background: linear-gradient(
+      to top,
+      rgb(0 0 0 / 0.85) 0%,
+      rgb(0 0 0 / 0.55) 50%,
+      rgb(0 0 0 / 0) 100%
+    );
+    color: #fff;
     display: flex;
     flex-direction: column;
-    gap: var(--size-2);
-    flex: 1;
+    gap: var(--size-1);
   }
 
   .card-name {
     font-size: var(--font-size-4);
-    font-weight: 600;
+    font-weight: 700;
     margin: 0;
-    line-height: 1.2;
+    line-height: 1.15;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   }
 
   .card-meta {
     display: flex;
     flex-wrap: wrap;
     font-size: var(--font-size-1);
-    color: var(--color-text-muted);
+    color: rgb(255 255 255 / 0.9);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   }
 
   .card-meta span:not(:last-child)::after {
@@ -172,6 +193,7 @@
   }
 
   .card-hook {
+    padding: var(--size-3) var(--size-4) var(--size-4);
     font-size: var(--font-size-2);
     color: var(--color-text-primary);
     margin: 0;

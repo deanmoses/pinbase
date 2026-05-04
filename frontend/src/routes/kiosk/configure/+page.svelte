@@ -21,6 +21,9 @@
   import { normalizeText } from '$lib/utils';
   import { matchesQuery } from '$lib/facet-engine';
   import Button from '$lib/components/Button.svelte';
+  import Page from '$lib/components/Page.svelte';
+  import TwoColumnLayout from '$lib/components/TwoColumnLayout.svelte';
+  import SidebarSection from '$lib/components/SidebarSection.svelte';
   import type { TitleListItemSchema } from '$lib/api/schema';
 
   let title = $state(DEFAULT_TITLE);
@@ -59,7 +62,7 @@
 
   function buildConfig(): KioskConfig {
     return {
-      title: title.trim() || DEFAULT_TITLE,
+      title: title.trim(),
       idleSeconds: idleSeconds > 0 ? idleSeconds : DEFAULT_IDLE_SECONDS,
       items: items.map((i) => ({
         titleSlug: i.titleSlug,
@@ -113,117 +116,159 @@
   <title>Configure Kiosk</title>
 </svelte:head>
 
-<div class="page">
-  <header class="header">
-    <h1>Configure Kiosk</h1>
-    {#if kioskActive}
-      <Button type="button" onclick={handleExit}>Exit Kiosk Mode</Button>
-    {:else}
-      <Button type="button" onclick={handleEnter}>Enter Kiosk Mode</Button>
-    {/if}
-  </header>
+<Page width="extra-wide">
+  <TwoColumnLayout>
+    {#snippet main()}
+      <header class="header header-mobile">
+        {#if kioskActive}
+          <Button type="button" variant="secondary" onclick={handleExit}>Exit Kiosk Mode</Button>
+        {:else}
+          <Button type="button" onclick={handleEnter}>Enter Kiosk Mode</Button>
+        {/if}
+      </header>
 
-  <section class="settings">
-    <label>
-      <span>Title</span>
-      <input type="text" bind:value={title} maxlength="60" />
-    </label>
-    <label>
-      <span>Idle timeout (seconds)</span>
-      <input type="number" min="10" max="3600" bind:value={idleSeconds} />
-    </label>
-  </section>
+      <section class="settings">
+        <label>
+          <span>Title</span>
+          <input type="text" bind:value={title} maxlength="60" />
+        </label>
+        <label>
+          <span>Idle timeout (seconds)</span>
+          <input type="number" min="10" max="3600" bind:value={idleSeconds} />
+        </label>
+      </section>
 
-  <section class="machines">
-    <label class="search">
-      <span>Add a machine</span>
-      <input type="search" placeholder="Search by name…" bind:value={search} autocomplete="off" />
-    </label>
+      <section class="machines">
+        <label class="search">
+          <span>Add a machine</span>
+          <input
+            type="search"
+            placeholder="Search by name…"
+            bind:value={search}
+            autocomplete="off"
+          />
+        </label>
 
-    {#if searchResults.length > 0}
-      <ul class="results">
-        {#each searchResults as t (t.slug)}
-          <li>
-            <button type="button" onclick={() => addTitle(t.slug)}>
-              <strong>{t.name}</strong>
-              <span class="result-meta">
-                {#if t.manufacturer}{t.manufacturer.name}{/if}
-                {#if t.year}· {t.year}{/if}
-              </span>
-            </button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+        {#if searchResults.length > 0}
+          <ul class="results">
+            {#each searchResults as t (t.slug)}
+              <li>
+                <button type="button" onclick={() => addTitle(t.slug)}>
+                  <strong>{t.name}</strong>
+                  <span class="result-meta">
+                    {#if t.manufacturer}{t.manufacturer.name}{/if}
+                    {#if t.year}· {t.year}{/if}
+                  </span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
 
-    <h2>Machines ({items.length})</h2>
+        <hr class="divider" />
 
-    {#if items.length === 0}
-      <p class="empty">No machines added yet.</p>
-    {:else}
-      <ol class="items">
-        {#each items as item, i (item.titleSlug)}
-          {@const t = titleBySlug.get(item.titleSlug)}
-          <li class="item">
-            <div class="item-header">
-              <span class="item-name">
-                {t?.name ?? item.titleSlug}
-                {#if t?.year}<span class="dim"> · {t.year}</span>{/if}
-                {#if t?.manufacturer}<span class="dim"> · {t.manufacturer.name}</span>{/if}
-              </span>
-              <div class="item-actions">
-                <button
-                  type="button"
-                  onclick={() => moveUp(i)}
-                  disabled={i === 0}
-                  aria-label="Move up">↑</button
-                >
-                <button
-                  type="button"
-                  onclick={() => moveDown(i)}
-                  disabled={i === items.length - 1}
-                  aria-label="Move down">↓</button
-                >
-                <button type="button" onclick={() => removeAt(i)} aria-label="Remove">✕</button>
-              </div>
-            </div>
-            <input
-              type="text"
-              placeholder="Hook (optional, e.g. 'First talking pinball machine')"
-              bind:value={item.hook}
-              maxlength={HOOK_MAX_LENGTH}
-            />
-          </li>
-        {/each}
-      </ol>
-    {/if}
-  </section>
-</div>
+        {#if items.length === 0}
+          <p class="empty">No machines added yet.</p>
+        {:else}
+          <ol class="items">
+            {#each items as item, i (item.titleSlug)}
+              {@const t = titleBySlug.get(item.titleSlug)}
+              <li class="item">
+                <div class="item-header">
+                  <span class="item-name">
+                    {t?.name ?? item.titleSlug}
+                    {#if t?.year}<span class="dim"> · {t.year}</span>{/if}
+                    {#if t?.manufacturer}<span class="dim"> · {t.manufacturer.name}</span>{/if}
+                  </span>
+                  <div class="item-actions">
+                    <button
+                      type="button"
+                      onclick={() => moveUp(i)}
+                      disabled={i === 0}
+                      aria-label="Move up">↑</button
+                    >
+                    <button
+                      type="button"
+                      onclick={() => moveDown(i)}
+                      disabled={i === items.length - 1}
+                      aria-label="Move down">↓</button
+                    >
+                    <button type="button" onclick={() => removeAt(i)} aria-label="Remove">✕</button>
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Hook (optional, e.g. 'First talking pinball machine')"
+                  bind:value={item.hook}
+                  maxlength={HOOK_MAX_LENGTH}
+                />
+              </li>
+            {/each}
+          </ol>
+        {/if}
+      </section>
+    {/snippet}
+
+    {#snippet sidebar()}
+      <SidebarSection heading="Configure Kiosk">
+        <p class="about">
+          Kiosk mode turns the front door of this browser into a curated display of specific pinball
+          machines — for use on an in-museum kiosk.
+        </p>
+        <p class="about">
+          Pick the machines you want to feature, and set how long the browser sits idle before
+          resetting to the kiosk home screen.
+        </p>
+        <p class="about">This configuration is specific to this browser on this machine.</p>
+        <div class="sidebar-action">
+          {#if kioskActive}
+            <Button type="button" variant="secondary" onclick={handleExit}>Exit Kiosk Mode</Button>
+          {:else}
+            <Button type="button" onclick={handleEnter}>Enter Kiosk Mode</Button>
+          {/if}
+        </div>
+      </SidebarSection>
+    {/snippet}
+  </TwoColumnLayout>
+</Page>
 
 <style>
-  .page {
-    max-width: 60rem;
-    margin: 0 auto;
-    padding: var(--size-5) var(--size-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-5);
-  }
-
   .header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
+    margin-bottom: var(--size-5);
   }
 
-  .header h1 {
-    margin: 0;
+  .about {
+    font-size: var(--font-size-1);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--size-2);
+    line-height: 1.5;
+  }
+
+  .about:last-child {
+    margin-bottom: 0;
+  }
+
+  .sidebar-action {
+    margin-top: var(--size-3);
+  }
+
+  /* Keep in sync with LAYOUT_BREAKPOINT (52rem) — the breakpoint at which
+     TwoColumnLayout reveals the sidebar. Above it, the sidebar's button is
+     visible, so the in-main copy must hide. */
+  @media (min-width: 52rem) {
+    .header-mobile {
+      display: none;
+    }
   }
 
   .settings {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--size-4);
+    margin-bottom: var(--size-5);
   }
 
   label {
@@ -246,8 +291,10 @@
     font-size: var(--font-size-1);
   }
 
-  .machines h2 {
+  .divider {
     margin: var(--size-5) 0 var(--size-3);
+    border: none;
+    border-top: 3px solid var(--color-border-soft);
   }
 
   .results {
