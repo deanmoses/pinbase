@@ -26,6 +26,7 @@ from .edit_claims import (
 )
 from .entity_crud import register_entity_create, register_entity_delete_restore
 from .helpers import serialize_title_machine
+from .images import fetch_model_media_map
 from .rich_text import build_rich_text
 from .schemas import (
     EntityRef,
@@ -79,6 +80,8 @@ def _detail_qs() -> QuerySet[Theme]:
 
 def _serialize_detail(theme: Theme) -> ThemeDetailSchema:
     min_rank = get_minimum_display_rank()
+    machines_list = list(theme.machine_models.all())
+    media_by_model = fetch_model_media_map(pm.pk for pm in machines_list)
     return ThemeDetailSchema(
         name=theme.name,
         slug=theme.slug,
@@ -89,8 +92,10 @@ def _serialize_detail(theme: Theme) -> ThemeDetailSchema:
             EntityRef(name=t.name, slug=t.slug) for t in theme.children.order_by("name")
         ],
         machines=[
-            serialize_title_machine(pm, min_rank=min_rank)
-            for pm in theme.machine_models.all()
+            serialize_title_machine(
+                pm, min_rank=min_rank, media_by_model=media_by_model
+            )
+            for pm in machines_list
         ],
     )
 

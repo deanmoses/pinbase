@@ -185,7 +185,7 @@ class TestExtractImageUrlsWithThreshold:
             "opdb.images.__license_slug": "not-allowed",
             "opdb.images.__permissiveness_rank": 0,
         }
-        thumb, hero = extract_image_urls(extra_data)
+        thumb, hero = extract_image_urls(extra_data, None)
         assert thumb is None
         assert hero is None
 
@@ -205,7 +205,7 @@ class TestExtractImageUrlsWithThreshold:
             "ipdb.image_urls": ["https://ipdb.org/ipdb.jpg"],
             "ipdb.image_urls.__permissiveness_rank": 85,  # above threshold
         }
-        thumb, _ = extract_image_urls(extra_data)
+        thumb, _ = extract_image_urls(extra_data, None)
         assert thumb == "https://ipdb.org/ipdb.jpg"
 
     def test_null_rank_uses_unknown_rank(self):
@@ -223,7 +223,7 @@ class TestExtractImageUrlsWithThreshold:
             "opdb.images.__permissiveness_rank": None,  # unknown
         }
         # With "licensed-only" (min_rank=38), unknown (rank 5) should be hidden.
-        thumb, hero = extract_image_urls(extra_data)
+        thumb, hero = extract_image_urls(extra_data, None)
         assert thumb is None
         assert hero is None
 
@@ -244,7 +244,7 @@ class TestExtractImageUrlsWithThreshold:
             "opdb.images.__permissiveness_rank": 0,
         }
         with override_config(CONTENT_DISPLAY_POLICY="show-all"):
-            thumb, _ = extract_image_urls(extra_data)
+            thumb, _ = extract_image_urls(extra_data, None)
         assert thumb == "https://img.opdb.org/m.jpg"
 
     def test_include_unknown_shows_null_rank(self):
@@ -264,5 +264,5 @@ class TestExtractImageUrlsWithThreshold:
             "opdb.images.__permissiveness_rank": None,
         }
         with override_config(CONTENT_DISPLAY_POLICY="include-unknown"):
-            thumb, _ = extract_image_urls(extra_data)
+            thumb, _ = extract_image_urls(extra_data, None)
         assert thumb == "https://img.opdb.org/m.jpg"

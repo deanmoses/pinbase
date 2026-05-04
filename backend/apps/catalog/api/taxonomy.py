@@ -41,7 +41,7 @@ from .entity_crud import (
     register_entity_delete_restore,
 )
 from .helpers import serialize_title_machine
-from .images import extract_image_urls
+from .images import extract_image_urls, fetch_model_media_map
 from .people import PersonGridItemSchema
 from .rich_text import build_rich_text
 from .schemas import (
@@ -506,11 +506,15 @@ def _reward_type_detail_qs() -> QuerySet[RewardType]:
 
 def _serialize_reward_type_detail(rt: RewardType) -> RewardTypeDetailSchema:
     min_rank = get_minimum_display_rank()
+    machines_list = list(rt.machine_models.all())
+    media_by_model = fetch_model_media_map(pm.pk for pm in machines_list)
     return RewardTypeDetailSchema(
         **_serialize_taxonomy(rt).model_dump(),
         machines=[
-            serialize_title_machine(pm, min_rank=min_rank)
-            for pm in rt.machine_models.all()
+            serialize_title_machine(
+                pm, min_rank=min_rank, media_by_model=media_by_model
+            )
+            for pm in machines_list
         ],
     )
 
@@ -640,6 +644,7 @@ def _credit_role_people(cr: CreditRole) -> list[PersonGridItemSchema]:
             id__in=set(person_thumb_model.values())
         ).only("id", "extra_data")
     }
+    thumb_media = fetch_model_media_map(person_thumb_model.values())
 
     min_rank = get_minimum_display_rank()
     out: list[PersonGridItemSchema] = []
@@ -650,8 +655,10 @@ def _credit_role_people(cr: CreditRole) -> list[PersonGridItemSchema]:
         thumbnail: str | None = None
         tm_id = person_thumb_model.get(pid)
         tm = thumb_models.get(tm_id) if tm_id else None
-        if tm and tm.extra_data:
-            t, _ = extract_image_urls(tm.extra_data, min_rank=min_rank)
+        if tm:
+            t, _ = extract_image_urls(
+                tm.extra_data or {}, thumb_media.get(tm.pk), min_rank=min_rank
+            )
             if t:
                 thumbnail = t
         out.append(

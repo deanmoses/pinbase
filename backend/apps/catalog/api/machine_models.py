@@ -86,6 +86,7 @@ from .helpers import (
 from .images import (
     extract_image_attribution,
     extract_image_urls,
+    fetch_model_media_map,
     media_prefetch,
     serialize_uploaded_media,
 )
@@ -526,12 +527,23 @@ def _serialize_model_detail(pm: MachineModel) -> ModelDetailSchema:
             if pm.title and pm.title.series
             else None
         ),
-        title_models=[
-            serialize_title_machine(sibling, min_rank=min_rank)
-            for sibling in (pm.title.machine_models.all() if pm.title else [])
-            if sibling.variant_of_id is None
-        ],
+        title_models=_serialize_title_models(pm, min_rank=min_rank),
     )
+
+
+def _serialize_title_models(
+    pm: MachineModel, *, min_rank: int
+) -> list[TitleModelSchema]:
+    if pm.title is None:
+        return []
+    siblings = [s for s in pm.title.machine_models.all() if s.variant_of_id is None]
+    media_by_model = fetch_model_media_map(s.pk for s in siblings)
+    return [
+        serialize_title_machine(
+            sibling, min_rank=min_rank, media_by_model=media_by_model
+        )
+        for sibling in siblings
+    ]
 
 
 def _model_detail_qs() -> QuerySet[MachineModel]:
@@ -704,14 +716,18 @@ def list_recent_models(request: HttpRequest) -> list[ModelRecentSchema]:
         )[:20]  # generous LIMIT — we only need 3 unique titles
     )
     min_rank = get_minimum_display_rank()
+    candidates = list(qs)
+    media_by_model = fetch_model_media_map(m.pk for m in candidates)
     results: list[ModelRecentSchema] = []
     seen_titles: set[int | None] = set()
-    for m in qs:
+    for m in candidates:
         title_id = m.title_id
         if title_id in seen_titles:
             continue
         seen_titles.add(title_id)
-        thumbnail_url, _ = extract_image_urls(m.extra_data or {}, min_rank=min_rank)
+        thumbnail_url, _ = extract_image_urls(
+            m.extra_data or {}, media_by_model.get(m.pk), min_rank=min_rank
+        )
         results.append(
             ModelRecentSchema(
                 name=m.name,
@@ -781,6 +797,7 @@ def list_all_models(
         .order_by("name")
     )
     model_ids = {r.id for r in rows}
+    media_by_model = fetch_model_media_map(model_ids)
 
     # --- Bulk M2M queries for search_text ---
     model_themes: dict[int, list[str]] = defaultdict(list)
@@ -853,7 +870,9 @@ def list_all_models(
     result: list[dict[str, Any]] = []
     for r in rows:
         mid = r.id
-        thumbnail_url, _ = extract_image_urls(r.extra_data or {}, min_rank=min_rank)
+        thumbnail_url, _ = extract_image_urls(
+            r.extra_data or {}, media_by_model.get(mid), min_rank=min_rank
+        )
 
         # Build search_text from bulk maps
         parts: list[str] = []

@@ -8,12 +8,14 @@ from datetime import datetime
 from typing import NamedTuple, cast
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from apps.core.types import ClaimIdentity, EntityKey
 from apps.media.models import EntityMedia, MediaAsset, MediaSupportedModel
 from apps.provenance.models import Claim
 from apps.provenance.typing import HasEffectivePriority
 
+from ..cache import invalidate_all
 from ._claim_values import MediaAttachmentClaimValue
 from ._helpers import _annotate_priority
 
@@ -296,3 +298,6 @@ def resolve_media_attachments(
         EntityMedia.objects.bulk_update(
             list(rows.values()), ["category", "is_primary"], batch_size=2000
         )
+
+    if to_delete_pks or to_create or to_update:
+        transaction.on_commit(invalidate_all)

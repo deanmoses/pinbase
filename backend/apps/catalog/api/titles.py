@@ -38,6 +38,7 @@ from apps.core.schemas import (
     ValidationErrorSchema,
 )
 from apps.media.helpers import all_media
+from apps.media.models import EntityMedia
 from apps.media.schemas import MediaRenditionsSchema
 from apps.media.storage import build_public_url, build_storage_key
 from apps.provenance.helpers import active_claims, claims_prefetch
@@ -82,7 +83,7 @@ from .helpers import (
     serialize_credit,
     serialize_title_machine,
 )
-from .images import extract_image_urls, media_prefetch
+from .images import extract_image_urls, fetch_model_media_map, media_prefetch
 from .machine_models import (
     ModelDetailSchema,
     _model_detail_qs,
@@ -260,7 +261,10 @@ def _dedup_facet_dicts(
 
 
 def _serialize_title_list(
-    title: Title, *, min_rank: int | None = None
+    title: Title,
+    *,
+    min_rank: int | None = None,
+    media_by_model: dict[int, list[EntityMedia]] | None = None,
 ) -> TitleListItemSchema:
     thumbnail_url: str | None = None
     manufacturer: EntityRef | None = None
@@ -304,10 +308,11 @@ def _serialize_title_list(
             ratings.append(float(m.ipdb_rating))
 
     if machines:
-        thumbnail_url, _ = extract_image_urls(
-            machines[0].extra_data or {}, min_rank=min_rank
-        )
         first = machines[0]
+        media = media_by_model.get(first.pk) if media_by_model else None
+        thumbnail_url, _ = extract_image_urls(
+            first.extra_data or {}, media, min_rank=min_rank
+        )
         mfr = (
             first.corporate_entity.manufacturer
             if first.corporate_entity and first.corporate_entity.manufacturer
@@ -520,23 +525,28 @@ def _collect_aggregated_media(
 def _select_title_hero_image_url(
     models: Sequence[MachineModel], *, min_rank: int
 ) -> str | None:
-    """Return the title hero from the earliest model with uploaded backglass media.
-
-    Falls back to the earliest model's existing image-selection logic when no
-    uploaded backglass exists on any model.
-    """
+    """Return the title hero — uploaded backglass on any model wins, else
+    the earliest model's third-party image."""
     for model in models:
-        backglass_media = [em for em in all_media(model) if em.category == "backglass"]
-        if backglass_media:
-            primary_backglass = [em for em in backglass_media if em.is_primary]
-            chosen = primary_backglass[0] if primary_backglass else backglass_media[0]
-            return build_public_url(build_storage_key(chosen.asset.uuid, "display"))
+        backglass = [
+            em
+            for em in all_media(model)
+            if em.category == "backglass" and em.is_primary
+        ]
+        if backglass:
+            _, hero = extract_image_urls(
+                model.extra_data or {}, backglass, min_rank=min_rank
+            )
+            if hero:
+                return hero
 
     if not models:
         return None
 
+    # No uploaded primary backglass on any model — fall through to the
+    # earliest model's third-party image.
     _, hero_image_url = extract_image_urls(
-        models[0].extra_data or {}, min_rank=min_rank
+        models[0].extra_data or {}, None, min_rank=min_rank
     )
     return hero_image_url
 
@@ -544,7 +554,15 @@ def _select_title_hero_image_url(
 def _serialize_title_detail(title: Title) -> TitleDetailSchema:
     min_rank = get_minimum_display_rank()
     model_objs = list(title.machine_models.all())
-    machines = [serialize_title_machine(pm, min_rank=min_rank) for pm in model_objs]
+    variant_ids: list[int] = []
+    for pm in model_objs:
+        if "variants" in getattr(pm, "_prefetched_objects_cache", {}):
+            variant_ids.extend(v.pk for v in pm.variants.all())
+    media_by_model = fetch_model_media_map([pm.pk for pm in model_objs] + variant_ids)
+    machines = [
+        serialize_title_machine(pm, min_rank=min_rank, media_by_model=media_by_model)
+        for pm in model_objs
+    ]
     series = (
         EntityRef(name=title.series.name, slug=title.series.slug)
         if title.series
@@ -695,7 +713,16 @@ def list_titles(request: HttpRequest, display: str = "") -> list[TitleListItemSc
         .order_by("name")
     )
     min_rank = get_minimum_display_rank()
-    return [_serialize_title_list(t, min_rank=min_rank) for t in qs]
+    titles = list(qs)
+    media_by_model = fetch_model_media_map(
+        first.pk
+        for t in titles
+        if (first := next(iter(t.machine_models.all()), None)) is not None
+    )
+    return [
+        _serialize_title_list(t, min_rank=min_rank, media_by_model=media_by_model)
+        for t in titles
+    ]
 
 
 @titles_router.get("/all/", response=list[TitleListItemSchema])
@@ -789,15 +816,15 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
 
     # --- Batch thumbnail fetch ---
     primary_model_ids = [r.primary_model_id for r in title_rows if r.primary_model_id]
+    media_by_model = fetch_model_media_map(primary_model_ids)
     thumb_data: dict[int, str | None] = {}
     for mid, extra_data in MachineModel.objects.filter(
         id__in=primary_model_ids
     ).values_list("id", "extra_data"):
-        if extra_data:
-            thumb, _ = extract_image_urls(extra_data, min_rank=min_rank)
-            thumb_data[mid] = thumb
-        else:
-            thumb_data[mid] = None
+        thumb, _ = extract_image_urls(
+            extra_data or {}, media_by_model.get(mid), min_rank=min_rank
+        )
+        thumb_data[mid] = thumb
 
     # --- Bulk abbreviations and series ---
     title_ids = [r.id for r in title_rows]

@@ -8,6 +8,7 @@ from django.db.models import Model
 
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.types import JsonData
+from apps.media.models import EntityMedia
 
 from ..models import (
     CorporateEntity,
@@ -65,7 +66,12 @@ def _intersect_facet_sets(
     return [EntityRef(slug=s, name=n) for s, n in sorted(common)] if common else []
 
 
-def serialize_title_ref(title: Title, *, min_rank: int | None = None) -> TitleRef:
+def serialize_title_ref(
+    title: Title,
+    *,
+    min_rank: int | None = None,
+    media_by_model: dict[int, list[EntityMedia]] | None = None,
+) -> TitleRef:
     """Serialize a Title for use in franchise/series listing context.
 
     Expects *title* to have prefetched ``machine_models`` (with
@@ -77,7 +83,10 @@ def serialize_title_ref(title: Title, *, min_rank: int | None = None) -> TitleRe
     year = None
     first = next(iter(title.machine_models.all()), None)
     if first is not None:
-        thumbnail_url, _ = extract_image_urls(first.extra_data or {}, min_rank=min_rank)
+        media = media_by_model.get(first.pk) if media_by_model else None
+        thumbnail_url, _ = extract_image_urls(
+            first.extra_data or {}, media, min_rank=min_rank
+        )
         manufacturer_name = (
             first.corporate_entity.manufacturer.name
             if first.corporate_entity and first.corporate_entity.manufacturer
@@ -97,17 +106,28 @@ def serialize_title_ref(title: Title, *, min_rank: int | None = None) -> TitleRe
 
 
 def collect_titles(
-    models: Iterable[MachineModel], *, include_manufacturer: bool = False
+    models: Iterable[MachineModel],
+    *,
+    include_manufacturer: bool = False,
+    media_by_model: dict[int, list[EntityMedia]] | None = None,
 ) -> list[RelatedTitleSchema]:
-    """Group models by title into a deduplicated title list."""
+    """Group models by title into a deduplicated title list.
+
+    Pass ``media_by_model`` (built by :func:`fetch_model_media_map`) so card
+    thumbnails reflect uploaded backglass; omit it to fall back to
+    ``extra_data`` only.
+    """
     min_rank = get_minimum_display_rank()
     titles: dict[str, RelatedTitleSchema] = {}
     for m in models:
         if m.title is None:
             continue
+        media = media_by_model.get(m.pk) if media_by_model else None
         key = m.title.slug
         if key not in titles:
-            thumbnail_url = extract_image_urls(m.extra_data or {}, min_rank=min_rank)[0]
+            thumbnail_url = extract_image_urls(
+                m.extra_data or {}, media, min_rank=min_rank
+            )[0]
             manufacturer_name = None
             if include_manufacturer:
                 mfr = (
@@ -124,7 +144,9 @@ def collect_titles(
                 manufacturer_name=manufacturer_name,
             )
         elif titles[key].thumbnail_url is None:
-            thumbnail_url = extract_image_urls(m.extra_data or {}, min_rank=min_rank)[0]
+            thumbnail_url = extract_image_urls(
+                m.extra_data or {}, media, min_rank=min_rank
+            )[0]
             if thumbnail_url:
                 titles[key].thumbnail_url = thumbnail_url
     return sorted(titles.values(), key=lambda t: (t.year is None, -(t.year or 0)))
@@ -194,13 +216,19 @@ def _get_feature_descendant_slugs(slug: str) -> set[str]:
 
 
 def serialize_title_machine(
-    pm: MachineModel, *, min_rank: int | None = None
+    pm: MachineModel,
+    *,
+    min_rank: int | None = None,
+    media_by_model: dict[int, list[EntityMedia]] | None = None,
 ) -> TitleModelSchema:
     """Serialize a MachineModel for use in title/theme/system machine lists."""
     if min_rank is None:
         min_rank = get_minimum_display_rank()
 
-    thumbnail_url, _ = extract_image_urls(pm.extra_data or {}, min_rank=min_rank)
+    pm_media = media_by_model.get(pm.pk) if media_by_model else None
+    thumbnail_url, _ = extract_image_urls(
+        pm.extra_data or {}, pm_media, min_rank=min_rank
+    )
 
     # Include variants only when prefetched to avoid N+1 queries.
     variant_qs = (
@@ -213,7 +241,11 @@ def serialize_title_machine(
             name=v.name,
             slug=v.slug,
             year=v.year,
-            thumbnail_url=extract_image_urls(v.extra_data or {}, min_rank=min_rank)[0],
+            thumbnail_url=extract_image_urls(
+                v.extra_data or {},
+                media_by_model.get(v.pk) if media_by_model else None,
+                min_rank=min_rank,
+            )[0],
         )
         for v in variant_qs
     ]

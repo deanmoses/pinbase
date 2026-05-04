@@ -39,7 +39,7 @@ from .entity_create import (
     validate_slug_format,
 )
 from .entity_crud import register_entity_delete_restore
-from .images import extract_image_urls
+from .images import extract_image_urls, fetch_model_media_map
 from .rich_text import build_rich_text
 from .schemas import (
     ClaimPatchSchema,
@@ -107,12 +107,16 @@ class _RelatedTitleAccum:
 
 def _serialize_system_detail(system: System) -> SystemDetailSchema:
     min_rank = get_minimum_display_rank()
+    models_list = list(system.machine_models.all())
+    media_by_model = fetch_model_media_map(m.pk for m in models_list)
     accum: dict[str, _RelatedTitleAccum] = {}
-    for m in system.machine_models.all():
+    for m in models_list:
         if m.title is None:
             continue
         key = m.title.slug
-        thumbnail_url = extract_image_urls(m.extra_data or {}, min_rank=min_rank)[0]
+        thumbnail_url = extract_image_urls(
+            m.extra_data or {}, media_by_model.get(m.pk), min_rank=min_rank
+        )[0]
         if key not in accum:
             mfr = (
                 m.corporate_entity.manufacturer

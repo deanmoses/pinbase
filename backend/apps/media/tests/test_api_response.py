@@ -173,8 +173,8 @@ class TestUploadedFirstFallback:
         assert hero is None
 
     def test_no_primary_media_param_uses_external(self):
-        """When primary_media is not passed (None), falls through to external."""
-        thumb, hero = extract_image_urls(OPDB_EXTRA_DATA)
+        """When primary_media is None, falls through to external."""
+        thumb, hero = extract_image_urls(OPDB_EXTRA_DATA, None)
 
         assert thumb == "https://img.opdb.org/m.jpg"
         assert hero == "https://img.opdb.org/l.jpg"

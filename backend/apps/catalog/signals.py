@@ -47,8 +47,11 @@ def _cache_invalidating_models() -> list[type[models.Model]]:
     # Not covered here: MachineModel* through-rows (MachineModelTheme, etc.)
     # and AliasModel subclasses. Those are written by the claims resolver,
     # which calls invalidate_all() directly via transaction.on_commit (see
-    # resolve/_dispatch.py). Direct edits outside the claims pipeline would
-    # bypass this signal, but that's a policy violation, not a missed path.
+    # resolve/_dispatch.py). EntityMedia is also written via the resolver
+    # (resolve/_media.py uses bulk_create, which doesn't fire post_save), and
+    # busts the cache the same way. Direct edits outside the claims pipeline
+    # would bypass this signal, but that's a policy violation, not a missed
+    # path.
     return [*derived, *extras]
 
 

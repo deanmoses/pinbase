@@ -26,7 +26,7 @@ from .helpers import (
     serialize_credit,
     serialize_title_ref,
 )
-from .images import extract_image_urls
+from .images import extract_image_urls, fetch_title_media_map
 from .rich_text import build_rich_text
 from .schemas import (
     ClaimPatchSchema,
@@ -97,11 +97,16 @@ def _series_detail_qs() -> QuerySet[Series]:
 
 def _serialize_series_detail(series: Series) -> SeriesDetailSchema:
     min_rank = get_minimum_display_rank()
+    titles_list = list(series.titles.all())
+    media_by_model = fetch_title_media_map(titles_list)
     return SeriesDetailSchema(
         name=series.name,
         slug=series.slug,
         description=build_rich_text(series, "description", active_claims(series)),
-        titles=[serialize_title_ref(t, min_rank=min_rank) for t in series.titles.all()],
+        titles=[
+            serialize_title_ref(t, min_rank=min_rank, media_by_model=media_by_model)
+            for t in titles_list
+        ],
         credits=[serialize_credit(c) for c in series.credits.all()],
     )
 
@@ -133,12 +138,18 @@ def list_series(request: HttpRequest) -> list[SeriesListItemSchema]:
         )
     )
     min_rank = get_minimum_display_rank()
+    series_list = list(qs)
+    media_by_model = fetch_title_media_map(
+        title for s in series_list for title in s.titles.all()
+    )
     result: list[SeriesListItemSchema] = []
-    for s in qs:
+    for s in series_list:
         thumb = None
         for title in s.titles.all():
             for pm in title.machine_models.all():
-                t, _ = extract_image_urls(pm.extra_data or {}, min_rank=min_rank)
+                t, _ = extract_image_urls(
+                    pm.extra_data or {}, media_by_model.get(pm.pk), min_rank=min_rank
+                )
                 if t:
                     thumb = t
                     break

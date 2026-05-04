@@ -524,6 +524,131 @@ class TestTitlesAllFacets:
         display_slugs = [d["slug"] for d in data[0]["display_types"]]
         assert "lcd" not in display_slugs
 
+    def test_all_titles_thumbnail_prefers_uploaded_backglass(
+        self, client, db, williams_entity, django_user_model
+    ):
+        """A title's primary model with an uploaded backglass returns the
+        upload's thumb URL on the /all/ endpoint, not the extra_data URL."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from apps.media.models import EntityMedia, MediaAsset
+        from apps.media.storage import build_public_url, build_storage_key
+
+        title = Title.objects.create(name="MM", slug="mm", opdb_id="MM")
+        pm = make_machine_model(
+            name="MM",
+            slug="mm-1",
+            title=title,
+            corporate_entity=williams_entity,
+            year=1997,
+            extra_data={"opdb.images": SAMPLE_IMAGES},
+        )
+        user = django_user_model.objects.create_user(username="up")
+        asset = MediaAsset.objects.create(
+            kind=MediaAsset.Kind.IMAGE,
+            status=MediaAsset.Status.READY,
+            original_filename="bg.jpg",
+            mime_type="image/jpeg",
+            byte_size=1,
+            width=800,
+            height=600,
+            uploaded_by=user,
+        )
+        EntityMedia.objects.create(
+            content_type=ContentType.objects.get_for_model(MachineModel),
+            object_id=pm.pk,
+            asset=asset,
+            category="backglass",
+            is_primary=True,
+        )
+
+        resp = client.get("/api/titles/all/")
+        data = resp.json()
+        item = next(i for i in data if i["slug"] == "mm")
+        expected = build_public_url(build_storage_key(asset.uuid, "thumb"))
+        assert item["thumbnail_url"] == expected
+
+    def test_all_titles_thumbnail_falls_back_to_extra_data(
+        self, client, db, williams_entity
+    ):
+        """No upload → existing OPDB thumbnail URL still wins."""
+        title = Title.objects.create(name="MM2", slug="mm2", opdb_id="MM2")
+        make_machine_model(
+            name="MM2",
+            slug="mm2-1",
+            title=title,
+            corporate_entity=williams_entity,
+            year=1997,
+            extra_data={"opdb.images": SAMPLE_IMAGES},
+        )
+        resp = client.get("/api/titles/all/")
+        data = resp.json()
+        item = next(i for i in data if i["slug"] == "mm2")
+        assert item["thumbnail_url"] == "https://img.opdb.org/md.jpg"
+
+    def test_all_titles_cache_invalidates_on_media_attachment_resolve(
+        self,
+        client,
+        db,
+        williams_entity,
+        django_user_model,
+        django_capture_on_commit_callbacks,
+    ):
+        """Resolving a media_attachment claim busts the cached /all/ payload
+        so the next call reflects the new thumbnail.  Mirrors the production
+        upload path, which writes EntityMedia via bulk_create (no post_save)
+        and relies on transaction.on_commit(invalidate_all) inside the
+        resolver.
+        """
+        from django.contrib.contenttypes.models import ContentType
+
+        from apps.catalog.claims import build_media_attachment_claim
+        from apps.catalog.resolve import resolve_media_attachments
+        from apps.media.models import MediaAsset
+        from apps.media.storage import build_public_url, build_storage_key
+        from apps.provenance.models import Claim
+
+        title = Title.objects.create(name="MM3", slug="mm3", opdb_id="MM3")
+        pm = make_machine_model(
+            name="MM3",
+            slug="mm3-1",
+            title=title,
+            corporate_entity=williams_entity,
+            year=1997,
+            extra_data={"opdb.images": SAMPLE_IMAGES},
+        )
+
+        # Prime the cache with the third-party thumbnail.
+        resp = client.get("/api/titles/all/")
+        item = next(i for i in resp.json() if i["slug"] == "mm3")
+        assert item["thumbnail_url"] == "https://img.opdb.org/md.jpg"
+
+        user = django_user_model.objects.create_user(username="up3")
+        asset = MediaAsset.objects.create(
+            kind=MediaAsset.Kind.IMAGE,
+            status=MediaAsset.Status.READY,
+            original_filename="bg.jpg",
+            mime_type="image/jpeg",
+            byte_size=1,
+            width=800,
+            height=600,
+            uploaded_by=user,
+        )
+        ct = ContentType.objects.get_for_model(MachineModel)
+        claim_key, claim_value = build_media_attachment_claim(
+            pm, asset.pk, category="backglass", is_primary=False
+        )
+        with django_capture_on_commit_callbacks(execute=True):
+            Claim.objects.assert_claim(
+                pm, "media_attachment", claim_value, user=user, claim_key=claim_key
+            )
+            resolve_media_attachments(content_type_id=ct.id, subject_ids={pm.pk})
+
+        resp = client.get("/api/titles/all/")
+        item = next(i for i in resp.json() if i["slug"] == "mm3")
+        expected = build_public_url(build_storage_key(asset.uuid, "thumb"))
+        assert item["thumbnail_url"] == expected
+
     def test_all_titles_empty_title(self, client, db):
         """Title with no models returns empty facet arrays."""
         Title.objects.create(name="Empty", slug="empty", opdb_id="EMPTY")

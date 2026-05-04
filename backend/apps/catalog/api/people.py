@@ -49,7 +49,12 @@ from .entity_create import (
     validate_name,
     validate_slug_format,
 )
-from .images import extract_image_urls, media_prefetch, serialize_uploaded_media
+from .images import (
+    extract_image_urls,
+    fetch_model_media_map,
+    media_prefetch,
+    serialize_uploaded_media,
+)
 from .rich_text import build_rich_text
 from .schemas import (
     AlreadyDeletedSchema,
@@ -132,15 +137,21 @@ def _serialize_person_detail(person: Person) -> PersonDetailSchema:
     (to_attr="active_claims").
     """
     min_rank = get_minimum_display_rank()
+    credits = list(person.credits.all())
+    media_by_model = fetch_model_media_map(
+        c.model_id for c in credits if c.model_id is not None
+    )
     accum: dict[str, _PersonTitleAccum] = {}
-    for c in person.credits.all():
+    for c in credits:
         if c.model is None or c.model.title is None:
             continue
         title = c.model.title
         key = title.slug
-        thumbnail_url = extract_image_urls(c.model.extra_data or {}, min_rank=min_rank)[
-            0
-        ]
+        thumbnail_url = extract_image_urls(
+            c.model.extra_data or {},
+            media_by_model.get(c.model.pk),
+            min_rank=min_rank,
+        )[0]
         if key not in accum:
             accum[key] = _PersonTitleAccum(
                 name=title.name,
@@ -270,6 +281,7 @@ def list_all_people(
             id__in=set(person_thumb_model.values())
         ).only("id", "extra_data")
     }
+    thumb_media = fetch_model_media_map(person_thumb_model.values())
 
     result: list[dict[str, Any]] = []
     for p in people:
@@ -277,8 +289,12 @@ def list_all_people(
         person_id = p.pk
         tm_id = person_thumb_model.get(person_id)
         tm = thumb_models.get(tm_id) if tm_id else None
-        if tm and tm.extra_data:
-            t, _ = extract_image_urls(tm.extra_data, min_rank=min_rank)
+        if tm:
+            t, _ = extract_image_urls(
+                tm.extra_data or {},
+                thumb_media.get(tm.pk),
+                min_rank=min_rank,
+            )
             if t:
                 thumb = t
         result.append(

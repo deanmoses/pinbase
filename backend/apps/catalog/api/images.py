@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from typing import Any
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Prefetch
 
 from apps.core.licensing import (
@@ -17,15 +19,57 @@ from apps.media.schemas import MediaRenditionsSchema, UploadedMediaSchema
 from apps.media.storage import build_public_url, build_storage_key
 from apps.provenance.schemas import AttributionSchema
 
-from ..models import CorporateEntity
+from ..models import CorporateEntity, MachineModel, Title
 
 __all__ = [
     "extract_image_attribution",
     "extract_image_urls",
+    "fetch_model_media_map",
+    "fetch_title_media_map",
     "first_thumbnail",
     "media_prefetch",
     "serialize_uploaded_media",
 ]
+
+
+def fetch_model_media_map(
+    model_ids: Iterable[int],
+) -> dict[int, list[EntityMedia]]:
+    """Return ``{model_id: [primary EntityMedia rows]}`` for the given
+    MachineModel ids.
+
+    Filters to ``is_primary=True`` and ``asset__status="ready"`` — matches
+    the input shape ``extract_image_urls`` expects via its ``primary_media``
+    parameter.  One indexed query joined to ``MediaAsset`` for the uuid.
+    """
+    ids = list(model_ids)
+    if not ids:
+        return {}
+    ct = ContentType.objects.get_for_model(MachineModel)
+    grouped: dict[int, list[EntityMedia]] = defaultdict(list)
+    for em in (
+        EntityMedia.objects.filter(
+            content_type=ct,
+            object_id__in=ids,
+            is_primary=True,
+            asset__status="ready",
+        )
+        .select_related("asset")
+        .order_by("created_at")
+    ):
+        grouped[em.object_id].append(em)
+    return grouped
+
+
+def fetch_title_media_map(
+    titles: Iterable[Title],
+) -> dict[int, list[EntityMedia]]:
+    """Build the model media map for every MachineModel under *titles*.
+
+    Requires ``machine_models`` to be prefetched on each title — otherwise
+    walking ``title.machine_models.all()`` triggers one query per title.
+    """
+    return fetch_model_media_map(pm.pk for t in titles for pm in t.machine_models.all())
 
 
 # Slot 2 is Any because prefetch_related has a single _PrefetchedQuerySetT
@@ -92,7 +136,7 @@ def _uploaded_image_urls(
 
 def extract_image_urls(
     extra_data: JsonData,
-    primary_media: Sequence[EntityMedia] | None = None,
+    primary_media: Sequence[EntityMedia] | None,
     *,
     min_rank: int | None = None,
 ) -> tuple[str | None, str | None]:
@@ -102,6 +146,11 @@ def extract_image_urls(
     images, those are used unconditionally (no license gating — this project owns
     them).  Otherwise falls back to third-party images in *extra_data*,
     respecting the global Constance display threshold.
+
+    *primary_media* is required-positional: callers must pass either a list of
+    rows or ``None`` to opt out.  This forces every site to make the
+    media-vs-extra_data choice deliberately rather than silently defaulting to
+    extra_data only.
 
     Pass *min_rank* to avoid repeated Constance DB lookups in tight loops.
     """
@@ -154,7 +203,7 @@ def extract_image_urls(
 
 def extract_image_attribution(
     extra_data: JsonData,
-    primary_media: Sequence[EntityMedia] | None = None,
+    primary_media: Sequence[EntityMedia] | None,
 ) -> AttributionSchema | None:
     """Return AttributionSchema for the displayed image, or None.
 
@@ -192,11 +241,17 @@ def extract_image_attribution(
 def first_thumbnail(
     entities_with_models: Iterable[CorporateEntity], *, min_rank: int
 ) -> str | None:
-    """Return the first non-None thumbnail URL from nested entity→model prefetches."""
+    """Return the first non-None thumbnail URL from nested entity→model prefetches.
+
+    Note: this currently checks only ``extra_data`` — uploaded media on these
+    nested models is not considered.  Acceptable today (the locations endpoint
+    is the only caller and uploads aren't expected on entity→models there);
+    revisit when locations cards need uploaded backglass support.
+    """
     for entity in entities_with_models:
         for model in entity.models.all():
             if model.extra_data:
-                thumb, _ = extract_image_urls(model.extra_data, min_rank=min_rank)
+                thumb, _ = extract_image_urls(model.extra_data, None, min_rank=min_rank)
                 if thumb:
                     return thumb
     return None

@@ -23,6 +23,7 @@ from ._typing import HasTitleCount
 from .edit_claims import execute_claims, plan_scalar_field_claims
 from .entity_crud import register_entity_create, register_entity_delete_restore
 from .helpers import serialize_title_ref
+from .images import fetch_title_media_map
 from .rich_text import build_rich_text
 from .schemas import ClaimPatchSchema, TitleRef
 
@@ -101,12 +102,15 @@ def _franchise_detail_qs() -> QuerySet[Franchise]:
 
 def _serialize_franchise_detail(franchise: Franchise) -> FranchiseDetailSchema:
     min_rank = get_minimum_display_rank()
+    titles_list = list(franchise.titles.all())
+    media_by_model = fetch_title_media_map(titles_list)
     return FranchiseDetailSchema(
         name=franchise.name,
         slug=franchise.slug,
         description=build_rich_text(franchise, "description", active_claims(franchise)),
         titles=[
-            serialize_title_ref(t, min_rank=min_rank) for t in franchise.titles.all()
+            serialize_title_ref(t, min_rank=min_rank, media_by_model=media_by_model)
+            for t in titles_list
         ],
     )
 

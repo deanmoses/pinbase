@@ -45,7 +45,12 @@ from .helpers import (
     collect_titles,
     serialize_locations,
 )
-from .images import extract_image_urls, media_prefetch, serialize_uploaded_media
+from .images import (
+    extract_image_urls,
+    fetch_model_media_map,
+    media_prefetch,
+    serialize_uploaded_media,
+)
 from .rich_text import build_rich_text
 from .schemas import (
     ClaimPatchSchema,
@@ -163,6 +168,9 @@ def _serialize_manufacturer_detail(mfr: Manufacturer) -> ManufacturerDetailSchem
         key=lambda p: p.name,
     )
 
+    all_models = [m for e in mfr.entities.all() for m in e.models.all()]
+    media_by_model = fetch_model_media_map(m.pk for m in all_models)
+
     return ManufacturerDetailSchema(
         name=mfr.name,
         slug=mfr.slug,
@@ -181,7 +189,7 @@ def _serialize_manufacturer_detail(mfr: Manufacturer) -> ManufacturerDetailSchem
             )
             for e in mfr.entities.all()
         ],
-        titles=collect_titles(m for e in mfr.entities.all() for m in e.models.all()),
+        titles=collect_titles(all_models, media_by_model=media_by_model),
         systems=[
             ManufacturerSystemSchema(name=s.name, slug=s.slug)
             for s in mfr.systems.all()
@@ -328,6 +336,7 @@ def list_all_manufacturers(
             "id", "extra_data"
         )
     }
+    thumb_media = fetch_model_media_map(mfr_thumb_model.values())
 
     # --- Bulk search text + facet data per manufacturer ---
     mfr_ids = {m.pk for m in manufacturers}
@@ -453,8 +462,12 @@ def list_all_manufacturers(
         thumb = None
         tm_id = mfr_thumb_model.get(mfr_id)
         tm = thumb_models.get(tm_id) if tm_id else None
-        if tm and tm.extra_data:
-            thumb, _ = extract_image_urls(tm.extra_data, min_rank=min_rank)
+        if tm:
+            thumb, _ = extract_image_urls(
+                tm.extra_data or {},
+                thumb_media.get(tm.pk),
+                min_rank=min_rank,
+            )
 
         loc_refs_map = mfr_location_refs.get(mfr_id, {})
         locations = [
