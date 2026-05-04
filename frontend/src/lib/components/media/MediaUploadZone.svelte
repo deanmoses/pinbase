@@ -90,15 +90,12 @@
 
 <div class="upload-page">
   <div class="options">
-    <label class="option-label">
-      Category
-      <select bind:value={category} class="category-select">
-        <option value="" disabled>Choose a category…</option>
-        {#each categories as cat (cat)}
-          <option value={cat}>{cat}</option>
-        {/each}
-      </select>
-    </label>
+    <select bind:value={category} class="category-select">
+      <option value="" disabled>Choose a category…</option>
+      {#each categories as cat (cat)}
+        <option value={cat}>{cat}</option>
+      {/each}
+    </select>
   </div>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -179,14 +176,6 @@
     gap: var(--size-4);
     flex-wrap: wrap;
     margin-bottom: var(--size-4);
-  }
-
-  .option-label {
-    display: flex;
-    align-items: center;
-    gap: var(--size-2);
-    font-size: var(--font-size-1);
-    color: var(--color-text-muted);
   }
 
   .category-select {
