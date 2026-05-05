@@ -2,9 +2,9 @@ import { error } from '@sveltejs/kit';
 import { createServerClient } from '$lib/api/server';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ fetch, url, params }) => {
+export const load: LayoutServerLoad = async ({ fetch, url, request, params }) => {
   const path = params.path ?? '';
-  const client = createServerClient(fetch, url);
+  const client = createServerClient(fetch, url, request);
 
   // Two routes: ``/`` for the global root, ``/{location_path}`` for any
   // concrete location. The path converter accepts slashes, so a single

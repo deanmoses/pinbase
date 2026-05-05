@@ -2,8 +2,8 @@ import { error } from '@sveltejs/kit';
 import { createServerClient } from '$lib/api/server';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ fetch, url, params }) => {
-  const client = createServerClient(fetch, url);
+export const load: LayoutServerLoad = async ({ fetch, url, request, params }) => {
+  const client = createServerClient(fetch, url, request);
   const { data, response } = await client.GET('/api/pages/system/{public_id}', {
     params: { path: { public_id: params.slug } },
   });

@@ -12,6 +12,7 @@ import type { CatalogEntityKey } from '$lib/api/catalog-meta';
 type LoadEvent = {
   fetch: typeof fetch;
   url: URL;
+  request: Request;
 };
 
 export async function loadEditHistory(
@@ -19,7 +20,7 @@ export async function loadEditHistory(
   entityType: CatalogEntityKey,
   public_id: string,
 ) {
-  const client = createServerClient(event.fetch, event.url);
+  const client = createServerClient(event.fetch, event.url, event.request);
   const { data, response } = await client.GET(
     '/api/pages/edit-history/{entity_type}/{public_id}/',
     {
@@ -39,7 +40,7 @@ export async function loadSources(
   entityType: CatalogEntityKey,
   public_id: string,
 ) {
-  const client = createServerClient(event.fetch, event.url);
+  const client = createServerClient(event.fetch, event.url, event.request);
   const { data, response } = await client.GET('/api/pages/sources/{entity_type}/{public_id}/', {
     params: { path: { entity_type: entityType, public_id } },
   });

@@ -7,7 +7,11 @@ export function getCsrfToken(): string | undefined {
   return match?.[1];
 }
 
-export function createApiClient(fetchImpl: typeof fetch = fetch, baseUrl = '') {
+export function createApiClient(
+  fetchImpl: typeof fetch = fetch,
+  baseUrl = '',
+  incomingRequest?: Request,
+) {
   const client = createClient<paths>({
     baseUrl,
     fetch: fetchImpl,
@@ -15,6 +19,12 @@ export function createApiClient(fetchImpl: typeof fetch = fetch, baseUrl = '') {
       'Content-Type': 'application/json',
     },
   });
+
+  // SvelteKit's event.fetch only forwards cookies for same-origin requests.
+  // When INTERNAL_API_BASE_URL points SSR at Django on a different origin
+  // (e.g. http://127.0.0.1:8000 in prod), we must forward the user's Cookie
+  // header manually or authenticated endpoints see an anonymous request.
+  const forwardedCookie = incomingRequest?.headers.get('cookie') ?? null;
 
   client.use({
     async onRequest({ request }) {
@@ -25,6 +35,10 @@ export function createApiClient(fetchImpl: typeof fetch = fetch, baseUrl = '') {
       if (decoded !== url.pathname) {
         url.pathname = decoded;
         request = new Request(url, request);
+      }
+
+      if (forwardedCookie) {
+        request.headers.set('cookie', forwardedCookie);
       }
 
       const method = request.method.toUpperCase();
@@ -46,7 +60,7 @@ let browserClient: ReturnType<typeof createApiClient> | null = null;
 function getBrowserClient() {
   if (typeof window === 'undefined') {
     throw new Error(
-      'The default API client is browser-only. Server-side routes must use createApiClient(fetch, baseUrl?) instead.',
+      'The default API client is browser-only. Server-side routes must use createServerClient(fetch, url, request) from $lib/api/server instead.',
     );
   }
   browserClient ??= createApiClient(window.fetch.bind(window));

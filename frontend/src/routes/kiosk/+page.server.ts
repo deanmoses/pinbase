@@ -1,14 +1,14 @@
 import { createServerClient } from '$lib/api/server';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ fetch, url, cookies }) => {
+export const load: PageServerLoad = async ({ fetch, url, request, cookies }) => {
   if (cookies.get('mode') !== 'kiosk') return { kioskConfig: null };
 
   const rawId = cookies.get('kioskConfigId');
   const id = rawId ? Number(rawId) : NaN;
   if (!Number.isInteger(id) || id <= 0) return { kioskConfig: null };
 
-  const client = createServerClient(fetch, url);
+  const client = createServerClient(fetch, url, request);
   const { data, response } = await client.GET('/api/pages/kiosk/{config_id}/', {
     params: { path: { config_id: id } },
   });

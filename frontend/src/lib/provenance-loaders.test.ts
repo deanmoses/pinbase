@@ -16,9 +16,11 @@ const MOCK_SOURCES_PAYLOAD = {
 };
 
 function makeEvent(fetch: typeof globalThis.fetch, path: string) {
+  const url = new URL(`http://localhost:5173${path}`);
   return {
     fetch,
-    url: new URL(`http://localhost:5173${path}`),
+    url,
+    request: new Request(url),
   };
 }
 
