@@ -165,9 +165,9 @@
      clip behind it. Don't reorder this without auditing every
      nav-anchored popover/menu/autocomplete in the app. */
   --z-header: 50; /* sticky nav (lowest of the named layers) */
-  --z-dropdown: 100; /* popovers, autocomplete, action menus */
   --z-drawer: 200; /* off-canvas drawers + their backdrops */
   --z-modal: 1000; /* modals, lightbox */
+  --z-dropdown: 1050; /* popovers, autocomplete, action menus — above modals so popovers launched from inside a modal aren't covered */
   --z-toast: 1100; /* always above modals */
   --z-tooltip: 1200; /* always above everything */
 

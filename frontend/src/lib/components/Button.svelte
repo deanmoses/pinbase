@@ -1,19 +1,27 @@
+<script lang="ts" module>
+  export type ButtonVariant = 'primary' | 'secondary' | 'destructive';
+</script>
+
 <script lang="ts">
   import type { Snippet } from 'svelte';
   let {
     children,
     tag = 'button',
     variant = 'primary',
+    fullWidth = false,
     ...rest
   }: {
     children: Snippet;
     tag?: string;
-    variant?: 'primary' | 'secondary';
+    variant?: ButtonVariant;
+    fullWidth?: boolean;
     [key: string]: unknown;
   } = $props();
 </script>
 
-<svelte:element this={tag} class="btn btn-{variant}" {...rest}>{@render children()}</svelte:element>
+<svelte:element this={tag} class="btn btn-{variant}" class:btn-full={fullWidth} {...rest}
+  >{@render children()}</svelte:element
+>
 
 <style>
   .btn {
@@ -29,6 +37,12 @@
   .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .btn-full {
+    display: block;
+    width: 100%;
+    text-align: center;
   }
 
   .btn-primary {
@@ -48,7 +62,20 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
+    /* Subtle neutral tint that reads in both light and dark — 8% of the
+       text color over transparent gives a soft fill in either palette. */
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
     color: var(--color-text-primary);
     border-color: var(--color-text-muted);
+  }
+
+  .btn-destructive {
+    background: var(--color-danger);
+    color: #fff;
+    border: none;
+  }
+
+  .btn-destructive:hover:not(:disabled) {
+    opacity: 0.9;
   }
 </style>

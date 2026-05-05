@@ -10,10 +10,12 @@ This document defines the dependency rules and responsibilities of this project'
 - `citation`: citation-source metadata and evidence objects that can be cited
 - `provenance`: claims, source, and audit system
 - `media`: media upload and hosting infrastructure
+- `kiosk`: kiosk display configuration (operational settings, not catalog claims)
 
 ## Dependencies
 
 ```text
+           kiosk
            media.api
            catalog
 ____________________________
@@ -27,6 +29,7 @@ ____________________________
 - `provenance` depends on `citation` but `citation` does not depend on `provenance`
 - `catalog` uses the full middle tier
 - `media.api` depends on `catalog` and `provenance`: upload handlers write `media_attachment` claims through catalog's relationship-claim registry and persist `Claim` rows directly. This is a structural consequence of `media_attachment` being a catalog-registered relationship type whose target happens to live in media; splitting it out would require extracting the whole relationship-claim machinery into a neutral app
+- `kiosk` depends on `catalog` (FK to `Title`); audit FKs reference `AUTH_USER_MODEL` via Django core, not `accounts.UserProfile`. Kiosk configs are operational settings, not claims-controlled — the app deliberately stays out of `provenance`
 
 ## Exception: Page API endpoints
 

@@ -1,19 +1,25 @@
 <!--
-  Invisible kiosk-mode shell. Loaded only when the `mode=kiosk` cookie is set
-  (see root +layout.svelte). Watches for visitor inactivity and navigates back
-  to /kiosk after the configured idle timeout. Renders no visible UI — the
-  rest of the site is unmodified for kiosk visitors.
+  Invisible kiosk-mode shell. Mounted by the root +layout.svelte whenever
+  the `mode=kiosk` cookie is set. Watches for visitor inactivity and
+  navigates back to /kiosk after the idle timeout. Renders no visible UI.
+
+  `idle_seconds` is read from the `kioskIdleSeconds` cookie (denormalized
+  from the DB-backed config when an operator picks one) so this component
+  doesn't need a server load on every navigation.
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { DEFAULT_IDLE_SECONDS, loadConfig } from './config';
+  import { DEFAULT_IDLE_SECONDS, getKioskIdleSecondsFromCookie } from './config';
 
   $effect(() => {
-    // Don't reset the configure page out from under staff who are mid-edit.
-    if (page.url.pathname.startsWith('/kiosk/configure')) return;
+    // The whole point of kiosk mode: a device that's wandered off (to
+    // /titles/foo, etc.) auto-returns to /kiosk on idle. The only route
+    // we exclude is the staff editor — bouncing operators mid-edit would
+    // be hostile.
+    if (page.url.pathname.startsWith('/kiosk/edit')) return;
 
-    const idleSeconds = loadConfig()?.idleSeconds ?? DEFAULT_IDLE_SECONDS;
+    const idleSeconds = getKioskIdleSecondsFromCookie() ?? DEFAULT_IDLE_SECONDS;
     const idleMs = idleSeconds * 1000;
 
     let timer: ReturnType<typeof setTimeout> | undefined;

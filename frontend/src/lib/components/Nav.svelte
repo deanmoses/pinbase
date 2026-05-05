@@ -82,9 +82,7 @@
 
     {#snippet adminSection()}
       <MenuSectionHeader>admin</MenuSectionHeader>
-      <MenuItem href={resolve('/kiosk/configure')} current={isActive('/kiosk/configure')}>
-        Kiosk Config
-      </MenuItem>
+      <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
       <MenuItem href="/admin/" reload>Django Admin</MenuItem>
     {/snippet}
 
