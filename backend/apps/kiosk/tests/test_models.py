@@ -21,49 +21,42 @@ def title_b(db):
 
 @pytest.fixture
 def kiosk(db):
-    return KioskConfig.objects.create(name="Lobby kiosk")
+    return KioskConfig.objects.create()
 
 
 class TestKioskConfigDefaults:
     def test_defaults(self, kiosk):
-        assert kiosk.name == "Lobby kiosk"
         assert kiosk.page_heading == ""
         assert kiosk.idle_seconds == 180
 
-    def test_str(self, kiosk):
-        assert str(kiosk) == "Lobby kiosk"
+    def test_str_without_page_heading(self, kiosk):
+        assert str(kiosk) == f"#{kiosk.pk}"
+
+    def test_str_with_page_heading(self, db):
+        cfg = KioskConfig.objects.create(page_heading="Welcome")
+        assert str(cfg) == f"#{cfg.pk} — Welcome"
 
 
 class TestKioskConfigConstraints:
-    def test_blank_name_rejected(self, db):
-        with pytest.raises(IntegrityError):
-            KioskConfig.objects.create(name="")
-
     def test_blank_page_heading_accepted(self, db):
         # Operators can clear the H1 — no field_not_blank on page_heading.
-        cfg = KioskConfig.objects.create(name="Headless kiosk", page_heading="")
+        cfg = KioskConfig.objects.create(page_heading="")
         assert cfg.page_heading == ""
 
-    def test_duplicate_name_rejected(self, db):
-        KioskConfig.objects.create(name="Lobby kiosk")
+    def test_idle_seconds_zero_rejected(self, db):
         with pytest.raises(IntegrityError):
-            KioskConfig.objects.create(name="Lobby kiosk")
+            KioskConfig.objects.create(idle_seconds=0)
 
-    @pytest.mark.parametrize("bad", [9, 3601])
-    def test_idle_seconds_out_of_range_rejected(self, db, bad):
-        with pytest.raises(IntegrityError):
-            KioskConfig.objects.create(name=f"Bad-{bad}", idle_seconds=bad)
-
-    @pytest.mark.parametrize("ok", [10, 3600])
-    def test_idle_seconds_boundaries_accepted(self, db, ok):
-        cfg = KioskConfig.objects.create(name=f"Ok-{ok}", idle_seconds=ok)
+    @pytest.mark.parametrize("ok", [1, 3600, 86400])
+    def test_idle_seconds_positive_values_accepted(self, db, ok):
+        cfg = KioskConfig.objects.create(idle_seconds=ok)
         assert cfg.idle_seconds == ok
 
 
 class TestKioskConfigItemStr:
     def test_str(self, db, kiosk, title_a):
         item = KioskConfigItem.objects.create(config=kiosk, title=title_a, position=1)
-        assert str(item) == "Lobby kiosk #1: Medieval Madness"
+        assert str(item) == f"#{kiosk.pk} pos 1: Medieval Madness"
 
 
 class TestKioskConfigItemConstraints:
@@ -78,8 +71,8 @@ class TestKioskConfigItemConstraints:
             KioskConfigItem.objects.create(config=kiosk, title=title_a, position=2)
 
     def test_same_position_allowed_across_configs(self, db, title_a, title_b):
-        c1 = KioskConfig.objects.create(name="K1")
-        c2 = KioskConfig.objects.create(name="K2")
+        c1 = KioskConfig.objects.create()
+        c2 = KioskConfig.objects.create()
         KioskConfigItem.objects.create(config=c1, title=title_a, position=1)
         # Same position (1) and same title are both fine in a different config.
         KioskConfigItem.objects.create(config=c2, title=title_a, position=1)

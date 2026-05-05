@@ -26,7 +26,7 @@ def page_url(config_id: int) -> str:
 @pytest.mark.django_db
 class TestKioskPage:
     def test_anon_can_fetch(self, client, title_a):
-        cfg = KioskConfig.objects.create(name="Lobby", page_heading="Welcome")
+        cfg = KioskConfig.objects.create(page_heading="Welcome")
         KioskConfigItem.objects.create(
             config=cfg, title=title_a, position=1, hook="Try this!"
         )
@@ -34,7 +34,6 @@ class TestKioskPage:
         assert resp.status_code == 200
         body = resp.json()
         assert body["id"] == cfg.pk
-        assert body["name"] == "Lobby"
         assert body["page_heading"] == "Welcome"
         assert body["idle_seconds"] == 180
         assert len(body["items"]) == 1
@@ -55,7 +54,7 @@ class TestKioskPage:
         t1 = Title.objects.create(name="One", slug="one-title")
         t2 = Title.objects.create(name="Two", slug="two-title")
         t3 = Title.objects.create(name="Three", slug="three-title")
-        cfg = KioskConfig.objects.create(name="Mixed")
+        cfg = KioskConfig.objects.create()
         # Insert out of order; the response must come back sorted by position.
         KioskConfigItem.objects.create(config=cfg, title=t3, position=3)
         KioskConfigItem.objects.create(config=cfg, title=t1, position=1)
@@ -66,7 +65,7 @@ class TestKioskPage:
         assert positions == [1, 2, 3]
 
     def test_empty_config(self, client):
-        cfg = KioskConfig.objects.create(name="Empty")
+        cfg = KioskConfig.objects.create()
         resp = client.get(page_url(cfg.pk))
         assert resp.status_code == 200
         assert resp.json()["items"] == []

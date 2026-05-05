@@ -20,7 +20,6 @@ class KioskConfigItemInputSchema(Schema):
 class KioskConfigPatchSchema(Schema):
     """Partial-update payload. Items, when present, fully replace the list."""
 
-    name: str | None = None
     page_heading: str | None = None
     idle_seconds: int | None = None
     items: list[KioskConfigItemInputSchema] | None = None
@@ -39,7 +38,6 @@ class KioskConfigDetailSchema(Schema):
     """Full configuration as returned by GET/POST/PATCH on the resource API."""
 
     id: int
-    name: str
     page_heading: str
     idle_seconds: int
     items: list[KioskConfigItemDetailSchema]
@@ -49,7 +47,6 @@ class KioskConfigListItemSchema(Schema):
     """One row in the list view."""
 
     id: int
-    name: str
     page_heading: str
     idle_seconds: int
     item_count: int
@@ -76,7 +73,6 @@ class KioskPageItemSchema(Schema):
 
 class KioskPageSchema(Schema):
     id: int
-    name: str
     page_heading: str
     idle_seconds: int
     items: list[KioskPageItemSchema]

@@ -79,7 +79,6 @@ def kiosk_display_page(request: HttpRequest, config_id: int) -> KioskPageSchema:
 
     return KioskPageSchema(
         id=config.pk,
-        name=config.name,
         page_heading=config.page_heading,
         idle_seconds=config.idle_seconds,
         items=page_items,

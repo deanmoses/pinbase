@@ -1,6 +1,6 @@
 /**
- * Kiosk configuration and cookie helpers. Browser-only; do not import from
- * server load functions.
+ * Kiosk cookie helpers. Browser-only; do not import from server load
+ * functions (which read cookies via SvelteKit's `cookies` event helper).
  *
  * Three cookies coordinate kiosk mode:
  * - `mode=kiosk` — gates kiosk-mode behavior site-wide.
@@ -16,78 +16,21 @@
  *   edited idle_seconds from another device" — for a single-device
  *   museum kiosk this is fine, and re-picking the config from the
  *   device fixes it.
- *
- * The legacy `kioskConfig` localStorage entry is still read/written by
- * `/kiosk/configure` and `KioskHome` until step 3 of this branch swaps them
- * onto the DB-backed config; the helpers below stay in place until then.
  */
 
-const STORAGE_KEY = 'kioskConfig';
 const MODE_COOKIE_NAME = 'mode';
 const MODE_COOKIE_VALUE = 'kiosk';
 const CONFIG_ID_COOKIE_NAME = 'kioskConfigId';
 const IDLE_SECONDS_COOKIE_NAME = 'kioskIdleSeconds';
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 year
 
-export const DEFAULT_TITLE = 'Machines Around You';
 export const DEFAULT_IDLE_SECONDS = 180;
 export const HOOK_MAX_LENGTH = 80;
-
-export type KioskItem = {
-  titleSlug: string;
-  hook: string;
-};
-
-export type KioskConfig = {
-  title: string;
-  idleSeconds: number;
-  items: KioskItem[];
-};
-
-export function loadConfig(): KioskConfig | null {
-  if (typeof localStorage === 'undefined') return null;
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<KioskConfig>;
-    return {
-      title: typeof parsed.title === 'string' ? parsed.title : DEFAULT_TITLE,
-      idleSeconds:
-        typeof parsed.idleSeconds === 'number' && parsed.idleSeconds > 0
-          ? parsed.idleSeconds
-          : DEFAULT_IDLE_SECONDS,
-      items: Array.isArray(parsed.items)
-        ? parsed.items.filter(
-            (i): i is KioskItem =>
-              !!i && typeof i.titleSlug === 'string' && typeof i.hook === 'string',
-          )
-        : [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function saveConfig(config: KioskConfig): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-}
-
-export function clearConfig(): void {
-  localStorage.removeItem(STORAGE_KEY);
-}
 
 function cookieFlags(): string {
   const secure =
     typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
   return `Path=/; SameSite=Lax${secure}`;
-}
-
-export function setKioskCookie(): void {
-  document.cookie = `${MODE_COOKIE_NAME}=${MODE_COOKIE_VALUE}; ${cookieFlags()}; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
-}
-
-export function clearKioskCookie(): void {
-  document.cookie = `${MODE_COOKIE_NAME}=; ${cookieFlags()}; Max-Age=0`;
 }
 
 /**

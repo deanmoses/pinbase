@@ -86,7 +86,7 @@ describe('Nav', () => {
     expect(screen.queryByRole('menuitem', { name: 'Django Admin' })).not.toBeInTheDocument();
   });
 
-  it('authed superuser: account menu shows admin section with Kiosk Config and Django Admin', async () => {
+  it('authed superuser: account menu shows admin section with Kiosks and Django Admin', async () => {
     const user = userEvent.setup();
     setAuth({
       isAuthenticated: true,
@@ -100,10 +100,7 @@ describe('Nav', () => {
     await user.click(screen.getByRole('button', { name: 'Account menu' }));
 
     expect(screen.getByText('admin')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Kiosk Config' })).toHaveAttribute(
-      'href',
-      '/kiosk/configure',
-    );
+    expect(screen.getByRole('menuitem', { name: 'Kiosks' })).toHaveAttribute('href', '/kiosk/edit');
     expect(screen.getByRole('menuitem', { name: 'Django Admin' })).toHaveAttribute(
       'href',
       '/admin/',

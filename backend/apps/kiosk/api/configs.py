@@ -6,7 +6,7 @@ settings, not catalog claims). See plan and docs/Provenance.md.
 
 from __future__ import annotations
 
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import Count
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -25,12 +25,9 @@ from apps.kiosk.api.schemas import (
     KioskConfigListItemSchema,
     KioskConfigPatchSchema,
 )
-from apps.kiosk.models import KioskConfig, KioskConfigItem
+from apps.kiosk.models import IDLE_SECONDS_MIN, KioskConfig, KioskConfigItem
 
 kiosk_configs_router = Router(tags=["kiosk", "private"])
-
-_DEFAULT_NAME = "Untitled kiosk"
-_AUTO_SUFFIX_MAX_RETRIES = 5
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -56,30 +53,10 @@ def _serialize_detail(config: KioskConfig) -> KioskConfigDetailSchema:
     items = list(config.items.select_related("title"))
     return KioskConfigDetailSchema(
         id=config.pk,
-        name=config.name,
         page_heading=config.page_heading,
         idle_seconds=config.idle_seconds,
         items=[_serialize_item(item) for item in items],
     )
-
-
-def _next_default_name() -> str:
-    """Return the next free 'Untitled kiosk' / 'Untitled kiosk N' label.
-
-    Best-effort suggestion; the caller still wraps the create in a retry loop
-    in case two requests race past the same suggestion.
-    """
-    existing = set(
-        KioskConfig.objects.filter(name__startswith=_DEFAULT_NAME).values_list(
-            "name", flat=True
-        )
-    )
-    if _DEFAULT_NAME not in existing:
-        return _DEFAULT_NAME
-    n = 2
-    while f"{_DEFAULT_NAME} {n}" in existing:
-        n += 1
-    return f"{_DEFAULT_NAME} {n}"
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
@@ -96,7 +73,6 @@ def list_configs(request: HttpRequest) -> list[KioskConfigListItemSchema]:
     return [
         KioskConfigListItemSchema(
             id=c.pk,
-            name=c.name,
             page_heading=c.page_heading,
             idle_seconds=c.idle_seconds,
             item_count=c.item_count,
@@ -108,34 +84,19 @@ def list_configs(request: HttpRequest) -> list[KioskConfigListItemSchema]:
 @kiosk_configs_router.post(
     "configs/",
     auth=django_auth,
-    response={201: KioskConfigDetailSchema, 409: ErrorDetailSchema},
+    response={201: KioskConfigDetailSchema, 403: ErrorDetailSchema},
 )
 def create_config(request: HttpRequest) -> Status[KioskConfigDetailSchema]:
-    """Create an empty kiosk with an auto-suggested name.
+    """Create an empty kiosk.
 
     Audit fields come from ``request.user`` — we don't accept them in the
-    payload. Wrapped in a retry-on-IntegrityError loop in case two superusers
-    race past the same suggested name (the unique constraint would otherwise
-    raise on the loser).
+    payload. Operators identify kiosks by their integer primary key, so no
+    label is required at creation time.
     """
     _require_superuser(request)
     user = authed_user(request)
-    last_exc: IntegrityError | None = None
-    for _ in range(_AUTO_SUFFIX_MAX_RETRIES):
-        name = _next_default_name()
-        try:
-            with transaction.atomic():
-                config = KioskConfig.objects.create(
-                    name=name, created_by=user, updated_by=user
-                )
-            return Status(201, _serialize_detail(config))
-        except IntegrityError as exc:
-            last_exc = exc
-            continue
-    # Exhausted retries — surface the underlying constraint failure.
-    raise HttpError(
-        409, "Could not allocate a unique default kiosk name; please try again."
-    ) from last_exc
+    config = KioskConfig.objects.create(created_by=user, updated_by=user)
+    return Status(201, _serialize_detail(config))
 
 
 @kiosk_configs_router.get(
@@ -166,11 +127,13 @@ def update_config(
     user = authed_user(request)
     config = get_object_or_404(KioskConfig, pk=config_id)
 
+    # Validate idle_seconds at the boundary so users get a friendly message
+    # instead of the raw "CHECK constraint failed: ..." IntegrityError.
+    if data.idle_seconds is not None and data.idle_seconds < IDLE_SECONDS_MIN:
+        raise HttpError(422, "Idle timeout must be at least 1 second.")
+
     with transaction.atomic():
         scalar_changed = False
-        if data.name is not None and data.name != config.name:
-            config.name = data.name
-            scalar_changed = True
         if data.page_heading is not None and data.page_heading != config.page_heading:
             config.page_heading = data.page_heading
             scalar_changed = True
@@ -179,10 +142,11 @@ def update_config(
             scalar_changed = True
         config.updated_by = user
         if scalar_changed:
-            try:
-                config.save()
-            except IntegrityError as exc:
-                raise HttpError(409, str(exc)) from exc
+            # Boundary validation above covers the only declared CheckConstraint
+            # (idle_seconds >= 1). Any IntegrityError reaching this save is an
+            # unanticipated bug — let it 500 so we hear about it, rather than
+            # leaking the raw constraint message to the client.
+            config.save()
         else:
             # Always bump audit fields + updated_at, even on items-only edits.
             config.save(update_fields=["updated_by", "updated_at"])

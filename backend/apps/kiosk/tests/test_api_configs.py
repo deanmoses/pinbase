@@ -71,12 +71,12 @@ class TestAuth:
 
 @pytest.mark.django_db
 class TestCreate:
-    def test_creates_with_default_name(self, client, superuser):
+    def test_creates_with_defaults(self, client, superuser):
         client.force_login(superuser)
         resp = client.post(LIST_URL)
         assert resp.status_code == 201
         body = resp.json()
-        assert body["name"] == "Untitled kiosk"
+        assert isinstance(body["id"], int)
         assert body["page_heading"] == ""
         assert body["idle_seconds"] == 180
         assert body["items"] == []
@@ -88,14 +88,14 @@ class TestCreate:
         assert cfg.created_by_id == superuser.pk
         assert cfg.updated_by_id == superuser.pk
 
-    def test_repeated_post_auto_suffixes(self, client, superuser):
+    def test_repeated_post_creates_distinct_ids(self, client, superuser):
         client.force_login(superuser)
-        names = []
+        ids: list[int] = []
         for _ in range(3):
             resp = client.post(LIST_URL)
             assert resp.status_code == 201
-            names.append(resp.json()["name"])
-        assert names == ["Untitled kiosk", "Untitled kiosk 2", "Untitled kiosk 3"]
+            ids.append(resp.json()["id"])
+        assert len(set(ids)) == 3
 
 
 # ── Detail / list ─────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ class TestCreate:
 @pytest.mark.django_db
 class TestRead:
     def test_list_includes_item_count(self, client, superuser, title_a, title_b):
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         KioskConfigItem.objects.create(config=cfg, title=title_a, position=1)
         KioskConfigItem.objects.create(config=cfg, title=title_b, position=2)
         client.force_login(superuser)
@@ -115,7 +115,7 @@ class TestRead:
         assert body[0]["item_count"] == 2
 
     def test_get_detail(self, client, superuser, title_a):
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create(page_heading="Now Playing")
         KioskConfigItem.objects.create(
             config=cfg, title=title_a, position=1, hook="Try this!"
         )
@@ -123,7 +123,8 @@ class TestRead:
         resp = client.get(detail_url(cfg.pk))
         assert resp.status_code == 200
         body = resp.json()
-        assert body["name"] == "Lobby"
+        assert body["id"] == cfg.pk
+        assert body["page_heading"] == "Now Playing"
         assert len(body["items"]) == 1
         assert body["items"][0]["hook"] == "Try this!"
         assert body["items"][0]["title"]["slug"] == title_a.slug
@@ -147,21 +148,20 @@ def _patch(client: Client, config_id: int, payload: dict[str, object]):
 @pytest.mark.django_db
 class TestPatch:
     def test_updates_scalars(self, client, superuser):
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         client.force_login(superuser)
         resp = _patch(
             client,
             cfg.pk,
-            {"name": "Lobby — main", "page_heading": "Now Playing", "idle_seconds": 60},
+            {"page_heading": "Now Playing", "idle_seconds": 60},
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["name"] == "Lobby — main"
         assert body["page_heading"] == "Now Playing"
         assert body["idle_seconds"] == 60
 
     def test_replaces_items(self, client, superuser, title_a, title_b):
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         KioskConfigItem.objects.create(config=cfg, title=title_a, position=1, hook="A")
         client.force_login(superuser)
         resp = _patch(
@@ -187,7 +187,7 @@ class TestPatch:
         Full replacement (delete + bulk_create inside one transaction)
         sidesteps that. This test asserts the API supports the swap.
         """
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         KioskConfigItem.objects.create(config=cfg, title=title_a, position=1)
         KioskConfigItem.objects.create(config=cfg, title=title_b, position=2)
         client.force_login(superuser)
@@ -204,7 +204,7 @@ class TestPatch:
         assert resp.status_code == 200
 
     def test_unknown_title_slug_returns_422(self, client, superuser):
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         client.force_login(superuser)
         resp = _patch(
             client,
@@ -218,7 +218,7 @@ class TestPatch:
         assert resp.status_code == 422
 
     def test_updated_by_set_from_request_user(self, client, superuser):
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         # Stale created_by/updated_by from a previous user — the PATCH must
         # overwrite updated_by from request.user, not from any payload field.
         other = User.objects.create_user(username="someone-else")
@@ -226,7 +226,7 @@ class TestPatch:
         cfg.updated_by = other
         cfg.save()
         client.force_login(superuser)
-        resp = _patch(client, cfg.pk, {"name": "Renamed"})
+        resp = _patch(client, cfg.pk, {"page_heading": "Edited"})
         assert resp.status_code == 200
         cfg.refresh_from_db()
         assert cfg.updated_by_id == superuser.pk
@@ -239,12 +239,12 @@ class TestPatch:
         The schema doesn't declare those fields, so Pydantic should drop them
         from the parsed payload — this is a belt-and-suspenders assertion.
         """
-        cfg = KioskConfig.objects.create(name="Lobby")
+        cfg = KioskConfig.objects.create()
         client.force_login(superuser)
         resp = _patch(
             client,
             cfg.pk,
-            {"name": "Renamed", "created_by": 999_999, "updated_by": 999_999},
+            {"page_heading": "Edited", "created_by": 999_999, "updated_by": 999_999},
         )
         assert resp.status_code == 200
         cfg.refresh_from_db()
@@ -257,7 +257,7 @@ class TestPatch:
 @pytest.mark.django_db
 class TestDelete:
     def test_deletes(self, client, superuser):
-        cfg = KioskConfig.objects.create(name="Doomed")
+        cfg = KioskConfig.objects.create()
         client.force_login(superuser)
         resp = client.delete(detail_url(cfg.pk))
         assert resp.status_code == 204
@@ -268,7 +268,7 @@ class TestDelete:
         assert client.delete(detail_url(999_999)).status_code == 404
 
     def test_delete_non_superuser_forbidden(self, client, regular_user):
-        cfg = KioskConfig.objects.create(name="Survives")
+        cfg = KioskConfig.objects.create()
         client.force_login(regular_user)
         resp = client.delete(detail_url(cfg.pk))
         assert resp.status_code == 403

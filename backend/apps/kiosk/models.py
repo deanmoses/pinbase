@@ -8,34 +8,28 @@ docs/Provenance.md).
 from __future__ import annotations
 
 from django.conf import settings
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MinValueValidator
 from django.db import models
 
-from apps.core.models import TimeStampedModel, field_not_blank
+from apps.core.models import TimeStampedModel
 from apps.core.validators import validate_no_mojibake
 
 __all__ = ["KioskConfig", "KioskConfigItem"]
 
-IDLE_SECONDS_MIN = 10
-IDLE_SECONDS_MAX = 3600
+IDLE_SECONDS_MIN = 1
 
 
 class KioskConfig(TimeStampedModel):
-    """A named kiosk display configuration.
+    """A kiosk display configuration.
 
     A device "selects" a config via the ``kioskConfigId`` cookie set in the
     frontend. Multiple devices can share one config; one device shows one
-    config at a time.
+    config at a time. Configs are identified to operators by their integer
+    primary key (``#7``), optionally augmented in UI by ``page_heading``.
     """
 
     items: models.Manager[KioskConfigItem]
 
-    name = models.CharField(
-        max_length=80,
-        unique=True,
-        validators=[validate_no_mojibake],
-        help_text="Admin label shown in the kiosk list (e.g. 'Lobby kiosk').",
-    )
     page_heading = models.CharField(
         max_length=60,
         blank=True,
@@ -45,10 +39,7 @@ class KioskConfig(TimeStampedModel):
     )
     idle_seconds = models.PositiveIntegerField(
         default=180,
-        validators=[
-            MinValueValidator(IDLE_SECONDS_MIN),
-            MaxValueValidator(IDLE_SECONDS_MAX),
-        ],
+        validators=[MinValueValidator(IDLE_SECONDS_MIN)],
         help_text="Idle timeout before redirecting back to /kiosk.",
     )
     created_by = models.ForeignKey(
@@ -67,20 +58,18 @@ class KioskConfig(TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["id"]
         constraints = [
-            field_not_blank("name"),
             models.CheckConstraint(
-                condition=models.Q(
-                    idle_seconds__gte=IDLE_SECONDS_MIN,
-                    idle_seconds__lte=IDLE_SECONDS_MAX,
-                ),
+                condition=models.Q(idle_seconds__gte=IDLE_SECONDS_MIN),
                 name="kiosk_kioskconfig_idle_seconds_range",
             ),
         ]
 
     def __str__(self) -> str:
-        return self.name
+        return (
+            f"#{self.pk} — {self.page_heading}" if self.page_heading else f"#{self.pk}"
+        )
 
 
 class KioskConfigItem(TimeStampedModel):
@@ -122,4 +111,4 @@ class KioskConfigItem(TimeStampedModel):
         ]
 
     def __str__(self) -> str:
-        return f"{self.config.name} #{self.position}: {self.title.name}"
+        return f"#{self.config_id} pos {self.position}: {self.title.name}"
