@@ -198,7 +198,7 @@
   }
 
   .entity-name:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .muted {

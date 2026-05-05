@@ -395,7 +395,7 @@
     visibility: hidden;
     pointer-events: none;
     white-space: pre-wrap;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
     overflow: hidden;
     height: auto;
   }
@@ -404,7 +404,7 @@
 
   .link-dropdown {
     position: absolute;
-    z-index: 10;
+    z-index: var(--z-dropdown);
     min-width: 16rem;
     max-width: 24rem;
     max-height: 20rem;
@@ -412,6 +412,6 @@
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-popover);
   }
 </style>

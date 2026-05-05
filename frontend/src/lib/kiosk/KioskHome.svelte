@@ -120,7 +120,7 @@
   .card {
     display: flex;
     flex-direction: column;
-    background: var(--color-surface, #fff);
+    background: var(--color-surface);
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-3);
     overflow: hidden;
@@ -134,7 +134,7 @@
   .card:hover,
   .card:focus-visible {
     transform: scale(1.02);
-    box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+    box-shadow: var(--shadow-popover);
   }
 
   .card-media {
@@ -157,7 +157,7 @@
 
   .card-overlay {
     position: absolute;
-    inset: auto 0 0 0;
+    inset: auto 0 0;
     padding: var(--size-5) var(--size-4) var(--size-3);
     background: linear-gradient(
       to top,

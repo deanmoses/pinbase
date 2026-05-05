@@ -342,7 +342,7 @@
     align-items: baseline;
     gap: var(--size-1);
     color: var(--color-text-primary);
-    word-break: break-word;
+    overflow-wrap: break-word;
     flex: 1;
   }
 
@@ -426,7 +426,7 @@
     border: 1px solid var(--color-danger);
     border-radius: var(--radius-1);
     background: var(--color-danger);
-    color: white;
+    color: var(--color-text-inverse);
     cursor: pointer;
   }
 
@@ -461,7 +461,7 @@
     padding: 0.1em 0.4em;
     border-radius: var(--radius-1);
     background: var(--color-danger);
-    color: white;
+    color: var(--color-text-inverse);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.03em;

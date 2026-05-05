@@ -83,7 +83,7 @@
 
   .accordion-trigger:hover + .accordion-header .accordion-title,
   .accordion-trigger:hover + .accordion-header .chevron {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .accordion-trigger:focus-visible {
@@ -140,7 +140,7 @@
   }
 
   .edit-link:hover {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .chevron {

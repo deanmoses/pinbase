@@ -241,7 +241,7 @@
     background: none;
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
-    color: var(--color-accent);
+    color: var(--color-link);
     font-size: var(--font-size-1);
     cursor: pointer;
     transition:
@@ -251,7 +251,7 @@
 
   .see-all:hover {
     background-color: var(--color-surface);
-    border-color: var(--color-accent);
+    border-color: var(--color-link);
   }
 
   .no-results {

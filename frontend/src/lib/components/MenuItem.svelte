@@ -86,7 +86,7 @@
   .menu-item:hover,
   .menu-item:focus-visible {
     background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   @media (prefers-color-scheme: dark) {

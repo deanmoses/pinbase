@@ -3,8 +3,15 @@
    Open Props (JIT) + custom semantic tokens
    ======================================== */
 
-/* Open Props normalize — sets sensible defaults on base elements,
-   provides adaptive --surface-* and --text-* tokens */
+/* Open Props normalize — sets sensible defaults on base elements and
+   provides adaptive primitives (--surface-1..4, --text-1..2, --link,
+   --font-monospace-code, --font-size-*, etc.). We don't consume the
+   --surface-* / --text-* primitives directly — our own --color-* tokens
+   defined below win the cascade and carry the warm-cream brand palette.
+   We also redeclare --shadow-color / --shadow-strength explicitly in
+   both light and dark — normalize only sets them in its dark @media
+   block, so light mode would otherwise expand shadow recipes to
+   invalid CSS. */
 @import 'open-props/normalize';
 
 /* ========================================
@@ -17,90 +24,243 @@
    ======================================== */
 
 /* ========================================
-   TYPOGRAPHY
+   SEMANTIC DESIGN TOKENS — Light Theme
+   Warm off-white palette (from flipfix). Dark theme is based on VS Code's
+   "Dark Modern": https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json
+
+   What lives where:
+     - Spacing, type, radius, motion, easing — Open Props (loaded above
+       via `@import 'open-props/normalize'`)
+     - Colors, shadows, scrims, z-index — defined below
+     - Breakpoints — `lib/breakpoints.js` + `svelte.config.js`
+
+   Theming: dark mode via `prefers-color-scheme` only. If we ever add a
+   manual toggle, mirror the dark block under a `[data-theme="dark"]`
+   selector — don't re-architect the token names.
+
+   Naming convention:  --color-{category}[-{variant}][-{state}]
+   Status colors use bg / border / text triplets. Aliases at the bottom of
+   each block preserve legacy names so unmigrated components keep working;
+   they will be deleted once all consumers reference the new names.
    ======================================== */
 :root {
+  /* ---- Typography ---- */
   --font-body: 'Lora', serif;
-  --font-mono: var(--font-mono, monospace);
-}
+  --font-mono: var(--font-monospace-code, monospace);
 
-html {
-  font-family: var(--font-body);
-}
+  /* ---- Surfaces ---- */
+  --color-bg: #fbf7f0; /* page background */
+  --color-surface: #ffffff; /* cards, panels */
+  --color-surface-elevated: #ffffff; /* menus, tooltips, toasts (raised) */
+  --color-surface-muted: #f3efe8; /* recessed bg: kiosk panels, alt rows */
+  --color-surface-inverse: #1f1f1f; /* always-dark: lightbox bg, dense overlays */
 
-/* ========================================
-   SEMANTIC COLOR TOKENS — Light Theme
-   Warm off-white palette (from flipfix)
-   ======================================== */
-:root {
-  /* Surfaces */
-  --color-background: #fbf7f0;
-  --color-surface: #ffffff;
+  /* ---- Text ---- */
+  --color-text: #333333; /* primary */
+  --color-text-muted: #6b7280; /* secondary */
+  /* Inverse text: white text used on any saturated/dark surface
+     (surface-inverse, accent buttons, danger buttons, etc.). Theme-
+     invariant. Split into per-surface tokens (--color-text-on-accent,
+     --color-text-on-warning, etc.) only when a saturated bg color
+     emerges that fails contrast against white — e.g. a solid yellow
+     warning chip would need its own dark text token. */
+  --color-text-inverse: #ffffff;
+  --color-text-inverse-muted: rgb(255 255 255 / 0.7);
+
+  /* ---- Borders ---- */
   --color-border: #d1d5db;
   --color-border-soft: #e7e5e4;
 
-  /* Text */
-  --color-text-primary: #333333;
-  --color-text-muted: #6b7280;
-
-  /* Accent */
-  --color-accent: #0078d4;
+  /* ---- Action (accent: solid CTA-bg / borders / icons; link: text) ---- */
+  --color-accent: #0078d4; /* CTA bg, borders, icons — sized for white text on top */
   --color-accent-hover: #026ec1;
+  --color-accent-soft: rgb(0 120 212 / 0.1); /* selected rows, active filter pills */
+  --color-accent-border: rgb(0 120 212 / 0.4);
+  /* No --color-accent-active (pressed): we intentionally collapse pressed
+     into hover. Add only if a component needs to distinguish the two. */
+  /* `--color-link` is the *text* form of accent — same hue in light mode,
+     but lighter in dark mode for AA contrast on dark backgrounds. Use
+     this for any inline interactive text (links, sidebar items, tappable
+     list rows, accordion toggles); use --color-accent for surfaces. */
+  --color-link: var(--color-accent);
 
-  /* Semantic */
-  --color-success: #16a34a;
-  --color-error: #dc2626;
-  --color-danger: var(--color-error);
-  --color-warning: #b45309;
-  --color-link: #2563eb;
+  /* ---- Focus ring (used by all interactive elements) ---- */
+  --color-focus-ring: rgb(0 120 212 / 0.4);
 
-  /* Diff */
-  --color-diff-ins-bg: rgba(22, 163, 74, 0.15);
-  --color-diff-del-bg: rgba(220, 38, 38, 0.15);
+  /* ---- Disabled (cross-cutting state for any interactive element) ---- */
+  --color-text-disabled: #9ca3af;
+  --color-bg-disabled: #f3f4f6;
+  --color-border-disabled: #e5e7eb;
 
-  /* Inputs */
+  /* ---- Status (triplets: bg / border / text) ---- */
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #86efac;
+  --color-success-text: #16a34a;
+
+  --color-warning-bg: #fefce8;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #b45309;
+
+  --color-error-bg: #fef2f2;
+  --color-error-border: #fecaca;
+  --color-error-text: #dc2626;
+
+  --color-info-bg: #eff6ff;
+  --color-info-border: #bfdbfe;
+  --color-info-text: #1d4ed8;
+
+  /* ---- Inputs ---- */
   --color-input-bg: #ffffff;
   --color-input-border: #d1d5db;
   --color-input-focus: #0078d4;
-  --color-input-focus-ring: rgba(59, 130, 246, 0.15);
+  --color-input-focus-ring: var(--color-focus-ring);
+
+  /* ---- Highlight ---- */
+  --color-highlight-bg: #fff3cd; /* inline marks / search hits */
+
+  /* ---- Diff (special-purpose) ---- */
+  --color-diff-ins-bg: rgb(22 163 74 / 0.15);
+  --color-diff-del-bg: rgb(220 38 38 / 0.15);
+
+  /* ---- Scrims (theme-INVARIANT — black overlays in both modes) ---- */
+  --color-scrim: rgb(0 0 0 / 0.5); /* modals, action menus */
+  --color-scrim-strong: rgb(0 0 0 / 0.85); /* lightbox, hero overlay */
+
+  /* ---- Shadows (semantic elevation roles) ----
+     Built on the same `--shadow-color` / `--shadow-strength` pattern Open
+     Props uses, so dark mode adapts by overriding two scalars instead of
+     every shadow recipe.
+
+     Note: Open Props's `normalize` (which we import) only sets
+     --shadow-color / --shadow-strength inside its dark @media block — it
+     leaves them undefined in light mode. We must define light-mode
+     values ourselves OR shadows expand to invalid CSS and disappear.
+     Both modes are set explicitly below.
+
+     Pick by role:
+       --shadow-card     resting elevation for a tile sitting on the page
+       --shadow-popover  "this element floats above its siblings" —
+                         dropdowns, tooltips, action menus, AND the
+                         hover-lift state of cards (a card on hover
+                         steps up from -card to -popover)
+       --shadow-modal    overlay layer — modals, toasts, lightbox */
+  --shadow-color: 220 3% 15%;
+  --shadow-strength: 1%;
+  --shadow-card:
+    0 1px 3px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 7%)),
+    0 1px 2px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 3%));
+  --shadow-popover:
+    0 4px 12px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 9%)),
+    0 2px 4px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 5%));
+  --shadow-modal:
+    0 8px 24px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 14%)),
+    0 4px 8px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 7%));
+
+  /* ---- Z-index scale (theme-invariant)
+     Use these for global stacking layers only. Local stacking contexts
+     (siblings within a single component) should use plain integers.
+
+     ⚠️ Header is INTENTIONALLY below dropdown. A non-portaled popover
+     opened from the sticky nav must layer above the nav chrome — not
+     clip behind it. Don't reorder this without auditing every
+     nav-anchored popover/menu/autocomplete in the app. */
+  --z-header: 50; /* sticky nav (lowest of the named layers) */
+  --z-dropdown: 100; /* popovers, autocomplete, action menus */
+  --z-drawer: 200; /* off-canvas drawers + their backdrops */
+  --z-modal: 1000; /* modals, lightbox */
+  --z-toast: 1100; /* always above modals */
+  --z-tooltip: 1200; /* always above everything */
+
+  /* ---- Aliases (legacy names — keep until all consumers migrate) ---- */
+  --color-background: var(--color-bg);
+  --color-text-primary: var(--color-text);
+  --color-success: var(--color-success-text);
+  --color-warning: var(--color-warning-text);
+  --color-error: var(--color-error-text);
+  --color-danger: var(--color-error-text);
 }
 
-/* ========================================
-   SEMANTIC COLOR TOKENS — Dark Theme
-   Based on VS Code's "Dark Modern": https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json
-   ======================================== */
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Surfaces */
-    --color-background: #1f1f1f;
+    /* ---- Surfaces ---- */
+    --color-bg: #1f1f1f;
     --color-surface: #252525;
-    --color-border: #616161;
-    --color-border-soft: #2b2b2b;
+    --color-surface-elevated: #2d2d2d;
+    --color-surface-muted: #1a1a1a;
+    --color-surface-inverse: #0a0a0a;
+    /* --color-text-inverse{,-muted} stay white — they're for
+       saturated/dark surfaces that don't flip with theme. */
 
-    /* Text */
-    --color-text-primary: #cccccc;
+    /* ---- Text ---- */
+    --color-text: #cccccc;
     --color-text-muted: #9ca3af;
 
-    /* Accent */
-    --color-accent: #0078d4;
-    --color-accent-hover: #026ec1;
+    /* ---- Borders ---- */
+    --color-border: #616161;
+    --color-border-soft: #3a3a3a; /* soft but discernible against #1f1f1f bg */
 
-    /* Semantic */
-    --color-success: #2ea043;
-    --color-error: #f85149;
-    --color-danger: var(--color-error);
-    --color-warning: #fbbf24;
+    /* ---- Action ---- */
+    --color-accent: #0078d4; /* unchanged — sized for white-on-accent buttons */
+    --color-accent-hover: #026ec1;
+    --color-accent-soft: rgb(0 120 212 / 0.18);
+    --color-accent-border: rgb(0 120 212 / 0.5);
+    /* Link diverges from accent in dark mode: #0078d4 on dark bg fails
+       WCAG AA (~3.6:1); #4daafc passes (~6.6:1). White-on-accent buttons
+       still pass because their bg is the dark accent, not the light link. */
     --color-link: #4daafc;
 
-    /* Diff */
-    --color-diff-ins-bg: rgba(46, 160, 67, 0.25);
-    --color-diff-del-bg: rgba(248, 81, 73, 0.25);
+    /* ---- Focus ring ---- */
+    --color-focus-ring: rgb(0 120 212 / 0.5);
 
-    /* Inputs */
+    /* ---- Disabled ---- */
+    --color-text-disabled: #6b6b6b;
+    --color-bg-disabled: #2a2a2a;
+    --color-border-disabled: #3a3a3a;
+
+    /* ---- Status ---- */
+    --color-success-bg: rgb(46 160 67 / 0.15);
+    --color-success-border: #1f5132;
+    --color-success-text: #2ea043;
+
+    --color-warning-bg: rgb(251 191 36 / 0.15);
+    --color-warning-border: #5a4c1a;
+    --color-warning-text: #fbbf24;
+
+    --color-error-bg: rgb(248 81 73 / 0.15);
+    --color-error-border: #671e1e;
+    --color-error-text: #f85149;
+
+    --color-info-bg: rgb(77 170 252 / 0.12);
+    --color-info-border: #1e3a5f;
+    --color-info-text: #4daafc;
+
+    /* ---- Inputs ---- */
     --color-input-bg: #2b2b2b;
     --color-input-border: #404040;
     --color-input-focus: #0078d4;
-    --color-input-focus-ring: rgba(0, 120, 212, 0.25);
+    --color-input-focus-ring: rgb(0 120 212 / 0.25);
+
+    /* ---- Highlight ---- */
+    --color-highlight-bg: rgb(251 191 36 / 0.2);
+
+    /* ---- Diff ---- */
+    --color-diff-ins-bg: rgb(46 160 67 / 0.25);
+    --color-diff-del-bg: rgb(248 81 73 / 0.25);
+
+    /* Shadows: bump strength + saturate the shadow color for dark mode.
+       Both must be set here explicitly — our :root values above are
+       source-later than Open Props's own @media dark block, so they'd
+       otherwise override Open Props's adaptation. The semantic
+       --shadow-card/-popover/-modal recipes pick up these values
+       automatically.
+
+       Strength is 25%, not the 10% Open Props's normalize uses — at 10%
+       shadows render noticeably lighter than the hardcoded values this
+       project had pre-refactor (e.g. modal: 24%/17% vs old 50%/30%).
+       25% matches Open Props's *omnibus* default and lands close to the
+       previous visual weight. */
+    --shadow-color: 220 40% 2%;
+    --shadow-strength: 25%;
   }
 }
 
@@ -109,6 +269,7 @@ html {
    Override Open Props normalize with our tokens
    ======================================== */
 html {
+  font-family: var(--font-body);
   background-color: var(--color-background);
   color: var(--color-text-primary);
 }
@@ -201,6 +362,9 @@ a:hover {
   padding: 0;
   margin: -1px;
   overflow: hidden;
+  /* `clip` is deprecated but kept as the canonical pre-clip-path a11y
+     fallback — every assistive tech recognizes this exact incantation. */
+  /* stylelint-disable-next-line property-no-deprecated */
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;

@@ -198,7 +198,7 @@
   }
 
   .drop-zone.dragging {
-    border-color: var(--color-accent);
+    border-color: var(--color-link);
     background: color-mix(in srgb, var(--color-accent) 5%, transparent);
   }
 

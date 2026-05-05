@@ -166,7 +166,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    z-index: var(--z-modal);
     background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
@@ -185,7 +185,7 @@
     border-radius: var(--radius-3);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-modal);
     overflow: hidden;
   }
 

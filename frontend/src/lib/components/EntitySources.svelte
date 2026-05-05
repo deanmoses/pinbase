@@ -292,7 +292,7 @@
     gap: var(--size-1);
     font-size: var(--font-size-0);
     color: var(--color-text-primary);
-    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   .claim {
@@ -323,7 +323,7 @@
   .badge-used {
     font-size: var(--font-size-00, 0.7rem);
     font-weight: 600;
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .claim-note {

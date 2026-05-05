@@ -44,7 +44,7 @@
   .rating-value {
     font-size: var(--font-size-3);
     font-weight: 700;
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .rating-label {

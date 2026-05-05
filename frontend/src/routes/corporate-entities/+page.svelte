@@ -67,7 +67,7 @@
   }
 
   .entity-row:hover .entity-name {
-    color: var(--color-accent);
+    color: var(--color-link);
   }
 
   .entity-name {

@@ -64,7 +64,7 @@
 
   .intro p {
     font-size: var(--font-size-2);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     margin-bottom: var(--size-4);
     line-height: 1.7;
   }

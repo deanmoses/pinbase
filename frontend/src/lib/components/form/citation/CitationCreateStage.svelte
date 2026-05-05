@@ -243,7 +243,7 @@
   }
 
   .form-error {
-    color: var(--color-danger, #c00);
+    color: var(--color-danger);
     font-size: var(--font-size-0);
   }
 

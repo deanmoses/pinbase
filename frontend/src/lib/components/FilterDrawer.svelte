@@ -88,7 +88,7 @@
   }
 
   .filter-toggle:hover {
-    border-color: var(--color-accent);
+    border-color: var(--color-link);
   }
 
   /* Drawer header (close button) — hidden on desktop */
@@ -135,7 +135,7 @@
       bottom: 0;
       width: min(20rem, 85vw);
       background-color: var(--color-background);
-      z-index: 200;
+      z-index: var(--z-drawer);
       padding: var(--size-4);
       overflow-y: auto;
       transform: translateX(-100%);
@@ -151,7 +151,7 @@
       position: fixed;
       inset: 0;
       background-color: rgba(0, 0, 0, 0.4);
-      z-index: 199;
+      z-index: var(--z-drawer);
     }
   }
 </style>

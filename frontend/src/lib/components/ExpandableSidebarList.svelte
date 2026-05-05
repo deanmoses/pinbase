@@ -42,7 +42,7 @@
   .show-toggle {
     background: none;
     border: none;
-    color: var(--color-accent);
+    color: var(--color-link);
     font-size: var(--font-size-0);
     padding: var(--size-1) 0 0;
     cursor: pointer;

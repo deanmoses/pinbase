@@ -139,14 +139,14 @@
   }
 
   .explore-card:hover {
-    border-color: var(--color-accent);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+    border-color: var(--color-link);
+    box-shadow: var(--shadow-popover);
   }
 
   .explore-label {
     font-size: var(--font-size-4);
     font-weight: 600;
-    color: var(--color-accent);
+    color: var(--color-link);
     margin-bottom: var(--size-1);
   }
 

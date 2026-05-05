@@ -73,13 +73,13 @@
   }
 
   .chip:hover:not(:disabled) {
-    border-color: var(--color-accent);
+    border-color: var(--color-link);
   }
 
   .chip.active {
-    background-color: var(--color-accent);
-    border-color: var(--color-accent);
-    color: white;
+    background-color: var(--color-link);
+    border-color: var(--color-link);
+    color: var(--color-text-inverse);
   }
 
   .chip.active .chip-count {
