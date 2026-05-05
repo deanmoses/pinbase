@@ -4,6 +4,7 @@
   import WikilinkAutocomplete from './WikilinkAutocomplete.svelte';
   import { fetchLinkTypes } from '$lib/api/link-types';
   import { detectTrigger, spliceLink } from './wikilink-helpers';
+  import { floating } from '$lib/actions/floating';
   import {
     toggleMarker,
     wrapSelection,
@@ -48,17 +49,22 @@
   let open = $state(false);
   let triggerStart = $state(-1);
   let initialType: string | undefined = $state();
-  let dropdownLeft = $state(0);
-  let dropdownTop = $state(0);
+  let cursorRect = $state<DOMRect>(new DOMRect());
   let textareaBlurTimeout: ReturnType<typeof setTimeout> | undefined;
   let autocompleteBlurTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  // Virtual reference element for Floating UI: returns the current cursor's
+  // viewport rect so the dropdown anchors to the caret position in the textarea.
+  const cursorAnchor = {
+    getBoundingClientRect: () => cursorRect,
+  };
 
   // -----------------------------------------------------------------------
   // Cursor position via mirror div
   // -----------------------------------------------------------------------
 
-  function getCursorPosition(): { left: number; top: number } {
-    if (!textareaEl || !mirrorEl) return { left: 0, top: 0 };
+  function getCursorRect(): DOMRect {
+    if (!textareaEl || !mirrorEl) return new DOMRect();
 
     // Copy textarea styles to mirror
     const computed = window.getComputedStyle(textareaEl);
@@ -82,16 +88,20 @@
     mirrorEl.innerHTML = escaped + '<span data-cursor></span>';
 
     const cursorSpan = mirrorEl.querySelector('[data-cursor]');
-    if (!cursorSpan) return { left: 0, top: 0 };
+    if (!cursorSpan) return new DOMRect();
 
-    const cursorRect = cursorSpan.getBoundingClientRect();
+    // Mirror replicates textarea layout but lives elsewhere in the DOM. The
+    // span's offset within the mirror equals the caret's offset within the
+    // textarea, so add the textarea's viewport position and subtract scroll.
+    const spanRect = cursorSpan.getBoundingClientRect();
+    const mirrorRect = mirrorEl.getBoundingClientRect();
     const textareaRect = textareaEl.getBoundingClientRect();
-
-    let left = cursorRect.left - textareaRect.left + textareaEl.scrollLeft;
-    let top = cursorRect.top - textareaRect.top - textareaEl.scrollTop + cursorSpan.clientHeight;
-    top = Math.min(top, textareaEl.offsetHeight - 20);
-
-    return { left, top };
+    return new DOMRect(
+      textareaRect.left + (spanRect.left - mirrorRect.left) - textareaEl.scrollLeft,
+      textareaRect.top + (spanRect.top - mirrorRect.top) - textareaEl.scrollTop,
+      1,
+      cursorSpan.clientHeight,
+    );
   }
 
   // -----------------------------------------------------------------------
@@ -114,9 +124,7 @@
 
   function openDropdown() {
     clearBlurTimeouts();
-    const pos = getCursorPosition();
-    dropdownLeft = pos.left;
-    dropdownTop = pos.top;
+    cursorRect = getCursorRect();
     open = true;
   }
 
@@ -247,11 +255,13 @@
     }
   }
 
-  // Click outside to close
+  // Click outside to close. The dropdown is portaled to <body>, so check both
+  // the wrapper (for the textarea/toolbar) and the dropdown itself.
   $effect(() => {
     if (!open) return;
     function onPointerDown(e: PointerEvent) {
-      if (!wrapperEl?.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (!wrapperEl?.contains(target) && !autocompleteEl?.contains(target)) {
         closeDropdown();
       }
     }
@@ -354,10 +364,9 @@
     <div
       class="link-dropdown"
       role="presentation"
-      style:left="{dropdownLeft}px"
-      style:top="{dropdownTop}px"
       bind:this={autocompleteEl}
-      onmousedown={(e) => {
+      use:floating={{ anchor: cursorAnchor, placement: 'bottom-start', offset: 4 }}
+      onmousedown={(e: MouseEvent) => {
         if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
       }}
       onfocusout={handleAutocompleteFocusout}
@@ -403,7 +412,7 @@
   /* ----- Dropdown ----- */
 
   .link-dropdown {
-    position: absolute;
+    /* Position is set by the `floating` action (portaled to <body>). */
     z-index: var(--z-dropdown);
     min-width: 16rem;
     max-width: 24rem;
