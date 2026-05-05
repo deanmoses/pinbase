@@ -2,13 +2,31 @@
  * Kiosk configuration and cookie helpers. Browser-only; do not import from
  * server load functions.
  *
- * - `mode=kiosk` cookie answers "is this device a kiosk?" (server-readable).
- * - `kioskConfig` localStorage entry answers "what should it show?" (client-only).
+ * Three cookies coordinate kiosk mode:
+ * - `mode=kiosk` — gates kiosk-mode behavior site-wide.
+ * - `kioskConfigId=<id>` — which DB-backed config the device displays;
+ *   read by `/kiosk/+page.server.ts` to fetch the page model.
+ * - `kioskIdleSeconds=<n>` — denormalized copy of the config's
+ *   `idle_seconds`. KioskMode runs on every route so it can return a
+ *   wandered-off device to /kiosk on idle; reading this from a cookie
+ *   avoids a server load on every navigation just to learn one integer.
+ *   Kept in sync at two write sites: list-page "Enter Kiosk Mode" (uses
+ *   the config's known idle_seconds) and editor "Save" (refreshes the
+ *   cookie when the value changed). Stale-cookie risk is "operator
+ *   edited idle_seconds from another device" — for a single-device
+ *   museum kiosk this is fine, and re-picking the config from the
+ *   device fixes it.
+ *
+ * The legacy `kioskConfig` localStorage entry is still read/written by
+ * `/kiosk/configure` and `KioskHome` until step 3 of this branch swaps them
+ * onto the DB-backed config; the helpers below stay in place until then.
  */
 
 const STORAGE_KEY = 'kioskConfig';
-const COOKIE_NAME = 'mode';
-const COOKIE_VALUE = 'kiosk';
+const MODE_COOKIE_NAME = 'mode';
+const MODE_COOKIE_VALUE = 'kiosk';
+const CONFIG_ID_COOKIE_NAME = 'kioskConfigId';
+const IDLE_SECONDS_COOKIE_NAME = 'kioskIdleSeconds';
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 year
 
 export const DEFAULT_TITLE = 'Machines Around You';
@@ -58,15 +76,73 @@ export function clearConfig(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+function cookieFlags(): string {
+  const secure =
+    typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+  return `Path=/; SameSite=Lax${secure}`;
+}
+
 export function setKioskCookie(): void {
-  document.cookie = `${COOKIE_NAME}=${COOKIE_VALUE}; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
+  document.cookie = `${MODE_COOKIE_NAME}=${MODE_COOKIE_VALUE}; ${cookieFlags()}; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
 }
 
 export function clearKioskCookie(): void {
-  document.cookie = `${COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+  document.cookie = `${MODE_COOKIE_NAME}=; ${cookieFlags()}; Max-Age=0`;
+}
+
+/**
+ * Set the three kiosk-mode cookies. Call from the `/kiosk/edit` list page
+ * when an operator picks a config ("Enter Kiosk Mode") and from the editor
+ * when "Save" changes `idle_seconds`. `idleSeconds` is denormalized into a
+ * cookie so `KioskMode.svelte` can read it without a server load on every
+ * navigation; see the file-header comment.
+ */
+export function setKioskCookies(configId: number, idleSeconds: number): void {
+  const flags = cookieFlags();
+  document.cookie = `${MODE_COOKIE_NAME}=${MODE_COOKIE_VALUE}; ${flags}; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
+  document.cookie = `${CONFIG_ID_COOKIE_NAME}=${configId}; ${flags}; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
+  document.cookie = `${IDLE_SECONDS_COOKIE_NAME}=${idleSeconds}; ${flags}; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
+}
+
+export function clearKioskCookies(): void {
+  const flags = cookieFlags();
+  document.cookie = `${MODE_COOKIE_NAME}=; ${flags}; Max-Age=0`;
+  document.cookie = `${CONFIG_ID_COOKIE_NAME}=; ${flags}; Max-Age=0`;
+  document.cookie = `${IDLE_SECONDS_COOKIE_NAME}=; ${flags}; Max-Age=0`;
 }
 
 export function isKioskCookieSet(): boolean {
   if (typeof document === 'undefined') return false;
-  return new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=${COOKIE_VALUE}(?:;|$)`).test(document.cookie);
+  return new RegExp(`(?:^|;\\s*)${MODE_COOKIE_NAME}=${MODE_COOKIE_VALUE}(?:;|$)`).test(
+    document.cookie,
+  );
+}
+
+/**
+ * Browser-only. Reads `kioskConfigId` from `document.cookie`. The server
+ * (e.g. `/kiosk/+page.server.ts`) reads it via SvelteKit's
+ * `cookies.get('kioskConfigId')` directly — no helper needed there.
+ *
+ * Returns the parsed positive integer id, or null when the cookie is
+ * absent or malformed.
+ */
+export function getKioskConfigIdFromCookie(): number | null {
+  return parsePositiveIntCookie(CONFIG_ID_COOKIE_NAME);
+}
+
+/**
+ * Browser-only. Reads `kioskIdleSeconds` from `document.cookie`. Used by
+ * `KioskMode.svelte`. Returns null if absent/malformed; callers fall back
+ * to `DEFAULT_IDLE_SECONDS`.
+ */
+export function getKioskIdleSecondsFromCookie(): number | null {
+  return parsePositiveIntCookie(IDLE_SECONDS_COOKIE_NAME);
+}
+
+function parsePositiveIntCookie(name: string): number | null {
+  if (typeof document === 'undefined') return null;
+  const match = new RegExp(`(?:^|;\\s*)${name}=([^;]+)`).exec(document.cookie);
+  if (!match) return null;
+  const n = Number(match[1]);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }

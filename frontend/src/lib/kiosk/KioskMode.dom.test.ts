@@ -1,43 +1,30 @@
 import { render } from '@testing-library/svelte';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import KioskMode from './KioskMode.svelte';
+import { clearKioskCookies, setKioskCookies } from './config';
 
 const { goto, mockPage } = vi.hoisted(() => ({
   goto: vi.fn(),
-  mockPage: { url: new URL('http://localhost/') },
+  mockPage: { url: new URL('http://localhost/kiosk') },
 }));
 vi.mock('$app/navigation', () => ({ goto }));
 vi.mock('$app/state', () => ({ page: mockPage }));
 
-beforeAll(() => {
-  const store = new Map<string, string>();
-  vi.stubGlobal('localStorage', {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => store.set(k, String(v)),
-    removeItem: (k: string) => store.delete(k),
-    clear: () => store.clear(),
-    key: (i: number) => Array.from(store.keys())[i] ?? null,
-    get length() {
-      return store.size;
-    },
-  } satisfies Storage);
-});
-
 describe('KioskMode', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    localStorage.clear();
+    clearKioskCookies();
     goto.mockClear();
-    mockPage.url = new URL('http://localhost/');
+    mockPage.url = new URL('http://localhost/kiosk');
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('navigates to /kiosk after the configured idle timeout', () => {
-    localStorage.setItem('kioskConfig', JSON.stringify({ title: 't', idleSeconds: 5, items: [] }));
+  it('navigates to /kiosk after the cookie-supplied idle timeout', () => {
+    setKioskCookies(1, 5);
 
     render(KioskMode);
 
@@ -45,9 +32,9 @@ describe('KioskMode', () => {
     expect(goto).toHaveBeenCalledWith('/kiosk', { invalidateAll: true, replaceState: true });
   });
 
-  it('does not arm the timer on /kiosk/configure', () => {
-    mockPage.url = new URL('http://localhost/kiosk/configure');
-    localStorage.setItem('kioskConfig', JSON.stringify({ title: 't', idleSeconds: 5, items: [] }));
+  it('does not arm the timer on /kiosk/edit/[id] (staff editor)', () => {
+    setKioskCookies(1, 5);
+    mockPage.url = new URL('http://localhost/kiosk/edit/3');
 
     render(KioskMode);
 
@@ -55,8 +42,28 @@ describe('KioskMode', () => {
     expect(goto).not.toHaveBeenCalled();
   });
 
+  it('does not arm the timer on /kiosk/edit (list page)', () => {
+    setKioskCookies(1, 5);
+    mockPage.url = new URL('http://localhost/kiosk/edit');
+
+    render(KioskMode);
+
+    vi.advanceTimersByTime(60_000);
+    expect(goto).not.toHaveBeenCalled();
+  });
+
+  it('arms the timer on unrelated routes — global idle return is the point', () => {
+    setKioskCookies(1, 5);
+    mockPage.url = new URL('http://localhost/titles/gorgar');
+
+    render(KioskMode);
+
+    vi.advanceTimersByTime(5000);
+    expect(goto).toHaveBeenCalledWith('/kiosk', { invalidateAll: true, replaceState: true });
+  });
+
   it('resets the timer when the user interacts', () => {
-    localStorage.setItem('kioskConfig', JSON.stringify({ title: 't', idleSeconds: 5, items: [] }));
+    setKioskCookies(1, 5);
 
     render(KioskMode);
 
@@ -69,7 +76,7 @@ describe('KioskMode', () => {
     expect(goto).toHaveBeenCalledTimes(1);
   });
 
-  it('uses default idle timeout when no config is stored', () => {
+  it('falls back to the default idle timeout when no cookie is set', () => {
     render(KioskMode);
 
     vi.advanceTimersByTime(180 * 1000 - 1);
@@ -79,7 +86,7 @@ describe('KioskMode', () => {
   });
 
   it('cleans up timer and listeners on unmount', () => {
-    localStorage.setItem('kioskConfig', JSON.stringify({ title: 't', idleSeconds: 5, items: [] }));
+    setKioskCookies(1, 5);
 
     const { unmount } = render(KioskMode);
     unmount();
