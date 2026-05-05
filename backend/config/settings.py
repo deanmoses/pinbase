@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.citation",
     "apps.provenance",
     "apps.media",
+    "apps.kiosk",
     "constance",
     "constance.backends.database",
 ]
