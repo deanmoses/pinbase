@@ -82,8 +82,8 @@ Use `createServerClient` from `$lib/api/server`:
 ```ts
 import { createServerClient } from "$lib/api/server";
 
-export const load: PageServerLoad = async ({ fetch, url, params }) => {
-  const client = createServerClient(fetch, url);
+export const load: PageServerLoad = async ({ fetch, url, request, params }) => {
+  const client = createServerClient(fetch, url, request);
   const { data, response } = await client.GET("/api/pages/title/{public_id}", {
     params: { path: { public_id: params.slug } },
   });
@@ -91,7 +91,7 @@ export const load: PageServerLoad = async ({ fetch, url, params }) => {
 };
 ```
 
-`createServerClient` resolves `INTERNAL_API_BASE_URL` (direct-to-Django in production) with a fallback to the request origin (Vite proxy in dev). Every SSR load function should use this helper instead of constructing the client manually.
+`createServerClient` resolves `INTERNAL_API_BASE_URL` (direct-to-Django in production) with a fallback to the request origin (Vite proxy in dev). Every SSR load function should use this helper instead of constructing the client manually. Passing `request` is required: in production SSR crosses origins to reach Django, and SvelteKit's `event.fetch` only forwards cookies same-origin, so the helper forwards the user's `Cookie` header from the incoming request — without it, every authenticated endpoint sees an anonymous request.
 
 This keeps:
 

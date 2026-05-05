@@ -16,9 +16,11 @@ type Cookies = { get: (name: string) => string | undefined };
 
 function makeEvent(cookieMap: Record<string, string>) {
   const cookies: Cookies = { get: (k) => cookieMap[k] };
+  const url = new URL('http://localhost/kiosk');
   return {
     fetch: globalThis.fetch,
-    url: new URL('http://localhost/kiosk'),
+    url,
+    request: new Request(url),
     cookies,
   };
 }

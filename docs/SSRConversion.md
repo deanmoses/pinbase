@@ -26,7 +26,7 @@ For a typical detail page conversion:
 2. tag it `tags=["private"]`
 3. reuse existing serializer/query logic when the existing resource endpoint already returns the right page model
 4. replace `+layout.ts` or `+page.ts` with `+layout.server.ts` or `+page.server.ts`
-5. use `createServerClient(fetch, url)` from `$lib/api/server`
+5. use `createServerClient(fetch, url, request)` from `$lib/api/server`
 6. audit every child route before removing inherited `ssr = false`
 7. remove the old resource detail endpoint and migrate its tests (see [Removing the Old Detail Endpoint](#removing-the-old-detail-endpoint))
 8. add frontend SSR tests (backend coverage comes from step 7)
@@ -55,7 +55,7 @@ When converting the route loader:
 
 - replace `+page.ts` with `+page.server.ts`, or `+layout.ts` with `+layout.server.ts`
 - remove browser `client` usage from the server load path
-- use `createServerClient(fetch, url)` from `$lib/api/server`
+- use `createServerClient(fetch, url, request)` from `$lib/api/server` — the `request` argument is required so the user's Cookie header is forwarded across origins to Django
 - `$lib/api/server` imports `$env/dynamic/private` and can only be used in server-side files (`+page.server.ts`, `+layout.server.ts`) — importing it from a universal `+page.ts` will error
 - fetch one backend endpoint that already matches the page
 - return the page model directly to the route
@@ -67,8 +67,13 @@ import { error } from "@sveltejs/kit";
 import { createServerClient } from "$lib/api/server";
 import type { LayoutServerLoad } from "./$types";
 
-export const load: LayoutServerLoad = async ({ fetch, url, params }) => {
-  const client = createServerClient(fetch, url);
+export const load: LayoutServerLoad = async ({
+  fetch,
+  url,
+  request,
+  params,
+}) => {
+  const client = createServerClient(fetch, url, request);
   const { data, response } = await client.GET("/api/pages/title/{slug}", {
     params: { path: { slug: params.slug } },
   });

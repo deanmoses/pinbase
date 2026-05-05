@@ -4,7 +4,7 @@ import client, { createApiClient } from './client';
 describe('api client', () => {
   it('throws if the default client is used on the server', () => {
     expect(() => client.GET).toThrow(
-      'The default API client is browser-only. Server-side routes must use createApiClient(fetch, baseUrl?) instead.',
+      'The default API client is browser-only. Server-side routes must use createServerClient(fetch, url, request) from $lib/api/server instead.',
     );
   });
 
@@ -22,6 +22,42 @@ describe('api client', () => {
     const request = fetch.mock.calls[0]?.[0];
     expect(request).toBeInstanceOf(Request);
     expect(request.url).toBe('http://localhost:5173/api/health');
+  });
+
+  describe('cookie forwarding for SSR', () => {
+    it('forwards the Cookie header from the incoming request', async () => {
+      const fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+      const incoming = new Request('https://flipcommons.org/kiosk/edit', {
+        headers: { cookie: 'sessionid=abc; csrftoken=xyz' },
+      });
+      const apiClient = createApiClient(fetch, 'http://127.0.0.1:8000', incoming);
+
+      await apiClient.GET('/api/auth/me/');
+
+      const request = fetch.mock.calls[0]?.[0] as Request;
+      expect(request.headers.get('cookie')).toBe('sessionid=abc; csrftoken=xyz');
+    });
+
+    it('does not set a Cookie header when the incoming request has none', async () => {
+      const fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+      const incoming = new Request('https://flipcommons.org/kiosk/edit');
+      const apiClient = createApiClient(fetch, 'http://127.0.0.1:8000', incoming);
+
+      await apiClient.GET('/api/auth/me/');
+
+      const request = fetch.mock.calls[0]?.[0] as Request;
+      expect(request.headers.get('cookie')).toBeNull();
+    });
   });
 
   describe('public_id path-param slash preservation', () => {

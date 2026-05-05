@@ -14,9 +14,12 @@ vi.mock('$app/paths', () => ({ resolve: (p: string) => p }));
 import { load } from './+layout.server';
 
 function makeEvent() {
+  const url = new URL('http://localhost/kiosk/edit');
+  const request = new Request(url, { headers: { cookie: 'sessionid=abc' } });
   return {
     fetch: globalThis.fetch,
-    url: new URL('http://localhost/kiosk/edit'),
+    url,
+    request,
   };
 }
 
@@ -35,6 +38,15 @@ async function expectRedirectTo(target: string) {
 describe('/kiosk/edit auth gate', () => {
   beforeEach(() => {
     GET.mockReset();
+    createServerClient.mockClear();
+  });
+
+  it('forwards the incoming request to createServerClient (cookie plumbing)', async () => {
+    GET.mockResolvedValue({ data: { is_authenticated: true, is_superuser: true } });
+    const event = makeEvent();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await load(event as any);
+    expect(createServerClient).toHaveBeenCalledWith(event.fetch, event.url, event.request);
   });
 
   it('redirects anon to /login', async () => {

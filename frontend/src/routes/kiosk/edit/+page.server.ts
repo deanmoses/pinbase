@@ -2,8 +2,8 @@ import { error } from '@sveltejs/kit';
 import { createServerClient } from '$lib/api/server';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ fetch, url, cookies }) => {
-  const client = createServerClient(fetch, url);
+export const load: PageServerLoad = async ({ fetch, url, request, cookies }) => {
+  const client = createServerClient(fetch, url, request);
   const { data, response } = await client.GET('/api/kiosk/configs/');
   if (!data) throw error(response?.status || 500, 'Failed to load kiosks');
 
