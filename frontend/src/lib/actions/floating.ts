@@ -71,8 +71,10 @@ export const floating: Action<HTMLElement, FloatingOptions> = (node, options) =>
   // Hide until the first position resolves to avoid a top-left flash on first
   // open (the dynamic import is async, so the floating element would otherwise
   // be visible briefly at translate(0,0) before computePosition runs).
-  const originalVisibility = node.style.visibility;
-  node.style.visibility = 'hidden';
+  // Use opacity rather than visibility so the element stays in the
+  // accessibility tree — testing-library's getByRole skips visibility:hidden.
+  const originalOpacity = node.style.opacity;
+  node.style.opacity = '0';
   node.style.position = 'fixed';
   node.style.top = '0';
   node.style.left = '0';
@@ -98,7 +100,7 @@ export const floating: Action<HTMLElement, FloatingOptions> = (node, options) =>
       .then(({ x, y }) => {
         if (destroyed) return;
         node.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-        node.style.visibility = originalVisibility;
+        node.style.opacity = originalOpacity;
       });
   }
 

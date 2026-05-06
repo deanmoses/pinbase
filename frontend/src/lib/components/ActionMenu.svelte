@@ -1,6 +1,8 @@
 <script lang="ts">
   import { setContext, untrack, type Snippet } from 'svelte';
 
+  import { floating } from '$lib/actions/floating';
+
   type Props = {
     label: string;
     disabled?: boolean;
@@ -22,6 +24,9 @@
   }: Props = $props();
 
   const role: 'menu' | 'listbox' = $derived(roleProp ?? (variant === 'pill' ? 'listbox' : 'menu'));
+  const placement = $derived(
+    variant === 'pill' ? 'top-start' : variant === 'heading' ? 'bottom-start' : 'bottom-end',
+  );
   // Context captures the role at construction time and is read once by descendants;
   // role is stable for the lifetime of the component for all current call sites.
   setContext<'menu' | 'listbox'>(
@@ -203,47 +208,40 @@
   });
 </script>
 
-<div class="action-menu">
-  <button
-    bind:this={triggerEl}
-    type="button"
-    class="trigger"
-    class:heading={variant === 'heading'}
-    class:pill={variant === 'pill'}
-    class:bare={variant === 'bare'}
-    {disabled}
-    aria-haspopup={role === 'listbox' ? 'listbox' : 'menu'}
-    aria-expanded={open}
-    aria-controls={open ? menuId : undefined}
-    aria-label={ariaLabel ?? (trigger ? label : undefined)}
-    onclick={toggleMenu}
-    onkeydown={handleTriggerKeydown}
+<button
+  bind:this={triggerEl}
+  type="button"
+  class="trigger"
+  class:heading={variant === 'heading'}
+  class:pill={variant === 'pill'}
+  class:bare={variant === 'bare'}
+  {disabled}
+  aria-haspopup={role === 'listbox' ? 'listbox' : 'menu'}
+  aria-expanded={open}
+  aria-controls={open ? menuId : undefined}
+  aria-label={ariaLabel ?? (trigger ? label : undefined)}
+  onclick={toggleMenu}
+  onkeydown={handleTriggerKeydown}
+>
+  {#if trigger}{@render trigger()}{:else}{label}{/if}
+</button>
+{#if open && triggerEl}
+  <div
+    bind:this={menuEl}
+    id={menuId}
+    class="menu"
+    {role}
+    tabindex="-1"
+    aria-label={ariaLabel ?? label}
+    use:floating={{ anchor: triggerEl, placement }}
+    onkeydown={handleMenuKeydown}
+    onclick={handleMenuClick}
   >
-    {#if trigger}{@render trigger()}{:else}{label}{/if}
-  </button>
-  {#if open}
-    <div
-      bind:this={menuEl}
-      id={menuId}
-      class="menu"
-      class:align-start={variant === 'heading' || variant === 'pill'}
-      class:opens-up={variant === 'pill'}
-      {role}
-      tabindex="-1"
-      aria-label={ariaLabel ?? label}
-      onkeydown={handleMenuKeydown}
-      onclick={handleMenuClick}
-    >
-      {@render children()}
-    </div>
-  {/if}
-</div>
+    {@render children()}
+  </div>
+{/if}
 
 <style>
-  .action-menu {
-    position: relative;
-  }
-
   .trigger {
     color: var(--color-text-muted);
     cursor: pointer;
@@ -315,9 +313,6 @@
   }
 
   .menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
     background: var(--color-background);
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
@@ -325,15 +320,5 @@
     min-width: 7rem;
     z-index: var(--z-dropdown);
     box-shadow: var(--shadow-popover);
-  }
-
-  .menu.align-start {
-    right: auto;
-    left: 0;
-  }
-
-  .menu.opens-up {
-    top: auto;
-    bottom: calc(100% + 4px);
   }
 </style>

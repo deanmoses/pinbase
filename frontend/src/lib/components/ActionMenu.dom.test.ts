@@ -155,7 +155,6 @@ describe('ActionMenu', () => {
 
       const listbox = screen.getByRole('listbox');
       expect(listbox).toBeInTheDocument();
-      expect(listbox).toHaveClass('opens-up');
 
       const options = screen.getAllByRole('option');
       expect(options.map((o) => o.textContent?.trim())).toEqual([
