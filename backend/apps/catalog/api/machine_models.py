@@ -40,7 +40,7 @@ from apps.provenance.schemas import (
     RichTextSchema,
 )
 
-from ..cache import MODELS_ALL_KEY, get_cached_response, set_cached_response
+from ..cache import get_cached_response, models_all_key, set_cached_response
 from ..models import (
     Cabinet,
     CorporateEntity,
@@ -758,7 +758,7 @@ def list_all_models(
     bulk through-table queries for M2M data.  See ``list_all_titles`` for
     the full explanation of this pattern.
     """
-    response = get_cached_response(MODELS_ALL_KEY)
+    response = get_cached_response(models_all_key())
     if response is not None:
         return response
 
@@ -908,7 +908,7 @@ def list_all_models(
                 "title_slug": r.title_slug,
             }
         )
-    return set_cached_response(MODELS_ALL_KEY, _ALL_ADAPTER, result)
+    return set_cached_response(models_all_key(), _ALL_ADAPTER, result)
 
 
 @models_router.get("/edit-options/", response=ModelEditOptionsSchema)

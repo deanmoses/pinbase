@@ -37,7 +37,7 @@ from apps.provenance.rate_limits import (
 )
 from apps.provenance.schemas import ChangeSetInputSchema, RichTextSchema
 
-from ..cache import PEOPLE_ALL_KEY, get_cached_response, set_cached_response
+from ..cache import get_cached_response, people_all_key, set_cached_response
 from ..models import Credit, MachineModel, Person
 from ._typing import HasCreditCount
 from .constants import DEFAULT_PAGE_SIZE
@@ -250,7 +250,7 @@ def list_all_people(
     thumbnails, instead of prefetching all credits and iterating in Python.
     See ``list_all_titles`` for the full explanation of this pattern.
     """
-    response = get_cached_response(PEOPLE_ALL_KEY)
+    response = get_cached_response(people_all_key())
     if response is not None:
         return response
 
@@ -306,7 +306,7 @@ def list_all_people(
                 "thumbnail_url": thumb,
             }
         )
-    return set_cached_response(PEOPLE_ALL_KEY, _ALL_ADAPTER, result)
+    return set_cached_response(people_all_key(), _ALL_ADAPTER, result)
 
 
 @people_router.patch(

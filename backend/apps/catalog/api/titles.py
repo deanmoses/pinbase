@@ -54,7 +54,7 @@ from apps.provenance.schemas import (
     RichTextSchema,
 )
 
-from ..cache import TITLES_ALL_KEY, get_cached_response, set_cached_response
+from ..cache import get_cached_response, set_cached_response, titles_all_key
 from ..models import (
     Credit,
     MachineModel,
@@ -746,7 +746,7 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
     This reduces cold-cache rebuild from ~3.5s to ~0.5s locally
     (~30s to ~5s on production hardware).
     """
-    response = get_cached_response(TITLES_ALL_KEY)
+    response = get_cached_response(titles_all_key())
     if response is not None:
         return response
 
@@ -956,7 +956,7 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
                 ),
             }
         )
-    return set_cached_response(TITLES_ALL_KEY, _ALL_ADAPTER, result)
+    return set_cached_response(titles_all_key(), _ALL_ADAPTER, result)
 
 
 @titles_router.patch(
