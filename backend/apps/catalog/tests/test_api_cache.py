@@ -2,7 +2,7 @@ import pytest
 from constance.signals import config_updated
 from django.core.cache import cache
 
-from apps.catalog.cache import MODELS_ALL_KEY, TITLES_ALL_KEY
+from apps.catalog.cache import models_all_key, titles_all_key
 from apps.catalog.models import (
     Cabinet,
     CorporateEntity,
@@ -41,18 +41,18 @@ class TestAllEndpointCache:
     def test_models_all_caches_on_second_request(self, client, machine_model):
         resp1 = client.get("/api/models/all/")
         assert resp1.status_code == 200
-        assert cache.get(MODELS_ALL_KEY) is not None
+        assert cache.get(models_all_key()) is not None
 
         resp2 = client.get("/api/models/all/")
         assert resp2.json() == resp1.json()
 
     def test_model_save_invalidates_cache(self, client, machine_model):
         client.get("/api/models/all/")
-        assert cache.get(MODELS_ALL_KEY) is not None
+        assert cache.get(models_all_key()) is not None
 
         machine_model.name = "Medieval Madness LE"
         machine_model.save()
-        assert cache.get(MODELS_ALL_KEY) is None
+        assert cache.get(models_all_key()) is None
 
     def test_new_model_appears_after_invalidation(self, client, machine_model):
         resp1 = client.get("/api/models/all/")
@@ -65,7 +65,7 @@ class TestAllEndpointCache:
     def test_titles_all_caches_on_second_request(self, client, machine_model):
         resp1 = client.get("/api/titles/all/")
         assert resp1.status_code == 200
-        assert cache.get(TITLES_ALL_KEY) is not None
+        assert cache.get(titles_all_key()) is not None
 
         resp2 = client.get("/api/titles/all/")
         assert resp2.json() == resp1.json()
@@ -75,11 +75,11 @@ class TestAllEndpointCache:
             name="Cactus Canyon", slug="cactus-canyon", opdb_id="CC1"
         )
         client.get("/api/titles/all/")
-        assert cache.get(TITLES_ALL_KEY) is not None
+        assert cache.get(titles_all_key()) is not None
 
         title.name = "Cactus Canyon Continued"
         title.save()
-        assert cache.get(TITLES_ALL_KEY) is None
+        assert cache.get(titles_all_key()) is None
 
     def test_new_title_appears_after_invalidation(self, client, machine_model):
         resp1 = client.get("/api/titles/all/")
@@ -136,8 +136,13 @@ class TestPolicyChangeInvalidation:
         cache.clear()
 
     def test_policy_change_invalidates_cache(self, client, machine_model):
+        # Populate both audience slots — default via a vanilla request, kiosk
+        # via a request carrying the mode=kiosk cookie. The policy-change
+        # signal must clear both.
         client.get("/api/models/all/")
-        assert cache.get(MODELS_ALL_KEY) is not None
+        client.get("/api/models/all/", HTTP_COOKIE="mode=kiosk")
+        assert cache.get("catalog:models:all:default") is not None
+        assert cache.get("catalog:models:all:kiosk") is not None
 
         config_updated.send(
             sender=None,
@@ -145,11 +150,12 @@ class TestPolicyChangeInvalidation:
             old_value="licensed-only",
             new_value="show-all",
         )
-        assert cache.get(MODELS_ALL_KEY) is None
+        assert cache.get("catalog:models:all:default") is None
+        assert cache.get("catalog:models:all:kiosk") is None
 
     def test_unrelated_key_change_does_not_invalidate(self, client, machine_model):
         client.get("/api/models/all/")
-        assert cache.get(MODELS_ALL_KEY) is not None
+        assert cache.get(models_all_key()) is not None
 
         config_updated.send(
             sender=None,
@@ -157,7 +163,58 @@ class TestPolicyChangeInvalidation:
             old_value="a",
             new_value="b",
         )
-        assert cache.get(MODELS_ALL_KEY) is not None
+        assert cache.get(models_all_key()) is not None
+
+
+class TestKioskAudienceCacheIsolation:
+    """Kiosk and default audiences must populate separate cache slots.
+
+    The middleware reads ``mode=kiosk`` from request cookies and flips a
+    contextvar that ``current_audience()`` reads, which is what
+    ``models_all_key()`` / ``titles_all_key()`` / etc. fold into the
+    cache key.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        cache.clear()
+        yield
+        cache.clear()
+
+    def test_kiosk_request_populates_kiosk_slot_only(self, client, machine_model):
+        client.get("/api/models/all/", HTTP_COOKIE="mode=kiosk")
+        assert cache.get("catalog:models:all:kiosk") is not None
+        assert cache.get("catalog:models:all:default") is None
+
+    def test_default_request_populates_default_slot_only(self, client, machine_model):
+        client.get("/api/models/all/")
+        assert cache.get("catalog:models:all:default") is not None
+        assert cache.get("catalog:models:all:kiosk") is None
+
+    def test_invalidate_all_clears_both_audience_slots(self, client, machine_model):
+        from apps.catalog.cache import invalidate_all
+
+        client.get("/api/models/all/")
+        client.get("/api/models/all/", HTTP_COOKIE="mode=kiosk")
+        assert cache.get("catalog:models:all:default") is not None
+        assert cache.get("catalog:models:all:kiosk") is not None
+
+        invalidate_all()
+
+        assert cache.get("catalog:models:all:default") is None
+        assert cache.get("catalog:models:all:kiosk") is None
+
+    def test_kiosk_payload_not_served_to_default_request(self, client, machine_model):
+        # Warm only the kiosk slot.
+        client.get("/api/models/all/", HTTP_COOKIE="mode=kiosk")
+        assert cache.get("catalog:models:all:kiosk") is not None
+        assert cache.get("catalog:models:all:default") is None
+
+        # A subsequent default-audience request must not reuse the kiosk
+        # slot — it populates its own slot fresh.
+        resp = client.get("/api/models/all/")
+        assert resp.status_code == 200
+        assert cache.get("catalog:models:all:default") is not None
 
 
 class TestConditionalGet:
@@ -191,8 +248,8 @@ class TestConditionalGet:
     @pytest.mark.parametrize(
         ("path", "cache_key"),
         [
-            ("/api/models/all/", MODELS_ALL_KEY),
-            ("/api/titles/all/", TITLES_ALL_KEY),
+            ("/api/models/all/", models_all_key()),
+            ("/api/titles/all/", titles_all_key()),
         ],
     )
     def test_cache_stores_bytes_and_etag(self, client, machine_model, path, cache_key):

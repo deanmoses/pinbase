@@ -25,7 +25,7 @@ from apps.media.schemas import UploadedMediaSchema
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
-from ..cache import MANUFACTURERS_ALL_KEY, get_cached_response, set_cached_response
+from ..cache import get_cached_response, manufacturers_all_key, set_cached_response
 from ..models import (
     CorporateEntity,
     CorporateEntityAlias,
@@ -287,7 +287,7 @@ def list_all_manufacturers(
     deep prefetch + Python iteration.  See ``list_all_titles`` for the
     full explanation of this pattern.
     """
-    response = get_cached_response(MANUFACTURERS_ALL_KEY)
+    response = get_cached_response(manufacturers_all_key())
     if response is not None:
         return response
 
@@ -488,7 +488,7 @@ def list_all_manufacturers(
                 "tech_generations": _dedup_facet_dicts(mfr_tech_gens.get(mfr_id, [])),
             }
         )
-    return set_cached_response(MANUFACTURERS_ALL_KEY, _ALL_ADAPTER, result)
+    return set_cached_response(manufacturers_all_key(), _ALL_ADAPTER, result)
 
 
 @manufacturers_router.patch(

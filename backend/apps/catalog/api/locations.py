@@ -20,7 +20,7 @@ from apps.core.models import active_status_q
 from apps.provenance.helpers import active_claims, claims_prefetch
 from apps.provenance.schemas import RichTextSchema
 
-from ..cache import LOCATIONS_TREE_KEY
+from ..cache import locations_tree_key
 from ..models import (
     CorporateEntity,
     CorporateEntityLocation,
@@ -124,7 +124,7 @@ def _get_location_tree() -> _LocationTree:
 
     Results are cached; invalidated by ``invalidate_all()``.
     """
-    result = cache.get(LOCATIONS_TREE_KEY)
+    result = cache.get(locations_tree_key())
     if result is not None:
         return cast(_LocationTree, result)
 
@@ -177,7 +177,7 @@ def _get_location_tree() -> _LocationTree:
         children_index.setdefault(parent_path, []).append(loc.location_path)
 
     tree = (nodes, children_index)
-    cache.set(LOCATIONS_TREE_KEY, tree, timeout=None)
+    cache.set(locations_tree_key(), tree, timeout=None)
     return tree
 
 

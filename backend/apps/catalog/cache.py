@@ -1,4 +1,12 @@
-"""Cache keys and invalidation helpers for the catalog app."""
+"""Cache keys and invalidation helpers for the catalog app.
+
+Cache slots are scoped by content audience (``default`` or ``kiosk``) so that
+kiosk requests, which see show-all content, do not share a slot with
+public visitors who must not see unlicensed content. The active audience
+is determined per request by ``apps.core.licensing.current_audience()``,
+which the ``KioskDisplayPolicyMiddleware`` sets from the ``mode=kiosk``
+cookie.
+"""
 
 from __future__ import annotations
 
@@ -11,11 +19,43 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from pydantic import TypeAdapter
 
-MODELS_ALL_KEY = "catalog:models:all"
-MANUFACTURERS_ALL_KEY = "catalog:manufacturers:all"
-PEOPLE_ALL_KEY = "catalog:people:all"
-TITLES_ALL_KEY = "catalog:titles:all"
-LOCATIONS_TREE_KEY = "catalog:locations:tree"
+from apps.core.licensing import current_audience
+
+_MODELS_ALL_BASE = "catalog:models:all"
+_MANUFACTURERS_ALL_BASE = "catalog:manufacturers:all"
+_PEOPLE_ALL_BASE = "catalog:people:all"
+_TITLES_ALL_BASE = "catalog:titles:all"
+_LOCATIONS_TREE_BASE = "catalog:locations:tree"
+
+_BASES: tuple[str, ...] = (
+    _MODELS_ALL_BASE,
+    _MANUFACTURERS_ALL_BASE,
+    _PEOPLE_ALL_BASE,
+    _TITLES_ALL_BASE,
+    _LOCATIONS_TREE_BASE,
+)
+
+_AUDIENCES: tuple[str, ...] = ("default", "kiosk")
+
+
+def models_all_key() -> str:
+    return f"{_MODELS_ALL_BASE}:{current_audience()}"
+
+
+def manufacturers_all_key() -> str:
+    return f"{_MANUFACTURERS_ALL_BASE}:{current_audience()}"
+
+
+def people_all_key() -> str:
+    return f"{_PEOPLE_ALL_BASE}:{current_audience()}"
+
+
+def titles_all_key() -> str:
+    return f"{_TITLES_ALL_BASE}:{current_audience()}"
+
+
+def locations_tree_key() -> str:
+    return f"{_LOCATIONS_TREE_BASE}:{current_audience()}"
 
 
 def get_cached_response(cache_key: str) -> HttpResponse | None:
@@ -32,6 +72,7 @@ def get_cached_response(cache_key: str) -> HttpResponse | None:
     json_bytes, etag = cached
     response = HttpResponse(json_bytes, content_type="application/json")
     response["ETag"] = etag
+    response["Vary"] = "Cookie"
     return response
 
 
@@ -55,13 +96,12 @@ def set_cached_response(
     cache.set(cache_key, (json_bytes, etag), timeout=None)
     response = HttpResponse(json_bytes, content_type="application/json")
     response["ETag"] = etag
+    response["Vary"] = "Cookie"
     return response
 
 
 def invalidate_all() -> None:
-    """Delete all cached /all/ endpoint data."""
-    cache.delete(MODELS_ALL_KEY)
-    cache.delete(MANUFACTURERS_ALL_KEY)
-    cache.delete(PEOPLE_ALL_KEY)
-    cache.delete(TITLES_ALL_KEY)
-    cache.delete(LOCATIONS_TREE_KEY)
+    """Delete all cached /all/ endpoint data, across every audience slot."""
+    for base in _BASES:
+        for audience in _AUDIENCES:
+            cache.delete(f"{base}:{audience}")
