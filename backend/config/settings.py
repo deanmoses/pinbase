@@ -106,6 +106,11 @@ CACHES = {
 
 AUTH_USER_MODEL = "accounts.User"
 
+# auth.W004: User.email is USERNAME_FIELD without unique=True. Uniqueness is
+# enforced case-insensitively via the Lower("email") UniqueConstraint on the
+# User model; adding unique=True would layer on a redundant case-sensitive one.
+SILENCED_SYSTEM_CHECKS = ["auth.W004"]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
