@@ -32,12 +32,13 @@ def field_not_blank(field_name: str) -> models.CheckConstraint:
 
 
 def field_lowercase(field_name: str) -> models.CheckConstraint:
-    """CHECK constraint: field contains no ASCII uppercase letters.
+    """CHECK constraint: field equals its own lowercased form.
 
-    The regex matches ``[A-Z]`` only — non-ASCII uppercase (Ñ, É, …)
-    would slip through. Acceptable for our current callers because the
-    upstream slug validator (``SLUG_RE``) already restricts input to
-    ``[a-z0-9-]``, and ``location_path`` is built from slugs.
+    Asserts ``field = LOWER(field)`` — a column equals itself only when
+    no character has a distinct lowercase form, which means there are no
+    uppercase letters present (ASCII or Unicode). Pure SQL, portable
+    across PostgreSQL and SQLite, and enforced even when the database is
+    opened by a tool that doesn't load Django's regex function.
 
     Generic helper for any field that must be lowercase by shape (slugs,
     derived path strings like Location.location_path, etc.). For slug
@@ -50,7 +51,7 @@ def field_lowercase(field_name: str) -> models.CheckConstraint:
     not when it's lowercase-shape (slugs, paths).
     """
     return models.CheckConstraint(
-        condition=~models.Q(**{f"{field_name}__regex": r"[A-Z]"}),
+        condition=models.Q(**{field_name: Lower(field_name)}),
         name=f"%(app_label)s_%(class)s_{field_name}_lowercase",
     )
 
@@ -156,7 +157,7 @@ def slug_not_blank() -> models.CheckConstraint:
 
 
 def slug_lowercase() -> models.CheckConstraint:
-    """CHECK constraint: slug contains no uppercase letters.
+    """CHECK constraint: slug equals its own lowercased form.
 
     Slug-specific specialization of :func:`field_lowercase`. Use in each
     SluggedModel subclass Meta alongside ``slug_not_blank()``. Plain
@@ -165,7 +166,7 @@ def slug_lowercase() -> models.CheckConstraint:
     guaranteed lowercase.
     """
     return models.CheckConstraint(
-        condition=~models.Q(slug__regex=r"[A-Z]"),
+        condition=models.Q(slug=Lower("slug")),
         name="%(app_label)s_%(class)s_slug_lowercase",
     )
 
