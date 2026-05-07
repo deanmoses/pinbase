@@ -6,16 +6,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import Client
 
-from apps.accounts.models import UserProfile
-
-User = get_user_model()
-
-
-def _profile(user):
-    return UserProfile.objects.get(user=user)
+from apps.accounts.models import User
 
 
 def _make_workos_user(
@@ -36,10 +29,8 @@ def _make_workos_user(
 
 
 def _make_auth_response(workos_user=None):
-    """Build a fake WorkOS authenticate_with_code response."""
     if workos_user is None:
         workos_user = _make_workos_user()
-
     return SimpleNamespace(
         user=workos_user,
         access_token="fake",
@@ -49,22 +40,15 @@ def _make_auth_response(workos_user=None):
 
 @pytest.fixture(autouse=True)
 def _workos_settings(settings):
-    """Ensure WorkOS settings are populated for all tests in this module."""
     settings.WORKOS_API_KEY = "sk_test_fake"  # pragma: allowlist secret
     settings.WORKOS_CLIENT_ID = "client_fake"
     settings.WORKOS_REDIRECT_URI = "http://localhost:5173/api/auth/callback/"
 
 
 def _start_login(client: Client, next_url: str = "/") -> tuple[str, str]:
-    """Hit the login endpoint and return (state, redirect_url).
-
-    Follows the redirect to extract the state parameter that was stored
-    in the session.
-    """
     resp = client.get(f"/api/auth/login/?next={next_url}")
     assert resp.status_code == 302
 
-    # The state is embedded in the WorkOS redirect URL as a query param
     from urllib.parse import parse_qs, urlparse
 
     parsed = urlparse(resp["Location"])
@@ -92,7 +76,6 @@ class TestAuthLogin:
             )
             client.get("/api/auth/login/?next=/titles/foo")
 
-        # Session should have an auth_{state} key
         session = client.session
         auth_keys = [k for k in session.keys() if k.startswith("auth_")]
         assert len(auth_keys) == 1
@@ -120,21 +103,17 @@ class TestAuthLogin:
 @pytest.mark.django_db
 class TestAuthCallback:
     def _do_callback(self, client, *, workos_user=None):
-        """Run the full login→callback flow with mocked WorkOS."""
         auth_response = _make_auth_response(workos_user=workos_user)
 
         with patch("apps.accounts.api.get_workos_client") as mock:
             mock_client = mock.return_value
-            # Echo back the real state so _start_login can parse it
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
                     f"https://auth.workos.com/authorize?state={kwargs['state']}"
                 )
             )
-            # Start the login to populate session state
             state, _ = _start_login(client, next_url="/")
 
-            # Now mock the code exchange
             mock_client.user_management.authenticate_with_code.return_value = (
                 auth_response
             )
@@ -147,66 +126,136 @@ class TestAuthCallback:
         assert resp.status_code == 302
 
         user = User.objects.get(email="alice@example.com")
-        assert _profile(user).workos_user_id == "user_01ABC"
+        assert user.workos_user_id == "user_01ABC"
         assert user.first_name == "Alice"
 
-    def test_callback_links_existing_user_by_email(self, client):
-        existing = User.objects.create_user(username="alice", email="alice@example.com")
+    def test_callback_recognizes_returning_user(self, client):
+        existing = User.objects.create_user(
+            email="alice@example.com", workos_user_id="user_01ABC"
+        )
+        self._do_callback(client)
+
+        assert User.objects.filter(email="alice@example.com").count() == 1
+        existing.refresh_from_db()
+        assert existing.workos_user_id == "user_01ABC"
+
+    def test_callback_first_time_link_for_unbound_active_user(self, client):
+        """Active non-privileged local row with no workos_user_id gets linked."""
+        existing = User.objects.create_user(email="alice@example.com")
+        assert existing.workos_user_id is None
+
         resp = self._do_callback(client)
         assert resp.status_code == 302
 
-        profile = _profile(existing)
-        profile.refresh_from_db()
-        assert profile.workos_user_id == "user_01ABC"
-        # No new user should have been created
+        existing.refresh_from_db()
+        assert existing.workos_user_id == "user_01ABC"
         assert User.objects.filter(email="alice@example.com").count() == 1
 
-    def test_callback_linking_preserves_superuser_flags(self, client):
-        """Linking a WorkOS login to an existing superuser must not reset is_staff/is_superuser."""
+    def test_callback_refuses_auto_link_for_privileged_row(self, client):
+        """Auto-link must NEVER inherit is_staff/is_superuser via verified email.
+
+        Threat: typo'd or expired bootstrap email gets claimed at the IdP by
+        an attacker, who then inherits admin access. Privileged rows can only
+        be bound deliberately — sign in via WorkOS as a regular user first,
+        then tick is_staff/is_superuser on that row in Django admin.
+        """
         existing = User.objects.create_superuser(
-            username="moses",
             email="alice@example.com",
             password="password",  # pragma: allowlist secret
         )
-        assert existing.is_staff is True
+        assert existing.workos_user_id is None
+
+        resp = self._do_callback(client)
+        assert resp.status_code == 400
+
+        existing.refresh_from_db()
+        assert existing.workos_user_id is None
         assert existing.is_superuser is True
 
+    def test_callback_refuses_auto_link_for_staff_row(self, client):
+        """Same protection applies to is_staff (not just is_superuser)."""
+        existing = User.objects.create_user(email="alice@example.com", is_staff=True)
+
+        resp = self._do_callback(client)
+        assert resp.status_code == 400
+
+        existing.refresh_from_db()
+        assert existing.workos_user_id is None
+
+    def test_callback_first_time_link_refuses_unverified_email(self, client):
+        """Bootstrap link path also requires verified inbound email."""
+        User.objects.create_user(email="alice@example.com")
+        workos_user = _make_workos_user(email_verified=False)
+        resp = self._do_callback(client, workos_user=workos_user)
+        assert resp.status_code == 400
+        # Row remains unbound.
+        user = User.objects.get(email="alice@example.com")
+        assert user.workos_user_id is None
+
+    def test_callback_email_collision_with_active_user_refused(self, client):
+        """Two WorkOS accounts claiming the same local user is refused."""
+        # Existing active user with a different workos_user_id.
+        User.objects.create_user(email="alice@example.com", workos_user_id="user_OTHER")
+        resp = self._do_callback(client)
+
+        assert resp.status_code == 400
+        assert User.objects.filter(email="alice@example.com").count() == 1
+
+    def test_callback_reactivates_soft_deleted_user_with_verified_email(self, client):
+        existing = User.objects.create_user(email="alice@example.com")
+        existing.is_active = False
+        existing.workos_user_id = None
+        existing.save()
+
+        resp = self._do_callback(client)
+        assert resp.status_code == 302
+
+        existing.refresh_from_db()
+        assert existing.is_active is True
+        assert existing.workos_user_id == "user_01ABC"
+        assert User.objects.filter(email="alice@example.com").count() == 1
+
+    def test_callback_refuses_reactivation_with_unverified_email(self, client):
+        existing = User.objects.create_user(email="alice@example.com")
+        existing.is_active = False
+        existing.workos_user_id = None
+        existing.save()
+
+        workos_user = _make_workos_user(email_verified=False)
+        resp = self._do_callback(client, workos_user=workos_user)
+
+        assert resp.status_code == 400
+        existing.refresh_from_db()
+        assert existing.is_active is False
+        assert User.objects.filter(email="alice@example.com").count() == 1
+
+    def test_callback_refuses_when_mirror_email_collides(self, client):
+        """Provider-side email change to an address already taken locally → refuse cleanly."""
+        # Active workos_user_id match has email "old@example.com"; inbound
+        # payload says email is now "alice@example.com" — but another local
+        # row already has that email. Must refuse, not 500 on the unique index.
+        User.objects.create_user(email="old@example.com", workos_user_id="user_01ABC")
+        User.objects.create_user(email="alice@example.com", workos_user_id="user_OTHER")
+        resp = self._do_callback(client)
+
+        assert resp.status_code == 400
+        # Neither row mutated.
+        assert User.objects.filter(
+            email="old@example.com", workos_user_id="user_01ABC"
+        ).exists()
+
+    def test_callback_refreshes_mirrored_fields(self, client):
+        existing = User.objects.create_user(
+            email="alice@example.com",
+            workos_user_id="user_01ABC",
+            first_name="OldFirst",
+            last_name="OldLast",
+        )
         self._do_callback(client)
 
         existing.refresh_from_db()
-        assert _profile(existing).workos_user_id == "user_01ABC"
-        assert existing.is_staff is True, "is_staff was reset during linking"
-        assert existing.is_superuser is True, "is_superuser was reset during linking"
-
-    def test_callback_refuses_link_unverified_email(self, client):
-        existing = User.objects.create_user(username="alice", email="alice@example.com")
-        workos_user = _make_workos_user(email_verified=False)
-        self._do_callback(client, workos_user=workos_user)
-
-        # Should have created a NEW user, not linked the existing one
-        profile = _profile(existing)
-        profile.refresh_from_db()
-        assert profile.workos_user_id is None
-        assert User.objects.filter(email="alice@example.com").count() == 2
-
-    def test_callback_refuses_link_ambiguous_email(self, client):
-        User.objects.create_user(username="alice1", email="alice@example.com")
-        User.objects.create_user(username="alice2", email="alice@example.com")
-        self._do_callback(client)
-
-        # Should have created a third user, not linked either existing one
-        assert User.objects.filter(email="alice@example.com").count() == 3
-
-    def test_callback_recognizes_returning_user(self, client):
-        user = User.objects.create_user(username="alice", email="alice@example.com")
-        profile = _profile(user)
-        profile.workos_user_id = "user_01ABC"
-        profile.save(update_fields=["workos_user_id"])
-
-        self._do_callback(client)
-
-        # Same user, no new user created
-        assert User.objects.filter(email="alice@example.com").count() == 1
+        assert existing.first_name == "Alice"
+        assert existing.last_name == "Smith"
 
     def test_callback_preserves_next_url(self, client):
         auth_response = _make_auth_response()
@@ -256,14 +305,13 @@ class TestAuthCallback:
 @pytest.mark.django_db
 class TestAuthLogout:
     def test_logout_clears_session(self, client):
-        user = User.objects.create_user(username="alice")
+        user = User.objects.create_user(email="alice@example.com")
         client.force_login(user)
 
         resp = client.post("/api/auth/logout/")
         data = resp.json()
         assert data["is_authenticated"] is False
 
-        # Verify session is actually cleared
         resp = client.get("/api/auth/me/")
         assert resp.json()["is_authenticated"] is False
 
@@ -275,33 +323,21 @@ class TestAuthMe:
         data = resp.json()
         assert data["is_authenticated"] is False
         assert data["is_superuser"] is False
-        assert data["first_name"] == ""
-        assert data["last_name"] == ""
 
     def test_me_authenticated(self, client):
         user = User.objects.create_user(
-            username="alice", first_name="Alice", last_name="Anderson"
+            email="alice@example.com", first_name="Alice", last_name="Anderson"
         )
         client.force_login(user)
         resp = client.get("/api/auth/me/")
         data = resp.json()
         assert data["is_authenticated"] is True
         assert data["username"] == "alice"
-        assert data["is_superuser"] is False
         assert data["first_name"] == "Alice"
         assert data["last_name"] == "Anderson"
 
-    def test_me_authenticated_no_names(self, client):
-        user = User.objects.create_user(username="bob")
-        client.force_login(user)
-        resp = client.get("/api/auth/me/")
-        data = resp.json()
-        assert data["is_authenticated"] is True
-        assert data["first_name"] == ""
-        assert data["last_name"] == ""
-
     def test_me_superuser(self, client):
-        user = User.objects.create_superuser(username="admin", email="a@b.test")
+        user = User.objects.create_superuser(email="a@b.test")
         client.force_login(user)
         resp = client.get("/api/auth/me/")
         data = resp.json()

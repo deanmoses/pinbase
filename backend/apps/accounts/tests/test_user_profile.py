@@ -18,7 +18,7 @@ def client():
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(username="historian")
+    return User.objects.create_user(email="historian@example.com")
 
 
 @pytest.fixture
@@ -177,7 +177,7 @@ class TestUserProfileWithEdits:
 
     def test_other_users_edits_not_included(self, client, user, model_a, db):
         """Only the requested user's edits appear."""
-        other = User.objects.create_user(username="other")
+        other = User.objects.create_user(email="other@example.com")
         client.force_login(other)
         client.patch(
             f"/api/models/{model_a.slug}/claims/",
@@ -211,7 +211,7 @@ class TestEditHistoryUserDisplayNull:
         Claim.objects.assert_claim(pm, "year", 1979, source=source, changeset=ingest_cs)
 
         # Create a user changeset with a claim — this is the user path
-        user = User.objects.create_user(username="tester")
+        user = User.objects.create_user(email="tester@example.com")
         user_cs = user_changeset(user)
         Claim.objects.assert_claim(
             pm,

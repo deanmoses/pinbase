@@ -26,7 +26,10 @@ class WorkOSBackend:
         return None
 
     def get_user(self, user_id: int) -> AbstractBaseUser | None:
+        # is_active filter: a disabled user stops being authenticated on the
+        # very next request via AuthenticationMiddleware, no session flush
+        # needed. UserBanning.md will tighten this with banned_at__isnull.
         try:
-            return User.objects.get(pk=user_id)
+            return User.objects.get(pk=user_id, is_active=True)
         except User.DoesNotExist:
             return None

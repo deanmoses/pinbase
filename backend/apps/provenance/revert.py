@@ -17,10 +17,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+
+from apps.accounts.models import User
 
 from .constants import REVERT_OTHERS_MIN_EDITS
 from .models import ChangeSet, ChangeSetAction, Claim, ClaimControlledModel

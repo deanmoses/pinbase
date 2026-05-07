@@ -10,13 +10,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, NoReturn, TypedDict, cast
 
-from django.contrib.auth.models import AbstractBaseUser, AnonymousUser, User
+from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, transaction
 from django.db import models as db_models
 from ninja import Schema
 
+from apps.accounts.models import User
 from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import (
     CorporateEntity,

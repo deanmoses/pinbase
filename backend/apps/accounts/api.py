@@ -8,9 +8,9 @@ from datetime import datetime
 from typing import Protocol, TypedDict
 
 from django.conf import settings
-from django.contrib.auth import get_user_model, login, logout
+from django.contrib.auth import login, logout
 from django.contrib.auth.models import AnonymousUser
-from django.contrib.auth.models import User as DjangoUser
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Max
 from django.http import (
     HttpRequest,
@@ -27,12 +27,10 @@ from apps.core.types import EntityKey
 from apps.provenance.entity_resolution import batch_resolve_entities
 from apps.provenance.models import ChangeSet, Claim
 
-from .models import UserProfile
+from .models import User
 from .workos_client import get_workos_client
 
 log = logging.getLogger(__name__)
-
-User = get_user_model()
 
 auth_router = Router(tags=["auth", "private"])
 user_page_router = Router(tags=["private"])
@@ -93,60 +91,174 @@ class EntityContributionRow(TypedDict):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-def _generate_username(email: str) -> str:
-    """Derive a unique username from an email address."""
-    base = email.split("@")[0]
-    username = base
-    counter = 1
-    while User.objects.filter(username=username).exists():
-        username = f"{base}{counter}"
-        counter += 1
-    return username
+class LoginRefusedError(Exception):
+    """Raised when an inbound WorkOS login may not be honored.
 
-
-def _get_profile(user: DjangoUser) -> UserProfile:
-    return UserProfile.objects.get(user=user)
-
-
-def get_or_create_django_user(workos_user: WorkOSUser) -> DjangoUser:
-    """Match or create a Django User from a WorkOS user profile.
-
-    Matching priority:
-    1. By workos_user_id on UserProfile (returning user)
-    2. By verified email if exactly one local user matches (links accounts)
-    3. Create new user (self-registration)
+    Surfaced as a 4xx in auth_callback. Reasons include: account is inactive
+    and reactivation guards failed (e.g. unverified inbound email), or two
+    WorkOS accounts trying to claim the same local row.
     """
-    # 1. Exact match on WorkOS user ID
-    try:
-        profile = UserProfile.objects.select_related("user").get(
-            workos_user_id=workos_user.id,
-        )
-        return profile.user
-    except UserProfile.DoesNotExist:
-        pass
 
-    # 2. Match by verified email — only if unambiguous
-    if workos_user.email_verified:
-        matches = User.objects.filter(email=workos_user.email)
-        if matches.count() == 1:
-            user = matches.get()
-            profile = _get_profile(user)
-            profile.workos_user_id = workos_user.id
-            profile.save(update_fields=["workos_user_id", "updated_at"])
-            return user
 
-    # 3. Create new user
-    user = User.objects.create_user(
-        username=_generate_username(workos_user.email),
-        email=workos_user.email,
-        first_name=workos_user.first_name or "",
-        last_name=workos_user.last_name or "",
+_MIRRORED_FIELDS = ("email", "first_name", "last_name")
+
+
+def _refresh_mirrored_fields(user: User, workos_user: WorkOSUser) -> list[str]:
+    """Copy WorkOS-side identity fields onto the local row. Returns dirty fields.
+
+    Raises LoginRefusedError if the inbound email is already taken by another
+    local row (case-insensitively) — that's two WorkOS accounts trying to
+    converge onto one local email, which needs admin resolution rather than a
+    DB-level IntegrityError surfacing as a 500.
+    """
+    dirty: list[str] = []
+    new_email = workos_user.email
+    if user.email != new_email:
+        if (
+            new_email.lower() != user.email.lower()
+            and User.objects.filter(email__iexact=new_email)
+            .exclude(pk=user.pk)
+            .exists()
+        ):
+            _refuse_active_email_collision(user, workos_user)
+        user.email = new_email
+        dirty.append("email")
+    new_first = workos_user.first_name or ""
+    if user.first_name != new_first:
+        user.first_name = new_first
+        dirty.append("first_name")
+    new_last = workos_user.last_name or ""
+    if user.last_name != new_last:
+        user.last_name = new_last
+        dirty.append("last_name")
+    return dirty
+
+
+def _refuse_active_email_collision(user: User, workos_user: WorkOSUser) -> None:
+    log.error(
+        "two WorkOS accounts claim same local user, refusing login until "
+        "admin resolves: email=%s existing_workos_id=%s inbound_workos_id=%s",
+        workos_user.email,
+        user.workos_user_id,
+        workos_user.id,
     )
-    # Profile auto-created by post_save signal
-    profile = _get_profile(user)
-    profile.workos_user_id = workos_user.id
-    profile.save(update_fields=["workos_user_id", "updated_at"])
+    raise LoginRefusedError("Account conflict; contact an administrator.")
+
+
+def _try_match_existing(workos_user: WorkOSUser) -> User | None:
+    """Run the lookup branches. Returns a matched user, or None to mean 'create'.
+
+    Raises LoginRefusedError for the refuse cases.
+    """
+    # Branch 1/2 — id lookup.
+    try:
+        user = User.objects.get(workos_user_id=workos_user.id)
+    except User.DoesNotExist:
+        pass
+    else:
+        if not user.is_active:
+            # Soft-deleted users have workos_user_id cleared by the webhook,
+            # so this is theoretically unreachable — log if it ever fires.
+            log.error(
+                "active workos_user_id hit on inactive row: user_id=%s workos_id=%s",
+                user.pk,
+                workos_user.id,
+            )
+            raise LoginRefusedError("Account is disabled.")
+        dirty = _refresh_mirrored_fields(user, workos_user)
+        if dirty:
+            user.save(update_fields=dirty)
+        return user
+
+    # Branch 3/4 — email lookup.
+    email_match = User.objects.filter(email__iexact=workos_user.email).first()
+    if email_match is None:
+        return None
+    user = email_match
+    if user.is_active:
+        if user.workos_user_id is None:
+            # First-time link: a local row exists with no provider binding
+            # yet. Verified inbound email is required so an attacker can't
+            # claim the row by signing up with the same email at the IdP
+            # before the real owner does.
+            #
+            # Privileged rows (is_staff / is_superuser) are NEVER auto-linked
+            # — the blast radius of a typo'd or expired bootstrap email is too
+            # large. Operators grant admin access deliberately: sign in via
+            # WorkOS as a regular user first, then tick is_staff/is_superuser
+            # on that row in Django admin.
+            if user.is_staff or user.is_superuser:
+                log.error(
+                    "refusing auto-link of privileged row: user_id=%s email=%s "
+                    "inbound_workos_id=%s",
+                    user.pk,
+                    workos_user.email,
+                    workos_user.id,
+                )
+                raise LoginRefusedError("Account conflict; contact an administrator.")
+            if not workos_user.email_verified:
+                raise LoginRefusedError(
+                    "Please verify your email with the identity provider before signing in."
+                )
+            user.workos_user_id = workos_user.id
+            dirty = ["workos_user_id", *_refresh_mirrored_fields(user, workos_user)]
+            user.save(update_fields=dirty)
+            return user
+        # Active row already bound to a *different* workos_user_id — two
+        # WorkOS accounts claim the same local user; admin must resolve.
+        _refuse_active_email_collision(user, workos_user)
+    if not workos_user.email_verified:
+        raise LoginRefusedError(
+            "Please verify your email with the identity provider before signing in."
+        )
+    # Reactivate.
+    user.is_active = True
+    user.workos_user_id = workos_user.id
+    dirty = [
+        "is_active",
+        "workos_user_id",
+        *_refresh_mirrored_fields(user, workos_user),
+    ]
+    user.save(update_fields=dirty)
     return user
+
+
+def get_or_create_django_user(workos_user: WorkOSUser) -> User:
+    """Match or create a local User from an inbound WorkOS user payload.
+
+    Branches:
+      1. workos_user_id hit, active → refresh mirrored fields, return.
+      2. workos_user_id hit, inactive → refuse (theoretically unreachable;
+         the webhook clears workos_user_id on soft-delete).
+      3a. Email hit, active, workos_user_id IS NULL, email_verified=True
+          → first-time link (bind workos_user_id, refresh fields). Covers
+          the bootstrap-superuser case (`make superuser` then sign in).
+      3b. Email hit, active, workos_user_id already bound elsewhere
+          → refuse (two WorkOS accounts claim same local user).
+      4. Email hit, soft-deleted, email_verified=True → reactivate, return.
+         Email hit, guards failed → refuse; never silently fork identity.
+      5. No hit → create. On IntegrityError (concurrent first-login race
+         on email, workos_user_id, or username), re-run the lookup branches
+         and re-derive the username — the winning row is now visible — up
+         to a small bound, then propagate.
+    """
+    last_exc: IntegrityError | None = None
+    for _attempt in range(3):
+        match = _try_match_existing(workos_user)
+        if match is not None:
+            return match
+        try:
+            with transaction.atomic():
+                return User.objects.create_user(
+                    email=workos_user.email,
+                    first_name=workos_user.first_name or "",
+                    last_name=workos_user.last_name or "",
+                    workos_user_id=workos_user.id,
+                )
+        except IntegrityError as exc:
+            last_exc = exc
+    assert last_exc is not None
+    raise last_exc
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
@@ -160,7 +272,7 @@ def auth_me(request: HttpRequest) -> AuthStatusSchema:
     anonymous users.
     """
     user = request.user
-    if isinstance(user, DjangoUser):
+    if isinstance(user, User):
         return AuthStatusSchema(
             is_authenticated=True,
             id=user.id,
@@ -230,7 +342,11 @@ def auth_callback(request: HttpRequest) -> HttpResponse:
             "Authentication failed. The login link may have expired — please try again."
         )
 
-    user = get_or_create_django_user(auth_response.user)
+    try:
+        user = get_or_create_django_user(auth_response.user)
+    except LoginRefusedError as exc:
+        log.warning("Login refused: %s", exc)
+        return HttpResponseBadRequest(str(exc))
     login(request, user, backend="apps.accounts.backends.WorkOSBackend")
     return HttpResponseRedirect(next_url)
 
@@ -249,10 +365,9 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
     """Page model for the user profile page: contribution history."""
     _ = request
     user = get_object_or_404(User, username=username)
-    profile = _get_profile(user)
 
     edit_count = ChangeSet.objects.filter(user=user).count()
-    member_since = profile.created_at.isoformat()
+    member_since = user.date_joined.isoformat()
 
     raw_entity_rows = list(
         Claim.objects.filter(user=user, changeset__isnull=False)

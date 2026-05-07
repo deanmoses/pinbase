@@ -254,7 +254,7 @@ class TestTitleDetailAggregation:
 
         from apps.media.models import EntityMedia, MediaAsset
 
-        user = django_user_model.objects.create_user(username="u")
+        user = django_user_model.objects.create_user(email="u@example.com")
         m1 = make_machine_model(name="MM", slug="mm-1", title=title)
         m2 = make_machine_model(name="MMR", slug="mm-2", title=title)
         ct = ContentType.objects.get_for_model(MachineModel)
@@ -314,7 +314,7 @@ class TestTitleDetailAggregation:
         from apps.media.models import EntityMedia, MediaAsset
         from apps.media.storage import build_public_url, build_storage_key
 
-        user = django_user_model.objects.create_user(username="u")
+        user = django_user_model.objects.create_user(email="u@example.com")
         earliest = make_machine_model(
             name="MM",
             slug="mm-1",
@@ -543,7 +543,7 @@ class TestTitlesAllFacets:
             year=1997,
             extra_data={"opdb.images": SAMPLE_IMAGES},
         )
-        user = django_user_model.objects.create_user(username="up")
+        user = django_user_model.objects.create_user(email="up@example.com")
         asset = MediaAsset.objects.create(
             kind=MediaAsset.Kind.IMAGE,
             status=MediaAsset.Status.READY,
@@ -623,7 +623,7 @@ class TestTitlesAllFacets:
         item = next(i for i in resp.json() if i["slug"] == "mm3")
         assert item["thumbnail_url"] == "https://img.opdb.org/md.jpg"
 
-        user = django_user_model.objects.create_user(username="up3")
+        user = django_user_model.objects.create_user(email="up3@example.com")
         asset = MediaAsset.objects.create(
             kind=MediaAsset.Kind.IMAGE,
             status=MediaAsset.Status.READY,

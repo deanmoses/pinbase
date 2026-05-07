@@ -8,10 +8,10 @@ directly.
 import uuid as uuid_lib
 
 import pytest
-from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 
+from apps.accounts.models import User
 from apps.media.models import EntityMedia, MediaAsset, MediaRendition
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def _rendition_kwargs(asset, **overrides):
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user("mediatest")
+    return User.objects.create_user("mediatest@example.com")
 
 
 @pytest.fixture

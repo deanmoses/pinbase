@@ -28,7 +28,7 @@ def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
         .annotate(
             effective_priority=Case(
                 When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
+                When(user__isnull=False, then=F("user__priority")),
                 default=Value(0),
                 output_field=IntegerField(),
             )

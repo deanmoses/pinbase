@@ -55,11 +55,11 @@ def _winning_claims(content_type, field_name: str) -> list[Claim]:
             is_active=True,
             field_name=field_name,
         )
-        .select_related("source", "user__profile")
+        .select_related("source", "user")
         .annotate(
             effective_priority=Case(
                 When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
+                When(user__isnull=False, then=F("user__priority")),
                 default=Value(0),
                 output_field=IntegerField(),
             )

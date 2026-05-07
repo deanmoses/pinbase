@@ -252,7 +252,7 @@ class TestApiPatchConversion:
         """API PATCH endpoint converts [[type:slug]] to [[type:id:N]]."""
         from django.test import Client
 
-        user = User.objects.create_user(username="testuser")
+        user = User.objects.create_user(email="testuser@example.com")
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         system = System.objects.create(name="WPC-95", slug="wpc-95", manufacturer=mfr)
 

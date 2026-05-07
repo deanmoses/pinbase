@@ -17,12 +17,12 @@ User = get_user_model()
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(username="deleter")
+    return User.objects.create_user(email="deleter@example.com")
 
 
 @pytest.fixture
 def staff(db):
-    return User.objects.create_user(username="admin", is_staff=True)
+    return User.objects.create_user(email="admin@example.com", is_staff=True)
 
 
 @pytest.fixture
@@ -353,7 +353,7 @@ class TestUndoDelete:
         assert le.status == "active"
 
     def test_undo_by_other_user_forbidden(self, client, user, db, bootstrap_source):
-        other = User.objects.create_user(username="other")
+        other = User.objects.create_user(email="other@example.com")
         _make_title(bootstrap_source, "g")
         client.force_login(user)
         cs_id = _post_delete(client, "g").json()["changeset_id"]

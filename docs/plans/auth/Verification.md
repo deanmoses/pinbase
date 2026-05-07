@@ -2,11 +2,11 @@
 
 ## Problem
 
-Flipcommons is a public, user-editable wiki. Anyone who completes the WorkOS sign-up flow today can immediately make catalog edits. That's a viable spam vector: an attacker can register with a throwaway email-password account through WorkOS's hosted UI and start writing claims before they've proved they own the email address. We have no signal in the request path that distinguishes a verified human from a bot that just clicked through sign-up.
+Flipcommons is a public, user-editable wiki. Anyone who completes the sign-up flow today can immediately make catalog edits. That's a spam vector: an attacker can register with a throwaway email-password account and start writing claims before they've proved they own the email address. We have no signal in the request path that distinguishes a verified human from a bot that just clicked through sign-up.
 
-We want a low-friction anti-abuse gate: edits should require a verified email. Social sign-ins (Google, Apple, GitHub, Microsoft) already prove email ownership at the IdP, so legitimate OAuth users should pass the gate without seeing it. Only the email-password sign-up path — the path a spammer would actually use — should be slowed down by "click the link we sent you."
+To combat this, edits should require a verified email. Social sign-ins (Google, Apple, GitHub, Microsoft) already prove email ownership at the IdP, so legitimate OAuth users should pass the gate without seeing it. Only the email-password sign-up path — the path a spammer would actually use — should be slowed down by "click the link we sent you."
 
-We also want this without coupling our domain code to WorkOS internals. Whatever we store should survive a future provider switch (Clerk, Auth0, self-hosted OIDC) so the gate keeps working through that migration.
+We want to do this without coupling our domain code to WorkOS internals. Whatever we store should survive a migration to a new auth provider (Clerk, Auth0, self-hosted OIDC) -- see [ProviderSwitching.md](ProviderSwitching.md).
 
 ## What `email_verified` actually means per provider
 
@@ -45,7 +45,7 @@ Update `get_or_create_django_user()` (`backend/apps/accounts/api.py:111`) to wri
 
 A single check in the write path. The natural choke point is the same place `request.user.is_authenticated` is already checked for edit endpoints — add `request.user.profile.email_verified` alongside it. Unverified users get a clear error response that the SPA can render as "Please verify your email to start editing," with a link or button that triggers a re-send via WorkOS.
 
-This is a server-side gate; the SPA may also hide edit affordances for unverified users for UX, but the backend is the source of truth (per the project convention in CLAUDE.md).
+This is a server-side gate; the SPA may also hide edit affordances for unverified users for UX, but the backend is the source of truth.
 
 ### 3. UX for the email-password path
 

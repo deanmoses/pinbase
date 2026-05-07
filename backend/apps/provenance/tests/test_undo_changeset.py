@@ -29,12 +29,12 @@ def _require_changeset(changeset: ChangeSet | None) -> ChangeSet:
 
 @pytest.fixture
 def author(db):
-    return User.objects.create_user(username="author")
+    return User.objects.create_user(email="author@example.com")
 
 
 @pytest.fixture
 def other(db):
-    return User.objects.create_user(username="other")
+    return User.objects.create_user(email="other@example.com")
 
 
 @pytest.fixture

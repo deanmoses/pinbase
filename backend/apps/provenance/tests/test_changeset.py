@@ -13,7 +13,7 @@ User = get_user_model()
 
 @pytest.fixture
 def user(db):
-    return User.objects.create(username="editor")
+    return User.objects.create_user(email="editor@example.com")
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ class TestChangeSetClaimGrouping:
 
     def test_changeset_user_mismatch_rejected(self, user, mfr):
         """ChangeSet user must match the claim user."""
-        other_user = User.objects.create(username="other")
+        other_user = User.objects.create_user(email="other@example.com")
         cs = ChangeSet.objects.create(user=other_user, action="edit")
         with pytest.raises(ValueError, match="must match"):
             Claim.objects.assert_claim(mfr, "name", "Williams", user=user, changeset=cs)

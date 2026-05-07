@@ -177,7 +177,7 @@ def _annotate_priority(qs: QuerySet[Claim]) -> QuerySet[Claim]:
     """Filter to active claims from enabled sources, annotate effective_priority.
 
     Returns a queryset with ``effective_priority`` annotation (highest wins)
-    and ``select_related("source", "user__profile")``.  Callers supply their
+    and ``select_related("source", "user")``.  Callers supply their
     own ``.order_by()`` and may chain additional ``.select_related()`` or
     ``.filter()`` calls.
 
@@ -190,11 +190,11 @@ def _annotate_priority(qs: QuerySet[Claim]) -> QuerySet[Claim]:
     return (
         qs.filter(is_active=True)
         .exclude(source__is_enabled=False)
-        .select_related("source", "user__profile")
+        .select_related("source", "user")
         .annotate(
             effective_priority=Case(
                 When(source__isnull=False, then=F("source__priority")),
-                When(user__isnull=False, then=F("user__profile__priority")),
+                When(user__isnull=False, then=F("user__priority")),
                 default=Value(0),
                 output_field=IntegerField(),
             )

@@ -67,7 +67,7 @@ class TestMojibakeClaimsApiIntegration:
     def user(self):
         from django.contrib.auth import get_user_model
 
-        return get_user_model().objects.create_user(username="editor")
+        return get_user_model().objects.create_user(email="editor@example.com")
 
     @pytest.fixture
     def pm(self):

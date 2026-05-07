@@ -245,7 +245,7 @@ class TestUsageBlockers:
 
 class TestExecute:
     def test_writes_status_deleted_claims(self, django_user_model, bootstrap_source):
-        user = django_user_model.objects.create_user(username="deleter")
+        user = django_user_model.objects.create_user(email="deleter@example.com")
         t = _title("mm", source=bootstrap_source)
         m = _model(t, "mm-pro", source=bootstrap_source)
 
@@ -263,7 +263,7 @@ class TestExecute:
         assert claim_cs_ids == {changeset.pk}
 
     def test_blocked_raises(self, django_user_model, bootstrap_source):
-        user = django_user_model.objects.create_user(username="deleter")
+        user = django_user_model.objects.create_user(email="deleter@example.com")
         other = _title("other", source=bootstrap_source)
         target = _title("target", source=bootstrap_source)
         pro = _model(target, "target-pro", source=bootstrap_source)

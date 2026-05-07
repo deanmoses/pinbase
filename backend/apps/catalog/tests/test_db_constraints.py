@@ -432,7 +432,7 @@ class TestSelfRefConstraints:
 
 class TestProvenanceConstraints:
     def test_claim_retracted_while_active_rejected(self, db):
-        user = User.objects.create_user(username="tester")
+        user = User.objects.create_user(email="tester@example.com")
         source = Source.objects.create(name="Test", source_type="database")
         mfr = Manufacturer.objects.create(name="Test", slug="test-mfr")
         claim = Claim.objects.assert_claim(mfr, "name", "Test", source=source)
@@ -509,10 +509,7 @@ class TestValidateCheckConstraints:
         """PATCH path converts ValidationError to HttpError 422."""
         from django.test import Client
 
-        user = User.objects.create_user(username="editor")
-        from apps.accounts.models import UserProfile
-
-        UserProfile.objects.get_or_create(user=user, defaults={"priority": 10000})
+        user = User.objects.create_user(email="editor@example.com")
 
         source = Source.objects.create(
             name="Test", slug="test-src", source_type="database", priority=10

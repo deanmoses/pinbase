@@ -52,7 +52,7 @@ def _clear_cache():
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(username="editor")
+    return User.objects.create_user(email="editor@example.com")
 
 
 def _make_location(location_path, name, location_type, parent=None, divisions=None):

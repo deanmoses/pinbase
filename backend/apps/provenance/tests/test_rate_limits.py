@@ -25,14 +25,14 @@ SPEC = RateLimitSpec(bucket="test", limit=3, window_seconds=60)
 
 @pytest.fixture
 def user(db):
-    u = User.objects.create_user(username="rater")
+    u = User.objects.create_user(email="rater@example.com")
     yield u
     reset_for_user(u, SPEC.bucket)
 
 
 @pytest.fixture
 def staff_user(db):
-    u = User.objects.create_user(username="staffer", is_staff=True)
+    u = User.objects.create_user(email="staffer@example.com", is_staff=True)
     yield u
     reset_for_user(u, SPEC.bucket)
 
@@ -115,7 +115,7 @@ class TestRateLimits:
             check_and_record(user, SPEC)
 
     def test_users_are_independent(self, user, db):
-        other = User.objects.create_user(username="other")
+        other = User.objects.create_user(email="other@example.com")
         try:
             for _ in range(SPEC.limit):
                 check_and_record(user, SPEC)

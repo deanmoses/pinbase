@@ -18,8 +18,7 @@ from .changeset import ChangeSet
 from .source import Source
 
 if TYPE_CHECKING:
-    from django.contrib.auth.models import User
-
+    from apps.accounts.models import User
     from apps.core.models import License
 
     from .citation_instance import CitationInstance

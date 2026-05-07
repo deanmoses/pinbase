@@ -19,7 +19,7 @@ def _only_changeset() -> ChangeSet:
 
 @pytest.fixture
 def user(db):
-    return User.objects.create(username="editor")
+    return User.objects.create_user(email="editor@example.com")
 
 
 @pytest.fixture

@@ -29,7 +29,7 @@ ingest:
 	cd backend && uv run python manage.py ingest_all --write
 
 superuser:
-	cd backend && DJANGO_SUPERUSER_EMAIL="" uv run python manage.py createsuperuser --noinput
+	cd backend && uv run python manage.py createsuperuser --noinput
 
 pull-ingest:
 	./scripts/pull_ingest_sources.sh

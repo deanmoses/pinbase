@@ -10,7 +10,7 @@ user) so mistakes fail at call time rather than at constraint time.
 
 from __future__ import annotations
 
-from django.contrib.auth.models import User
+from apps.accounts.models import User
 
 from .models import ChangeSet, ChangeSetAction, IngestRun
 

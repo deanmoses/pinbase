@@ -27,12 +27,14 @@ def client() -> Client:
 
 @pytest.fixture
 def superuser(db):
-    return User.objects.create_user(username="root", is_superuser=True, is_staff=True)
+    return User.objects.create_user(
+        email="root@example.com", is_superuser=True, is_staff=True
+    )
 
 
 @pytest.fixture
 def regular_user(db):
-    return User.objects.create_user(username="editor")
+    return User.objects.create_user(email="editor@example.com")
 
 
 @pytest.fixture
@@ -221,7 +223,7 @@ class TestPatch:
         cfg = KioskConfig.objects.create()
         # Stale created_by/updated_by from a previous user — the PATCH must
         # overwrite updated_by from request.user, not from any payload field.
-        other = User.objects.create_user(username="someone-else")
+        other = User.objects.create_user(email="someone-else@example.com")
         cfg.created_by = other
         cfg.updated_by = other
         cfg.save()
