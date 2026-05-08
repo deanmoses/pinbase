@@ -5,7 +5,10 @@ from django.core.management import call_command
 
 from apps.catalog.ingestion.fandom_wiki import (
     FandomCredit,
+    FandomGameDump,
+    FandomManufacturerDump,
     FandomPerson,
+    FandomPersonDump,
     _extract_prose,
     _parse_company_template,
     _parse_infobox_credits,
@@ -259,7 +262,7 @@ class TestParseInfboxCredits:
 
 class TestParseGamePages:
     def test_sorted_by_title(self):
-        data = {
+        data: FandomGameDump = {
             "games": [
                 {"page_id": 2, "title": "Zork", "wikitext": ""},
                 {"page_id": 1, "title": "Addams", "wikitext": ""},
@@ -270,7 +273,7 @@ class TestParseGamePages:
         assert games[1].title == "Zork"
 
     def test_citation_url_uses_underscores(self):
-        data = {
+        data: FandomGameDump = {
             "games": [
                 {"page_id": 1, "title": "The Addams Family", "wikitext": ""},
             ]
@@ -281,7 +284,8 @@ class TestParseGamePages:
         )
 
     def test_empty_games_returns_empty_list(self):
-        assert parse_game_pages({"games": []}) == []
+        empty: FandomGameDump = {"games": []}
+        assert parse_game_pages(empty) == []
 
 
 # ---------------------------------------------------------------------------
@@ -532,7 +536,7 @@ class TestParseCompanyTemplate:
 
 class TestParsePersonPages:
     def test_redirect_skipped(self):
-        data = {
+        data: FandomPersonDump = {
             "persons": [
                 {"page_id": 1, "title": "Bally", "wikitext": "#REDIRECT [[Midway]]"}
             ]
@@ -540,7 +544,7 @@ class TestParsePersonPages:
         assert parse_person_pages(data) == []
 
     def test_bio_extracted(self):
-        data = {
+        data: FandomPersonDump = {
             "persons": [
                 {
                     "page_id": 1,
@@ -554,7 +558,7 @@ class TestParsePersonPages:
         assert persons[0].bio == "Pat Lawlor is a designer."
 
     def test_sorted_by_title(self):
-        data = {
+        data: FandomPersonDump = {
             "persons": [
                 {"page_id": 2, "title": "Steve Ritchie", "wikitext": ""},
                 {"page_id": 1, "title": "Pat Lawlor", "wikitext": ""},
@@ -565,12 +569,14 @@ class TestParsePersonPages:
         assert persons[1].title == "Steve Ritchie"
 
     def test_citation_url(self):
-        data = {"persons": [{"page_id": 1, "title": "Pat Lawlor", "wikitext": ""}]}
+        data: FandomPersonDump = {
+            "persons": [{"page_id": 1, "title": "Pat Lawlor", "wikitext": ""}]
+        }
         persons = parse_person_pages(data)
         assert persons[0].citation_url == "https://pinball.fandom.com/wiki/Pat_Lawlor"
 
     def test_returns_fandom_person_type(self):
-        data = {
+        data: FandomPersonDump = {
             "persons": [{"page_id": 1, "title": "Pat Lawlor", "wikitext": "stub text"}]
         }
         persons = parse_person_pages(data)
@@ -579,7 +585,7 @@ class TestParsePersonPages:
 
 class TestParseManufacturerPages:
     def test_redirect_skipped(self):
-        data = {
+        data: FandomManufacturerDump = {
             "manufacturers": [
                 {"page_id": 1, "title": "Bally", "wikitext": "#REDIRECT [[Midway]]"}
             ]
@@ -587,7 +593,7 @@ class TestParseManufacturerPages:
         assert parse_manufacturer_pages(data) == []
 
     def test_year_start_parsed(self):
-        data = {
+        data: FandomManufacturerDump = {
             "manufacturers": [
                 {
                     "page_id": 1,
@@ -601,7 +607,7 @@ class TestParseManufacturerPages:
 
     def test_no_company_template_still_included(self):
         """Pages without {{Company}} are included (description only)."""
-        data = {
+        data: FandomManufacturerDump = {
             "manufacturers": [
                 {
                     "page_id": 1,
@@ -615,7 +621,7 @@ class TestParseManufacturerPages:
         assert mfrs[0].year_start is None
 
     def test_sorted_by_title(self):
-        data = {
+        data: FandomManufacturerDump = {
             "manufacturers": [
                 {"page_id": 2, "title": "Williams", "wikitext": ""},
                 {"page_id": 1, "title": "Bally Manufacturing", "wikitext": ""},

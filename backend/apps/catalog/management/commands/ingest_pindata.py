@@ -73,6 +73,7 @@ from apps.catalog.resolve import (
     resolve_theme_aliases,
     resolve_theme_parents,
 )
+from apps.core.types import JsonData
 from apps.core.validators import bulk_create_validated
 from apps.provenance.models import Claim, Source
 
@@ -88,10 +89,11 @@ def _parent_path(location_path: str) -> str | None:
 
 
 def _resolve_ce_location_path(
-    entry: dict[str, Any], loc_by_path: dict[str, Location]
+    entry: JsonData, loc_by_path: dict[str, Location]
 ) -> str | None:
     """Return the canonical location_path for a CE entry, or None if absent."""
-    path = (entry.get("headquarters_location") or "").strip()
+    raw = entry.get("headquarters_location")
+    path = (raw if isinstance(raw, str) else "").strip()
     if not path:
         return None
     return path if path in loc_by_path else None
