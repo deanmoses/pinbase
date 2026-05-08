@@ -435,8 +435,10 @@ def _apply_dry_run(plan: IngestPlan, report: RunReport) -> RunReport:
             e.handle: ContentType.objects.get_for_model(e.model_class).pk
             for e in plan.entities
         }
-        sentinel_claims = [
-            Claim(
+
+        def _sentinel(pca: PlannedClaimAssert) -> Claim:
+            assert pca.handle is not None
+            return Claim(
                 content_type_id=handle_to_ct[pca.handle],
                 object_id=0,
                 field_name=pca.field_name,
@@ -448,8 +450,8 @@ def _apply_dry_run(plan: IngestPlan, report: RunReport) -> RunReport:
                 needs_review_notes=pca.needs_review_notes,
                 license_id=pca.license_id,
             )
-            for pca in planned_assertions
-        ]
+
+        sentinel_claims = [_sentinel(pca) for pca in planned_assertions]
         valid = _validate_and_collect_errors(sentinel_claims, report)
         report.asserted += len(valid)
 
@@ -570,9 +572,13 @@ def _build_claims(
     seen: dict[ClaimIdentity, Claim] = {}
     for pca in assertions:
         claim_key = pca.claim_key or pca.field_name
+        content_type_id = pca.content_type_id
+        object_id = pca.object_id
+        assert content_type_id is not None
+        assert object_id is not None
         claim = Claim(
-            content_type_id=pca.content_type_id,
-            object_id=pca.object_id,
+            content_type_id=content_type_id,
+            object_id=object_id,
             field_name=pca.field_name,
             claim_key=claim_key,
             value=pca.value,
@@ -582,10 +588,6 @@ def _build_claims(
             needs_review_notes=pca.needs_review_notes,
             license_id=pca.license_id,
         )
-        content_type_id = pca.content_type_id
-        object_id = pca.object_id
-        assert content_type_id is not None
-        assert object_id is not None
         seen[ClaimIdentity(content_type_id, object_id, claim_key)] = claim
     return list(seen.values())
 

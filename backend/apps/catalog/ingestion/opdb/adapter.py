@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import CommandError
@@ -160,7 +161,10 @@ def build_opdb_plan(
     unmatched_opdb_terms: list[str] = []
 
     for mr in match_results:
-        target_kwargs = {"content_type_id": ct_id, "object_id": mr.model.pk}
+        target_kwargs: dict[str, Any] = {
+            "content_type_id": ct_id,
+            "object_id": mr.model.pk,
+        }
         _collect_claims(mr.record, plan.assertions, **target_kwargs)
 
         # Classify features into vocabulary claims.
@@ -386,7 +390,10 @@ def _collect_claims(
 ) -> None:
     """Collect scalar claims for one record into the assertions list."""
 
-    def _add(field_name: str, value) -> None:
+    def _add(
+        field_name: str,
+        value: Any,  # noqa: ANN401 - claim value is arbitrary JSON
+    ) -> None:
         assertions.append(
             PlannedClaimAssert(
                 field_name=field_name,
@@ -523,7 +530,7 @@ def _classify_opdb_features(
 # ---------------------------------------------------------------------------
 
 
-def parse_opdb_records(raw_data: list[dict]) -> list[OpdbRecord]:
+def parse_opdb_records(raw_data: list[dict[str, Any]]) -> list[OpdbRecord]:
     """Parse raw JSON dicts into OpdbRecords, raising on any parse errors."""
     records: list[OpdbRecord] = []
     parse_errors = 0

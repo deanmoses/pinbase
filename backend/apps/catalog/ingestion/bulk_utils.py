@@ -56,7 +56,7 @@ _LEGAL_SUFFIXES = re.compile(
 )
 
 
-def _strip_iteratively(pattern: re.Pattern, name: str) -> str:
+def _strip_iteratively(pattern: re.Pattern[str], name: str) -> str:
     """Apply a suffix-stripping regex repeatedly until stable."""
     stripped = pattern.sub("", name).strip()
     prev = None
@@ -136,12 +136,12 @@ class ManufacturerResolver:
             for ce in CorporateEntity.objects.select_related("manufacturer").all()
         }
         # Include corporate entity aliases in entity lookup.
-        for alias in CorporateEntityAlias.objects.select_related(
+        for ce_alias in CorporateEntityAlias.objects.select_related(
             "corporate_entity__manufacturer"
         ).all():
-            key = alias.value.lower()
+            key = ce_alias.value.lower()
             if key not in self._entity_to_slug:
-                self._entity_to_slug[key] = alias.corporate_entity.manufacturer.slug
+                self._entity_to_slug[key] = ce_alias.corporate_entity.manufacturer.slug
 
         # Normalized-name fallback: strip business suffixes.
         # Only usable when the normalized form maps to exactly one record.

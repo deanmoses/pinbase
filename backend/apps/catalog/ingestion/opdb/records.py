@@ -9,6 +9,7 @@ resolution) stays in parsers.py and the ingest command.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -28,14 +29,14 @@ class OpdbRecord:
     player_count: int | None = None
     type: str = ""
     display: str = ""
-    keywords: list | None = None
+    keywords: list[str] | None = None
     description: str | None = None
     common_name: str | None = None
-    images: list | None = None
+    images: list[dict[str, Any]] | None = None
     shortname: str | None = None
 
     @classmethod
-    def from_raw(cls, d: dict) -> OpdbRecord:
+    def from_raw(cls, d: dict[str, Any]) -> OpdbRecord:
         """Map raw JSON keys to Python field names. Key mapping only."""
         mfr = d.get("manufacturer") or {}
         return cls(

@@ -7,6 +7,8 @@ output, not the framework's execution.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import CommandError
@@ -31,9 +33,11 @@ def opdb_source(db):
     )
 
 
-def _make_record(**overrides) -> OpdbRecord:
+def _make_record(
+    **overrides: Any,  # noqa: ANN401 - dataclass kwargs are heterogeneous
+) -> OpdbRecord:
     """Build a minimal OpdbRecord with sensible defaults."""
-    defaults = {
+    defaults: dict[str, Any] = {
         "opdb_id": "GTEST-M1",
         "name": "Test Game",
         "is_machine": True,

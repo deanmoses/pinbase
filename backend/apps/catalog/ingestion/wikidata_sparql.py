@@ -42,9 +42,11 @@ Dump format written by ``fetch_manufacturer_sparql()`` (and read by ``--from-dum
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import requests
+
+SparqlResult = dict[str, Any]
 
 SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
 USER_AGENT = "Flipcommons/1.0 (Project of The Flip pinball museum; contact via github.com/The-Flip/flipcommons)"
@@ -222,7 +224,7 @@ class WikidataManufacturer:
     citation_url: str  # https://www.wikidata.org/wiki/{qid}
 
 
-def fetch_sparql(timeout: int = 5) -> dict:
+def fetch_sparql(timeout: int = 5) -> SparqlResult:
     """Run all queries and return a combined result dict.
 
     The returned dict has the shape ``{"persons": <sparql-result>, "bio":
@@ -238,7 +240,7 @@ def fetch_sparql(timeout: int = 5) -> dict:
     # Step 2: collect QIDs and fetch bio data only for those persons.
     qids = _extract_person_qids(persons_data)
     if not qids:
-        empty: dict = {"results": {"bindings": []}}
+        empty: SparqlResult = {"results": {"bindings": []}}
         return {"persons": persons_data, "bio": empty, "credits": empty}
 
     bio_query = _SPARQL_BIO_QUERY_TEMPLATE.format(
@@ -248,19 +250,19 @@ def fetch_sparql(timeout: int = 5) -> dict:
 
     # Step 3: fetch credit triples — one query per property to avoid UNION
     # timeouts.  Inject a synthetic "prop" field so the caller can map to roles.
-    all_credit_bindings: list[dict] = []
+    all_credit_bindings: list[dict[str, Any]] = []
     for prop in PROP_TO_ROLE:
         query = _SPARQL_CREDITS_QUERY_TEMPLATE.format(prop=prop)
         result = _run_sparql(query, timeout=timeout)
         for binding in result["results"]["bindings"]:
             binding["prop"] = {"type": "literal", "value": prop}
         all_credit_bindings.extend(result["results"]["bindings"])
-    credits_data = {"results": {"bindings": all_credit_bindings}}
+    credits_data: SparqlResult = {"results": {"bindings": all_credit_bindings}}
 
     return {"persons": persons_data, "bio": bio_data, "credits": credits_data}
 
 
-def parse_sparql_results(data: dict) -> list[WikidataPerson]:
+def parse_sparql_results(data: SparqlResult) -> list[WikidataPerson]:
     """Parse the combined fetch_sparql() result into a list of WikidataPerson.
 
     ``data`` must have ``"persons"``, ``"bio"``, and ``"credits"`` keys, each
@@ -338,7 +340,7 @@ def parse_sparql_results(data: dict) -> list[WikidataPerson]:
     return sorted(persons.values(), key=lambda p: p.name.lower())
 
 
-def fetch_manufacturer_sparql(timeout: int = 5) -> dict:
+def fetch_manufacturer_sparql(timeout: int = 5) -> SparqlResult:
     """Run manufacturer queries and return a combined result dict.
 
     The returned dict has the shape ``{"manufacturers": <sparql-result>,
@@ -352,7 +354,7 @@ def fetch_manufacturer_sparql(timeout: int = 5) -> dict:
 
     qids = _extract_qids(manufacturers_data, "manufacturer")
     if not qids:
-        empty: dict = {"results": {"bindings": []}}
+        empty: SparqlResult = {"results": {"bindings": []}}
         return {"manufacturers": manufacturers_data, "bio": empty}
 
     bio_query = _SPARQL_MFR_BIO_QUERY_TEMPLATE.format(
@@ -363,7 +365,7 @@ def fetch_manufacturer_sparql(timeout: int = 5) -> dict:
     return {"manufacturers": manufacturers_data, "bio": bio_data}
 
 
-def parse_manufacturer_sparql_results(data: dict) -> list[WikidataManufacturer]:
+def parse_manufacturer_sparql_results(data: SparqlResult) -> list[WikidataManufacturer]:
     """Parse the combined fetch_manufacturer_sparql() result into a list of WikidataManufacturer.
 
     ``data`` must have ``"manufacturers"`` and ``"bio"`` keys, each containing
@@ -490,7 +492,7 @@ def parse_wikidata_date(
     return WikidataDate(year, month, day)
 
 
-def _run_sparql(query: str, timeout: int) -> dict:
+def _run_sparql(query: str, timeout: int) -> SparqlResult:
     """Execute a single SPARQL query and return the JSON result dict."""
     resp = requests.get(
         SPARQL_ENDPOINT,
@@ -499,13 +501,13 @@ def _run_sparql(query: str, timeout: int) -> dict:
         timeout=timeout,
     )
     resp.raise_for_status()
-    data = resp.json()
+    data: SparqlResult = resp.json()
     if "results" not in data or "bindings" not in data["results"]:
         raise ValueError(f"Unexpected SPARQL response shape: {list(data.keys())}")
     return data
 
 
-def _extract_qids(result_data: dict, var_name: str) -> list[str]:
+def _extract_qids(result_data: SparqlResult, var_name: str) -> list[str]:
     """Return distinct QIDs from a SPARQL result binding under *var_name*."""
     seen: set[str] = set()
     for binding in result_data["results"]["bindings"]:
@@ -516,12 +518,12 @@ def _extract_qids(result_data: dict, var_name: str) -> list[str]:
     return list(seen)
 
 
-def _extract_person_qids(persons_data: dict) -> list[str]:
+def _extract_person_qids(persons_data: SparqlResult) -> list[str]:
     """Return distinct person QIDs from a persons query result."""
     return _extract_qids(persons_data, "person")
 
 
-def _int_binding(binding: dict, key: str) -> int | None:
+def _int_binding(binding: dict[str, Any], key: str) -> int | None:
     val = binding.get(key, {}).get("value")
     if val is None:
         return None

@@ -35,7 +35,7 @@ class IpdbRecord:
     marketing_slogans: str = ""
     common_abbreviations: str = ""
     mpu: str = ""
-    image_files: list[dict] = field(default_factory=list)
+    image_files: list[dict[str, Any]] = field(default_factory=list)
 
     # Credit fields
     design_by: str = ""

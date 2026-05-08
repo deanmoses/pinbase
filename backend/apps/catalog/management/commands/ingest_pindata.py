@@ -12,13 +12,15 @@ at priority 300, which outrank OPDB (200), IPDB (100), and other sources.
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
+from typing import Any, Protocol
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
@@ -85,7 +87,9 @@ def _parent_path(location_path: str) -> str | None:
     return parts[0] if len(parts) > 1 else None
 
 
-def _resolve_ce_location_path(entry: dict, loc_by_path: dict) -> str | None:
+def _resolve_ce_location_path(
+    entry: dict[str, Any], loc_by_path: dict[str, Location]
+) -> str | None:
     """Return the canonical location_path for a CE entry, or None if absent."""
     path = (entry.get("headquarters_location") or "").strip()
     if not path:
@@ -159,7 +163,17 @@ TAXONOMY_REGISTRY: list[TaxonomyEntry] = [
 ]
 
 
-def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
+class _Writable(Protocol):
+    """Minimal ``.write()`` interface — accepts both Django's ``OutputWrapper``
+    and ``io.StringIO`` so callers (the management command and tests) can
+    pass either."""
+
+    def write(self, msg: str, /) -> object: ...
+
+
+def validate_cross_entity_wikilinks(
+    export_dir: Path, stdout: _Writable, stderr: _Writable
+) -> None:
     """Validate cross-entity [[type:slug]] wikilinks in all taxonomy descriptions.
 
     Called by ingest_all after the full pipeline so all entities (manufacturers,
@@ -222,14 +236,18 @@ def validate_cross_entity_wikilinks(export_dir: Path, stdout, stderr) -> None:
 class Command(BaseCommand):
     help = "Ingest all pindata-authored data from exported JSON files."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--export-dir",
             default=str(DEFAULT_EXPORT_DIR),
             help="Path to exported pindata JSON directory.",
         )
 
-    def handle(self, *args, **options):
+    def handle(
+        self,
+        *args: object,
+        **options: Any,  # noqa: ANN401 - argparse-driven Django command kwargs
+    ) -> None:
         self.export_dir = Path(options["export_dir"])
 
         # Create sources used across phases.
@@ -289,7 +307,7 @@ class Command(BaseCommand):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _run_timed(self, phase):
+    def _run_timed(self, phase: Callable[[], None]) -> None:
         """Run a phase function and print elapsed time."""
         start = time.monotonic()
         phase()
@@ -301,7 +319,7 @@ class Command(BaseCommand):
         self,
         model_class: type[CatalogModel],
         pending_claims: list[Claim],
-        **kwargs,
+        **kwargs: Any,  # noqa: ANN401 - bulk_assert_claims kwargs passthrough
     ) -> dict[str, int]:
         """Assert claims, deferring description claims for later.
 
@@ -333,7 +351,7 @@ class Command(BaseCommand):
 
         return stats
 
-    def _flush_deferred_descriptions(self):
+    def _flush_deferred_descriptions(self) -> None:
         """Assert all deferred description claims now that every entity exists."""
         if not self._deferred_desc_claims:
             return
@@ -364,11 +382,11 @@ class Command(BaseCommand):
 
     def _assert_alias_claims(
         self,
-        source,
+        source: Source,
         ct_id: int,
         aliases_by_pk: dict[int, list[str]],
         field_name: str,
-    ) -> dict:
+    ) -> dict[str, int]:
         """Assert alias claims for a batch of entities.
 
         aliases_by_pk: {entity_pk: [alias_str, ...]}
@@ -398,19 +416,20 @@ class Command(BaseCommand):
             source, pending, sweep_field=field_name, authoritative_scope=scope
         )
 
-    def _load(self, filename: str) -> list[dict]:
+    def _load(self, filename: str) -> list[dict[str, Any]]:
         path = self.export_dir / filename
         if not path.exists():
             self.stderr.write(f"  Skipping {filename} (not found)")
             return []
         with open(path) as f:
-            return json.load(f)
+            data: list[dict[str, Any]] = json.load(f)
+            return data
 
     # ------------------------------------------------------------------
     # Phase 0: Locations
     # ------------------------------------------------------------------
 
-    def _ingest_locations(self):
+    def _ingest_locations(self) -> None:
         """Ingest canonical Location records from location.json.
 
         Runs before all other phases so that location_path lookups are
@@ -542,7 +561,7 @@ class Command(BaseCommand):
     # Phase 1: Taxonomy
     # ------------------------------------------------------------------
 
-    def _ingest_taxonomy(self):
+    def _ingest_taxonomy(self) -> None:
         for taxonomy_entry in TAXONOMY_REGISTRY:
             data = self._load(taxonomy_entry.json_file)
             if not data:
@@ -565,7 +584,7 @@ class Command(BaseCommand):
                 description = entry.get("description", "")
                 display_order = entry.get("display_order", 0)
 
-                kwargs: dict = {
+                kwargs: dict[str, Any] = {
                     "slug": slug,
                     "name": name,
                     "description": description,
@@ -616,7 +635,9 @@ class Command(BaseCommand):
                 if taxonomy_entry.has_display_order:
                     pending_claims.append(
                         Claim.for_object(
-                            obj, field_name="display_order", value=obj.display_order
+                            obj,
+                            field_name="display_order",
+                            value=getattr(obj, "display_order", 0),
                         )
                     )
                 if parent:
@@ -647,7 +668,7 @@ class Command(BaseCommand):
     # Phase 1b: Themes (entities + parents + aliases)
     # ------------------------------------------------------------------
 
-    def _ingest_themes(self):
+    def _ingest_themes(self) -> None:
         entries = self._load("theme.json")
         if not entries:
             return
@@ -763,7 +784,7 @@ class Command(BaseCommand):
     # Phase 1d: Gameplay features (entities + parents + aliases)
     # ------------------------------------------------------------------
 
-    def _ingest_gameplay_features(self):
+    def _ingest_gameplay_features(self) -> None:
         entries = self._load("gameplay_feature.json")
         if not entries:
             return
@@ -882,7 +903,7 @@ class Command(BaseCommand):
     # Phase 1e: RewardType aliases
     # ------------------------------------------------------------------
 
-    def _sync_reward_type_aliases(self):
+    def _sync_reward_type_aliases(self) -> None:
         rt_entries = self._load("reward_type.json")
         if not rt_entries:
             return
@@ -911,7 +932,7 @@ class Command(BaseCommand):
     # Phase 2: Manufacturers
     # ------------------------------------------------------------------
 
-    def _ingest_manufacturers(self):
+    def _ingest_manufacturers(self) -> None:
         entries = self._load("manufacturer.json")
         if not entries:
             return
@@ -994,7 +1015,7 @@ class Command(BaseCommand):
     # Phase 3: Corporate entities
     # ------------------------------------------------------------------
 
-    def _ingest_corporate_entities(self):
+    def _ingest_corporate_entities(self) -> None:
         entries = self._load("corporate_entity.json")
         if not entries:
             return
@@ -1155,7 +1176,7 @@ class Command(BaseCommand):
     # Phase 4: Systems
     # ------------------------------------------------------------------
 
-    def _ingest_systems(self):
+    def _ingest_systems(self) -> None:
         entries = self._load("system.json")
         if not entries:
             return
@@ -1272,7 +1293,7 @@ class Command(BaseCommand):
     # Phase 5: People
     # ------------------------------------------------------------------
 
-    def _ingest_people(self):
+    def _ingest_people(self) -> None:
         entries = self._load("person.json")
         if not entries:
             return
@@ -1343,7 +1364,7 @@ class Command(BaseCommand):
     # Phase 6: Series
     # ------------------------------------------------------------------
 
-    def _ingest_series(self):
+    def _ingest_series(self) -> None:
         series_entries = self._load("series.json")
         if not series_entries:
             return
@@ -1435,7 +1456,7 @@ class Command(BaseCommand):
     # Phase 7: Titles
     # ------------------------------------------------------------------
 
-    def _ingest_titles(self):
+    def _ingest_titles(self) -> None:
         entries = self._load("title.json")
         if not entries:
             return
@@ -1443,7 +1464,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             self._ingest_titles_body(entries)
 
-    def _ingest_titles_body(self, entries):
+    def _ingest_titles_body(self, entries: list[dict[str, Any]]) -> None:
         titles_by_opdb_id = {t.opdb_id: t for t in Title.objects.all()}
         titles_by_slug = {t.slug: t for t in Title.objects.all()}
         existing_slugs: set[str] = set(Title.objects.values_list("slug", flat=True))
@@ -1482,7 +1503,7 @@ class Command(BaseCommand):
         titles_by_slug = {t.slug: t for t in Title.objects.all()}
 
         # Pass 2 (collect): find each title, detect transforms — no claim building yet.
-        collected: list[tuple[Title, dict]] = []
+        collected: list[tuple[Title, dict[str, Any]]] = []
         pending_slugs: dict[int, str] = {}
         pending_fandom_updates: list[Title] = []
         skipped = 0
@@ -1635,9 +1656,9 @@ class Command(BaseCommand):
 
         # Sweep franchise and series so removing the slug in a later
         # pindata export retracts the stale claim.
-        claim_stats: dict = {}
+        claim_stats: dict[str, int] = {}
         if pending_claims:
-            sweep_kwargs = {}
+            sweep_kwargs: dict[str, Any] = {}
             if touched_ids:
                 sweep_kwargs["sweep_field"] = ["franchise", "series"]
                 sweep_kwargs["authoritative_scope"] = make_authoritative_scope(
@@ -1693,7 +1714,7 @@ class Command(BaseCommand):
         "remake_of": "remake_of",
     }
 
-    def _ingest_models(self):
+    def _ingest_models(self) -> None:
         entries = self._load("model.json")
         if not entries:
             return

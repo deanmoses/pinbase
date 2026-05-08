@@ -19,7 +19,7 @@ import json
 import logging
 from dataclasses import dataclass
 from html import unescape
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import CommandError
@@ -268,16 +268,16 @@ def build_ipdb_plan(
 
     # Collect queues for deferred processing.
     credit_queue: list[CreditQueueEntry] = []
-    theme_queue: list[tuple[dict, list[str]]] = []  # (target_kwargs, [slugs])
-    gameplay_feature_queue: list[tuple[dict, list[GameplayFeaturePair]]] = []
-    reward_type_queue: list[tuple[dict, list[str]]] = []
+    theme_queue: list[tuple[dict[str, Any], list[str]]] = []  # (target_kwargs, [slugs])
+    gameplay_feature_queue: list[tuple[dict[str, Any], list[GameplayFeaturePair]]] = []
+    reward_type_queue: list[tuple[dict[str, Any], list[str]]] = []
     unmatched_feature_terms: list[str] = []
     unknown_mpu_strings: set[str] = set()
     ce_handles: dict[int, str] = {}  # mfr_id → handle for planned CEs
 
     # ── Step 3: Process each record ──────────────────────────────
     for mr in match_results:
-        target = {"content_type_id": ct_mm, "object_id": mr.model.pk}
+        target: dict[str, Any] = {"content_type_id": ct_mm, "object_id": mr.model.pk}
 
         _collect_mm_claims(mr, target, plan, mpu_to_slug, unknown_mpu_strings)
 
@@ -443,7 +443,7 @@ def compute_fingerprint(ipdb_path: str) -> str:
 
 def _collect_mm_claims(
     mr: MatchResult,
-    target: dict,
+    target: dict[str, Any],
     plan: IngestPlan,
     mpu_to_slug: dict[str, str],
     unknown_mpu_strings: set[str],
@@ -513,7 +513,7 @@ def _collect_mm_claims(
 
 def _process_corporate_entity(
     mr: MatchResult,
-    target: dict,
+    target: dict[str, Any],
     plan: IngestPlan,
     ct_ce: int,
     resolver: ManufacturerResolver,
@@ -560,7 +560,7 @@ def _process_corporate_entity(
         # Existing CE — assert claims.  Include name so the resolve layer
         # doesn't reset it to blank (CE.name is not unique, so it's not
         # auto-preserved by the resolver).  Slug is unique and auto-preserved.
-        ce_target: dict = {"content_type_id": ct_ce, "object_id": ce.pk}
+        ce_target: dict[str, Any] = {"content_type_id": ct_ce, "object_id": ce.pk}
         plan.assertions.append(
             PlannedClaimAssert(field_name="name", value=ce.name, **ce_target)
         )
@@ -645,7 +645,7 @@ def _process_corporate_entity(
         ce_slug = generate_unique_slug(company, ce_slugs)
         handle = f"ce:{mfr_id}"
 
-        kwargs: dict = {
+        kwargs: dict[str, Any] = {
             "name": company,
             "slug": ce_slug,
             "manufacturer_id": mfr.pk,
@@ -666,7 +666,7 @@ def _process_corporate_entity(
         )
 
         # Claims for all kwargs fields.
-        ce_handle_target: dict = {"handle": handle}
+        ce_handle_target: dict[str, Any] = {"handle": handle}
         plan.assertions.append(
             PlannedClaimAssert(field_name="name", value=company, **ce_handle_target)
         )
@@ -794,11 +794,11 @@ def _process_credits(
                 )
             )
         else:
-            person = person_lookup.get(key)
-            if not person:
+            existing_person = person_lookup.get(key)
+            if not existing_person:
                 continue
             claim_key, value = build_relationship_claim(
-                "credit", {"person": person.pk, "role": role_pk}
+                "credit", {"person": existing_person.pk, "role": role_pk}
             )
             plan.assertions.append(
                 PlannedClaimAssert(
@@ -817,7 +817,7 @@ def _process_credits(
 
 
 def _process_themes(
-    theme_queue: list[tuple[dict, list[str]]],
+    theme_queue: list[tuple[dict[str, Any], list[str]]],
     plan: IngestPlan,
     ct_theme: int,
     theme_by_slug: dict[str, Theme],
@@ -857,15 +857,15 @@ def _process_themes(
     # Build theme relationship claims.
     for mm_target, slugs in theme_queue:
         for slug in slugs:
-            handle = new_theme_handles.get(slug)
-            if handle:
+            new_handle = new_theme_handles.get(slug)
+            if new_handle:
                 # Deferred — theme is being created in this plan.
                 plan.assertions.append(
                     PlannedClaimAssert(
                         field_name="theme",
                         relationship_namespace="theme",
                         identity={},
-                        identity_refs={"theme": handle},
+                        identity_refs={"theme": new_handle},
                         **mm_target,
                     )
                 )
@@ -892,7 +892,7 @@ def _process_themes(
 
 
 def _process_gameplay_features(
-    queue: list[tuple[dict, list[GameplayFeaturePair]]],
+    queue: list[tuple[dict[str, Any], list[GameplayFeaturePair]]],
     plan: IngestPlan,
     feature_slug_to_pk: dict[str, int],
 ) -> None:
@@ -918,7 +918,7 @@ def _process_gameplay_features(
 
 
 def _process_reward_types(
-    queue: list[tuple[dict, list[str]]],
+    queue: list[tuple[dict[str, Any], list[str]]],
     plan: IngestPlan,
     reward_slug_to_pk: dict[str, int],
 ) -> None:

@@ -7,6 +7,8 @@ output, not the framework's execution.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from django.core.management.base import CommandError
 
@@ -59,9 +61,11 @@ def _seed_mm_9998_and_9999(_seed_mm_9999, db):
     )
 
 
-def _make_record(**overrides) -> IpdbRecord:
+def _make_record(
+    **overrides: Any,  # noqa: ANN401 - dataclass kwargs are heterogeneous
+) -> IpdbRecord:
     """Build a minimal IpdbRecord with sensible defaults."""
-    defaults = {"ipdb_id": 9999, "title": "Test Machine"}
+    defaults: dict[str, Any] = {"ipdb_id": 9999, "title": "Test Machine"}
     defaults.update(overrides)
     return IpdbRecord(**defaults)
 
