@@ -113,11 +113,6 @@ def _clear_cache():
     cache.clear()
 
 
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
 def _invoke(handler, user, **body_overrides):
     """Call a registered unparented create handler directly.
 

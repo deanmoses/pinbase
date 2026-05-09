@@ -12,11 +12,6 @@ User = get_user_model()
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def theme(db):
     return Theme.objects.create(name="Sports", slug="sports")
 

@@ -23,11 +23,6 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user("editor@example.com")
-
-
-@pytest.fixture
 def machine_model(db):
     return make_machine_model(name="Test Machine", slug="test-machine")
 

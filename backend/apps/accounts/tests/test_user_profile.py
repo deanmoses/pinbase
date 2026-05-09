@@ -17,11 +17,6 @@ def client():
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="historian@example.com")
-
-
-@pytest.fixture
 def bootstrap_source(db):
     return Source.objects.create(
         name="Bootstrap", slug="bootstrap", source_type="editorial", priority=1
@@ -62,7 +57,7 @@ class TestUserProfileEmpty:
         resp = client.get(f"/api/pages/user/{user.username}/")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["username"] == "historian"
+        assert data["username"] == user.username
         assert data["edit_count"] == 0
         assert data["entities_edited"] == []
         assert data["recent_edits"] == []

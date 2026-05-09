@@ -10,11 +10,6 @@ User = get_user_model()
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def _bootstrap_source(db):
     """Low-priority source for seeding name claims."""
     return Source.objects.create(
@@ -70,7 +65,7 @@ class TestEditHistoryBasic:
         assert len(data) == 1
 
         cs = data[0]
-        assert cs["user_display"] == "editor"
+        assert cs["user_display"] == user.username
         assert cs["note"] == ""
         assert len(cs["changes"]) == 1
         assert cs["changes"][0]["field_name"] == "year"
@@ -150,12 +145,12 @@ class TestEditHistoryMultiUser:
         assert len(data) == 2
 
         # User B's edit is newest — no old value because B never edited year before
-        assert data[0]["user_display"] == "other"
+        assert data[0]["user_display"] == user_b.username
         assert data[0]["changes"][0]["old_value"] is None
         assert data[0]["changes"][0]["new_value"] == 1999
 
         # User A's edit — also no old value (first edit)
-        assert data[1]["user_display"] == "editor"
+        assert data[1]["user_display"] == user.username
         assert data[1]["changes"][0]["old_value"] is None
         assert data[1]["changes"][0]["new_value"] == 1998
 

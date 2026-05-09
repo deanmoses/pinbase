@@ -15,11 +15,6 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def client():
     return Client()
 

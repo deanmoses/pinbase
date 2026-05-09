@@ -77,11 +77,6 @@ def _media_settings(settings):
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user("uploader@example.com")
-
-
-@pytest.fixture
 def client(user):
     c = Client()
     c.force_login(user)

@@ -19,11 +19,6 @@ User = get_user_model()
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def mfr(db, _bootstrap_source):
     m = Manufacturer.objects.create(name="Gottlieb", slug="gottlieb")
     Claim.objects.assert_claim(m, "name", "Gottlieb", source=_bootstrap_source)

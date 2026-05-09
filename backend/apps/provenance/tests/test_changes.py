@@ -29,11 +29,6 @@ def bootstrap_source(db):
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def user_b(db):
     return User.objects.create_user(email="editor-b@example.com")
 
@@ -127,7 +122,7 @@ class TestChangesList:
         data = resp.json()
         assert len(data["items"]) == 1
         item = data["items"][0]
-        assert item["user_display"] == "editor"
+        assert item["user_display"] == user.username
         assert item["entity_name"] == "Medieval Madness"
         assert item["entity_type_label"] == "Model"
         assert item["changes_count"] >= 1

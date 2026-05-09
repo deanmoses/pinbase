@@ -28,11 +28,6 @@ def source(db):
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def pm(db, _bootstrap_source):
     pm = make_machine_model(name="Medieval Madness", slug="medieval-madness", year=1997)
     Claim.objects.assert_claim(pm, "name", "Medieval Madness", source=_bootstrap_source)

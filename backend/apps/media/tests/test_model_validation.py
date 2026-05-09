@@ -34,11 +34,6 @@ def _asset_kwargs(user, **overrides):
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user("mediatest@example.com")
-
-
-@pytest.fixture
 def asset(user):
     return MediaAsset.objects.create(**_asset_kwargs(user))
 
