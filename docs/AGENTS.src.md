@@ -258,6 +258,8 @@ Each of these is sometimes legitimate but is usually a sign the type can be tigh
 - `tuple[...]` with three or more positional fields, or the same tuple shape repeated across modules — define a NamedTuple in the same module (or `apps/core/types.py` if cross-app)
 - `isinstance` on a value whose static type should already be the narrow one — usually means the upstream signature is too loose
 - `TYPE_CHECKING`-only imports paired with `cast` or stringified annotations — often hides a real architectural coupling that should be modeled, not papered over
+- `# type: ignore` — should be specific (`# type: ignore[<code>]`, never bare) and carry a one-line reason; bare or unexplained ignores are silencing a real signal
+- `# noqa` — must be specific (`# noqa: <code>`) and carry a one-line reason. ANN401 noqas are explicitly required by TypeFixing.md for the legitimate exception shapes (Django management `**kwargs`, signal receivers, Ninja dispatch, etc.) — those are correct. Unexplained, bare, or shotgun noqas are the smell.
 
 Prefer NamedTuple, dataclass, or TypedDict over labelless tuples and free-form dicts. A type alias (`type EntityKey = tuple[int, int]`) does **not** clear the tuple smell — callers still index by position; only a structure with named fields does.
 

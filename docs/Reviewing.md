@@ -72,6 +72,8 @@ Treat each of these as a closer-look trigger, not an automatic finding:
 - `tuple[...]` with three or more positional fields, or the same tuple shape repeated across modules
 - `isinstance` checks on values whose upstream signature could be narrower
 - `TYPE_CHECKING`-only imports paired with `cast` or stringified annotations
+- bare or unexplained `# type: ignore` (should be `# type: ignore[<code>]` with a reason)
+- bare or unexplained `# noqa` (should be `# noqa: <code>` with a reason; ANN401 noqas matching TypeFixing.md's exception shapes are correct, not findings)
 
 The fix is usually a NamedTuple, dataclass, or TypedDict — not a type alias, which leaves callers indexing by position. Don't flag a hit that TypeFixing.md lists as a legitimate exception (Django management `**kwargs`, signal receivers, Ninja dispatch, JSON parse results, framework-owned callback surfaces).
 
