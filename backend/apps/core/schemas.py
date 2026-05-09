@@ -19,9 +19,20 @@ class ErrorDetailSchema(Schema):
     detail: str
 
 
-class ValidationErrorBodySchema(Schema):
-    kind: Literal["validation_error"]
+class StructuredErrorBodySchema(Schema):
+    """Shared base for structured-error body schemas.
+
+    Concrete variants override ``kind`` with a ``Literal`` so each emits a
+    discriminated TypeScript type via codegen. Inheritance-only — not used
+    as a router ``response=`` directly.
+    """
+
+    kind: str
     message: str
+
+
+class ValidationErrorBodySchema(StructuredErrorBodySchema):
+    kind: Literal["validation_error"]
     field_errors: dict[str, str]
     form_errors: list[str]
 
@@ -33,9 +44,8 @@ class ValidationErrorSchema(Schema):
     detail: ValidationErrorBodySchema
 
 
-class RateLimitErrorBodySchema(Schema):
+class RateLimitErrorBodySchema(StructuredErrorBodySchema):
     kind: Literal["rate_limit"]
-    message: str
     bucket: str
     retry_after: int
 

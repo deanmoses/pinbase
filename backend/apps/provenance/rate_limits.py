@@ -23,9 +23,12 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.core.cache import cache
+
+from apps.core.exceptions import StructuredApiError
 
 from .constants import (
     CREATE_RATE_LIMIT,
@@ -37,13 +40,27 @@ from .constants import (
 _CACHE_TTL_FUDGE_SECONDS = 60
 
 
-class RateLimitExceededError(Exception):
+class RateLimitExceededError(StructuredApiError):
     """Raised when a user has exceeded a rate-limit bucket."""
 
+    kind = "rate_limit"
+    status = 429
+
     def __init__(self, *, bucket: str, retry_after: int) -> None:
+        super().__init__("Rate limit exceeded.")
         self.bucket = bucket
         self.retry_after = max(1, retry_after)
-        super().__init__(f"Rate limit exceeded for bucket {bucket!r}")
+
+    def __str__(self) -> str:
+        # Server-side repr (logs / tracebacks) keeps the bucket; the wire
+        # ``message`` is the user-facing string set via ``super().__init__``.
+        return f"Rate limit exceeded for bucket {self.bucket!r}"
+
+    def to_body(self) -> dict[str, Any]:
+        return {"bucket": self.bucket, "retry_after": self.retry_after}
+
+    def extra_headers(self) -> dict[str, str]:
+        return {"Retry-After": str(self.retry_after)}
 
 
 @dataclass(frozen=True)

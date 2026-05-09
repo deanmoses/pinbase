@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, NoReturn, TypedDict, cast
+from typing import Any, NoReturn, cast
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.core.exceptions import ValidationError
@@ -29,6 +29,7 @@ from apps.catalog.models import (
     Theme,
     Title,
 )
+from apps.core.exceptions import StructuredApiError
 from apps.provenance.models import (
     ChangeSet,
     ChangeSetAction,
@@ -67,19 +68,12 @@ class ClaimSpec:
     claim_key: str = ""
 
 
-class StructuredErrorBody(TypedDict):
-    """JSON body for a 422 structured-validation response (nested under ``detail`` by the handler)."""
-
-    message: str
-    field_errors: dict[str, str]
-    form_errors: list[str]
-
-
-class StructuredValidationError(Exception):
+class StructuredValidationError(StructuredApiError):
     """Validation error with separate field-level and form-level messages.
 
-    Raised by claim-editing helpers and caught by a custom exception
-    handler in ``config/api.py`` that returns a 422 JSON response:
+    Raised by claim-editing helpers and routed through the shared
+    ``StructuredApiError`` handler in ``config/api.py``, which returns a
+    422 JSON response:
 
     .. code-block:: json
 
@@ -93,6 +87,9 @@ class StructuredValidationError(Exception):
         }
     """
 
+    kind = "validation_error"
+    status = 422
+
     def __init__(
         self,
         *,
@@ -100,14 +97,12 @@ class StructuredValidationError(Exception):
         field_errors: dict[str, str] | None = None,
         form_errors: list[str] | None = None,
     ) -> None:
-        self.message = message
+        super().__init__(message)
         self.field_errors = field_errors or {}
         self.form_errors = form_errors or []
-        super().__init__(message)
 
-    def to_response_body(self) -> StructuredErrorBody:
+    def to_body(self) -> dict[str, Any]:
         return {
-            "message": self.message,
             "field_errors": self.field_errors,
             "form_errors": self.form_errors,
         }

@@ -201,7 +201,7 @@ HTTP 403
 
 `message` is an English fallback so the API is usable without the SPA. The SPA ignores it and renders its own copy from `code` via a single mapper module — one place per code maps to `{ title, body, primaryAction }`. Each code's `context` shape is part of the registry and part of the API contract; adding or removing a key is a breaking change.
 
-All structured-detail flavors carry `kind` — `validation_error`, `rate_limit`, `policy_denied` — and the frontend extractor dispatches by `detail.kind`. New variants must declare a `kind` literal on their schema and emit it in the handler.
+All structured-detail flavors carry `kind` — `validation_error`, `rate_limit`, `policy_denied` — and the frontend extractor dispatches by `detail.kind`. New variants subclass `StructuredApiError` (declaring `kind` and `status` as class attributes plus a `to_body()` method) and declare a matching `kind` literal on their body schema; a single shared exception handler in `config/api.py` wraps the response.
 
 Routes that emit denials declare `403: PolicyDeniedSchema`. Routes that emit both a policy denial _and_ a non-policy plain-string 403 (e.g. an inline `HttpError(403, "...")`) declare a union: `403: PolicyDeniedSchema | ErrorDetailSchema`. Ninja serializes the union per actual body shape; the frontend's denial mapper keys off `error.detail.code`.
 
