@@ -45,9 +45,18 @@ def test_every_activity_requires_email_verified(activity: Activity) -> None:
     auto-allow unverified users — this test pins that invariant. Different
     failure mode than the rule-presence test above, so kept as a separate
     function rather than a parametrize expansion.
+
+    The stub passes the role predicates (`is_staff`, `is_superuser`) so
+    activities that gate on a role still surface VERIFICATION_REQUIRED
+    rather than ROLE_REQUIRED — the only failing predicate is the one
+    this test exists to pin.
     """
     user = StubPolicyUser(
-        is_authenticated=True, is_active=True, is_email_verified=False
+        is_authenticated=True,
+        is_active=True,
+        is_email_verified=False,
+        is_staff=True,
+        is_superuser=True,
     )
     decision = check(user, activity)
     assert isinstance(decision, Deny), (

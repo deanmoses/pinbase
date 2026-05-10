@@ -1,7 +1,10 @@
-"""Kiosk resource API — superuser-only CRUD over KioskConfig.
+"""Kiosk resource API — CRUD over KioskConfig.
 
 Plain Django models, no claims plumbing (kiosk configs are operational
 settings, not catalog claims). See plan and docs/Provenance.md.
+
+All endpoints gate on ``Activity.KIOSK_EDIT``; the policy in
+``apps/kiosk/authz.py`` owns the superuser predicate.
 """
 
 from __future__ import annotations
@@ -36,13 +39,6 @@ kiosk_configs_router = Router(tags=["kiosk", "private"])
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-def _require_superuser(request: HttpRequest) -> None:
-    """Gate every endpoint on superuser. ``django_auth`` already rejected anon."""
-    user = authed_user(request)
-    if not user.is_superuser:
-        raise HttpError(403, "Superuser access required.")
-
-
 def _serialize_item(item: KioskConfigItem) -> KioskConfigItemDetailSchema:
     return KioskConfigItemDetailSchema(
         id=item.pk,
@@ -70,8 +66,8 @@ def _serialize_detail(config: KioskConfig) -> KioskConfigDetailSchema:
     auth=django_auth,
     response=list[KioskConfigListItemSchema],
 )
+@requires(Activity.KIOSK_EDIT)
 def list_configs(request: HttpRequest) -> list[KioskConfigListItemSchema]:
-    _require_superuser(request)
     configs = KioskConfig.objects.annotate(item_count=Count("items"))
     return [
         KioskConfigListItemSchema(
@@ -100,7 +96,6 @@ def create_config(request: HttpRequest) -> Status[KioskConfigDetailSchema]:
     payload. Operators identify kiosks by their integer primary key, so no
     label is required at creation time.
     """
-    _require_superuser(request)
     user = authed_user(request)
     config = KioskConfig.objects.create(created_by=user, updated_by=user)
     return Status(201, _serialize_detail(config))
@@ -111,8 +106,8 @@ def create_config(request: HttpRequest) -> Status[KioskConfigDetailSchema]:
     auth=django_auth,
     response=KioskConfigDetailSchema,
 )
+@requires(Activity.KIOSK_EDIT)
 def get_config(request: HttpRequest, config_id: int) -> KioskConfigDetailSchema:
-    _require_superuser(request)
     config = get_object_or_404(KioskConfig, pk=config_id)
     return _serialize_detail(config)
 
@@ -131,7 +126,6 @@ def update_config(
     request: HttpRequest, config_id: int, data: KioskConfigPatchSchema
 ) -> KioskConfigDetailSchema:
     """Update scalars and/or fully replace items in one transaction."""
-    _require_superuser(request)
     user = authed_user(request)
     config = get_object_or_404(KioskConfig, pk=config_id)
 
@@ -192,7 +186,6 @@ def update_config(
 )
 @requires(Activity.KIOSK_EDIT)
 def delete_config(request: HttpRequest, config_id: int) -> Status[None]:
-    _require_superuser(request)
     config = get_object_or_404(KioskConfig, pk=config_id)
     config.delete()
     return Status(204, None)

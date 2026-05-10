@@ -385,9 +385,9 @@ Pulled ahead of the role-predicate work so the highest-volume new denial code fr
 
 Add `is_staff` and `is_superuser` predicates to `core/authz/predicates.py` with the `role_required` denial code (already in the priority list). Foundational only — no call sites consume them yet, so behavior is unchanged. Lands as its own commit so the predicate API can be reviewed without being bundled with the kiosk and rate-limit refactors that depend on it.
 
-### 6b. Kiosk: fold superuser check into the policy
+### ✅ DONE: 6b. Kiosk: fold superuser check into the policy
 
-Fold `is_superuser` into `KIOSK_EDIT`'s rule; remove the inline `_require_superuser` helper from `apps/kiosk/api/configs.py`. Update row 60 of the activities table to drop the "also gated inline" footnote. Behavior unchanged — the policy verdict matches the inline helper.
+Fold `is_superuser` into `KIOSK_EDIT`'s rule; remove the inline `_require_superuser` helper from `apps/kiosk/api/configs.py`. Behavior unchanged — the policy verdict matches the inline helper.
 
 ### 6c. Rate-limit exemption via the policy
 
