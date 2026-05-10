@@ -40,16 +40,20 @@ class DenialCode(StrEnum):
     # SPA can render different copy.
     ACCOUNT_DEACTIVATED = "account_deactivated"
     ROLE_REQUIRED = "role_required"
+    VERIFICATION_REQUIRED = "verification_required"
     RATE_LIMITED = "rate_limited"
 
 
 # Index = priority (lower = more fundamental). The evaluator picks the
 # lowest-indexed failure when multiple predicates deny — telling a
-# deactivated user to verify their email is the wrong UX.
+# deactivated user to verify their email is the wrong UX. VERIFICATION
+# sits below ROLE because an unverified non-moderator should hear
+# "moderator only," not "verify your email."
 DENIAL_PRIORITY: tuple[DenialCode, ...] = (
     DenialCode.AUTH_REQUIRED,
     DenialCode.ACCOUNT_DEACTIVATED,
     DenialCode.ROLE_REQUIRED,
+    DenialCode.VERIFICATION_REQUIRED,
     DenialCode.RATE_LIMITED,
 )
 
@@ -87,6 +91,9 @@ class PolicyUser(Protocol):
 
     @property
     def is_active(self) -> bool: ...
+
+    @property
+    def email_verified(self) -> bool: ...
 
 
 @dataclass(frozen=True)

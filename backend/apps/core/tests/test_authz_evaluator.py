@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from apps.core.authz.evaluator import check
-from apps.core.authz.predicates import is_active, is_authenticated
+from apps.core.authz.predicates import email_verified, is_active, is_authenticated
 from apps.core.authz.test_factories import StubPolicyUser
 from apps.core.authz.types import Activity, Allow, DenialCode, Deny
 
@@ -59,6 +59,22 @@ def test_priority_picks_most_fundamental_when_multiple_fail(empty_registry):
     )
     assert isinstance(decision, Deny)
     assert decision.code is DenialCode.AUTH_REQUIRED
+
+
+def test_priority_picks_account_deactivated_over_verification(empty_registry):
+    """Deactivated + unverified should yield ACCOUNT_DEACTIVATED.
+
+    Account state is more fundamental than verification state — telling
+    a deactivated user to verify their email would be misleading. This
+    pins VERIFICATION_REQUIRED's priority insertion below ACCOUNT_DEACTIVATED.
+    """
+    empty_registry.register(Activity.CATALOG_EDIT, is_active, email_verified)
+    decision = check(
+        StubPolicyUser(is_active=False, is_email_verified=False),
+        Activity.CATALOG_EDIT,
+    )
+    assert isinstance(decision, Deny)
+    assert decision.code is DenialCode.ACCOUNT_DEACTIVATED
 
 
 def test_evaluator_does_not_short_circuit(empty_registry):

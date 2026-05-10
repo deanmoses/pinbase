@@ -129,6 +129,29 @@ class TestAuthCallback:
         user = User.objects.get(email="alice@example.com")
         assert user.workos_user_id == "user_01ABC"
         assert user.first_name == "Alice"
+        # The first-time-create path is a parallel write site to
+        # _refresh_mirrored_fields and must persist verification at create
+        # time, not just on subsequent logins — otherwise a verified SSO
+        # user is 403'd by the policy gate for their entire first session.
+        assert user.email_verified is True
+
+    def test_callback_creates_new_user_unverified(self, client):
+        """Inverse of the create-path mirror test.
+
+        Email+password sign-up with WorkOS arrives unverified until the
+        user clicks the verification email; the local row must reflect
+        that. Distinct from the first-time-link refusal in
+        _try_match_existing, which only fires when a local row already
+        exists for the email. With no pre-existing row, the unverified
+        user lands in the DB with email_verified=False and is gated by
+        the policy layer until they verify and log in again.
+        """
+        workos_user = _make_workos_user(email_verified=False)
+        resp = self._do_callback(client, workos_user=workos_user)
+        assert resp.status_code == 302
+
+        user = User.objects.get(email="alice@example.com")
+        assert user.email_verified is False
 
     def test_callback_recognizes_returning_user(self, client):
         existing = make_user(email="alice@example.com", workos_user_id="user_01ABC")
@@ -256,6 +279,36 @@ class TestAuthCallback:
         existing.refresh_from_db()
         assert existing.first_name == "Alice"
         assert existing.last_name == "Smith"
+
+    def test_callback_mirrors_email_verified_false_to_true(self, client):
+        """Steady-state branch picks up a verification flip on next login."""
+        existing = make_user(
+            email="alice@example.com",
+            workos_user_id="user_01ABC",
+            email_verified=False,
+        )
+        # Default _make_workos_user has email_verified=True.
+        self._do_callback(client)
+
+        existing.refresh_from_db()
+        assert existing.email_verified is True
+
+    def test_callback_mirrors_email_verified_true_to_false(self, client):
+        """Inverse direction: a provider-side reset must propagate too.
+
+        E.g. the user changes their email at the IdP and WorkOS resets
+        verification until the new address is confirmed.
+        """
+        existing = make_user(
+            email="alice@example.com",
+            workos_user_id="user_01ABC",
+            email_verified=True,
+        )
+        workos_user = _make_workos_user(email_verified=False)
+        self._do_callback(client, workos_user=workos_user)
+
+        existing.refresh_from_db()
+        assert existing.email_verified is False
 
     def test_callback_preserves_next_url(self, client):
         auth_response = _make_auth_response()

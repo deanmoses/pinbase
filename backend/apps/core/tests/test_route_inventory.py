@@ -1,17 +1,15 @@
-"""Phase-1 route-inventory test.
+"""Route-inventory test: every mutating route is gated or explicitly public.
 
 Walks every Ninja router in the project and asserts every mutating
 operation carries exactly one of:
 
-    @requires(Activity.X)        — the canonical gate; phase 3 enforces.
+    @requires(Activity.X)        — the canonical gate; enforced at request time.
     @gated_inline(Activity.X)    — view body calls policy.check() itself.
     @public_mutation(reason)     — deliberately ungated; reason captured.
 
 A mutating route with no marker (or with two) fails the test. There is
 no allowlist file — every exception is the @public_mutation decorator
 at the view, where the reason lives next to the route.
-
-See docs/plans/auth/Authz.md, "Implementation phases" — phase 1.
 """
 
 from __future__ import annotations

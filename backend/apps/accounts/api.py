@@ -101,9 +101,6 @@ class LoginRefusedError(Exception):
     """
 
 
-_MIRRORED_FIELDS = ("email", "first_name", "last_name")
-
-
 def _refresh_mirrored_fields(user: User, workos_user: WorkOSUser) -> list[str]:
     """Copy WorkOS-side identity fields onto the local row. Returns dirty fields.
 
@@ -132,6 +129,10 @@ def _refresh_mirrored_fields(user: User, workos_user: WorkOSUser) -> list[str]:
     if user.last_name != new_last:
         user.last_name = new_last
         dirty.append("last_name")
+    new_email_verified = workos_user.email_verified
+    if user.email_verified != new_email_verified:
+        user.email_verified = new_email_verified
+        dirty.append("email_verified")
     return dirty
 
 
@@ -255,6 +256,7 @@ def get_or_create_django_user(workos_user: WorkOSUser) -> User:
                     first_name=workos_user.first_name or "",
                     last_name=workos_user.last_name or "",
                     workos_user_id=workos_user.id,
+                    email_verified=workos_user.email_verified,
                 )
         except IntegrityError as exc:
             last_exc = exc

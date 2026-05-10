@@ -251,9 +251,11 @@ def test_router_then_requires_puts_marker_on_view_func() -> None:
 def test_factory_crud_routes_carry_marker() -> None:
     """Every factory-registered CRUD route in the project still stamps.
 
-    Phase 1 used `requires(...)(_func)` as a bare statement — fine when
-    `requires` mutated in place. Phase 3 returns a wrapper, so each call
-    site became `_func = requires(...)(_func)`. The factory has four
+    `requires(...)` is a wrapping decorator that returns a new function,
+    so factory call sites must rebind: `_func = requires(...)(_func)`,
+    not the bare `requires(...)(_func)` form (which works only for
+    in-place-mutation decorators and was the shape during the
+    marker-only era before enforcement landed). The factory has four
     such call sites: ``_delete``, ``_restore``, ``_create_parented``,
     and ``_create_unparented``. A silent revert on any one of them
     would drop the gate on every entity using that registrar — the
@@ -382,6 +384,44 @@ def test_real_route_emits_one_authz_allow_record(
     assert len(allow_records) == 1
     assert allow_records[0].activity == "kiosk.edit"
     assert allow_records[0].user_id == superuser.pk
+
+
+# ── Verification gate: end-to-end through a real route ──────────────
+
+
+@pytest.mark.django_db
+def test_unverified_user_gets_structured_403_with_verification_required(
+    authz_logs: list[CapturedAuthzLog],
+) -> None:
+    """End-to-end: an active, authenticated, unverified user mutating a real
+    route gets a 403 whose body is the canonical policy_denied envelope with
+    code=verification_required.
+
+    The unit-level registry-completeness test proves `check()` denies; this
+    proves the wire body actually carries the expected structure through
+    Ninja, the exception handler, and the schema serializer.
+    """
+    from apps.accounts.test_factories import make_user
+
+    unverified = make_user(is_staff=True, is_superuser=True, email_verified=False)
+    client = Client()
+    client.force_login(unverified)
+
+    resp = client.post("/api/kiosk/configs/")
+
+    assert resp.status_code == 403
+    assert resp.json() == {
+        "detail": {
+            "kind": "policy_denied",
+            "message": _DENIAL_MESSAGE[DenialCode.VERIFICATION_REQUIRED],
+            "code": "verification_required",
+            "context": {},
+        }
+    }
+    deny_records = [r for r in authz_logs if r.message == "authz.deny"]
+    assert len(deny_records) == 1
+    assert deny_records[0].activity == "kiosk.edit"
+    assert deny_records[0].code == "verification_required"
 
 
 # ── LookupError contract ─────────────────────────────────────────────

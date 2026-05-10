@@ -64,10 +64,10 @@ class TestMojibakeClaimsApiIntegration:
     """Mojibake is rejected when submitted via the claims PATCH endpoint."""
 
     @pytest.fixture
-    def user(self):
-        from django.contrib.auth import get_user_model
+    def user(self, db):
+        from apps.accounts.test_factories import make_user
 
-        return get_user_model().objects.create_user(email="editor@example.com")
+        return make_user(email="editor@example.com")
 
     @pytest.fixture
     def pm(self):

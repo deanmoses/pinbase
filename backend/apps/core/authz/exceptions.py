@@ -15,12 +15,14 @@ from apps.core.exceptions import StructuredApiError
 from .types import DenialCode, Deny
 
 # Closed-enum mapper: DenialCode → English fallback string. One place.
-# One entry per current DenialCode member; Phase 4 adds VERIFICATION_REQUIRED
-# alongside the predicate. The completeness test pins the invariant.
+# The completeness test pins the invariant. These strings are the
+# fallback for non-SPA API consumers; the SPA renders code-specific
+# copy keyed off `DenialCode` and never reads `message`.
 _DENIAL_MESSAGE: dict[DenialCode, str] = {
     DenialCode.AUTH_REQUIRED: "Sign in to continue.",
     DenialCode.ACCOUNT_DEACTIVATED: "Your account is deactivated.",
     DenialCode.ROLE_REQUIRED: "You don't have permission to do that.",
+    DenialCode.VERIFICATION_REQUIRED: "Verify your email address to continue.",
     DenialCode.RATE_LIMITED: "You're doing that too often. Try again shortly.",
 }
 

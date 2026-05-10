@@ -30,4 +30,5 @@ def make_user(
     """
     if email is None:
         email = f"editor-{uuid.uuid4().hex[:8]}@example.com"
+    overrides.setdefault("email_verified", True)
     return User.objects.create_user(email=email, **overrides)

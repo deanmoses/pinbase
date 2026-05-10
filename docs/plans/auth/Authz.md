@@ -59,7 +59,8 @@ The launch set. Each row is what the policy enforces today; later constraints (a
 | `media.edit`     | authenticated, active, email-verified | Upload, detach, set-primary, set-category — all media-attachment claim writes.                                  |
 | `kiosk.edit`     | authenticated, active, email-verified | Kiosk config CRUD. Also gated on `is_superuser` inline, parallel to the activity layer.                         |
 
-"Active" means `is_active=True` — the account is not currently deactivated for any reason (self-deactivation, dormant cleanup, etc.). Banning, when it ships, will be a separate predicate with a separate denial code so the SPA can render different copy. "Authenticated" means a logged-in session, not anonymous. The shared prerequisites (authenticated + active) live in one place in the policy module so each activity's rule is just the delta beyond them.
+- "Active" means `is_active=True` — the account is not currently deactivated for any reason (self-deactivation, dormant cleanup, etc.). Banning, when it ships, will be a separate predicate with a separate denial code so the SPA can render different copy.
+- "Authenticated" means a logged-in session, not anonymous.
 
 The four activities below the divider were added per "Add an activity when its call site is being built, not in advance" during the phase-1 inventory pass — same launch rules as the original four, separated only so each can tighten independently later.
 
@@ -266,11 +267,11 @@ This is what lets the inventory ship before the engine exists: applying the deco
 
 The decorator order matters: `@requires` must be _inside_ `@router.patch` so Ninja registers the wrapped callable. Reverse the stack and the marker sits on the Ninja-wrapped operation, not on the function the walker reaches via `Operation.view_func`.
 
-#### The `__globals__` trap (read this before writing another wrapping decorator)
+### Constraints on wrapping decorators
 
-`@requires` does not — and cannot — use `@functools.wraps` directly. The reason is a sharp edge in Ninja's signature introspection that's invisible until you trip it.
+Any decorator that wraps a Ninja-registered view — `@requires` today, plus any future variant (target-aware, async, dry-run, capability-hint pre-loader) — must rebuild the wrapper so it carries the _wrapped function's_ `__globals__`, not the decorator module's. A vanilla `@functools.wraps` wrapper will work for hand-written views and silently break factory-built ones.
 
-Ninja resolves forward-ref annotations via `getattr(view, "__globals__", {})` (see `ninja.signature.utils.get_typed_signature`). It uses the wrapper's `__globals__` for forward-ref resolution, not the wrapped function's. A vanilla `@functools.wraps` wrapper carries the _decorator module's_ globals (`core/authz/markers.py`), so Ninja then fails to resolve any annotation that lives in the wrapped function's module — most importantly, closure-scoped types in factory-built CRUD views (`data: request_body_schema` in `entity_crud.py`). The error surfaces as a pydantic `class-not-fully-defined` panic at OpenAPI generation, not at decoration time, so the decorator can sit in the codebase passing tests until the next `make api-gen`.
+Ninja resolves forward-ref annotations via `getattr(view, "__globals__", {})` (see `ninja.signature.utils.get_typed_signature`). It uses the wrapper's `__globals__` for forward-ref resolution, not the wrapped function's. A `@functools.wraps` wrapper carries the _decorator module's_ globals (e.g. `core/authz/markers.py`), so Ninja fails to resolve any annotation that lives in the wrapped function's module — most importantly, closure-scoped types in factory-built CRUD views (`data: request_body_schema` in `entity_crud.py`). The error surfaces as a pydantic `class-not-fully-defined` panic at OpenAPI generation, not at decoration time, so the decorator can sit in the codebase passing tests until the next `make api-gen`.
 
 The fix is to rebuild the wrapper as a `types.FunctionType` carrying the wrapped function's `__globals__` while preserving the closure cells the body needs:
 
@@ -291,7 +292,7 @@ functools.update_wrapper(wrapper, func) # copies __wrapped__/__signature__/etc.
 
 Module globals referenced by the body (like `enforce`) must be captured as closure cells (`_enforce = enforce` in the enclosing scope) — once `__globals__` is the wrapped function's, the body's `LOAD_GLOBAL` lookups happen against it, and `enforce` isn't there.
 
-**Any future wrapping decorator** (target-aware variant, async variant, dry-run mode, capability-hint pre-loader) must use the same pattern. A naive `@functools.wraps` will work for hand-written views and silently break factory-built ones. The existing wrapper in `markers.py:requires` is the reference implementation; if a second wrapping decorator lands, extract a shared `wrap_view_preserving_globals(template, func)` helper at that point. Don't pre-extract for one use site.
+`markers.py:requires` is the reference implementation. When a second wrapping decorator lands, extract a shared `wrap_view_preserving_globals(template, func)` helper at that point — not before.
 
 ### Documented exception: inline `check()`
 
@@ -366,7 +367,7 @@ Build `core/authz/` proper: `Decision` / `Allow` / `Deny`, `DenialCode` enum, re
 
 Update `@requires`'s body to call `policy.check` and raise a structured 403 on deny. (`@gated_inline` stays stamp-only — its routes already call `check()` inline; flipping the marker would double-evaluate.) Launch rules are still `authenticated + active`, so behavior is unchanged from today (every authenticated user passes). This is the moment "the gate is on" with zero user-visible diff.
 
-### 4. Verification gate
+### 4. ✅ DONE: Verification gate
 
 ([Verification.md](Verification.md)). Add `email_verified` column to `User`, wire it into the mirrored-fields refresh, add the `email_verified` predicate to each launch activity's rule. Now the gate actually slows spam.
 

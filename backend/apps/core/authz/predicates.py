@@ -17,10 +17,11 @@ from .types import Allow, Decision, DenialCode, Deny, PolicyContext, PolicyUser
 # Per-app rules narrow `target` further via Protocol typing on the
 # predicate parameter; the registry-facing alias stays generic because
 # the registry holds rules for many target types.
-# Provisional. Phase 3's target-aware predicates (e.g. is_claim_author with
-# target: ClaimPolicyView) won't satisfy this signature — Protocol isn't a
-# Model subclass, and Callable params are contravariant. Proposal: replace with a
-# contravariant Predicate Protocol when the first target-aware rule lands.
+# Provisional. Target-aware predicates (e.g. `is_claim_author` taking
+# `target: ClaimPolicyView`) won't satisfy this signature — Protocol
+# isn't a Model subclass, and Callable params are contravariant. When
+# the first target-aware rule lands, replace this with a contravariant
+# Predicate Protocol.
 Predicate = Callable[[PolicyUser, Model | None, PolicyContext | None], Decision]
 
 
@@ -37,4 +38,12 @@ def is_active(
 ) -> Decision:
     if not user.is_active:
         return Deny(DenialCode.ACCOUNT_DEACTIVATED)
+    return Allow()
+
+
+def email_verified(
+    user: PolicyUser, target: Model | None, context: PolicyContext | None
+) -> Decision:
+    if not user.email_verified:
+        return Deny(DenialCode.VERIFICATION_REQUIRED)
     return Allow()
