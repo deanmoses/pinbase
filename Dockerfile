@@ -12,7 +12,12 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Copy source and build
+# Copy source and build. RAILWAY_GIT_COMMIT_SHA is auto-injected by Railway
+# for GitHub-triggered deploys; it stamps the SvelteKit build version so open
+# browser tabs can detect a new deploy via version.json polling. Outside
+# Railway the ARG falls back to "dev" and polling is disabled.
+ARG RAILWAY_GIT_COMMIT_SHA=dev
+ENV RAILWAY_GIT_COMMIT_SHA=$RAILWAY_GIT_COMMIT_SHA
 COPY frontend/ .
 RUN pnpm build
 # Keep only runtime dependencies for the Node SSR server we copy below.

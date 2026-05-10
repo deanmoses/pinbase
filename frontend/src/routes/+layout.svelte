@@ -1,12 +1,22 @@
 <script lang="ts">
   import '../app.css';
-  import { page } from '$app/state';
+  import { page, updated } from '$app/state';
+  import { beforeNavigate } from '$app/navigation';
   import SiteShell from '$lib/components/SiteShell.svelte';
   import FocusSiteShell from '$lib/components/FocusSiteShell.svelte';
   import ToastHost from '$lib/toast/ToastHost.svelte';
   import { isFocusModePath } from '$lib/focus-mode';
   import { isKioskCookieSet } from '$lib/kiosk/config';
   import { onMount } from 'svelte';
+
+  // When SvelteKit's version.json poll detects a new deploy, swap the next
+  // soft navigation for a full reload so the user picks up new JS (and any
+  // in-memory caches drop) without disrupting them mid-task.
+  beforeNavigate(({ willUnload, to }) => {
+    if (updated.current && !willUnload && to?.url) {
+      location.href = to.url.href;
+    }
+  });
 
   let { children } = $props();
 

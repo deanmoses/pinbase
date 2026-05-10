@@ -23,6 +23,12 @@ const config = {
   preprocess: [injectCustomMedia, vitePreprocess()],
   kit: {
     adapter: adapter(),
+    version: {
+      name: process.env.RAILWAY_GIT_COMMIT_SHA || 'dev',
+      // Only poll when a real SHA is stamped (production builds). In dev the
+      // version stays 'dev' forever, so polling would just be noise.
+      pollInterval: process.env.RAILWAY_GIT_COMMIT_SHA ? 60 * 60 * 1000 : 0,
+    },
     prerender: {
       origin: process.env.SITE_ORIGIN || 'http://localhost:5173',
       handleHttpError: ({ path, message }) => {

@@ -116,6 +116,12 @@ Use a shared backend in production. On Railway, the simplest options are:
 
 Dev + tests run fine with `LocMemCache` because there's only one process. Document the limit-per-worker behavior if you ever ship multi-worker without a shared backend.
 
+### Stamping the deploy version
+
+The SvelteKit build reads `RAILWAY_GIT_COMMIT_SHA` and writes it into `version.json`; the SPA polls that file hourly and, on a detected change, swaps the next client-side navigation for a full page reload. That's how an open browser tab picks up new JS (and drops in-memory caches) after a deploy without disrupting the user mid-task.
+
+Railway auto-injects `RAILWAY_GIT_COMMIT_SHA` as a Docker build arg for any deploy triggered from GitHub — no service-side configuration required, just the `ARG RAILWAY_GIT_COMMIT_SHA` declaration in the [Dockerfile](../Dockerfile). Outside Railway (local `docker build`), the arg falls back to `dev` and version polling is disabled. The `version.json` in the built image (`/app/frontend_runtime/build/client/_app/version.json`) is the ground truth for which SHA was stamped.
+
 ### 3. Deploy
 
 Push to `main`. Railway builds the Docker image and deploys. The
