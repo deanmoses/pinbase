@@ -381,16 +381,6 @@ Update `@requires`'s body to call `policy.check` and raise a structured 403 on d
 
 ([Verification.md](Verification.md)). Add `email_verified` column to `User`, wire it into the mirrored-fields refresh, add the `email_verified` predicate to each launch activity's rule. Now the gate actually slows spam.
 
-### 5. Denial-code mapper + resend-verification UI
-
-Frontend-only. Add the `code → { title, body, primaryAction }` mapper module that the SPA's render layer consults, layered on top of `parse-api-error.ts` (the parser keeps its job of "extract a message string"). Wire the resend-verification flow for the `verification_required` code. No new backend endpoints; this lights up consistent copy across every editor for failures already happening since Phase 4.
-
-**Scope: only `verification_required` gets real copy.** That's the only denial code the policy can actually surface as a 403 today. Every gated mutating route uses `auth=django_auth`, and Django's auth backend filters on `is_active=True` (see `apps/accounts/backends.py`), so an inactive user 401s before `@requires` runs — `account_deactivated` has no producer on a request path. `auth_required` likewise can only fire on a route whose `auth=` permits anonymous and then calls `policy.check`; no such route exists today. Both codes matter for `/me/capabilities` (Phase 7), not for 403 rendering, so their mapper entries land as stubs here (returning the backend's `message` fallback) and get real copy in Phase 7 when they start firing for real. `role_required` and `rate_limited` aren't emitted by any current call site, and `account_banned` doesn't exist yet; their mapper entries land with the phases that introduce them (6a/6c for the role and rate-limit codes, the future banning work for `account_banned`). Building the full table now would be premature — the copy needs review per code, and reviewing copy for codes nothing fires is wasted cycles.
-
-Pulled ahead of the role-predicate work so the highest-volume new denial code from Phase 4 stops falling through to the plain-message fallback as soon as possible.
-
-**Backend prerequisite: the resend-verification endpoint.** Phase 4 shipped the `email_verified` field and predicate but did not ship the resend endpoint that [Verification.md](Verification.md) names as its own — `apps/accounts/api.py` has no `send_verification_email` route today. The resend button in this phase has nothing to call without it, so this phase pulls in the endpoint: a session-authenticated POST that calls `client.user_management.send_verification_email(user_id=request.user.workos_user_id)` and returns 204. Frontend-only is therefore a misnomer for the PR as a whole; the SPA work is frontend-only, but the PR also ships the backend endpoint.
-
 ### ✅ DONE: 6a. Role predicates
 
 Add `is_staff` and `is_superuser` predicates to `core/authz/predicates.py` with the `role_required` denial code (already in the priority list). Foundational only — no call sites consume them yet, so behavior is unchanged. Lands as its own commit so the predicate API can be reviewed without being bundled with the kiosk and rate-limit refactors that depend on it.

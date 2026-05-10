@@ -21,13 +21,13 @@ The activity-authorization layer in [Authz.md](Authz.md) is the consumer. Backen
 
 The WorkOS User object exposes a single `email_verified: bool` that abstracts over the underlying IdP. In practice:
 
-| Sign-up path             | `email_verified` at first login | Why                                                                                                                 |
-| ------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Google                   | `true`                          | Google verifies all Gmail / Workspace addresses; the OIDC `email_verified` claim is essentially always `true`.      |
-| Apple                    | `true`                          | Apple only returns emails it has validated, including `@privaterelay.appleid.com` aliases.                          |
-| GitHub                   | `true`                          | WorkOS calls GitHub's `/user/emails`, picks the primary `verified: true` address, and refuses login if none exists. |
-| Microsoft / other social | `true`                          | Same pattern — the IdP guarantees ownership.                                                                        |
-| WorkOS email + password  | `false` until link clicked      | WorkOS sends a verification email; the user must click before `email_verified` flips to `true`.                     |
+| Sign-up path             | `email_verified` at first login | Why                                                                                                                                                  |
+| ------------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google                   | `true`                          | Google verifies all Gmail / Workspace addresses; the OIDC `email_verified` claim is essentially always `true`.                                       |
+| Apple                    | `true`                          | Apple only returns emails it has validated, including `@privaterelay.appleid.com` aliases.                                                           |
+| GitHub                   | `true`                          | WorkOS calls GitHub's `/user/emails`, picks the primary `verified: true` address, and refuses login if none exists.                                  |
+| Microsoft / other social | `true`                          | Same pattern — the IdP guarantees ownership.                                                                                                         |
+| WorkOS email + password  | `false` until verification step | WorkOS sends a verification email (currently a one-time code); the user must complete the verification step before `email_verified` flips to `true`. |
 
 So the gate has the desired shape for free: blocks the email-password spam path, transparent for OAuth users.
 
