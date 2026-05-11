@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import NamedTuple
+from typing import NamedTuple, TypedDict
 
 # JSON-shaped dict — object keys, arbitrary JSON values. ``object`` (not
 # ``Any``) forces callers to isinstance-narrow before use, which matches
@@ -25,6 +25,17 @@ class EntityKey(NamedTuple):
 
     Used both as a dict key and as the input shape for helpers that fan out
     across content types (e.g. ``batch_resolve_entities``).
+    """
+
+    content_type_id: int
+    object_id: int
+
+
+class ClaimTarget(TypedDict):
+    """Spreadable form of ``EntityKey`` for ``PlannedClaimAssert(**target)`` calls.
+
+    Same fields as ``EntityKey`` but a TypedDict because ingest adapters
+    spread it into dataclass kwargs; NamedTuple doesn't unpack as ``**``.
     """
 
     content_type_id: int

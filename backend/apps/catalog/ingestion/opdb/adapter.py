@@ -50,6 +50,7 @@ from apps.catalog.resolve import (
     resolve_all_reward_types,
     resolve_all_tags,
 )
+from apps.core.types import ClaimTarget
 from apps.provenance.models import Source
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ def build_opdb_plan(
     unmatched_opdb_terms: list[str] = []
 
     for mr in match_results:
-        target_kwargs: dict[str, Any] = {
+        target_kwargs: ClaimTarget = {
             "content_type_id": ct_id,
             "object_id": mr.model.pk,
         }

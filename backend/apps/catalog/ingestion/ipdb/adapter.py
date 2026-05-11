@@ -76,6 +76,7 @@ from apps.catalog.resolve import (
     resolve_all_reward_types,
     resolve_all_themes,
 )
+from apps.core.types import ClaimTarget
 from apps.provenance.models import Source
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,27 @@ class CreditQueueEntry(NamedTuple):
     object_id: int
     name: str
     role_slug: str
+
+
+class ThemeQueueEntry(NamedTuple):
+    """One MachineModel's theme slugs, pending Theme dedup + creation."""
+
+    target: ClaimTarget
+    slugs: list[str]
+
+
+class GameplayFeatureQueueEntry(NamedTuple):
+    """One MachineModel's gameplay-feature pairs, pending claim emission."""
+
+    target: ClaimTarget
+    pairs: list[GameplayFeaturePair]
+
+
+class RewardTypeQueueEntry(NamedTuple):
+    """One MachineModel's reward-type slugs, pending claim emission."""
+
+    target: ClaimTarget
+    slugs: list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -268,16 +290,16 @@ def build_ipdb_plan(
 
     # Collect queues for deferred processing.
     credit_queue: list[CreditQueueEntry] = []
-    theme_queue: list[tuple[dict[str, Any], list[str]]] = []  # (target_kwargs, [slugs])
-    gameplay_feature_queue: list[tuple[dict[str, Any], list[GameplayFeaturePair]]] = []
-    reward_type_queue: list[tuple[dict[str, Any], list[str]]] = []
+    theme_queue: list[ThemeQueueEntry] = []
+    gameplay_feature_queue: list[GameplayFeatureQueueEntry] = []
+    reward_type_queue: list[RewardTypeQueueEntry] = []
     unmatched_feature_terms: list[str] = []
     unknown_mpu_strings: set[str] = set()
     ce_handles: dict[int, str] = {}  # mfr_id → handle for planned CEs
 
     # ── Step 3: Process each record ──────────────────────────────
     for mr in match_results:
-        target: dict[str, Any] = {"content_type_id": ct_mm, "object_id": mr.model.pk}
+        target: ClaimTarget = {"content_type_id": ct_mm, "object_id": mr.model.pk}
 
         _collect_mm_claims(mr, target, plan, mpu_to_slug, unknown_mpu_strings)
 
@@ -327,7 +349,7 @@ def build_ipdb_plan(
                 unescape(mr.record.theme), theme_name_lookup
             )
             if theme_slugs:
-                theme_queue.append((target, theme_slugs))
+                theme_queue.append(ThemeQueueEntry(target, theme_slugs))
 
         # Queue gameplay features + reward types.
         if mr.record.notable_features:
@@ -337,10 +359,12 @@ def build_ipdb_plan(
             )
             unmatched_feature_terms.extend(unmatched)
             if feature_pairs:
-                gameplay_feature_queue.append((target, feature_pairs))
+                gameplay_feature_queue.append(
+                    GameplayFeatureQueueEntry(target, feature_pairs)
+                )
             reward_slugs = extract_ipdb_reward_types(raw_features, reward_map)
             if reward_slugs:
-                reward_type_queue.append((target, reward_slugs))
+                reward_type_queue.append(RewardTypeQueueEntry(target, reward_slugs))
 
     # ── Step 4: Credits → Person entities + credit claims ────────
     _process_credits(
@@ -443,7 +467,7 @@ def compute_fingerprint(ipdb_path: str) -> str:
 
 def _collect_mm_claims(
     mr: MatchResult,
-    target: dict[str, Any],
+    target: ClaimTarget,
     plan: IngestPlan,
     mpu_to_slug: dict[str, str],
     unknown_mpu_strings: set[str],
@@ -513,7 +537,7 @@ def _collect_mm_claims(
 
 def _process_corporate_entity(
     mr: MatchResult,
-    target: dict[str, Any],
+    target: ClaimTarget,
     plan: IngestPlan,
     ct_ce: int,
     resolver: ManufacturerResolver,
@@ -560,7 +584,7 @@ def _process_corporate_entity(
         # Existing CE — assert claims.  Include name so the resolve layer
         # doesn't reset it to blank (CE.name is not unique, so it's not
         # auto-preserved by the resolver).  Slug is unique and auto-preserved.
-        ce_target: dict[str, Any] = {"content_type_id": ct_ce, "object_id": ce.pk}
+        ce_target: ClaimTarget = {"content_type_id": ct_ce, "object_id": ce.pk}
         plan.assertions.append(
             PlannedClaimAssert(field_name="name", value=ce.name, **ce_target)
         )
@@ -817,7 +841,7 @@ def _process_credits(
 
 
 def _process_themes(
-    theme_queue: list[tuple[dict[str, Any], list[str]]],
+    theme_queue: list[ThemeQueueEntry],
     plan: IngestPlan,
     ct_theme: int,
     theme_by_slug: dict[str, Theme],
@@ -828,8 +852,8 @@ def _process_themes(
 
     # Discover all unique theme slugs needed.
     all_slugs: set[str] = set()
-    for _, slugs in theme_queue:
-        all_slugs.update(slugs)
+    for entry in theme_queue:
+        all_slugs.update(entry.slugs)
 
     # Plan creation for new themes.
     new_theme_handles: dict[str, str] = {}  # slug → handle
@@ -855,8 +879,8 @@ def _process_themes(
         )
 
     # Build theme relationship claims.
-    for mm_target, slugs in theme_queue:
-        for slug in slugs:
+    for entry in theme_queue:
+        for slug in entry.slugs:
             new_handle = new_theme_handles.get(slug)
             if new_handle:
                 # Deferred — theme is being created in this plan.
@@ -866,7 +890,7 @@ def _process_themes(
                         relationship_namespace="theme",
                         identity={},
                         identity_refs={"theme": new_handle},
-                        **mm_target,
+                        **entry.target,
                     )
                 )
             else:
@@ -881,7 +905,7 @@ def _process_themes(
                         field_name="theme",
                         claim_key=claim_key,
                         value=value,
-                        **mm_target,
+                        **entry.target,
                     )
                 )
 
@@ -892,13 +916,13 @@ def _process_themes(
 
 
 def _process_gameplay_features(
-    queue: list[tuple[dict[str, Any], list[GameplayFeaturePair]]],
+    queue: list[GameplayFeatureQueueEntry],
     plan: IngestPlan,
     feature_slug_to_pk: dict[str, int],
 ) -> None:
     """Build gameplay feature relationship claims (pre-seeded, no creation)."""
-    for mm_target, pairs in queue:
-        for pair in pairs:
+    for entry in queue:
+        for pair in entry.pairs:
             pk = feature_slug_to_pk.get(pair.slug)
             if pk is None:
                 continue
@@ -912,19 +936,19 @@ def _process_gameplay_features(
                     field_name="gameplay_feature",
                     claim_key=claim_key,
                     value=value,
-                    **mm_target,
+                    **entry.target,
                 )
             )
 
 
 def _process_reward_types(
-    queue: list[tuple[dict[str, Any], list[str]]],
+    queue: list[RewardTypeQueueEntry],
     plan: IngestPlan,
     reward_slug_to_pk: dict[str, int],
 ) -> None:
     """Build reward type relationship claims (pre-seeded, no creation)."""
-    for mm_target, slugs in queue:
-        for slug in slugs:
+    for entry in queue:
+        for slug in entry.slugs:
             pk = reward_slug_to_pk.get(slug)
             if pk is None:
                 continue
@@ -936,6 +960,6 @@ def _process_reward_types(
                     field_name="reward_type",
                     claim_key=claim_key,
                     value=value,
-                    **mm_target,
+                    **entry.target,
                 )
             )
