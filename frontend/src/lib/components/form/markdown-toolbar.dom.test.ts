@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import MarkdownTextArea from './MarkdownTextArea.svelte';
@@ -166,6 +166,31 @@ describe('MarkdownToolbar', () => {
     await user.click(getToolbarButton('Citation'));
 
     // Should skip the type picker ("Insert link") and go straight to citation
+    await vi.waitFor(() => {
+      expect(screen.queryByText('Insert link')).not.toBeInTheDocument();
+      expect(screen.getByText(/search.*source/i)).toBeInTheDocument();
+    });
+  });
+
+  it('switches an open type-picker dropdown into the citation flow when Citation is clicked', async () => {
+    renderTextArea();
+    const user = userEvent.setup();
+    const textarea = getTextarea();
+
+    // Type `[[` to open the type picker (userEvent treats `[` as a key
+    // descriptor, so set value + selection and fire `input` directly).
+    textarea.focus();
+    textarea.value = '[[';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    fireEvent.input(textarea);
+
+    await vi.waitFor(() => {
+      expect(screen.getByText('Insert link')).toBeInTheDocument();
+    });
+
+    await user.click(getToolbarButton('Citation'));
+
     await vi.waitFor(() => {
       expect(screen.queryByText('Insert link')).not.toBeInTheDocument();
       expect(screen.getByText(/search.*source/i)).toBeInTheDocument();
