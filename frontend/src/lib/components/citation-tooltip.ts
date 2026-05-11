@@ -1,7 +1,7 @@
 /**
- * Pure logic for the citation tooltip: types, positioning, and interaction
- * state machine. Extracted so it's unit-testable without DOM or component
- * lifecycle.
+ * Pure logic for the citation tooltip: types and interaction state machine.
+ * Extracted so it's unit-testable without DOM or component lifecycle.
+ * Positioning is handled by the `floating` action.
  */
 
 // ── Types ───────────────────────────────────────────────────────
@@ -23,38 +23,6 @@ export interface CitationInfo {
  *  and scroll navigation. */
 export interface InlineCitation extends CitationInfo {
   index: number;
-}
-
-// ── Positioning ─────────────────────────────────────────────────
-
-export interface TooltipPosition {
-  x: number;
-  y: number;
-  above: boolean;
-}
-
-const DEFAULT_GAP = 6;
-const EDGE_PADDING = 8;
-
-export function computePosition(
-  anchorRect: DOMRect,
-  tooltipWidth: number,
-  tooltipHeight: number,
-  viewportWidth: number,
-  _viewportHeight: number,
-  gap: number = DEFAULT_GAP,
-): TooltipPosition {
-  const anchorCenterX = anchorRect.left + anchorRect.width / 2;
-  let x = anchorCenterX - tooltipWidth / 2;
-
-  // Clamp horizontal
-  x = Math.max(EDGE_PADDING, Math.min(x, viewportWidth - tooltipWidth - EDGE_PADDING));
-
-  // Default above; flip below if not enough room
-  const above = anchorRect.top - tooltipHeight - gap >= 0;
-  const y = above ? anchorRect.top - tooltipHeight - gap : anchorRect.bottom + gap;
-
-  return { x, y, above };
 }
 
 // ── Interaction state machine ───────────────────────────────────

@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import client from '$lib/api/client';
+  import { floating } from '$lib/actions/floating';
   import {
-    computePosition,
     reduceTooltip,
     type CitationInfo,
     type InlineCitation,
@@ -35,7 +34,6 @@
     }
   });
   let tipState: TooltipState = $state({ activeId: null, pinned: false });
-  let above = $state(true);
   let tooltipEl: HTMLDivElement | undefined = $state();
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -72,52 +70,8 @@
     return result;
   }
 
-  async function updatePosition(anchor: HTMLElement) {
-    if (!tooltipEl) return;
-    // Render offscreen to measure
-    tooltipEl.style.visibility = 'hidden';
-    tooltipEl.style.left = '0px';
-    tooltipEl.style.top = '0px';
-    await tick();
-    if (!tooltipEl) return;
-    const anchorRect = anchor.getBoundingClientRect();
-    const tooltipRect = tooltipEl.getBoundingClientRect();
-    const result = computePosition(
-      anchorRect,
-      tooltipRect.width,
-      tooltipRect.height,
-      window.innerWidth,
-      window.innerHeight,
-    );
-    above = result.above;
-    tooltipEl.style.left = `${result.x}px`;
-    tooltipEl.style.top = `${result.y}px`;
-    tooltipEl.style.visibility = 'visible';
-  }
-
-  // Track the current anchor element for repositioning
+  // Track the current anchor element so `floating` can reposition against it.
   let currentAnchor: HTMLElement | null = $state(null);
-
-  $effect(() => {
-    if (tipState.activeId != null && activeCitation && currentAnchor) {
-      updatePosition(currentAnchor);
-    }
-  });
-
-  // Reposition on scroll/resize while visible
-  $effect(() => {
-    if (tipState.activeId == null) return;
-
-    function onScrollResize() {
-      if (currentAnchor) updatePosition(currentAnchor);
-    }
-    window.addEventListener('scroll', onScrollResize, { passive: true });
-    window.addEventListener('resize', onScrollResize, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScrollResize);
-      window.removeEventListener('resize', onScrollResize);
-    };
-  });
 
   // Click outside handler
   $effect(() => {
@@ -236,12 +190,12 @@
   });
 </script>
 
-{#if tipState.activeId != null && activeCitation}
+{#if tipState.activeId != null && activeCitation && currentAnchor}
   <div
     class="citation-tooltip"
-    class:above
     bind:this={tooltipEl}
     role="tooltip"
+    use:floating={{ anchor: currentAnchor, placement: 'top' }}
     onmouseenter={() => dispatch({ type: 'tooltip-mouseenter' })}
     onmouseleave={() => dispatch({ type: 'tooltip-mouseleave' })}
     onfocusin={() => dispatch({ type: 'tooltip-mouseenter' })}
@@ -268,7 +222,6 @@
 
 <style>
   .citation-tooltip {
-    position: fixed;
     z-index: var(--z-tooltip);
     max-width: 320px;
     padding: var(--size-2) var(--size-3);
