@@ -87,7 +87,7 @@
     position: relative;
     width: 100%;
     height: 14rem;
-    background: var(--color-surface-muted, #f0f0f0);
+    background: var(--color-surface-muted);
   }
 
   .card-img {
@@ -98,7 +98,7 @@
   }
 
   .card-img.placeholder {
-    background: var(--color-surface-muted, #f0f0f0);
+    background: var(--color-surface-muted);
   }
 
   .card-overlay {
@@ -107,11 +107,11 @@
     padding: var(--size-5) var(--size-4) var(--size-3);
     background: linear-gradient(
       to top,
-      rgb(0 0 0 / 0.85) 0%,
-      rgb(0 0 0 / 0.55) 50%,
-      rgb(0 0 0 / 0) 100%
+      var(--color-scrim-strong) 0%,
+      var(--color-scrim) 50%,
+      transparent 100%
     );
-    color: #fff;
+    color: var(--color-text-inverse);
     display: flex;
     flex-direction: column;
     gap: var(--size-1);
@@ -122,15 +122,15 @@
     font-weight: 700;
     margin: 0;
     line-height: 1.15;
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+    text-shadow: 0 1px 2px var(--color-scrim);
   }
 
   .card-meta {
     display: flex;
     flex-wrap: wrap;
     font-size: var(--font-size-1);
-    color: rgb(255 255 255 / 0.9);
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+    color: var(--color-text-inverse-muted);
+    text-shadow: 0 1px 2px var(--color-scrim);
   }
 
   .card-meta span:not(:last-child)::after {

@@ -162,9 +162,8 @@
     z-index: 1;
     background: linear-gradient(
       to top,
-      rgba(0, 0, 0, 0.85) 0%,
-      rgba(0, 0, 0, 0.5) 40%,
-      rgba(0, 0, 0, 0.1) 70%,
+      var(--color-scrim-strong) 0%,
+      var(--color-scrim) 40%,
       transparent 100%
     );
     pointer-events: none;
@@ -180,35 +179,35 @@
 
   /* Hero overrides — light-on-dark text */
   .hero-header .kicker {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-inverse-muted);
   }
 
   .hero-header .kicker:hover {
-    color: #ffffff;
+    color: var(--color-text-inverse);
   }
 
   .hero-header h1 {
-    color: #ffffff;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+    color: var(--color-text-inverse);
+    text-shadow: 0 1px 4px var(--color-scrim-strong);
   }
 
   .hero-header .meta {
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--color-text-inverse-muted);
   }
 
   .hero-header .meta a {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-text-inverse-muted);
     text-decoration: underline;
-    text-decoration-color: rgba(255, 255, 255, 0.4);
+    text-decoration-color: color-mix(in srgb, var(--color-text-inverse) 40%, transparent);
   }
 
   .hero-header .meta a:hover {
-    color: #ffffff;
-    text-decoration-color: #ffffff;
+    color: var(--color-text-inverse);
+    text-decoration-color: var(--color-text-inverse);
   }
 
   .hero-header .meta span:not(:last-child)::after {
-    color: rgba(255, 255, 255, 0.5);
+    color: color-mix(in srgb, var(--color-text-inverse) 50%, transparent);
   }
 
   /* Responsive */

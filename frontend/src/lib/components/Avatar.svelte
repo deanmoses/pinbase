@@ -36,7 +36,7 @@
     justify-content: center;
     border-radius: 50%;
     background: var(--color-accent);
-    color: #fff;
+    color: var(--color-text-inverse);
     font-size: 0.75em;
     font-weight: 600;
     line-height: 1;
