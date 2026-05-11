@@ -75,7 +75,7 @@ In particular:
 
 ### Type strength (backend)
 
-When a change touches Python signatures, return types, or data structures, check [docs/plans/types/TypeFixing.md](plans/types/TypeFixing.md) for the smell catalogue and the legitimate exception shapes.
+When a change touches Python signatures, return types, or data structures, check [Python.md](Python.md) for the smell catalogue and legitimate exception shapes.
 
 Treat each of these as a closer-look trigger, not an automatic finding:
 
@@ -86,9 +86,9 @@ Treat each of these as a closer-look trigger, not an automatic finding:
 - `isinstance` checks on values whose upstream signature could be narrower
 - `TYPE_CHECKING`-only imports paired with `cast` or stringified annotations
 - bare or unexplained `# type: ignore` (should be `# type: ignore[<code>]` with a reason)
-- bare or unexplained `# noqa` (should be `# noqa: <code>` with a reason; ANN401 noqas matching TypeFixing.md's exception shapes are correct, not findings)
+- bare or unexplained `# noqa` (should be `# noqa: <code>` with a reason; ANN401 noqas matching [Python.md](Python.md)'s exception shapes are correct, not findings)
 
-The fix is usually a NamedTuple, dataclass, or TypedDict — not a type alias, which leaves callers indexing by position. Don't flag a hit that TypeFixing.md lists as a legitimate exception (Django management `**kwargs`, signal receivers, Ninja dispatch, JSON parse results, framework-owned callback surfaces).
+The fix is usually a NamedTuple, dataclass, or TypedDict — not a type alias, which leaves callers indexing by position. Don't flag a hit that [Python.md](Python.md) lists as a legitimate exception (Django management `**kwargs`, signal receivers, Ninja dispatch, JSON parse results, framework-owned callback surfaces).
 
 ### Deployment/runtime assumptions
 

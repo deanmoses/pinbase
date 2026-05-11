@@ -221,14 +221,14 @@ For new behavior, include tests. Consider writing the test first, though sometim
 
 ## Strong Typing (backend)
 
-Backend code should be as strongly typed as possible. Annotations are documentation the compiler enforces.
+Code MUST be as strongly typed as possible.
 
-Smells — sometimes legitimate, usually a sign the type can be tightened:
+The following smells are _sometimes_ legitimate, but are usually a sign the type can be tightened:
 
-- Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `getattr`, `TYPE_CHECKING` , `# type: ignore`, `# noqa`
+- Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `getattr`, `TYPE_CHECKING`, `# type: ignore`, `# noqa`
 - `tuple[...]` with 3+ positional fields, or the same tuple shape repeated across modules
 
-Prefer NamedTuple, dataclass, or TypedDict. Full catalogue, legitimate exception shapes (Django management `**kwargs`, signal receivers, Ninja dispatch, etc.), and the ruff ANN401 ratchet: [docs/plans/types/TypeFixing.md](plans/types/TypeFixing.md).
+Prefer NamedTuple, dataclass, or TypedDict. For the full catalogue and legitimate exceptions, see [docs/Python.md](Python.md).
 
 ### Running mypy
 

@@ -9,6 +9,7 @@ It does not try to restate every project rule. Instead, it points to the more sp
 - [../README.md](../README.md) for setup, commands, and local development
 - [Architecture.md](Architecture.md) for the top-level system map
 - [WebArchitecture.md](WebArchitecture.md) for the Django + SvelteKit web stack
+- [Python.md](Python.md) for backend Python typing and style decisions
 - [Svelte.md](Svelte.md) for route-level rendering choices and SvelteKit page conventions
 - [ApiDesign.md](ApiDesign.md) for frontend/backend API design rules for pages and SSR
 - [Authz.md](Authz.md) for authorization and capability surfaces
