@@ -73,14 +73,20 @@
   fetchLinkTypes()
     .then((types) => {
       linkTypes = types;
-      if (initialType) {
-        const match = types.find((t) => t.name === initialType);
-        if (match) selectType(match);
-      }
     })
     .catch(() => {
       // Degraded state: type picker will be empty
     });
+
+  // Honor initialType both at mount and when it changes after mount (e.g.
+  // user typed `[[` to open the type picker, then clicked the Citation
+  // toolbar button — the parent updates `initialType` on the already-mounted
+  // component, so we react here to advance past the type picker).
+  $effect(() => {
+    if (!initialType || stage !== 'type' || linkTypes.length === 0) return;
+    const match = linkTypes.find((t) => t.name === initialType);
+    if (match) selectType(match);
+  });
 
   // -----------------------------------------------------------------------
   // Type picker stage
