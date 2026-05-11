@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { validationErrorBody } from '$lib/api/error-fixtures';
+
 const { goto, resolve, mockPost } = vi.hoisted(() => ({
   goto: vi.fn(),
   resolve: vi.fn((url: string) => url),
@@ -57,11 +59,10 @@ describe('systems/new route', () => {
     mockPost.mockResolvedValue({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'Validation failed.',
           field_errors: { manufacturer_slug: 'Manufacturer not found.' },
-          form_errors: [],
-        },
+        }),
       },
       response: { status: 422, headers: new Headers() } as Response,
     });

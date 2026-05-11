@@ -10,7 +10,11 @@ Semantics:
   each check.
 * Per user. Anonymous users never hit this code path (endpoints are auth-gated
   upstream).
-* Staff (``user.is_staff``) bypass all limits.
+* Some users bypass all limits. Who qualifies is decided by the
+  ``rate_limit.exempt`` activity in :mod:`apps.core.authz`, not by
+  this module — today that resolves to verified staff, but the
+  predicate is no longer this file's concern. Look in
+  ``core/authz/rules.py`` to change who is exempt.
 * Both successful and validation-rejected attempts consume a slot. The
   consuming call is :func:`check_and_record` and endpoints invoke it once at
   the top of the request.
@@ -23,9 +27,13 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.core.cache import cache
+
+from apps.core.authz import Activity, Allow, check, policy_user
+from apps.core.exceptions import StructuredApiError
 
 from .constants import (
     CREATE_RATE_LIMIT,
@@ -37,13 +45,27 @@ from .constants import (
 _CACHE_TTL_FUDGE_SECONDS = 60
 
 
-class RateLimitExceededError(Exception):
+class RateLimitExceededError(StructuredApiError):
     """Raised when a user has exceeded a rate-limit bucket."""
 
+    kind = "rate_limit"
+    status = 429
+
     def __init__(self, *, bucket: str, retry_after: int) -> None:
+        super().__init__("Rate limit exceeded.")
         self.bucket = bucket
         self.retry_after = max(1, retry_after)
-        super().__init__(f"Rate limit exceeded for bucket {bucket!r}")
+
+    def __str__(self) -> str:
+        # Server-side repr (logs / tracebacks) keeps the bucket; the wire
+        # ``message`` is the user-facing string set via ``super().__init__``.
+        return f"Rate limit exceeded for bucket {self.bucket!r}"
+
+    def to_body(self) -> dict[str, Any]:
+        return {"bucket": self.bucket, "retry_after": self.retry_after}
+
+    def extra_headers(self) -> dict[str, str]:
+        return {"Retry-After": str(self.retry_after)}
 
 
 @dataclass(frozen=True)
@@ -82,11 +104,12 @@ def check_and_record(
 ) -> None:
     """Consume one slot in the user's bucket, or raise if the bucket is full.
 
-    Staff users bypass the check entirely and nothing is recorded for them.
+    Exempt users (per the ``rate_limit.exempt`` policy activity) bypass
+    the check entirely and nothing is recorded for them.
     """
     if user is None or not user.is_authenticated:
         raise RateLimitExceededError(bucket=spec.bucket, retry_after=1)
-    if getattr(user, "is_staff", False):
+    if isinstance(check(policy_user(user), Activity.RATE_LIMIT_EXEMPT), Allow):
         return
 
     now = time.time()

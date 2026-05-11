@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { validationErrorBody } from '$lib/api/error-fixtures';
+
 import { saveManufacturerClaims } from './save-manufacturer-claims';
 
 const { PATCH, invalidateAll } = vi.hoisted(() => ({
@@ -49,7 +51,7 @@ describe('saveManufacturerClaims', () => {
     PATCH.mockResolvedValueOnce({
       data: undefined,
       error: {
-        detail: { message: 'nope', field_errors: { slug: 'taken' }, form_errors: [] },
+        detail: validationErrorBody({ message: 'nope', field_errors: { slug: 'taken' } }),
       },
     });
 

@@ -4,18 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TypedDict
 
 from .helpers import citation_instances
 from .models import Claim
 
 
-class EvidenceLink(TypedDict):
+@dataclass(frozen=True)
+class EvidenceLink:
     url: str
     label: str
 
 
-class CitedCitation(TypedDict):
+@dataclass(frozen=True)
+class CitedCitation:
     source_name: str
     source_type: str
     author: str
@@ -24,8 +25,10 @@ class CitedCitation(TypedDict):
     links: list[EvidenceLink]
 
 
-class CitedChangeset(TypedDict):
+@dataclass(frozen=True)
+class CitedChangeset:
     id: int
+    user_id: int
     user_display: str | None
     note: str
     created_at: str
@@ -38,6 +41,7 @@ class _CitedChangesetBuilder:
     """Mutable scratch state while grouping citations per changeset."""
 
     id: int
+    user_id: int
     user_display: str | None
     note: str
     created_at: str
@@ -51,24 +55,30 @@ def build_cited_changesets(claims: Iterable[Claim]) -> list[CitedChangeset]:
     grouped: dict[int, _CitedChangesetBuilder] = {}
 
     for claim in claims:
-        if claim.changeset_id is None or claim.user_id is None:
+        # Filter on ``claim.changeset.user_id`` rather than
+        # ``claim.user_id``. The policy targets the changeset's author;
+        # the two match by write-time convention but aren't a DB
+        # invariant. Reading off the loaded changeset prevents a future
+        # drift (revert flows, ingest oddity, ORM bug) from silently
+        # misattributing authorship to the claim's writer.
+        changeset = claim.changeset
+        if changeset is None or changeset.user_id is None:
             continue
 
         claim_citations = citation_instances(claim)
         if not claim_citations:
             continue
 
-        entry = grouped.get(claim.changeset_id)
+        entry = grouped.get(changeset.pk)
         if entry is None:
             entry = _CitedChangesetBuilder(
-                id=claim.changeset_id,
+                id=changeset.pk,
+                user_id=changeset.user_id,
                 user_display=claim.user.username if claim.user else None,
-                note=claim.changeset.note if claim.changeset else "",
-                created_at=(
-                    claim.changeset.created_at.isoformat() if claim.changeset else ""
-                ),
+                note=changeset.note,
+                created_at=changeset.created_at.isoformat(),
             )
-            grouped[claim.changeset_id] = entry
+            grouped[changeset.pk] = entry
 
         if claim.field_name not in entry.field_set:
             entry.field_set.add(claim.field_name)
@@ -78,28 +88,29 @@ def build_cited_changesets(claims: Iterable[Claim]) -> list[CitedChangeset]:
             signature = (citation.citation_source_id, citation.locator)
             if signature in entry.citations:
                 continue
-            entry.citations[signature] = {
-                "source_name": citation.citation_source.name,
-                "source_type": citation.citation_source.source_type,
-                "author": citation.citation_source.author,
-                "year": citation.citation_source.year,
-                "locator": citation.locator,
-                "links": [
-                    {"url": link.url, "label": link.label}
+            entry.citations[signature] = CitedCitation(
+                source_name=citation.citation_source.name,
+                source_type=citation.citation_source.source_type,
+                author=citation.citation_source.author,
+                year=citation.citation_source.year,
+                locator=citation.locator,
+                links=[
+                    EvidenceLink(url=link.url, label=link.label)
                     for link in citation.citation_source.links.all()
                 ],
-            }
+            )
 
     result: list[CitedChangeset] = [
-        {
-            "id": entry.id,
-            "user_display": entry.user_display,
-            "note": entry.note,
-            "created_at": entry.created_at,
-            "fields": entry.fields,
-            "citations": list(entry.citations.values()),
-        }
+        CitedChangeset(
+            id=entry.id,
+            user_id=entry.user_id,
+            user_display=entry.user_display,
+            note=entry.note,
+            created_at=entry.created_at,
+            fields=entry.fields,
+            citations=list(entry.citations.values()),
+        )
         for entry in grouped.values()
     ]
-    result.sort(key=lambda item: item["created_at"], reverse=True)
+    result.sort(key=lambda item: item.created_at, reverse=True)
     return result

@@ -1,4 +1,4 @@
-.PHONY: bootstrap dev test lint quality agent-docs api-gen ingest superuser pull-ingest mypy-warm mypy-restart mypy-status
+.PHONY: bootstrap dev test lint quality agent-docs api-gen ingest superuser pull-ingest mypy mypy-warm mypy-restart mypy-status
 
 bootstrap:
 	./scripts/bootstrap
@@ -33,6 +33,9 @@ superuser:
 
 pull-ingest:
 	./scripts/pull_ingest_sources.sh
+
+mypy:
+	./scripts/mypy
 
 # dmypy ergonomics. dmypy holds the project type graph in memory across runs;
 # `mypy-warm` pays the cold-start cost up front, `mypy-restart` is the recovery

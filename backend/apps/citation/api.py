@@ -22,6 +22,8 @@ from ninja.security import django_auth
 from ninja.throttling import AuthRateThrottle
 
 from apps.core.api_helpers import authed_user
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.schemas import ErrorDetailSchema
 
 from .extraction import classify_input, extract_isbn, normalize_isbn
@@ -262,6 +264,7 @@ def search_citation_sources(
     response={201: CitationSourceDetailSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
+@requires(Activity.CITATION_EDIT)
 def create_citation_source(
     request: HttpRequest, data: CitationSourceCreateSchema
 ) -> Status[CitationSourceDetailSchema]:
@@ -347,6 +350,7 @@ class _ExtractThrottle(AuthRateThrottle):
     auth=django_auth,
     throttle=[_ExtractThrottle("10/m")],
 )
+@requires(Activity.CITATION_EDIT)
 def extract_citation_source(
     request: HttpRequest, data: CitationExtractInputSchema
 ) -> CitationExtractResultSchema:
@@ -425,6 +429,7 @@ def get_citation_source(
     response={200: CitationSourceDetailSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
+@requires(Activity.CITATION_EDIT)
 def update_citation_source(
     request: HttpRequest, source_id: int, data: CitationSourceUpdateSchema
 ) -> CitationSourceDetailSchema:
@@ -459,6 +464,7 @@ def update_citation_source(
     response={201: CitationSourceLinkSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
+@requires(Activity.CITATION_EDIT)
 def create_citation_source_link(
     request: HttpRequest, source_id: int, data: CitationSourceLinkCreateSchema
 ) -> Status[CitationSourceLinkSchema]:
@@ -485,6 +491,7 @@ def create_citation_source_link(
     response={200: CitationSourceLinkSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
+@requires(Activity.CITATION_EDIT)
 def update_citation_source_link(
     request: HttpRequest,
     source_id: int,

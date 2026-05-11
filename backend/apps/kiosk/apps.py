@@ -6,3 +6,6 @@ class KioskConfig(AppConfig):
     name = "apps.kiosk"
     label = "kiosk"
     verbose_name = "Kiosk"
+
+    def ready(self) -> None:
+        from . import authz  # noqa: F401  # registers authz rules at startup

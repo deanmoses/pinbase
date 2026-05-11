@@ -20,6 +20,8 @@ from ninja.security import django_auth
 from apps.catalog.claims import build_media_attachment_claim
 from apps.catalog.resolve import resolve_media_attachments
 from apps.core.api_helpers import authed_user
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.entity_types import get_linkable_model
 from apps.core.schemas import ErrorDetailSchema, ValidationErrorSchema
 from apps.media.constants import (
@@ -137,6 +139,7 @@ def _resolve_entity(
     response={200: UploadSchema, 429: ErrorDetailSchema},
     auth=django_auth,
 )
+@requires(Activity.MEDIA_EDIT)
 def upload_media(
     request: HttpRequest,
     file: File[UploadedFile],
@@ -303,6 +306,7 @@ def upload_media(
     response={204: None, 404: ErrorDetailSchema, 422: ValidationErrorSchema},
     auth=django_auth,
 )
+@requires(Activity.MEDIA_EDIT)
 def detach_media(request: HttpRequest, body: MediaAssetInputSchema) -> Status[None]:
     """Detach a media asset from an entity by asserting an exists=False claim."""
     user = authed_user(request)
@@ -356,6 +360,7 @@ def detach_media(request: HttpRequest, body: MediaAssetInputSchema) -> Status[No
     response={204: None, 404: ErrorDetailSchema, 422: ValidationErrorSchema},
     auth=django_auth,
 )
+@requires(Activity.MEDIA_EDIT)
 def set_primary(request: HttpRequest, body: MediaAssetInputSchema) -> Status[None]:
     """Set a media asset as primary for its category on an entity."""
     user = authed_user(request)
@@ -406,6 +411,7 @@ def set_primary(request: HttpRequest, body: MediaAssetInputSchema) -> Status[Non
     },
     auth=django_auth,
 )
+@requires(Activity.MEDIA_EDIT)
 def set_category(
     request: HttpRequest, body: MediaSetCategoryInputSchema
 ) -> Status[None]:

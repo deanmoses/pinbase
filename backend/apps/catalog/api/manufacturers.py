@@ -16,6 +16,8 @@ from ninja.pagination import paginate
 from ninja.security import django_auth
 from pydantic import TypeAdapter
 
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.core.pagination import NamedPageNumberPagination
@@ -497,6 +499,7 @@ def list_all_manufacturers(
     response={200: ManufacturerDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_manufacturer_claims(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> ManufacturerDetailSchema:

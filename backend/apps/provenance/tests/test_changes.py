@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import Client
 from django.utils import timezone
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import Manufacturer
 from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import ChangeSet, Claim, IngestRun, Source
 from apps.provenance.pagination import cursor_paginate
 from apps.provenance.test_factories import ingest_changeset, user_changeset
-
-User = get_user_model()
 
 
 @pytest.fixture
@@ -29,13 +27,8 @@ def bootstrap_source(db):
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def user_b(db):
-    return User.objects.create_user(email="editor-b@example.com")
+    return make_user()
 
 
 @pytest.fixture
@@ -127,7 +120,7 @@ class TestChangesList:
         data = resp.json()
         assert len(data["items"]) == 1
         item = data["items"][0]
-        assert item["user_display"] == "editor"
+        assert item["user_display"] == user.username
         assert item["entity_name"] == "Medieval Madness"
         assert item["entity_type_label"] == "Model"
         assert item["changes_count"] >= 1

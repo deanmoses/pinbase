@@ -1,24 +1,17 @@
 """Tests for GET /api/pages/user/{username}/ endpoint."""
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import Client
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import Manufacturer
 from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import Claim, Source
-
-User = get_user_model()
 
 
 @pytest.fixture
 def client():
     return Client()
-
-
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="historian@example.com")
 
 
 @pytest.fixture
@@ -62,7 +55,7 @@ class TestUserProfileEmpty:
         resp = client.get(f"/api/pages/user/{user.username}/")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["username"] == "historian"
+        assert data["username"] == user.username
         assert data["edit_count"] == 0
         assert data["entities_edited"] == []
         assert data["recent_edits"] == []
@@ -177,7 +170,7 @@ class TestUserProfileWithEdits:
 
     def test_other_users_edits_not_included(self, client, user, model_a, db):
         """Only the requested user's edits appear."""
-        other = User.objects.create_user(email="other@example.com")
+        other = make_user()
         client.force_login(other)
         client.patch(
             f"/api/models/{model_a.slug}/claims/",
@@ -196,7 +189,7 @@ class TestUserProfileWithEdits:
 class TestEditHistoryUserDisplayNull:
     """Verify that build_edit_history returns null for non-user changesets."""
 
-    def test_ingest_changeset_has_null_user_display(self, client, db):
+    def test_ingest_changeset_has_null_user_display(self, client, user):
         from apps.provenance.models import IngestRun
         from apps.provenance.test_factories import ingest_changeset, user_changeset
 
@@ -211,7 +204,6 @@ class TestEditHistoryUserDisplayNull:
         Claim.objects.assert_claim(pm, "year", 1979, source=source, changeset=ingest_cs)
 
         # Create a user changeset with a claim — this is the user path
-        user = User.objects.create_user(email="tester@example.com")
         user_cs = user_changeset(user)
         Claim.objects.assert_claim(
             pm,
@@ -223,8 +215,8 @@ class TestEditHistoryUserDisplayNull:
 
         resp = client.get(f"/api/pages/edit-history/model/{pm.slug}/")
         data = resp.json()
-        # Find entries by user_display to avoid ordering assumptions
-        user_entries = [e for e in data if e["user_display"] == "tester"]
+        # Partition by user_display: user-attributed vs ingest entries.
+        user_entries = [e for e in data if e["user_display"] is not None]
         ingest_entries = [e for e in data if e["user_display"] is None]
         assert len(user_entries) == 1
         assert len(ingest_entries) == 1

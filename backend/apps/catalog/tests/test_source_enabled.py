@@ -1,7 +1,6 @@
 """Tests for Source.is_enabled filtering in claim resolution."""
 
 import pytest
-from django.contrib.auth import get_user_model
 
 from apps.catalog.claims import build_relationship_claim
 from apps.catalog.models import (
@@ -20,8 +19,6 @@ from apps.catalog.resolve._relationships import resolve_all_credits
 from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.helpers import active_claims
 from apps.provenance.models import Claim, Source, get_claim_fields
-
-User = get_user_model()
 
 
 @pytest.fixture
@@ -106,10 +103,8 @@ class TestIsEnabledResolveBulk:
 
 @pytest.mark.django_db
 class TestIsEnabledUserClaims:
-    def test_user_claims_unaffected_by_source_enabled(self, source_a):
+    def test_user_claims_unaffected_by_source_enabled(self, source_a, user):
         """User claims (source=None) should not be filtered by is_enabled."""
-        user = User.objects.create_user(email="testuser@example.com")
-
         mfr = Manufacturer.objects.create(name="Test Mfr", slug="test-mfr")
         Claim.objects.assert_claim(mfr, "name", "User Claim", user=user)
 

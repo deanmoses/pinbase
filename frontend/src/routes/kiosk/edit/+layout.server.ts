@@ -8,7 +8,7 @@ export const load: LayoutServerLoad = async ({ fetch, url, request }) => {
   const { data } = await client.GET('/api/auth/me/');
 
   if (!data?.is_authenticated) throw redirect(302, resolve('/login'));
-  if (!data.is_superuser) throw redirect(302, resolve('/'));
+  if (!data.capabilities?.['kiosk.edit']) throw redirect(302, resolve('/'));
 
   return {};
 };

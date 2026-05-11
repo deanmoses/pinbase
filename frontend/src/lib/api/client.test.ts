@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import client, { createApiClient } from './client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import client, { createApiClient, registerOnPolicyDenied } from './client';
 
 describe('api client', () => {
   it('throws if the default client is used on the server', () => {
@@ -98,6 +98,84 @@ describe('api client', () => {
       } finally {
         vi.unstubAllGlobals();
       }
+    });
+  });
+
+  describe('403-as-invalidation onResponse hook', () => {
+    // Reset the module-level registration slot between tests so the
+    // hook from one test doesn't leak into the next.
+    beforeEach(() => {
+      registerOnPolicyDenied(() => {});
+    });
+    afterEach(() => {
+      // Drain by registering a no-op; there's no unregister API
+      // (production has exactly one registrant: the auth store).
+      registerOnPolicyDenied(() => {});
+    });
+
+    function makeFetch(status: number, body: unknown) {
+      return vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    }
+
+    it('fires the registered callback on 403 with policy_denied body', async () => {
+      const cb = vi.fn();
+      registerOnPolicyDenied(cb);
+      const fetch = makeFetch(403, {
+        detail: {
+          kind: 'policy_denied',
+          message: 'Verify your email.',
+          code: 'verification_required',
+          context: {},
+        },
+      });
+      const apiClient = createApiClient(fetch, 'http://localhost:5173');
+
+      await apiClient.GET('/api/auth/me/');
+
+      expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not fire on 403 without a policy_denied body', async () => {
+      const cb = vi.fn();
+      registerOnPolicyDenied(cb);
+      const fetch = makeFetch(403, { detail: { kind: 'something_else' } });
+      const apiClient = createApiClient(fetch, 'http://localhost:5173');
+
+      await apiClient.GET('/api/auth/me/');
+
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('does not fire on a non-403 response', async () => {
+      const cb = vi.fn();
+      registerOnPolicyDenied(cb);
+      const fetch = makeFetch(200, { ok: true });
+      const apiClient = createApiClient(fetch, 'http://localhost:5173');
+
+      await apiClient.GET('/api/auth/me/');
+
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('ignores responses whose body is not valid JSON', async () => {
+      const cb = vi.fn();
+      registerOnPolicyDenied(cb);
+      const fetch = vi.fn().mockResolvedValue(
+        new Response('<html>not json</html>', {
+          status: 403,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      );
+      const apiClient = createApiClient(fetch, 'http://localhost:5173');
+
+      await apiClient.GET('/api/auth/me/');
+
+      expect(cb).not.toHaveBeenCalled();
     });
   });
 });

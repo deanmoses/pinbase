@@ -59,6 +59,8 @@ class ProvenanceConfig(AppConfig):
             register_picker,
         )
 
+        from . import authz  # noqa: F401  # registers authz rules at startup
+
         register(
             LinkType(
                 name="cite",

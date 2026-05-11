@@ -27,11 +27,6 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user("editor@example.com")
-
-
-@pytest.fixture
 def source(db):
     return Source.objects.create(name="IPDB", source_type="database", priority=10)
 

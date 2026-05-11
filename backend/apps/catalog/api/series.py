@@ -12,6 +12,8 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.core.schemas import ValidationErrorSchema
@@ -132,7 +134,7 @@ def list_series(request: HttpRequest) -> list[SeriesListItemSchema]:
                 queryset=MachineModel.objects.active()
                 .filter(variant_of__isnull=True)
                 .order_by(F("year").asc(nulls_last=True))
-                .only("id", "extra_data"),
+                .only("id", "title_id", "extra_data"),
             )
         )
     )
@@ -172,6 +174,7 @@ def list_series(request: HttpRequest) -> list[SeriesListItemSchema]:
     response={200: SeriesDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_series_claims(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> SeriesDetailSchema:

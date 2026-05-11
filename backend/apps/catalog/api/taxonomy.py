@@ -13,6 +13,8 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.core.schemas import ValidationErrorSchema
@@ -329,6 +331,7 @@ def _bulk_title_counts_for_subgenerations(
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_technology_generation(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -383,6 +386,7 @@ def list_display_types(request: HttpRequest) -> list[DisplayTypeListItemSchema]:
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_display_type(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -402,6 +406,7 @@ technology_subgenerations_router = Router(tags=["technology-subgenerations"])
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_technology_subgeneration(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -421,6 +426,7 @@ display_subtypes_router = Router(tags=["display-subtypes"])
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_display_subtype(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -446,6 +452,7 @@ def list_cabinets(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_cabinet(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -473,6 +480,7 @@ def list_game_formats(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_game_format(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -531,6 +539,7 @@ def list_reward_types(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema
     response={200: RewardTypeDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_reward_type(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> RewardTypeDetailSchema:
@@ -566,6 +575,7 @@ def list_tags(request: HttpRequest) -> list[TaxonomyWithTitleCountSchema]:
     response={200: TaxonomySchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_tag(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> TaxonomySchema:
@@ -705,6 +715,7 @@ def list_credit_roles(request: HttpRequest) -> list[TaxonomySchema]:
     response={200: CreditRoleDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_credit_role(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> CreditRoleDetailSchema:

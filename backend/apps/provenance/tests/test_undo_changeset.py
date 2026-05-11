@@ -9,15 +9,13 @@ toast into a broken button.
 from __future__ import annotations
 
 import pytest
-from django.contrib.auth import get_user_model
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.api.soft_delete import execute_soft_delete
 from apps.catalog.models import Title
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim, Source
 from apps.provenance.revert import UndoError, execute_undo_changeset
 from apps.provenance.test_factories import user_changeset
-
-User = get_user_model()
 
 pytestmark = pytest.mark.django_db
 
@@ -29,12 +27,7 @@ def _require_changeset(changeset: ChangeSet | None) -> ChangeSet:
 
 @pytest.fixture
 def author(db):
-    return User.objects.create_user(email="author@example.com")
-
-
-@pytest.fixture
-def other(db):
-    return User.objects.create_user(email="other@example.com")
+    return make_user()
 
 
 @pytest.fixture
@@ -59,13 +52,6 @@ class TestEligibility:
         cs = user_changeset(author, action=ChangeSetAction.EDIT)
         with pytest.raises(UndoError):
             execute_undo_changeset(cs, user=author)
-
-    def test_rejects_other_user(self, author, other, bootstrap_source):
-        t = _title("g", bootstrap_source)
-        cs, _ = execute_soft_delete(t, user=author)
-        with pytest.raises(UndoError) as exc:
-            execute_undo_changeset(_require_changeset(cs), user=other)
-        assert exc.value.status_code == 403
 
     def test_rejects_when_claims_already_superseded(self, author, bootstrap_source):
         t = _title("g", bootstrap_source)

@@ -233,13 +233,14 @@ Mutating endpoints should declare their 4xx/429 failure shapes in `response={…
 
 ### Error schemas
 
-Three shared shapes live in [`backend/apps/core/schemas.py`](../backend/apps/core/schemas.py):
+Shared shapes live in [`backend/apps/core/schemas.py`](../backend/apps/core/schemas.py) and [`backend/apps/core/authz/schemas.py`](../backend/apps/core/authz/schemas.py):
 
 | Schema                  | Wire shape                                         | Produced by                                                         |
 | ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
 | `ErrorDetailSchema`     | `{"detail": str}`                                  | Plain `HttpError(…)`, throttle middleware                           |
 | `ValidationErrorSchema` | `{"detail": {message, field_errors, form_errors}}` | `StructuredValidationError`, Ninja's malformed-body 422 (see below) |
 | `RateLimitErrorSchema`  | `{"detail": {message, bucket, retry_after}}`       | `check_and_record(…)` (`RateLimitExceededError`)                    |
+| `PolicyDeniedSchema`    | `{"detail": {message, code, context}}`             | Authz policy denials (`PolicyDeniedError`)                          |
 
 A global handler in [`backend/config/api.py`](../backend/config/api.py) reshapes Ninja's stock malformed-body 422 (`{"detail": [{loc, msg}, …]}`) into the `ValidationErrorSchema` envelope so the frontend has one fewer wire shape to parse.
 
@@ -252,6 +253,7 @@ Apply the rule that fits what your view body (and one level of helpers) can prod
 - **422 union** (`ErrorDetailSchema | ValidationErrorSchema`): endpoint can produce both shapes.
 - **429 structured** (`RateLimitErrorSchema`): endpoint calls `check_and_record`.
 - **429 plain** (`ErrorDetailSchema`): endpoint raises `HttpError(429, "msg")` directly, or is decorated with `throttle=[…]` (Ninja's `Throttled` subclasses `HttpError`).
+- **403 structured** (`PolicyDeniedSchema`): endpoint declares policy denial as a response shape. Routes using `@requires` do not need to declare 403 solely for policy denial — the global structured-error handler returns the body at runtime. Declare it when policy denial is the natural documented 4xx for the route, or when a route already needs to distinguish 403 shapes.
 
 ### Known gap: body-validation 422s
 

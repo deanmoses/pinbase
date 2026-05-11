@@ -82,8 +82,12 @@
 
     {#snippet adminSection()}
       <MenuSectionHeader>admin</MenuSectionHeader>
-      <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
-      <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+      {#if auth.can('kiosk.edit')}
+        <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
+      {/if}
+      {#if auth.can('django_admin.access')}
+        <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+      {/if}
     {/snippet}
 
     {#snippet userSection()}
@@ -130,7 +134,7 @@
                   username={auth.username ?? ''}
                 />
               {/snippet}
-              {#if auth.isSuperuser}
+              {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
                 {@render adminSection()}
                 <MenuDivider />
               {/if}
@@ -161,7 +165,7 @@
             Changelog
           </MenuItem>
           {#if auth.loaded}
-            {#if auth.isSuperuser}
+            {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
               <MenuDivider />
               {@render adminSection()}
             {/if}

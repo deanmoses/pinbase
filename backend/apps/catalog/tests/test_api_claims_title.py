@@ -20,11 +20,6 @@ User = get_user_model()
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def title(db, _bootstrap_source):
     t = Title.objects.create(
         name="Medieval Madness", slug="medieval-madness", opdb_id="G5pe4"

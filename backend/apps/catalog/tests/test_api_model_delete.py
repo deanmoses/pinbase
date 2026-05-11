@@ -10,24 +10,12 @@ from __future__ import annotations
 import json
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import MachineModel, Title
 from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim, Source
-
-User = get_user_model()
-
-
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="deleter@example.com")
-
-
-@pytest.fixture
-def staff(db):
-    return User.objects.create_user(email="admin@example.com", is_staff=True)
 
 
 @pytest.fixture
@@ -373,7 +361,7 @@ class TestUndoDelete:
         assert m.status == "active"
 
     def test_undo_by_other_user_forbidden(self, client, user, db, bootstrap_source):
-        other = User.objects.create_user(email="other@example.com")
+        other = make_user()
         t = _make_title(bootstrap_source, "mm")
         _make_model(bootstrap_source, t, "mm-pro")
         client.force_login(user)
@@ -386,6 +374,10 @@ class TestUndoDelete:
             content_type="application/json",
         )
         assert resp.status_code == 403
+        body = resp.json()
+        assert body["detail"]["kind"] == "policy_denied"
+        assert body["detail"]["code"] == "owner_required"
+        assert body["detail"]["message"] == "Only the original author can do that."
 
     def test_undo_rejected_when_superseded(self, client, user, bootstrap_source):
         t = _make_title(bootstrap_source, "mm")

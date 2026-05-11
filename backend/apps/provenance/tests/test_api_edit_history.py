@@ -1,17 +1,10 @@
 """Tests for GET /api/pages/edit-history/{entity_type}/{public_id}/ endpoint."""
 
 import pytest
-from django.contrib.auth import get_user_model
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import Claim, Source
-
-User = get_user_model()
-
-
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
 
 
 @pytest.fixture
@@ -70,7 +63,7 @@ class TestEditHistoryBasic:
         assert len(data) == 1
 
         cs = data[0]
-        assert cs["user_display"] == "editor"
+        assert cs["user_display"] == user.username
         assert cs["note"] == ""
         assert len(cs["changes"]) == 1
         assert cs["changes"][0]["field_name"] == "year"
@@ -130,7 +123,7 @@ class TestEditHistoryMultipleFields:
 class TestEditHistoryMultiUser:
     def test_old_value_scoped_to_same_user(self, client, user, pm, db):
         """User B editing after User A should not show User A's value as old."""
-        user_b = User.objects.create_user(email="other@example.com")
+        user_b = make_user()
 
         client.force_login(user)
         client.patch(
@@ -150,12 +143,12 @@ class TestEditHistoryMultiUser:
         assert len(data) == 2
 
         # User B's edit is newest — no old value because B never edited year before
-        assert data[0]["user_display"] == "other"
+        assert data[0]["user_display"] == user_b.username
         assert data[0]["changes"][0]["old_value"] is None
         assert data[0]["changes"][0]["new_value"] == 1999
 
         # User A's edit — also no old value (first edit)
-        assert data[1]["user_display"] == "editor"
+        assert data[1]["user_display"] == user.username
         assert data[1]["changes"][0]["old_value"] is None
         assert data[1]["changes"][0]["new_value"] == 1998
 

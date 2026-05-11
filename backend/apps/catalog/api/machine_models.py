@@ -16,6 +16,8 @@ from ninja.responses import Status
 from ninja.security import django_auth
 from pydantic import TypeAdapter
 
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.pagination import NamedPageNumberPagination
 from apps.core.schemas import (
@@ -968,6 +970,7 @@ _SELF_REF_FIELDS = frozenset({"variant_of", "converted_from", "remake_of"})
     response={200: ModelDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_model_claims(
     request: HttpRequest, public_id: str, data: ModelClaimPatchSchema
 ) -> ModelDetailSchema:
@@ -1086,6 +1089,7 @@ def model_delete_preview(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_DELETE)
 def delete_model(
     request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> DeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
@@ -1136,6 +1140,7 @@ def delete_model(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def restore_model(
     request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> ModelDetailSchema | Status[ErrorDetailSchema]:

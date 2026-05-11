@@ -7,6 +7,8 @@ returns the global root view.
 """
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from apps.catalog.models import (
     CorporateEntity,
@@ -14,6 +16,7 @@ from apps.catalog.models import (
     Location,
     Manufacturer,
 )
+from apps.catalog.tests.conftest import make_machine_model
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -293,3 +296,60 @@ class TestExpectedChildType:
         # And any child of a no-divisions country also resolves to null.
         resp = client.get("/api/pages/locations/netherlands/reuver")
         assert resp.json()["expected_child_type"] is None
+
+
+# ---------------------------------------------------------------------------
+# Query-count regression: the manufacturers payload uses a nested
+# ``Prefetch("models", queryset=...only(...))``. If the FK back-pointer
+# (``corporate_entity_id``) is omitted from ``.only(...)``, Django's
+# prefetch machinery refresh_from_db's it per row, scaling queries
+# linearly with the MachineModel count in the response.
+# ---------------------------------------------------------------------------
+
+
+class TestManufacturersQueryCount:
+    def _add_models(self, mfr, count, slug_prefix):
+        """Attach ``count`` MachineModels to the manufacturer's CorporateEntity."""
+        entity = mfr.entities.get()
+        for i in range(count):
+            make_machine_model(
+                name=f"{slug_prefix}-{i}",
+                slug=f"{slug_prefix}-{i}",
+                corporate_entity=entity,
+            )
+
+    def test_query_count_does_not_scale_with_machine_models(
+        self, client, manufacturers
+    ):
+        # Baseline: one MachineModel per relevant manufacturer.
+        self._add_models(manufacturers["williams"], 1, "williams-mm")
+        self._add_models(manufacturers["gottlieb"], 1, "gottlieb-mm")
+        self._add_models(manufacturers["stern"], 1, "stern-mm")
+
+        # Warm caches at the small-N dataset, then measure on warm cache.
+        client.get("/api/pages/locations/usa")
+        with CaptureQueriesContext(connection) as small_ctx:
+            resp = client.get("/api/pages/locations/usa")
+            assert resp.status_code == 200
+        small_count = len(small_ctx.captured_queries)
+
+        # Add many more MachineModels under the same manufacturers.
+        # This invalidates the location tree cache, so warm it again
+        # before measuring so both measurements pay the same warm-cache cost.
+        self._add_models(manufacturers["williams"], 9, "williams-extra")
+        self._add_models(manufacturers["gottlieb"], 9, "gottlieb-extra")
+        self._add_models(manufacturers["stern"], 9, "stern-extra")
+
+        client.get("/api/pages/locations/usa")
+        with CaptureQueriesContext(connection) as big_ctx:
+            resp = client.get("/api/pages/locations/usa")
+            assert resp.status_code == 200
+        big_count = len(big_ctx.captured_queries)
+
+        assert big_count == small_count, (
+            f"Query count scaled with MachineModel count: {small_count} at N=3, "
+            f"{big_count} at N=30. Likely a refresh_from_db-per-row caused "
+            f"by a Prefetch().only(...) omitting the FK back-pointer.\n"
+            f"Extra queries:\n"
+            + "\n".join(q["sql"] for q in big_ctx.captured_queries[small_count:])
+        )

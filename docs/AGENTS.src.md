@@ -51,6 +51,8 @@ make bootstrap    # Install all deps, run migrations, generate API types
 make dev          # Start Django + SvelteKit dev servers
 make test         # Run pytest (backend) + vitest (frontend)
 make lint         # Run ruff (backend) + eslint/prettier (frontend)
+make mypy         # Run backend type checks (filtered against the baseline)
+make api-gen      # Regenerate frontend API types from the backend schema
 make pull-ingest  # Download catalog data from R2
 make ingest       # Run full ingestion pipeline
 make agent-docs   # Regenerate CLAUDE.md and AGENTS.md
@@ -77,9 +79,32 @@ docs/             Documentation source files
 - Vite dev server proxies `/api/`, `/admin/`, `/media/`, and `/static/` to Django at `127.0.0.1:8000`
 - For SSR route conventions, see [Svelte.md](Svelte.md). For API design — both endpoint shape (page-oriented vs resource) and schema design heuristics (when to consolidate, when to keep separate, inheritance smells) — see [ApiDesign.md](ApiDesign.md)
 
-### Generated Types — `schema.d.ts` is gitignored
+### Generated API Types
 
-`frontend/src/lib/api/schema.d.ts` is generated and **not committed**. Do not stage or commit it. After adding or changing any API endpoint, run `make api-gen` to regenerate it — the typed client will not see new endpoints until you do.
+The system generates frontend Typescript types from the backend Python API types.
+
+#### `schema.d.ts` is gitignored
+
+`frontend/src/lib/api/schema.d.ts` is generated and **not committed**. Do not stage or commit it.
+
+#### Run `make api-gen` to regenerate API types
+
+After adding or changing any API endpoint, run `make api-gen` to regenerate it — the typed client will not see new endpoints until you do.
+
+#### ALWAYS use named imports
+
+When importing a generated schema type, you MUST use the named export. NEVER use indexed access into `components`:
+
+```ts
+// Right
+import type { ValidationErrorBodySchema } from "$lib/api/schema";
+
+// Wrong — NEVER traverse the nested path
+import type { components } from "$lib/api/schema";
+type X = components["schemas"]["ValidationErrorBodySchema"];
+```
+
+`schema.d.ts` re-exports every component as a named alias precisely so consumers don't have to walk `components['schemas'][...]`. If a needed type isn't exported by name, that's a codegen-config bug to fix — not a license to use the indexed form.
 
 ### Frontend URLs and `resolve()`
 
@@ -122,6 +147,14 @@ The frontend uses **Svelte 5 runes mode** (`runes: true` in compiler options). D
 ### No `:global` in Svelte styles
 
 NEVER use `:global` in Svelte component styles without explicit approval from the user. Scoped styles are the default and preferred approach. We rearchitect components rather than use `:global`.
+
+### Authorization goes through activities
+
+Backend authorization gates product actions through `Activity` rules in `apps/core/authz/`; frontend auth checks are UX hints only. For mutating backend routes, use `@requires(Activity.X)`, `@gated_inline(Activity.X)`, or `@public_mutation("reason")` so the route inventory stays complete.
+
+Do NOT add new raw `is_staff`, `is_superuser`, or `email_verified` checks to decide whether a user may perform a product action. Add or use an `Activity` instead. Do NOT mirror policy logic in Svelte — use `auth.can("activity.name")` for target-less affordances and row `capabilities[...]` for target-aware affordances.
+
+For predicate design (purity, target Protocols, denial messages), see [docs/Authz.md](Authz.md).
 
 ### All user-inputted catalog fields MUST be claims-based
 
@@ -218,6 +251,21 @@ Do NOT skip step 1. Do NOT write the fix first "to understand the problem" and b
 ### New Features
 
 For new behavior, include tests. Consider writing the test first, though sometimes that's more trouble than it's worth.
+
+## Strong Typing (backend)
+
+Backend code should be as strongly typed as possible. Annotations are documentation the compiler enforces.
+
+Smells — sometimes legitimate, usually a sign the type can be tightened:
+
+- Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `getattr`, `TYPE_CHECKING` , `# type: ignore`, `# noqa`
+- `tuple[...]` with 3+ positional fields, or the same tuple shape repeated across modules
+
+Prefer NamedTuple, dataclass, or TypedDict. Full catalogue, legitimate exception shapes (Django management `**kwargs`, signal receivers, Ninja dispatch, etc.), and the ruff ANN401 ratchet: [docs/plans/types/TypeFixing.md](plans/types/TypeFixing.md).
+
+### Running mypy
+
+Run mypy via `./scripts/mypy` (not bare `mypy`, no file paths) — it filters against `backend/mypy-baseline.txt` so CI/pre-commit only fail on _new_ errors. If local disagrees with CI, the daemon is stale: `make mypy-restart`. For baseline sync syntax and the burn-down protocol, see [docs/plans/types/MypyFixing.md](plans/types/MypyFixing.md).
 
 ## Data Modeling
 

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { validationErrorBody } from '$lib/api/error-fixtures';
+
 import { saveHierarchicalTaxonomyClaims, saveSimpleTaxonomyClaims } from './save-claims-shared';
 
 const { PATCH, invalidateAll } = vi.hoisted(() => ({
@@ -55,7 +57,7 @@ describe('saveSimpleTaxonomyClaims', () => {
     PATCH.mockResolvedValueOnce({
       data: undefined,
       error: {
-        detail: { message: 'nope', field_errors: { slug: 'taken' }, form_errors: [] },
+        detail: validationErrorBody({ message: 'nope', field_errors: { slug: 'taken' } }),
       },
     });
 
@@ -141,11 +143,10 @@ describe('saveHierarchicalTaxonomyClaims', () => {
     PATCH.mockResolvedValueOnce({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'invalid',
           field_errors: { parents: 'would create a cycle' },
-          form_errors: [],
-        },
+        }),
       },
     });
 

@@ -11,11 +11,6 @@ User = get_user_model()
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def low_priority_source(db):
     return Source.objects.create(name="IPDB", source_type="database", priority=10)
 
@@ -92,7 +87,8 @@ class TestPatchClaimsValidation:
         assert resp.status_code == 422
         body = resp.json()
         detail = body["detail"]
-        assert set(detail.keys()) == {"message", "field_errors", "form_errors"}
+        assert set(detail.keys()) == {"kind", "message", "field_errors", "form_errors"}
+        assert detail["kind"] == "validation_error"
         # ``loc`` is ("body", "gameplay_features", 0, "count") — leaf wins.
         assert "count" in detail["field_errors"]
         assert "gameplay_features" not in detail["field_errors"]

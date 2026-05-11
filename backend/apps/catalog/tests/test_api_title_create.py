@@ -14,24 +14,11 @@ from __future__ import annotations
 import json
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
 from apps.catalog.models import Title
 from apps.core.types import JsonBody
 from apps.provenance.models import ChangeSet, ChangeSetAction, Claim
-
-User = get_user_model()
-
-
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
-def staff(db):
-    return User.objects.create_user(email="admin@example.com", is_staff=True)
 
 
 @pytest.fixture(autouse=True)
@@ -214,6 +201,7 @@ class TestCreateRateLimit:
         resp = _post(client, {"name": "Title six", "slug": "title-six"})
         assert resp.status_code == 429
         assert "Retry-After" in resp.headers
+        assert resp.json()["detail"]["kind"] == "rate_limit"
 
     def test_failed_validation_still_counts(self, client, user):
         client.force_login(user)

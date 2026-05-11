@@ -36,6 +36,8 @@ from ninja import Router
 from ninja.security import django_auth
 from pydantic import ConfigDict, field_validator
 
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.schemas import ValidationErrorSchema
 from apps.provenance.schemas import ChangeSetInputSchema
 
@@ -270,6 +272,7 @@ register_entity_create(
     response={200: LocationDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_location_claims(
     request: HttpRequest, public_id: str, data: LocationPatchClaimSchema
 ) -> LocationDetailSchema:

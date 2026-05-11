@@ -10,7 +10,7 @@ from apps.catalog.api.edit_claims import (
     FieldConstraintSchema,
     StructuredValidationError,
 )
-from apps.provenance.rate_limits import RateLimitExceededError
+from apps.core.exceptions import StructuredApiError
 
 api = NinjaAPI(
     title="API",
@@ -84,33 +84,34 @@ _discover_routers()
 
 
 # ---------------------------------------------------------------------------
-# Structured validation errors — returns field-level + form-level errors
-# so the frontend can display inline per-field messages.
+# Structured API errors — every subclass of StructuredApiError routes through
+# the single handler below. Subclasses declare ``kind``, ``status``, and
+# implement ``to_body()`` / ``extra_headers()``. django-ninja dispatches
+# ``@api.exception_handler`` by ``isinstance`` (walks the MRO), so subclasses
+# need no per-class handler registration.
 # ---------------------------------------------------------------------------
 
 
-def _structured_422_body(
-    *, message: str, field_errors: dict[str, str], form_errors: list[str]
-) -> dict[str, object]:
-    return {
-        "detail": {
-            "message": message,
-            "field_errors": field_errors,
-            "form_errors": form_errors,
-        }
-    }
+def _structured_error_response(exc: StructuredApiError) -> JsonResponse:
+    response = JsonResponse(
+        {"detail": {"kind": exc.kind, "message": exc.message, **exc.to_body()}},
+        status=exc.status,
+    )
+    for header, value in exc.extra_headers().items():
+        response[header] = value
+    return response
+
+
+@api.exception_handler(StructuredApiError)
+def _handle_structured_api_error(
+    request: HttpRequest, exc: StructuredApiError
+) -> JsonResponse:
+    return _structured_error_response(exc)
 
 
 # Pydantic ``loc`` paths begin with the request source — strip these so the
 # leaf names align with StructuredValidationError's flat field keys.
 _REQUEST_SOURCES = frozenset({"body", "query", "path", "header", "cookie", "form"})
-
-
-@api.exception_handler(StructuredValidationError)
-def _handle_structured_validation_error(
-    request: HttpRequest, exc: StructuredValidationError
-) -> JsonResponse:
-    return JsonResponse(_structured_422_body(**exc.to_response_body()), status=422)
 
 
 @api.exception_handler(ValidationError)
@@ -138,32 +139,14 @@ def _handle_pydantic_validation_error(
             field_errors[leaf] = msg
         else:
             form_errors.append(msg)
-    return JsonResponse(
-        _structured_422_body(
+    # Constructed only to route through the shared response helper; not raised.
+    return _structured_error_response(
+        StructuredValidationError(
             message="Invalid request.",
             field_errors=field_errors,
             form_errors=form_errors,
-        ),
-        status=422,
+        )
     )
-
-
-@api.exception_handler(RateLimitExceededError)
-def _handle_rate_limit_exceeded(
-    request: HttpRequest, exc: RateLimitExceededError
-) -> JsonResponse:
-    response = JsonResponse(
-        {
-            "detail": {
-                "message": "Rate limit exceeded.",
-                "bucket": exc.bucket,
-                "retry_after": exc.retry_after,
-            }
-        },
-        status=429,
-    )
-    response["Retry-After"] = str(exc.retry_after)
-    return response
 
 
 # ---------------------------------------------------------------------------

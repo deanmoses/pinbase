@@ -14,11 +14,6 @@ User = get_user_model()
 
 
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
-@pytest.fixture
 def bootstrap_source(db):
     return Source.objects.create(
         name="Bootstrap", slug="bootstrap", source_type="editorial", priority=100

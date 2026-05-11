@@ -12,16 +12,18 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
+from typing import ClassVar
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Model, Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_control
-from ninja import Router, Schema
+from ninja import Field, Router, Schema
 from ninja.decorators import decorate_view
 from ninja.responses import Status
 
+from apps.core.authz import Activity, compute_row_capabilities, policy_user
 from apps.core.entity_types import get_linkable_model
 from apps.core.types import EntityKey
 
@@ -29,6 +31,7 @@ from .entity_resolution import batch_resolve_entities
 from .evidence import build_cited_changesets
 from .helpers import active_claims, build_sources, claims_prefetch
 from .history import build_edit_history
+from .models.changeset import ChangeSet
 from .schemas import (
     ChangeSetBaseSchema,
     ChangeSetSchema,
@@ -52,6 +55,10 @@ class ChangeSetWithEntitySchema(ChangeSetBaseSchema):
 class ChangeSetSummarySchema(ChangeSetWithEntitySchema):
     changes_count: int
     retractions_count: int
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
+
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
+    policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
 class ChangeSetListSchema(Schema):
@@ -62,6 +69,10 @@ class ChangeSetListSchema(Schema):
 class ChangeSetDetailSchema(ChangeSetWithEntitySchema):
     changes: list[FieldChangeSchema]
     retractions: list[RetractionSchema]
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
+
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
+    policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
 class CitedChangeSetCitationSchema(Schema):
@@ -76,6 +87,10 @@ class CitedChangeSetCitationSchema(Schema):
 class CitedChangeSetSchema(ChangeSetBaseSchema):
     fields: list[str]
     citations: list[CitedChangeSetCitationSchema]
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
+
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
+    policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
 class SourcesPageSchema(Schema):
@@ -126,13 +141,12 @@ def edit_history_page(
     The ``:path`` URL converter accepts multi-segment ids without affecting
     single-segment models (their ``public_id`` simply has no slashes).
     """
-    _ = request
     try:
         model_class = get_linkable_model(entity_type)
     except ValueError:
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
     entity = get_object_or_404(model_class, **{model_class.public_id_field: public_id})
-    return build_edit_history(entity)
+    return build_edit_history(entity, policy_user(request.user))
 
 
 @pages_router.get(
@@ -155,31 +169,37 @@ def sources_page(
     except ValueError:
         return Status(404, {"detail": f"Unknown entity type: {entity_type}"})
 
-    _ = request
     entity = get_object_or_404(
         model_class._default_manager.prefetch_related(claims_prefetch()),
         **{model_class.public_id_field: public_id},
     )
     claims = active_claims(entity)
     sources = build_sources(claims)
+    caller = policy_user(request.user)
     evidence = [
         CitedChangeSetSchema(
-            id=row["id"],
-            user_display=row["user_display"],
-            note=row["note"],
-            created_at=row["created_at"],
-            fields=row["fields"],
+            id=row.id,
+            user_display=row.user_display,
+            note=row.note,
+            created_at=row.created_at,
+            fields=row.fields,
             citations=[
                 CitedChangeSetCitationSchema(
-                    source_name=c["source_name"],
-                    source_type=c["source_type"],
-                    author=c["author"],
-                    year=c["year"],
-                    locator=c["locator"],
-                    links=[CitationLinkSchema(**link) for link in c["links"]],
+                    source_name=c.source_name,
+                    source_type=c.source_type,
+                    author=c.author,
+                    year=c.year,
+                    locator=c.locator,
+                    links=[
+                        CitationLinkSchema(url=link.url, label=link.label)
+                        for link in c.links
+                    ],
                 )
-                for c in row["citations"]
+                for c in row.citations
             ],
+            capabilities=compute_row_capabilities(
+                caller, row, CitedChangeSetSchema.policy_activities
+            ),
         )
         for row in build_cited_changesets(claims)
     ]
@@ -203,18 +223,23 @@ def list_changes(
     """Global feed of edits across all entities."""
     from django.db.models import Prefetch
 
-    from .models import ChangeSet, Claim
+    from .models import Claim
     from .pagination import cursor_paginate
 
-    _ = request
+    caller = policy_user(request.user)
     limit = max(1, min(limit, 100))
 
     qs = ChangeSet.objects.select_related(
         "user", "ingest_run__source"
     ).prefetch_related(
+        # ``changeset_id`` and ``retracted_by_changeset_id`` MUST be in
+        # ``.only()`` for the reverse-FK prefetch back-association to
+        # work without a per-row ``refresh_from_db``. Omitting either
+        # makes the prefetch machinery query each Claim individually.
         Prefetch(
             "claims",
             queryset=Claim.objects.only(
+                "changeset_id",
                 "content_type_id",
                 "object_id",
                 "field_name",
@@ -223,6 +248,7 @@ def list_changes(
         Prefetch(
             "retracted_claims",
             queryset=Claim.objects.only(
+                "retracted_by_changeset_id",
                 "content_type_id",
                 "object_id",
             ),
@@ -296,6 +322,9 @@ def list_changes(
                 entity_href=meta["href"],
                 entity_name=meta["name"],
                 entity_type_label=meta["type_label"],
+                capabilities=compute_row_capabilities(
+                    caller, cs, ChangeSetSummarySchema.policy_activities
+                ),
             )
         )
 
@@ -311,9 +340,9 @@ def change_detail(
     changeset_id: int,
 ) -> ChangeSetDetailSchema | Status[ErrorPayload]:
     """Detail view for a single changeset with full field diffs."""
-    from .models import ChangeSet, Claim
+    from .models import Claim
 
-    _ = request
+    caller = policy_user(request.user)
     cs = get_object_or_404(
         ChangeSet.objects.select_related("user", "ingest_run__source").prefetch_related(
             "claims", "retracted_claims"
@@ -399,4 +428,7 @@ def change_detail(
         entity_type_label=meta["type_label"],
         changes=changes,
         retractions=retractions,
+        capabilities=compute_row_capabilities(
+            caller, cs, ChangeSetDetailSchema.policy_activities
+        ),
     )

@@ -1,15 +1,10 @@
 import { error, redirect } from '@sveltejs/kit';
 import { resolve } from '$app/paths';
+import { requireCapability } from '$lib/require-capability';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ fetch, url }) => {
-  const authRes = await fetch('/api/auth/me/');
-  if (authRes.ok) {
-    const authData = (await authRes.json()) as { is_authenticated?: boolean };
-    if (!authData.is_authenticated) {
-      throw redirect(302, resolve('/login'));
-    }
-  }
+  await requireCapability({ fetch, url, activity: 'catalog.create' });
 
   const parentSlug = url.searchParams.get('parent');
   if (!parentSlug) {

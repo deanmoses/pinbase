@@ -7,6 +7,8 @@ from collections import defaultdict
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, When
 
+from apps.core.authz import PolicyUser, compute_row_capabilities
+
 from .models import ChangeSet, Claim
 from .schemas import ChangeSetSchema, FieldChangeSchema, RetractionSchema
 
@@ -45,12 +47,15 @@ def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
     return winners
 
 
-def build_edit_history(entity: Model) -> list[ChangeSetSchema]:
+def build_edit_history(entity: Model, user: PolicyUser) -> list[ChangeSetSchema]:
     """Build changeset-grouped edit history with old→new diffs for an entity.
 
     Returns ChangeSetSchema rows newest first. Uses two queries to avoid N+1:
     one for changesets with their claims, one for all inactive user claims
     (to look up previous values).
+
+    ``user`` is the caller (boundary-cast via ``policy_user``) and is
+    used to populate the per-row ``capabilities`` map.
     """
     ct = ContentType.objects.get_for_model(entity)
 
@@ -150,6 +155,9 @@ def build_edit_history(entity: Model) -> list[ChangeSetSchema]:
                 created_at=cs.created_at.isoformat(),
                 changes=changes,
                 retractions=retractions,
+                capabilities=compute_row_capabilities(
+                    user, cs, ChangeSetSchema.policy_activities
+                ),
             )
         )
     return result

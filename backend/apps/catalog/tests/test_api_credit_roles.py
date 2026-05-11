@@ -23,11 +23,6 @@ from apps.provenance.models import ChangeSet, ChangeSetAction, Claim
 User = get_user_model()
 
 
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
 @pytest.fixture(autouse=True)
 def _clear_cache():
     cache.clear()

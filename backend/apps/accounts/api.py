@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime
-from typing import Protocol, TypedDict
+from typing import ClassVar, Protocol, TypedDict
 
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Model
 from django.http import (
     HttpRequest,
     HttpResponse,
@@ -21,7 +21,15 @@ from django.http import (
 from django.shortcuts import get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
 from ninja import Router, Schema
+from pydantic import Field
 
+from apps.core.authz import (
+    Activity,
+    compute_capability_map,
+    compute_row_capabilities,
+    policy_user,
+)
+from apps.core.authz.markers import public_mutation
 from apps.core.schemas import ErrorDetailSchema
 from apps.core.types import EntityKey
 from apps.provenance.entity_resolution import batch_resolve_entities
@@ -43,9 +51,14 @@ class AuthStatusSchema(Schema):
     is_authenticated: bool
     id: int | None = None
     username: str | None = None
-    is_superuser: bool = False
     first_name: str = ""
     last_name: str = ""
+    # Verdict for every target-less registered activity. Anonymous
+    # callers get an all-false map (every rule's first predicate is
+    # `is_authenticated`). Target-aware activities (e.g. `claim.revert`)
+    # are excluded; those verdicts come from per-resource hints embedded
+    # in the resource's serializer.
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
 
 class EntityContributionSchema(Schema):
@@ -63,6 +76,10 @@ class UserChangeSetSchema(Schema):
     entity_href: str
     entity_name: str
     entity_type_label: str
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
+
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
+    policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
 class UserProfileSchema(Schema):
@@ -100,9 +117,6 @@ class LoginRefusedError(Exception):
     """
 
 
-_MIRRORED_FIELDS = ("email", "first_name", "last_name")
-
-
 def _refresh_mirrored_fields(user: User, workos_user: WorkOSUser) -> list[str]:
     """Copy WorkOS-side identity fields onto the local row. Returns dirty fields.
 
@@ -131,6 +145,10 @@ def _refresh_mirrored_fields(user: User, workos_user: WorkOSUser) -> list[str]:
     if user.last_name != new_last:
         user.last_name = new_last
         dirty.append("last_name")
+    new_email_verified = workos_user.email_verified
+    if user.email_verified != new_email_verified:
+        user.email_verified = new_email_verified
+        dirty.append("email_verified")
     return dirty
 
 
@@ -254,6 +272,7 @@ def get_or_create_django_user(workos_user: WorkOSUser) -> User:
                     first_name=workos_user.first_name or "",
                     last_name=workos_user.last_name or "",
                     workos_user_id=workos_user.id,
+                    email_verified=workos_user.email_verified,
                 )
         except IntegrityError as exc:
             last_exc = exc
@@ -277,12 +296,15 @@ def auth_me(request: HttpRequest) -> AuthStatusSchema:
             is_authenticated=True,
             id=user.id,
             username=user.username,
-            is_superuser=user.is_superuser,
             first_name=user.first_name,
             last_name=user.last_name,
+            capabilities=compute_capability_map(policy_user(user)),
         )
     assert isinstance(user, AnonymousUser)
-    return AuthStatusSchema(is_authenticated=False)
+    return AuthStatusSchema(
+        is_authenticated=False,
+        capabilities=compute_capability_map(policy_user(user)),
+    )
 
 
 @auth_router.get("/login/", url_name="workos_login", include_in_schema=False)
@@ -352,10 +374,20 @@ def auth_callback(request: HttpRequest) -> HttpResponse:
 
 
 @auth_router.post("/logout/", response=AuthStatusSchema)
+@public_mutation(
+    "Session teardown — caller may already be partially logged out; "
+    "no editorial action is being authorized."
+)
 def auth_logout(request: HttpRequest) -> AuthStatusSchema:
     """End the current session."""
     logout(request)
-    return AuthStatusSchema(is_authenticated=False)
+    # `request.user` is `AnonymousUser` after `logout()`. Populate the
+    # capability map explicitly so the response shape matches `/me/`'s
+    # anonymous branch — both bodies represent the same state.
+    return AuthStatusSchema(
+        is_authenticated=False,
+        capabilities=compute_capability_map(policy_user(request.user)),
+    )
 
 
 @user_page_router.get(
@@ -363,7 +395,7 @@ def auth_logout(request: HttpRequest) -> AuthStatusSchema:
 )
 def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
     """Page model for the user profile page: contribution history."""
-    _ = request
+    caller = policy_user(request.user)
     user = get_object_or_404(User, username=username)
 
     edit_count = ChangeSet.objects.filter(user=user).count()
@@ -449,6 +481,9 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
                 entity_href=meta["href"],
                 entity_name=meta["name"],
                 entity_type_label=meta["type_label"],
+                capabilities=compute_row_capabilities(
+                    caller, cs, UserChangeSetSchema.policy_activities
+                ),
             )
         )
 

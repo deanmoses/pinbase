@@ -4,14 +4,11 @@ from typing import Any
 
 import pytest
 from django.contrib import admin
-from django.contrib.auth import get_user_model
 from django.forms import inlineformset_factory
 from django.test import RequestFactory
 
 from apps.citation.admin import CitationSourceAdmin
 from apps.citation.models import CitationSource, CitationSourceLink
-
-User = get_user_model()
 
 LinkFormSetCreate: Any = inlineformset_factory(
     CitationSource,
@@ -27,14 +24,6 @@ LinkFormSetUpdate: Any = inlineformset_factory(
     extra=0,
     can_delete=True,
 )
-
-
-@pytest.fixture
-def admin_user(db):
-    return User.objects.create_superuser(
-        email="admin@test.com",
-        password="password",  # pragma: allowlist secret
-    )
 
 
 @pytest.fixture
@@ -56,43 +45,41 @@ class TestAdminRegistration:
 
 
 class TestCitationSourceAdminPermissions:
-    def test_delete_permission_denied(
-        self, admin_instance, request_factory, admin_user
-    ):
+    def test_delete_permission_denied(self, admin_instance, request_factory, superuser):
         request = request_factory.get("/")
-        request.user = admin_user
+        request.user = superuser
         assert admin_instance.has_delete_permission(request) is False
 
     def test_delete_permission_denied_with_obj(
-        self, admin_instance, request_factory, admin_user, citation_source
+        self, admin_instance, request_factory, superuser, citation_source
     ):
         request = request_factory.get("/")
-        request.user = admin_user
+        request.user = superuser
         assert admin_instance.has_delete_permission(request, citation_source) is False
 
 
 class TestCitationSourceAdminReadonlyFields:
     def test_parent_editable_on_create(
-        self, admin_instance, request_factory, admin_user
+        self, admin_instance, request_factory, superuser
     ):
         request = request_factory.get("/")
-        request.user = admin_user
+        request.user = superuser
         readonly = admin_instance.get_readonly_fields(request, obj=None)
         assert "parent" not in readonly
 
     def test_parent_readonly_on_change(
-        self, admin_instance, request_factory, admin_user, citation_source
+        self, admin_instance, request_factory, superuser, citation_source
     ):
         request = request_factory.get("/")
-        request.user = admin_user
+        request.user = superuser
         readonly = admin_instance.get_readonly_fields(request, obj=citation_source)
         assert "parent" in readonly
 
     def test_created_by_always_readonly(
-        self, admin_instance, request_factory, admin_user
+        self, admin_instance, request_factory, superuser
     ):
         request = request_factory.get("/")
-        request.user = admin_user
+        request.user = superuser
         # Readonly on create
         readonly_create = admin_instance.get_readonly_fields(request, obj=None)
         assert "created_by" in readonly_create
@@ -100,23 +87,21 @@ class TestCitationSourceAdminReadonlyFields:
 
 
 class TestCitationSourceAdminAttribution:
-    def test_created_by_set_on_create(
-        self, admin_instance, request_factory, admin_user
-    ):
+    def test_created_by_set_on_create(self, admin_instance, request_factory, superuser):
         request = request_factory.post("/")
-        request.user = admin_user
+        request.user = superuser
         obj = CitationSource(name="Test", source_type="book")
         admin_instance.save_model(request, obj, form=None, change=False)
-        assert obj.created_by == admin_user
-        assert obj.updated_by == admin_user
+        assert obj.created_by == superuser
+        assert obj.updated_by == superuser
 
     def test_updated_by_set_on_change(
-        self, admin_instance, request_factory, admin_user, citation_source
+        self, admin_instance, request_factory, superuser, citation_source
     ):
         request = request_factory.post("/")
-        request.user = admin_user
+        request.user = superuser
         admin_instance.save_model(request, citation_source, form=None, change=True)
-        assert citation_source.updated_by == admin_user
+        assert citation_source.updated_by == superuser
         # created_by should not be overwritten on change
         assert citation_source.created_by is None
 
@@ -125,7 +110,7 @@ class TestCitationSourceLinkInlineAttribution:
     """Test that save_formset auto-populates created_by/updated_by on inline links."""
 
     def test_created_by_set_on_new_link(
-        self, admin_instance, request_factory, admin_user, citation_source
+        self, admin_instance, request_factory, superuser, citation_source
     ):
         data = {
             "links-TOTAL_FORMS": "1",
@@ -138,15 +123,15 @@ class TestCitationSourceLinkInlineAttribution:
         assert formset.is_valid(), formset.errors
 
         request = request_factory.post("/")
-        request.user = admin_user
+        request.user = superuser
         admin_instance.save_formset(request, form=None, formset=formset, change=True)
 
         link = CitationSourceLink.objects.get(citation_source=citation_source)
-        assert link.created_by == admin_user
-        assert link.updated_by == admin_user
+        assert link.created_by == superuser
+        assert link.updated_by == superuser
 
     def test_updated_by_set_on_existing_link(
-        self, admin_instance, request_factory, admin_user, citation_source
+        self, admin_instance, request_factory, superuser, citation_source
     ):
         link = CitationSourceLink.objects.create(
             citation_source=citation_source,
@@ -168,10 +153,10 @@ class TestCitationSourceLinkInlineAttribution:
         assert formset.is_valid(), formset.errors
 
         request = request_factory.post("/")
-        request.user = admin_user
+        request.user = superuser
         admin_instance.save_formset(request, form=None, formset=formset, change=True)
 
         link.refresh_from_db()
-        assert link.updated_by == admin_user
+        assert link.updated_by == superuser
         # created_by should NOT be set on update of existing record
         assert link.created_by is None

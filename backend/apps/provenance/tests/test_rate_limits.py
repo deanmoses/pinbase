@@ -6,9 +6,9 @@ import time
 from unittest import mock
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
+from apps.accounts.test_factories import make_user
 from apps.provenance.rate_limits import (
     CREATE_RATE_LIMIT_SPEC,
     DELETE_RATE_LIMIT_SPEC,
@@ -18,21 +18,19 @@ from apps.provenance.rate_limits import (
     reset_for_user,
 )
 
-User = get_user_model()
-
 SPEC = RateLimitSpec(bucket="test", limit=3, window_seconds=60)
 
 
 @pytest.fixture
 def user(db):
-    u = User.objects.create_user(email="rater@example.com")
+    u = make_user()
     yield u
     reset_for_user(u, SPEC.bucket)
 
 
 @pytest.fixture
 def staff_user(db):
-    u = User.objects.create_user(email="staffer@example.com", is_staff=True)
+    u = make_user(is_staff=True)
     yield u
     reset_for_user(u, SPEC.bucket)
 
@@ -115,7 +113,7 @@ class TestRateLimits:
             check_and_record(user, SPEC)
 
     def test_users_are_independent(self, user, db):
-        other = User.objects.create_user(email="other@example.com")
+        other = make_user()
         try:
             for _ in range(SPEC.limit):
                 check_and_record(user, SPEC)

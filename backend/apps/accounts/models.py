@@ -125,6 +125,11 @@ class User(AbstractUser):
     # reactivation time.
     workos_user_id = models.CharField(max_length=64, null=True, blank=True, unique=True)
 
+    # Mirrored from WorkOS on every login (see _refresh_mirrored_fields).
+    # Default False is the safe production posture: a row whose mirror has
+    # not yet run is treated as unverified.
+    email_verified = models.BooleanField(default=False)
+
     # Request-time freshness signal (see ProviderSwitching.md).
     last_seen_at = models.DateTimeField(null=True, blank=True)
 

@@ -11,6 +11,7 @@ It does not try to restate every project rule. Instead, it points to the more sp
 - [WebArchitecture.md](WebArchitecture.md) for the Django + SvelteKit web stack
 - [Svelte.md](Svelte.md) for route-level rendering choices and SvelteKit page conventions
 - [ApiDesign.md](ApiDesign.md) for frontend/backend API design rules for pages and SSR
+- [Authz.md](Authz.md) for authorization and capability surfaces
 - [SSRConversion.md](SSRConversion.md) for the step-by-step workflow for converting an existing route subtree from CSR to SSR
 - [Reviewing.md](Reviewing.md) for repo-specific review checks, especially for AI reviewers
 - [AppBoundaries.md](AppBoundaries.md) for backend app dependency rules
@@ -50,6 +51,7 @@ When working in these areas, use the focused reference docs:
 
 - [Svelte.md](Svelte.md) for route-level SSR/CSR choices and page-loading conventions
 - [Provenance.md](Provenance.md) for claims, resolution, and audit model
+- [Authz.md](Authz.md) for authorization, policy gates, and frontend capabilities
 - [Ingest.md](Ingest.md) for ingest architecture and source flow
 - [ApiDesign.md](ApiDesign.md) for page-oriented API design and SSR-friendly endpoint shaping
 - [Hosting.md](Hosting.md) for deployment and runtime operations

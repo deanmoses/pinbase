@@ -29,6 +29,8 @@ from ninja.security import django_auth
 from pydantic import TypeAdapter
 
 from apps.catalog.naming import MAX_CATALOG_NAME_LENGTH, normalize_catalog_name
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.core.pagination import NamedPageNumberPagination
@@ -965,6 +967,7 @@ def list_all_titles(request: HttpRequest) -> HttpResponse:
     response={200: TitleDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_title_claims(
     request: HttpRequest, public_id: str, data: TitleClaimPatchSchema
 ) -> TitleDetailSchema:
@@ -1020,6 +1023,7 @@ def patch_title_claims(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_CREATE)
 def create_title(
     request: HttpRequest, data: EntityCreateInputSchema
 ) -> Status[TitleDetailSchema]:
@@ -1066,6 +1070,7 @@ def create_title(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_CREATE)
 def create_model(
     request: HttpRequest, title_public_id: str, data: EntityCreateInputSchema
 ) -> Status[ModelDetailSchema]:
@@ -1176,6 +1181,7 @@ def title_delete_preview(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_DELETE)
 def delete_title(
     request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> TitleDeleteResponseSchema | Status[SoftDeleteBlockedSchema | AlreadyDeletedSchema]:
@@ -1230,6 +1236,7 @@ def delete_title(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def restore_title(
     request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> TitleDetailSchema | Status[ErrorDetailSchema]:

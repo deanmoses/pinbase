@@ -42,7 +42,9 @@ describe('/kiosk/edit auth gate', () => {
   });
 
   it('forwards the incoming request to createServerClient (cookie plumbing)', async () => {
-    GET.mockResolvedValue({ data: { is_authenticated: true, is_superuser: true } });
+    GET.mockResolvedValue({
+      data: { is_authenticated: true, capabilities: { 'kiosk.edit': true } },
+    });
     const event = makeEvent();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await load(event as any);
@@ -50,7 +52,7 @@ describe('/kiosk/edit auth gate', () => {
   });
 
   it('redirects anon to /login', async () => {
-    GET.mockResolvedValue({ data: { is_authenticated: false } });
+    GET.mockResolvedValue({ data: { is_authenticated: false, capabilities: {} } });
     await expectRedirectTo('/login');
   });
 
@@ -59,13 +61,22 @@ describe('/kiosk/edit auth gate', () => {
     await expectRedirectTo('/login');
   });
 
-  it('redirects authed non-superuser to /', async () => {
-    GET.mockResolvedValue({ data: { is_authenticated: true, is_superuser: false } });
+  it('redirects authed user without kiosk.edit to /', async () => {
+    GET.mockResolvedValue({
+      data: { is_authenticated: true, capabilities: { 'kiosk.edit': false } },
+    });
     await expectRedirectTo('/');
   });
 
-  it('lets superuser through', async () => {
-    GET.mockResolvedValue({ data: { is_authenticated: true, is_superuser: true } });
+  it('redirects authed user with missing kiosk.edit key to /', async () => {
+    GET.mockResolvedValue({ data: { is_authenticated: true, capabilities: {} } });
+    await expectRedirectTo('/');
+  });
+
+  it('lets users with kiosk.edit through', async () => {
+    GET.mockResolvedValue({
+      data: { is_authenticated: true, capabilities: { 'kiosk.edit': true } },
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await expect(load(makeEvent() as any)).resolves.toEqual({});
   });

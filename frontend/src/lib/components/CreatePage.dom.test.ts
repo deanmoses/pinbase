@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CreatePage from './CreatePage.svelte';
+import { validationErrorBody } from '$lib/api/error-fixtures';
 import { toast } from '$lib/toast/toast.svelte';
 
 const { goto, resolve } = vi.hoisted(() => ({
@@ -189,14 +190,13 @@ describe('CreatePage', () => {
     const submit = vi.fn().mockResolvedValue({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'Validation failed.',
           field_errors: {
             name: 'Name already exists.',
             slug: 'Slug already taken.',
           },
-          form_errors: [],
-        },
+        }),
       },
       response: makeResponse(422),
     });
@@ -304,11 +304,10 @@ describe('CreatePage extras', () => {
     const submit = vi.fn().mockResolvedValue({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'Validation failed.',
           field_errors: { manufacturer_slug: 'Manufacturer not found.' },
-          form_errors: [],
-        },
+        }),
       },
       response: makeResponse(422),
     });

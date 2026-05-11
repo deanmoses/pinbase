@@ -22,6 +22,10 @@ from ninja.security import django_auth
 
 from apps.citation.models import CitationSource
 from apps.core.api_helpers import authed_user
+from apps.core.authz.enforce import enforce
+from apps.core.authz.evaluator import policy_user
+from apps.core.authz.markers import gated_inline, requires
+from apps.core.authz.types import Activity
 from apps.core.schemas import ErrorDetailSchema
 
 from .models import CitationInstance, ClaimControlledModel, Source
@@ -137,11 +141,11 @@ changesets_router = Router(tags=["changesets", "private"])
     auth=django_auth,
     response={
         204: None,
-        403: ErrorDetailSchema,
         404: ErrorDetailSchema,
         422: ErrorDetailSchema,
     },
 )
+@gated_inline(Activity.CLAIM_REVERT)
 def revert_claim(
     request: HttpRequest, claim_id: int, data: RevertNoteSchema
 ) -> Status[None] | Status[ErrorDetailSchema]:
@@ -171,6 +175,15 @@ def revert_claim(
 
     # By construction, any entity carrying a Claim is a ClaimControlledModel.
     assert isinstance(entity, ClaimControlledModel)
+
+    # `django_auth` covers `is_authenticated` + `is_active`, and
+    # `execute_revert` only enforces the experience-required check.
+    # Without this call, the rule's `email_verified` predicate would
+    # never fire — for others-revert the experience check at least
+    # surfaces a (different-code) 403, but self-revert would slip
+    # through entirely.
+    enforce(policy_user(user), Activity.CLAIM_REVERT, target=claim)
+
     try:
         execute_revert(entity, claim_id=claim_id, user=user, note=data.note)
     except RevertError as exc:
@@ -183,11 +196,11 @@ def revert_claim(
     auth=django_auth,
     response={
         200: UndoResultSchema,
-        403: ErrorDetailSchema,
         404: ErrorDetailSchema,
         422: ErrorDetailSchema,
     },
 )
+@gated_inline(Activity.CHANGESET_UNDO)
 def undo_changeset(
     request: HttpRequest, changeset_id: int, data: UndoChangeSetSchema
 ) -> UndoResultSchema | Status[ErrorDetailSchema]:
@@ -205,10 +218,12 @@ def undo_changeset(
     except ChangeSet.DoesNotExist:
         return Status(404, ErrorDetailSchema(detail="ChangeSet not found."))
 
+    enforce(policy_user(user), Activity.CHANGESET_UNDO, target=changeset)
+
     try:
         new_cs = execute_undo_changeset(changeset, user=user, note=data.note)
     except UndoError as exc:
-        return Status(exc.status_code, ErrorDetailSchema(detail=str(exc)))
+        return Status(422, ErrorDetailSchema(detail=str(exc)))
     return UndoResultSchema(changeset_id=new_cs.pk)
 
 
@@ -294,6 +309,7 @@ def batch_citation_instances(
     response={201: CitationInstanceSchema, 422: ErrorDetailSchema},
     auth=django_auth,
 )
+@requires(Activity.CITATION_EDIT)
 def create_citation_instance(
     request: HttpRequest, data: CitationInstanceCreateSchema
 ) -> Status[CitationInstanceSchema]:

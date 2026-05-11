@@ -1,12 +1,9 @@
 """Tests for description_html in API responses."""
 
 import pytest
-from django.contrib.auth import get_user_model
 
 from apps.catalog.models import Manufacturer, System
 from apps.core.models import RecordReference
-
-User = get_user_model()
 
 
 @pytest.fixture
@@ -248,11 +245,10 @@ class TestReferenceSync:
 
 @pytest.mark.django_db
 class TestApiPatchConversion:
-    def test_patch_converts_authoring_to_storage(self):
+    def test_patch_converts_authoring_to_storage(self, user):
         """API PATCH endpoint converts [[type:slug]] to [[type:id:N]]."""
         from django.test import Client
 
-        user = User.objects.create_user(email="testuser@example.com")
         mfr = Manufacturer.objects.create(name="Williams", slug="williams")
         system = System.objects.create(name="WPC-95", slug="wpc-95", manufacturer=mfr)
 

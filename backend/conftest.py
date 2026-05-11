@@ -1,6 +1,33 @@
 import pytest
 
+from apps.accounts.models import User
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import CreditRole, Person
+
+
+@pytest.fixture
+def user(db: None) -> User:
+    """Default test user.
+
+    Project-root fixture so individual test files don't need their own
+    ``def user(db): ...``. A local fixture with the same name shadows
+    this one (e.g. ``test_rate_limits.py`` does so to add a teardown).
+    Tests that need overrides or multiple users should call ``make_user``
+    directly from ``apps.accounts.test_factories``.
+    """
+    return make_user()
+
+
+@pytest.fixture
+def staff(db: None) -> User:
+    """Default staff test user."""
+    return make_user(is_staff=True)
+
+
+@pytest.fixture
+def superuser(db: None) -> User:
+    """Default superuser test user (also staff)."""
+    return make_user(is_staff=True, is_superuser=True)
 
 
 @pytest.fixture

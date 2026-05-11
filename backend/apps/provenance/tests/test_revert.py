@@ -1,14 +1,12 @@
 """Tests for per-field claim revert via POST /api/claims/{claim_id}/revert/."""
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.models import ChangeSetAction, Claim, Source
 from apps.provenance.test_factories import user_changeset
-
-User = get_user_model()
 
 REVERT_URL = "/api/claims/{claim_id}/revert/"
 
@@ -25,11 +23,6 @@ def source(db):
     return Source.objects.create(
         name="IPDB", slug="ipdb", source_type="database", priority=10
     )
-
-
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
 
 
 @pytest.fixture
@@ -226,18 +219,23 @@ class TestRevertAuth:
         _make_user_edit(client, user, pm, {"year": 2005})
         claim = _get_active_claim(pm, "year", user)
 
-        other = User.objects.create_user(email="newbie@example.com", password="pw")
+        other = make_user()
         client.force_login(other)
         resp = _revert(client, claim.pk, "Reverting you")
         assert resp.status_code == 403
-        assert "5 edits" in resp.json()["detail"]
+        detail = resp.json()["detail"]
+        assert detail["kind"] == "policy_denied"
+        assert detail["code"] == "experience_required"
+        assert detail["context"] == {"required": 5, "current": 0}
+        assert "5 edits" in detail["message"]
+        assert "you have 0" in detail["message"]
 
     def test_revert_others_above_threshold_succeeds(self, client, user, pm, db):
         """Users with 5+ edits can revert another user's claims."""
         _make_user_edit(client, user, pm, {"year": 2005})
         claim = _get_active_claim(pm, "year", user)
 
-        other = User.objects.create_user(email="veteran@example.com", password="pw")
+        other = make_user()
         # Create 5 changesets for other user
         for _ in range(5):
             user_changeset(other, note="edit")
@@ -249,6 +247,32 @@ class TestRevertAuth:
     def test_unauthenticated_returns_401(self, client, pm):
         resp = _revert(client, 999, "nope")
         assert resp.status_code == 401
+
+    def test_unverified_self_revert_returns_verification_required(
+        self, client, user, pm
+    ):
+        """`claim.revert`'s policy requires email_verified, and the route
+        must enforce it — `django_auth` covers auth/active but not
+        verification, and `execute_revert` only runs the experience-
+        required check (and only for others-revert)."""
+        _make_user_edit(client, user, pm, {"year": 2005})
+        claim = _get_active_claim(pm, "year", user)
+
+        unverified = make_user(email_verified=False)
+        # We can't create the claim *as* the unverified user via the
+        # API — the `catalog.edit` gate would 403 us at PATCH time.
+        # Create as the verified `user` fixture, then re-attribute so
+        # the revert path exercised is self-revert (which skips the
+        # experience-required check and isolates the email gate).
+        claim.user = unverified
+        claim.save(update_fields=["user"])
+
+        client.force_login(unverified)
+        resp = _revert(client, claim.pk, "Reverting my own claim")
+        assert resp.status_code == 403
+        detail = resp.json()["detail"]
+        assert detail["kind"] == "policy_denied"
+        assert detail["code"] == "verification_required"
 
 
 # ── Validation ───────────────────────────────────────────────────
@@ -334,7 +358,7 @@ class TestRevertMultiUser:
         """A:1998, C:2001, A:2002 → revert A:2002 → surfaces C:2001."""
         Claim.objects.assert_claim(pm, "year", 1998, source=source)
 
-        user_c = User.objects.create_user(email="charlie@example.com", password="pw")
+        user_c = make_user()
         _make_user_edit(client, user_c, pm, {"year": 2001})
         _make_user_edit(client, user, pm, {"year": 2002})
 

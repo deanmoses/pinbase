@@ -240,7 +240,7 @@ def _get_manufacturers_for_pks(pks: Iterable[int]) -> list[LocationManufacturerS
                         queryset=MachineModel.objects.active()
                         .filter(variant_of__isnull=True)
                         .order_by(F("year").desc(nulls_last=True))
-                        .only("extra_data"),
+                        .only("corporate_entity_id", "extra_data"),
                     ),
                 ),
             ),

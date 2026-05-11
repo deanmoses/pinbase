@@ -1,19 +1,12 @@
 """Tests for the ChangeSet model and its integration with Claim."""
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import Manufacturer
 from apps.core.models import License
 from apps.provenance.models import ChangeSet, Claim, IngestRun, Source
-
-User = get_user_model()
-
-
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
 
 
 @pytest.fixture
@@ -93,7 +86,7 @@ class TestChangeSetClaimGrouping:
 
     def test_changeset_user_mismatch_rejected(self, user, mfr):
         """ChangeSet user must match the claim user."""
-        other_user = User.objects.create_user(email="other@example.com")
+        other_user = make_user()
         cs = ChangeSet.objects.create(user=other_user, action="edit")
         with pytest.raises(ValueError, match="must match"):
             Claim.objects.assert_claim(mfr, "name", "Williams", user=user, changeset=cs)

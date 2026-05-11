@@ -10,14 +10,9 @@ from apps.accounts.models import User
 
 
 @pytest.fixture
-def admin_client(db) -> Client:
-    User.objects.create_superuser(
-        email="admin@example.com",
-        password="adminpass123",  # pragma: allowlist secret
-    )
+def admin_client(superuser: User) -> Client:
     c = Client()
-    password = "adminpass123"  # noqa: S105  # pragma: allowlist secret
-    assert c.login(username="admin@example.com", password=password)
+    c.force_login(superuser)
     return c
 
 

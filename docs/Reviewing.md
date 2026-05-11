@@ -49,6 +49,19 @@ In particular:
 - changing a parent layout's SSR mode can silently change all child routes — audit child routes and add explicit `ssr = false` where needed
 - SSR routes must use `createServerClient` from `$lib/api/server`, not the browser client or ad hoc fetch
 
+### Authorization
+
+When a change touches mutating API routes, user-state gates, role checks,
+frontend affordances, or structured 403s, check [Authz.md](Authz.md).
+
+In particular:
+
+- every mutating route should be classified with `@requires`, `@gated_inline`, or `@public_mutation`
+- new product gates should use `Activity` and policy rules, not raw `is_staff`, `is_superuser`, or `email_verified` checks
+- frontend code should consume capabilities, not reimplement policy logic
+- target-aware predicates should use narrow Protocols and have zero-query tests
+- denial responses should use closed `DenialCode` values and backend-owned messages
+
 ### Page-oriented APIs
 
 When a change introduces or changes web-facing endpoints for pages, check [ApiDesign.md](ApiDesign.md).
@@ -59,6 +72,23 @@ In particular:
 - page-shaped endpoints should usually live under `/api/pages/...`
 - those endpoints should usually be tagged `tags=["private"]`
 - avoid frontend fanout when the backend can return the page model directly
+
+### Type strength (backend)
+
+When a change touches Python signatures, return types, or data structures, check [docs/plans/types/TypeFixing.md](plans/types/TypeFixing.md) for the smell catalogue and the legitimate exception shapes.
+
+Treat each of these as a closer-look trigger, not an automatic finding:
+
+- `Any` or `object` in parameter or return annotations
+- `cast(Any, ...)` — no legitimate use
+- `dict[str, Any]` in non-test signatures where callers pass dict literals with consistent keys
+- `tuple[...]` with three or more positional fields, or the same tuple shape repeated across modules
+- `isinstance` checks on values whose upstream signature could be narrower
+- `TYPE_CHECKING`-only imports paired with `cast` or stringified annotations
+- bare or unexplained `# type: ignore` (should be `# type: ignore[<code>]` with a reason)
+- bare or unexplained `# noqa` (should be `# noqa: <code>` with a reason; ANN401 noqas matching TypeFixing.md's exception shapes are correct, not findings)
+
+The fix is usually a NamedTuple, dataclass, or TypedDict — not a type alias, which leaves callers indexing by position. Don't flag a hit that TypeFixing.md lists as a legitimate exception (Django management `**kwargs`, signal receivers, Ninja dispatch, JSON parse results, framework-owned callback surfaces).
 
 ### Deployment/runtime assumptions
 

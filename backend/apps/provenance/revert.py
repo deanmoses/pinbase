@@ -22,6 +22,9 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
 from apps.accounts.models import User
+from apps.core.authz.exceptions import PolicyDeniedError
+from apps.core.authz.types import DenialCode, Deny
+from apps.core.types import EntityKey
 
 from .constants import REVERT_OTHERS_MIN_EDITS
 from .models import ChangeSet, ChangeSetAction, Claim, ClaimControlledModel
@@ -52,7 +55,11 @@ def execute_revert(
     claim_key, it is re-activated so the field falls back to their
     prior value rather than dropping to the source default.
 
-    Raises ``RevertError`` on validation or authorisation failures.
+    Raises ``RevertError`` on validation failures (bad note, missing
+    claim, source-attributed, already inactive) and ``PolicyDeniedError``
+    when the caller lacks authorization (sub-threshold edit count for
+    reverting another user's claim). Endpoint callers let the policy
+    error propagate to the global ``StructuredApiError`` handler.
     """
     if not note or not note.strip():
         raise RevertError("A note is required when reverting.")
@@ -76,9 +83,14 @@ def execute_revert(
     if target.user_id != user.pk:
         edit_count = ChangeSet.objects.filter(user=user).count()
         if edit_count < REVERT_OTHERS_MIN_EDITS:
-            raise RevertError(
-                f"You need at least {REVERT_OTHERS_MIN_EDITS} edits to revert other users' changes.",
-                status_code=403,
+            raise PolicyDeniedError(
+                Deny(
+                    DenialCode.EXPERIENCE_REQUIRED,
+                    context={
+                        "required": REVERT_OTHERS_MIN_EDITS,
+                        "current": edit_count,
+                    },
+                )
             )
 
     from apps.catalog.resolve import resolve_after_mutation
@@ -122,11 +134,12 @@ def execute_revert(
 
 
 class UndoError(Exception):
-    """Domain error raised by :func:`execute_undo_changeset`."""
+    """Domain error raised by :func:`execute_undo_changeset`.
 
-    def __init__(self, message: str, *, status_code: int = 422):
-        super().__init__(message)
-        self.status_code = status_code
+    Always renders as 422 in the API layer — authorization denials
+    flow through ``PolicyDeniedError`` from the policy engine, not
+    through this exception.
+    """
 
 
 def execute_undo_changeset(
@@ -146,11 +159,14 @@ def execute_undo_changeset(
       use :func:`execute_revert`; CREATE undo (symmetric \u201cmake it as if
       the record was never created\u201d) is deferred \u2014 it requires extra
       machinery to handle the row columns written alongside the claims.
-    * Caller must be the author. Other users use per-claim revert from
-      edit history.
     * Every claim in the target must still be ``is_active=True``. If any
       have been superseded by a later user action, the ChangeSet is no
       longer the latest action and Undo is refused.
+
+    Author-only enforcement is the policy's job (``changeset.undo`` rule
+    with ``is_changeset_author``); the endpoint runs ``enforce()`` before
+    calling this function. Other users use per-claim revert from edit
+    history.
 
     Returns the newly-created REVERT ChangeSet.
     """
@@ -160,12 +176,6 @@ def execute_undo_changeset(
         raise UndoError(
             "Only delete changesets can be undone via this endpoint. "
             "Edit changesets are reverted per-claim from edit history."
-        )
-    if changeset.user_id != user.pk:
-        raise UndoError(
-            "Only the author of a changeset can undo it. "
-            "Use per-claim revert from edit history instead.",
-            status_code=403,
         )
 
     claims = list(changeset.claims.all())
@@ -181,7 +191,7 @@ def execute_undo_changeset(
 
     from apps.catalog.resolve import resolve_after_mutation
 
-    affected_fields: dict[tuple[int, int], set[str]] = defaultdict(set)
+    affected_fields: dict[EntityKey, set[str]] = defaultdict(set)
     try:
         with transaction.atomic():
             new_cs = ChangeSet.objects.create(
@@ -191,7 +201,7 @@ def execute_undo_changeset(
                 claim.is_active = False
                 claim.retracted_by_changeset = new_cs
                 claim.save(update_fields=["is_active", "retracted_by_changeset"])
-                affected_fields[(claim.content_type_id, claim.object_id)].add(
+                affected_fields[EntityKey(claim.content_type_id, claim.object_id)].add(
                     claim.field_name
                 )
 
@@ -221,9 +231,9 @@ def execute_undo_changeset(
                     predecessor.is_active = True
                     predecessor.save(update_fields=["is_active"])
 
-            for (ct_id, obj_id), fields in affected_fields.items():
-                ct = ContentType.objects.get_for_id(ct_id)
-                entity = ct.get_object_for_this_type(pk=obj_id)
+            for key, fields in affected_fields.items():
+                ct = ContentType.objects.get_for_id(key.content_type_id)
+                entity = ct.get_object_for_this_type(pk=key.object_id)
                 # ContentType.get_object_for_this_type returns Model; by
                 # construction the affected entity carries claims, so it is
                 # always a ClaimControlledModel.

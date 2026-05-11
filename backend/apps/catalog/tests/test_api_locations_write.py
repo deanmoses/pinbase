@@ -50,11 +50,6 @@ def _clear_cache():
     cache.clear()
 
 
-@pytest.fixture
-def user(db):
-    return User.objects.create_user(email="editor@example.com")
-
-
 def _make_location(location_path, name, location_type, parent=None, divisions=None):
     slug = location_path.rsplit("/", 1)[-1]
     return Location.objects.create(

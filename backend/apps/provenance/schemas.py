@@ -10,7 +10,14 @@ the catalog-level schema is what actually constrains each field's shape.
 
 from __future__ import annotations
 
-from ninja import Schema
+from typing import ClassVar
+
+from django.db.models import Model
+from ninja import Field, Schema
+
+from apps.core.authz import Activity
+
+from .models.changeset import ChangeSet
 
 
 class FieldChangeSchema(Schema):
@@ -44,10 +51,35 @@ class ChangeSetBaseSchema(Schema):
 
 
 class ChangeSetSchema(ChangeSetBaseSchema):
-    """A grouped edit session with per-field diffs."""
+    """A grouped edit session with per-field diffs.
+
+    ``capabilities`` is the wire contract for every ChangeSet row variant
+    in the codebase — see also ``ChangeSetSummarySchema``,
+    ``ChangeSetDetailSchema``, ``CitedChangeSetSchema``, and
+    ``UserChangeSetSchema``. The contract:
+
+    Each entry answers "is the caller authorized to *attempt* this
+    activity on this row" — it is **not** a guarantee the action will
+    succeed. ``capabilities['changeset.undo'] is True`` only means the
+    policy lets this caller call the undo endpoint with this changeset;
+    the endpoint additionally enforces operational invariants
+    (``action == DELETE``, claims not superseded) that aren't expressible
+    as pure-attribute policy predicates and so don't reflect on the wire.
+
+    A future per-row Undo UI MUST AND the embedded verdict with operational
+    eligibility before rendering an affordance, or design a separate
+    operational-eligibility wire field at that time.
+    """
 
     changes: list[FieldChangeSchema]
     retractions: list[RetractionSchema] = []
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
+
+    # Declared on each concrete row variant (not on the base) — the
+    # ``authz.E101–E106`` system check reads these from ``__dict__``,
+    # so inherited declarations don't trigger the structural check.
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
+    policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
 class ClaimSchema(Schema):

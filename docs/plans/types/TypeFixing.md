@@ -13,6 +13,7 @@ Examples that shipped, got reviewed, and had to be tightened in a follow-up PR:
 - `discover_alias_types() -> tuple[tuple[type, str], ...]` — four call sites unpacking positional tuples where `AliasType(parent_model, claim_field)` would document itself.
 - `list[tuple[str, str, str, str]]` in `export_catalog_meta` — four same-typed fields, zero labels on what any position meant.
 - `cast(Any, default_storage)` in `get_media_storage()` — active type erasure for every caller.
+- Any use of `setattr` or `getattr`
 
 These are not mypy bugs; they're design bugs that mypy can't detect because, from the type checker's perspective, a compliant annotation is a compliant annotation.
 

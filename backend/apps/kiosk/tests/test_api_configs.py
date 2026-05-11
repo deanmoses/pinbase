@@ -5,13 +5,11 @@ from __future__ import annotations
 import json
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import Client
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import Title
 from apps.kiosk.models import KioskConfig, KioskConfigItem
-
-User = get_user_model()
 
 LIST_URL = "/api/kiosk/configs/"
 
@@ -26,15 +24,8 @@ def client() -> Client:
 
 
 @pytest.fixture
-def superuser(db):
-    return User.objects.create_user(
-        email="root@example.com", is_superuser=True, is_staff=True
-    )
-
-
-@pytest.fixture
 def regular_user(db):
-    return User.objects.create_user(email="editor@example.com")
+    return make_user()
 
 
 @pytest.fixture
@@ -223,7 +214,7 @@ class TestPatch:
         cfg = KioskConfig.objects.create()
         # Stale created_by/updated_by from a previous user — the PATCH must
         # overwrite updated_by from request.user, not from any payload field.
-        other = User.objects.create_user(email="someone-else@example.com")
+        other = make_user()
         cfg.created_by = other
         cfg.updated_by = other
         cfg.save()

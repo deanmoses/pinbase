@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { validationErrorBody } from '$lib/api/error-fixtures';
+
 import { saveLocationClaims } from './save-location-claims';
 
 const { PATCH, invalidateAll } = vi.hoisted(() => ({
@@ -85,11 +87,10 @@ describe('saveLocationClaims', () => {
     PATCH.mockResolvedValueOnce({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'divisions only on countries',
           field_errors: { divisions: 'only on countries' },
-          form_errors: [],
-        },
+        }),
       },
     });
 

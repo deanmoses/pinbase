@@ -7,7 +7,10 @@ class CatalogConfig(AppConfig):
     verbose_name = "Catalog"
 
     def ready(self) -> None:
-        from . import signals
+        from . import (
+            authz,  # noqa: F401  # registers authz rules at startup
+            signals,
+        )
         from .claims import register_catalog_relationship_schemas
 
         signals.connect()

@@ -16,6 +16,8 @@ from ninja.responses import Status
 from ninja.security import django_auth
 
 from apps.catalog.naming import normalize_catalog_name
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.core.schemas import RateLimitErrorSchema, ValidationErrorSchema
@@ -221,6 +223,7 @@ def list_all_systems(request: HttpRequest) -> list[SystemListItemSchema]:
     response={200: SystemDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_system_claims(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> SystemDetailSchema:
@@ -253,6 +256,7 @@ def patch_system_claims(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_CREATE)
 def create_system(
     request: HttpRequest, data: SystemCreateSchema
 ) -> Status[SystemDetailSchema]:

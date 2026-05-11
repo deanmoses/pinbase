@@ -29,7 +29,11 @@ FORBIDDEN_GENERIC_NAMES = frozenset(
         "Ref",
     }
 )
-ALLOWED_BARE_NAMES = frozenset({"JsonBody"})
+# `Activity` is the authz `StrEnum` referenced by `AuthStatusSchema.capabilities`;
+# pydantic emits the enum as a top-level component because the same enum is
+# used as a `dict[Activity, bool]` key. Bare-name allowlist rather than a
+# rename — `ActivitySchema` would lie about what the type is.
+ALLOWED_BARE_NAMES = frozenset({"JsonBody", "Activity"})
 
 MUTATING_METHODS = frozenset({"post", "patch", "delete"})
 

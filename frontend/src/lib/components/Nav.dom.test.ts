@@ -13,13 +13,16 @@ const { pageState, auth } = vi.hoisted(() => ({
   },
   auth: {
     isAuthenticated: false,
-    isSuperuser: false,
     username: null as string | null,
     firstName: '',
     lastName: '',
     loaded: true,
+    capabilities: {} as Record<string, boolean>,
     load: () => Promise.resolve(),
     logout: vi.fn(() => Promise.resolve()),
+    can(activity: string) {
+      return this.capabilities[activity] === true;
+    },
   },
 }));
 
@@ -33,11 +36,11 @@ import { toast } from '$lib/toast/toast.svelte';
 function setAuth(overrides: Partial<typeof auth>) {
   Object.assign(auth, {
     isAuthenticated: false,
-    isSuperuser: false,
     username: null,
     firstName: '',
     lastName: '',
     loaded: true,
+    capabilities: {},
     logout: vi.fn(() => Promise.resolve()),
   });
   Object.assign(auth, overrides);
@@ -86,11 +89,11 @@ describe('Nav', () => {
     expect(screen.queryByRole('menuitem', { name: 'Django Admin' })).not.toBeInTheDocument();
   });
 
-  it('authed superuser: account menu shows admin section with Kiosks and Django Admin', async () => {
+  it('authed with both kiosk.edit and django_admin.access: admin section shows both links', async () => {
     const user = userEvent.setup();
     setAuth({
       isAuthenticated: true,
-      isSuperuser: true,
+      capabilities: { 'kiosk.edit': true, 'django_admin.access': true },
       username: 'root',
       firstName: 'Root',
       lastName: 'User',
@@ -105,6 +108,42 @@ describe('Nav', () => {
       'href',
       '/admin/',
     );
+  });
+
+  it('authed staff (django_admin.access only): admin section shows Django Admin, no Kiosks', async () => {
+    const user = userEvent.setup();
+    setAuth({
+      isAuthenticated: true,
+      capabilities: { 'django_admin.access': true },
+      username: 'staff',
+      firstName: 'Staff',
+      lastName: 'Person',
+    });
+    render(Nav);
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }));
+
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Kiosks' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Django Admin' })).toBeInTheDocument();
+  });
+
+  it('authed kiosk-only (no django_admin.access): admin section shows Kiosks only', async () => {
+    const user = userEvent.setup();
+    setAuth({
+      isAuthenticated: true,
+      capabilities: { 'kiosk.edit': true },
+      username: 'kioskadmin',
+      firstName: 'Kiosk',
+      lastName: 'Admin',
+    });
+    render(Nav);
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }));
+
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Kiosks' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Django Admin' })).not.toBeInTheDocument();
   });
 
   it('Sign Out menu item calls auth.logout()', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { validationErrorBody } from './api/error-fixtures';
 import { classifyCreateResponse, reconcileSlug, slugifyForCatalog } from './create-form';
 
 describe('slugifyForCatalog', () => {
@@ -127,11 +128,10 @@ describe('classifyCreateResponse', () => {
     const outcome = classifyCreateResponse({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'Name collision.',
           field_errors: { name: "A title named 'Godzilla' already exists." },
-          form_errors: [],
-        },
+        }),
       },
       response: resp(422),
     });
@@ -144,11 +144,10 @@ describe('classifyCreateResponse', () => {
     const outcome = classifyCreateResponse({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'Slug collision.',
           field_errors: { slug: "The slug 'godzilla' is already taken." },
-          form_errors: [],
-        },
+        }),
       },
       response: resp(422),
     });
@@ -160,11 +159,10 @@ describe('classifyCreateResponse', () => {
     const outcome = classifyCreateResponse({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'No changes provided.',
-          field_errors: {},
           form_errors: ['No changes provided.'],
-        },
+        }),
       },
       response: resp(422),
     });

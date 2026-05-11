@@ -18,6 +18,8 @@ from ninja.security import django_auth
 from pydantic import TypeAdapter
 
 from apps.catalog.naming import normalize_catalog_name
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.licensing import get_minimum_display_rank
 from apps.core.models import active_status_q
 from apps.core.pagination import NamedPageNumberPagination
@@ -315,6 +317,7 @@ def list_all_people(
     response={200: PersonDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_person_claims(
     request: HttpRequest, public_id: str, data: ClaimPatchSchema
 ) -> PersonDetailSchema:
@@ -348,6 +351,7 @@ def patch_person_claims(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_CREATE)
 def create_person(
     request: HttpRequest, data: EntityCreateInputSchema
 ) -> Status[PersonDetailSchema]:
@@ -464,6 +468,7 @@ def person_delete_preview(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_DELETE)
 def delete_person(
     request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> (
@@ -533,6 +538,7 @@ def delete_person(
     },
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def restore_person(
     request: HttpRequest, public_id: str, data: ChangeSetInputSchema
 ) -> PersonDetailSchema | Status[ErrorDetailSchema]:

@@ -11,6 +11,8 @@ class MediaConfig(AppConfig):
     verbose_name = "Media"
 
     def ready(self) -> None:
+        from . import authz  # noqa: F401  # registers authz rules at startup
+
         _register_heif()
         _check_avif()
 

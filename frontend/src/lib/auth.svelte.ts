@@ -1,42 +1,50 @@
-import client from '$lib/api/client';
+import client, { registerOnPolicyDenied } from '$lib/api/client';
+import type { Activity } from '$lib/api/schema';
 
 interface AuthState {
   isAuthenticated: boolean;
   id: number | null;
   username: string | null;
-  isSuperuser: boolean;
   firstName: string;
   lastName: string;
+  // `Partial` rather than `Record` because keys may be missing during
+  // the cold-start window before `load()` resolves and during brief
+  // deploy skew (a new activity registered server-side before the SPA
+  // bundle has caught up). `can()` collapses missing → `false`.
+  capabilities: Partial<Record<Activity, boolean>>;
 }
 
 const ANONYMOUS: AuthState = {
   isAuthenticated: false,
   id: null,
   username: null,
-  isSuperuser: false,
   firstName: '',
   lastName: '',
+  capabilities: {},
 };
 
 function createAuthStore() {
   let state = $state<AuthState>({ ...ANONYMOUS });
   let loaded = $state(false);
+  // De-dupe concurrent refreshes: a burst of `policy_denied` 403s on
+  // a list page would otherwise fire N parallel /me/ round-trips.
+  let inflight: Promise<void> | null = null;
 
   function set(data: {
     is_authenticated: boolean;
     id?: number | null;
     username?: string | null;
-    is_superuser?: boolean;
     first_name?: string;
     last_name?: string;
+    capabilities?: { [key: string]: boolean };
   }) {
     state = {
       isAuthenticated: data.is_authenticated,
       id: data.id ?? null,
       username: data.username ?? null,
-      isSuperuser: data.is_superuser ?? false,
       firstName: data.first_name ?? '',
       lastName: data.last_name ?? '',
+      capabilities: (data.capabilities ?? {}) as Partial<Record<Activity, boolean>>,
     };
     loaded = true;
   }
@@ -47,9 +55,38 @@ function createAuthStore() {
     if (data) set(data);
   }
 
+  async function refresh(): Promise<void> {
+    if (inflight) return inflight;
+    inflight = (async () => {
+      try {
+        const { data } = await client.GET('/api/auth/me/');
+        if (data) set(data);
+      } finally {
+        inflight = null;
+      }
+    })();
+    return inflight;
+  }
+
   async function logout() {
     const { data } = await client.POST('/api/auth/logout/');
-    if (data) set({ is_authenticated: false });
+    if (data) set(data);
+  }
+
+  function can(activity: Activity): boolean {
+    // Default-deny: anything not literally `true` (missing key,
+    // `undefined`, malformed value) is denied.
+    return state.capabilities[activity] === true;
+  }
+
+  function _resetForTest(): void {
+    // The auth store is a module singleton; tests inherit each
+    // other's `state` and `loaded` flag without an explicit reset.
+    // Tests should call this in `beforeEach` to start from a clean
+    // anonymous baseline. Mirrors `toast._resetForTest()`.
+    state = { ...ANONYMOUS };
+    loaded = false;
+    inflight = null;
   }
 
   return {
@@ -62,9 +99,6 @@ function createAuthStore() {
     get username() {
       return state.username;
     },
-    get isSuperuser() {
-      return state.isSuperuser;
-    },
     get firstName() {
       return state.firstName;
     },
@@ -75,8 +109,21 @@ function createAuthStore() {
       return loaded;
     },
     load,
+    refresh,
     logout,
+    can,
+    _resetForTest,
   };
 }
 
 export const auth = createAuthStore();
+
+// Wire the 403-as-invalidation hook (registration callback, not a
+// direct import — see client.ts for why). Browser-only: `client.ts`'s
+// `onPolicyDenied` slot is never invoked SSR because no SSR code
+// imports this module.
+if (typeof window !== 'undefined') {
+  registerOnPolicyDenied(() => {
+    void auth.refresh();
+  });
+}

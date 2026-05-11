@@ -16,6 +16,8 @@ vi.mock('$app/navigation', () => ({
   invalidateAll,
 }));
 
+import { validationErrorBody } from '$lib/api/error-fixtures';
+
 import { saveModelClaims } from './save-model-claims';
 
 describe('saveModelClaims', () => {
@@ -62,11 +64,10 @@ describe('saveModelClaims', () => {
     PATCH.mockResolvedValue({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'This value must be unique.',
           field_errors: { slug: 'This value must be unique.' },
-          form_errors: [],
-        },
+        }),
       },
     });
 
@@ -88,11 +89,10 @@ describe('saveModelClaims', () => {
     PATCH.mockResolvedValue({
       data: undefined,
       error: {
-        detail: {
+        detail: validationErrorBody({
           message: 'Invalid request.',
           field_errors: { year: 'Input should be a valid integer' },
-          form_errors: [],
-        },
+        }),
       },
     });
 

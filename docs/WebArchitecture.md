@@ -17,6 +17,8 @@ Django is the source of truth for:
 - admin and operational tooling
 - the API exported to the frontend
 
+See [Authz.md](Authz.md) for the backend authorization policy and frontend capability contract.
+
 ### SvelteKit frontend
 
 SvelteKit is responsible for:

@@ -10,6 +10,8 @@ from ninja import Router, Schema
 from ninja.decorators import decorate_view
 from ninja.security import django_auth
 
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.schemas import ValidationErrorSchema
 from apps.media.helpers import all_media
 from apps.media.schemas import UploadedMediaSchema
@@ -134,6 +136,7 @@ def list_gameplay_features(
     response={200: GameplayFeatureDetailSchema, 422: ValidationErrorSchema},
     tags=["private"],
 )
+@requires(Activity.CATALOG_EDIT)
 def patch_gameplay_feature_claims(
     request: HttpRequest, public_id: str, data: HierarchyClaimPatchSchema
 ) -> GameplayFeatureDetailSchema:
