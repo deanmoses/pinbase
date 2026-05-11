@@ -1,26 +1,17 @@
-import { error, redirect } from '@sveltejs/kit';
-import { resolve } from '$app/paths';
+import { error } from '@sveltejs/kit';
 import client from '$lib/api/client';
+import { requireCapability } from '$lib/require-capability';
 import type { PageLoad } from './$types';
 
-export const load: PageLoad = async ({ fetch, params }) => {
-  // Auth is server-authoritative; mirror the titles/new gate by bouncing
-  // anonymous users to login before they fill out a form they cannot submit.
-  const authRes = await fetch('/api/auth/me/');
-  if (authRes.ok) {
-    const auth = (await authRes.json()) as { is_authenticated?: boolean };
-    if (!auth.is_authenticated) {
-      throw redirect(302, resolve('/login'));
-    }
-  }
+export const load: PageLoad = async ({ fetch, params, url }) => {
+  await requireCapability({ fetch, url, activity: 'catalog.create' });
 
   // Load the parent title so the heading renders the real name ("Pokémon"
   // rather than the ASCII slug "pokemon"). We fetch directly here rather
   // than inheriting from the parent `[slug]/+layout.server.ts` because this
   // page escapes the parent layout via `+page@.svelte` — SvelteKit does not
   // inherit parent-layout data through a layout reset.
-  const api = client;
-  const { data, response } = await api.GET('/api/pages/title/{public_id}', {
+  const { data, response } = await client.GET('/api/pages/title/{public_id}', {
     fetch,
     params: { path: { public_id: params.slug } },
   });

@@ -117,7 +117,7 @@ This is easy to miss because the children worked fine when the parent had `ssr =
 ## Authorization
 
 Frontend authorization is not authority. It covers UX — showing or hiding
-affordances and pre-empting navigation with redirects — but Django remains the
+affordances and routing denials to remediation surfaces — but Django remains the
 source of truth. Every mutation must be enforced by the backend policy and may
 still return a structured `policy_denied` 403.
 
@@ -126,14 +126,25 @@ Use capabilities instead of reimplementing policy logic:
 - For target-less actions, use `auth.can("activity.name")` from `$lib/auth.svelte`.
 - For row-specific actions, use the row's embedded `capabilities` map, such as `changeset.capabilities["changeset.undo"]`.
 - Do not check raw role or user-state fields (`is_staff`, `is_superuser`, `email_verified`) to decide whether a product action is allowed.
-- Use `auth.isAuthenticated` only for identity and login presentation: account menus, sign-in links, or anonymous-vs-signed-in copy. It is not an edit permission check.
 
-Capabilities are UX hints. Mutations are still enforced by the backend and can
-return `policy_denied`; render that through the normal API error path.
+### Show affordances the user can earn
 
-For authenticated app routes that gate access before rendering, load
-`/api/auth/me/` server-side with `createServerClient` and `redirect()` when the
-relevant capability is false. See
-[`frontend/src/routes/kiosk/edit/+layout.server.ts`](../frontend/src/routes/kiosk/edit/+layout.server.ts)
-as the reference pattern. Do not import the browser auth store in server load
-files.
+Default to showing affordances when the denial has a self-service remediation (verify email, accumulate edits) — see [Authz.md principles](plans/auth/Authz.md#principles). Hiding them makes the SPA look logged-out and erases discoverability. Hide only when there is no path: staff-only actions, banned accounts.
+
+That makes `auth.isAuthenticated` an identity/visibility signal, not a permission check:
+
+- **Visibility**: anonymous users hide (their remediation is sign-up in `Nav`); authenticated users see the affordance regardless of verification.
+- **Permission decisions belong at the click destination**, not the affordance.
+
+### Gating destinations
+
+- **Route loaders** for capability-gated pages (`[slug]/edit`, `*/new`): call `requireCapability(fetch, activity)`. Redirects unverified users to `/verify-email`, anonymous users to `/login`.
+- **Direct-action buttons** (e.g. `EditHistory`'s Revert): submit unconditionally. `parseApiError` already turns `policy_denied` into a toast carrying the right remediation copy. Target-aware activities like `claim.revert` and `changeset.undo` are absent from `/api/auth/me/` capabilities by design — `auth.can()` would always return false and gate everyone, so don't pre-check.
+
+### Server-side gates
+
+For no-remediation gates that block render, use `+layout.server.ts` with `createServerClient` — see [`kiosk/edit/+layout.server.ts`](../frontend/src/routes/kiosk/edit/+layout.server.ts). Non-staff users get redirected to `/`, not `/verify-email`. Don't import the browser auth store from server files.
+
+### Mutations are still enforced
+
+The route-loader redirect is an optimization, not a guarantee. A stale capability map or a between-render `email_verified` flip still fires the 403, and the toast still renders. Always handle the 403 path.
