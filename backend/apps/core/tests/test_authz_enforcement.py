@@ -58,6 +58,7 @@ class CapturedAuthzLog:
     user_id: int | None
     activity: str
     code: str | None  # only populated on deny
+    target_id: int | None  # None for target-less activities
 
 
 class _CaptureHandler(logging.Handler):
@@ -75,6 +76,7 @@ class _CaptureHandler(logging.Handler):
                 user_id=record.__dict__.get("user_id"),
                 activity=record.__dict__["activity"],
                 code=record.__dict__.get("code"),
+                target_id=record.__dict__.get("target_id"),
             )
         )
 
@@ -157,6 +159,7 @@ def test_enforce_allow_logs_at_debug(authz_logs: list[CapturedAuthzLog]) -> None
             user_id=42,
             activity="catalog.edit",
             code=None,
+            target_id=None,
         )
     ]
 
@@ -178,6 +181,36 @@ def test_enforce_deny_raises_policy_denied_and_logs_at_info(
             user_id=7,
             activity="catalog.edit",
             code="account_deactivated",
+            target_id=None,
+        )
+    ]
+
+
+def test_enforce_logs_target_id_when_target_passed(
+    authz_logs: list[CapturedAuthzLog],
+) -> None:
+    """Target-aware enforce calls must log ``target.id`` so audit
+    search can tie a denial back to the affected row.
+
+    Uses ``CATALOG_EDIT`` (target-less in its rule) intentionally —
+    this test pins the audit-log contract, not predicate semantics:
+    if a caller passes a target on a target-less activity, the id
+    should still appear in the log record.
+    """
+
+    class _FakeRow:
+        id = 4242
+
+    enforce(StubPolicyUser(id=99), Activity.CATALOG_EDIT, target=_FakeRow())
+
+    assert authz_logs == [
+        CapturedAuthzLog(
+            message="authz.allow",
+            level=logging.DEBUG,
+            user_id=99,
+            activity="catalog.edit",
+            code=None,
+            target_id=4242,
         )
     ]
 

@@ -22,6 +22,7 @@ _DENIAL_MESSAGE: dict[DenialCode, str] = {
     DenialCode.AUTH_REQUIRED: "Sign in to continue.",
     DenialCode.ACCOUNT_DEACTIVATED: "Your account is deactivated.",
     DenialCode.ROLE_REQUIRED: "You don't have permission to do that.",
+    DenialCode.OWNER_REQUIRED: "Only the original author can do that.",
     DenialCode.VERIFICATION_REQUIRED: "Verify your email address to continue.",
     DenialCode.RATE_LIMITED: "You're doing that too often. Try again shortly.",
 }

@@ -31,11 +31,6 @@ def author(db):
 
 
 @pytest.fixture
-def other(db):
-    return make_user()
-
-
-@pytest.fixture
 def bootstrap_source(db):
     return Source.objects.create(
         name="Bootstrap", slug="bootstrap", source_type="editorial", priority=1
@@ -57,13 +52,6 @@ class TestEligibility:
         cs = user_changeset(author, action=ChangeSetAction.EDIT)
         with pytest.raises(UndoError):
             execute_undo_changeset(cs, user=author)
-
-    def test_rejects_other_user(self, author, other, bootstrap_source):
-        t = _title("g", bootstrap_source)
-        cs, _ = execute_soft_delete(t, user=author)
-        with pytest.raises(UndoError) as exc:
-            execute_undo_changeset(_require_changeset(cs), user=other)
-        assert exc.value.status_code == 403
 
     def test_rejects_when_claims_already_superseded(self, author, bootstrap_source):
         t = _title("g", bootstrap_source)

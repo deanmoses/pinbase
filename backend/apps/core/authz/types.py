@@ -48,6 +48,7 @@ class DenialCode(StrEnum):
     # SPA can render different copy.
     ACCOUNT_DEACTIVATED = "account_deactivated"
     ROLE_REQUIRED = "role_required"
+    OWNER_REQUIRED = "owner_required"
     VERIFICATION_REQUIRED = "verification_required"
     RATE_LIMITED = "rate_limited"
 
@@ -56,11 +57,17 @@ class DenialCode(StrEnum):
 # lowest-indexed failure when multiple predicates deny — telling a
 # deactivated user to verify their email is the wrong UX. VERIFICATION
 # sits below ROLE because an unverified non-moderator should hear
-# "moderator only," not "verify your email."
+# "moderator only," not "verify your email." OWNER sits between ROLE
+# and VERIFICATION for the same reason: an unverified non-author trying
+# to undo someone else's changeset should hear "not yours," not "verify
+# your email" — verifying won't grant ownership. OWNER sits below ROLE
+# so a future moderator-override path (if ever added) can still surface
+# "moderator only" copy when relevant.
 DENIAL_PRIORITY: tuple[DenialCode, ...] = (
     DenialCode.AUTH_REQUIRED,
     DenialCode.ACCOUNT_DEACTIVATED,
     DenialCode.ROLE_REQUIRED,
+    DenialCode.OWNER_REQUIRED,
     DenialCode.VERIFICATION_REQUIRED,
     DenialCode.RATE_LIMITED,
 )
@@ -96,6 +103,9 @@ class PolicyUser(Protocol):
     Django's `User.is_authenticated` and `AnonymousUser.is_authenticated`
     because both are read-only on those classes.
     """
+
+    @property
+    def id(self) -> int | None: ...
 
     @property
     def is_authenticated(self) -> bool: ...

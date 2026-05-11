@@ -536,6 +536,10 @@ Stand up a denial-rate dashboard keyed off the audit-log records emitted since P
 
 The dashboard is the on-call backstop for any future rule tightening (account-age, reputation, rate-limit-as-policy) — those changes are easier to ship safely once denial rates are observable in aggregate. This is also the natural place to revisit whether dry-run mode (currently deferred) is worth building before the next rule change.
 
+## Follow-ups identified during implementation
+
+- **Make `Activity` generic over its target Protocol — `Activity[ChangeSetPolicyView]`.** Today `check()` and `enforce()` type `target` as `object | None` because `Activity` is a flat `StrEnum` with no type info — there's no way to say "this activity's target must satisfy `ChangeSetPolicyView`" at the engine boundary. Per-rule predicates narrow via their own Protocol parameter, but the engine can't statically constrain what callers pass. Parameterizing `Activity` would (a) let `check(activity: Activity[T], target: T)` reject wrong-shaped targets at mypy time, (b) make rule registration impossible without a matching Protocol declaration, (c) remove the `object | None` smell at the boundary. The redesign touches every Activity declaration and every call site, so the right time is after the per-resource phases have stabilized the shape of target Protocols, not during them.
+
 ## Deferred / non-goals
 
 - **Dry-run mode for rule changes.** Once the launch rules are in place, tightening one (e.g. adding an account-age requirement to `catalog.create`) risks 403'ing active users mid-session. The usual answer is a dry-run pass that returns the would-be decision in a header without enforcing, then flip after one deploy cycle. Not needed pre-launch; the pure-decision design makes this easy to add later.

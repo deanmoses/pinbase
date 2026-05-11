@@ -210,8 +210,9 @@ def _underlying_model(schema: type) -> type | None:
 def _protocol_attr_names(protocol: type) -> set[str]:
     """Names declared on a target Protocol — both ``@property`` and annotations.
 
-    The Phase 8 convention is ``@property``, but bare annotations are
-    accepted to keep the check robust to future Protocol shapes.
+    Existing target Protocols use ``@property`` (read-only attribute
+    surface); bare annotations are also accepted so the check is
+    robust to future Protocol shapes.
     """
     names: set[str] = set()
     for attr_name in vars(protocol):

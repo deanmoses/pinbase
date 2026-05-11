@@ -22,6 +22,8 @@ from ninja.security import django_auth
 
 from apps.citation.models import CitationSource
 from apps.core.api_helpers import authed_user
+from apps.core.authz.enforce import enforce
+from apps.core.authz.evaluator import policy_user
 from apps.core.authz.markers import gated_inline, requires
 from apps.core.authz.types import Activity
 from apps.core.schemas import ErrorDetailSchema
@@ -186,7 +188,6 @@ def revert_claim(
     auth=django_auth,
     response={
         200: UndoResultSchema,
-        403: ErrorDetailSchema,
         404: ErrorDetailSchema,
         422: ErrorDetailSchema,
     },
@@ -209,10 +210,12 @@ def undo_changeset(
     except ChangeSet.DoesNotExist:
         return Status(404, ErrorDetailSchema(detail="ChangeSet not found."))
 
+    enforce(policy_user(user), Activity.CHANGESET_UNDO, target=changeset)
+
     try:
         new_cs = execute_undo_changeset(changeset, user=user, note=data.note)
     except UndoError as exc:
-        return Status(exc.status_code, ErrorDetailSchema(detail=str(exc)))
+        return Status(422, ErrorDetailSchema(detail=str(exc)))
     return UndoResultSchema(changeset_id=new_cs.pk)
 
 

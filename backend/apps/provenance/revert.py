@@ -122,11 +122,12 @@ def execute_revert(
 
 
 class UndoError(Exception):
-    """Domain error raised by :func:`execute_undo_changeset`."""
+    """Domain error raised by :func:`execute_undo_changeset`.
 
-    def __init__(self, message: str, *, status_code: int = 422):
-        super().__init__(message)
-        self.status_code = status_code
+    Always renders as 422 in the API layer — authorization denials
+    flow through ``PolicyDeniedError`` from the policy engine, not
+    through this exception.
+    """
 
 
 def execute_undo_changeset(
@@ -146,11 +147,14 @@ def execute_undo_changeset(
       use :func:`execute_revert`; CREATE undo (symmetric \u201cmake it as if
       the record was never created\u201d) is deferred \u2014 it requires extra
       machinery to handle the row columns written alongside the claims.
-    * Caller must be the author. Other users use per-claim revert from
-      edit history.
     * Every claim in the target must still be ``is_active=True``. If any
       have been superseded by a later user action, the ChangeSet is no
       longer the latest action and Undo is refused.
+
+    Author-only enforcement is the policy's job (``changeset.undo`` rule
+    with ``is_changeset_author``); the endpoint runs ``enforce()`` before
+    calling this function. Other users use per-claim revert from edit
+    history.
 
     Returns the newly-created REVERT ChangeSet.
     """
@@ -160,12 +164,6 @@ def execute_undo_changeset(
         raise UndoError(
             "Only delete changesets can be undone via this endpoint. "
             "Edit changesets are reverted per-claim from edit history."
-        )
-    if changeset.user_id != user.pk:
-        raise UndoError(
-            "Only the author of a changeset can undo it. "
-            "Use per-claim revert from edit history instead.",
-            status_code=403,
         )
 
     claims = list(changeset.claims.all())

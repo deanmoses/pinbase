@@ -353,6 +353,10 @@ class TestUndoDelete:
             content_type="application/json",
         )
         assert resp.status_code == 403
+        body = resp.json()
+        assert body["detail"]["kind"] == "policy_denied"
+        assert body["detail"]["code"] == "owner_required"
+        assert body["detail"]["message"] == "Only the original author can do that."
 
     def test_undo_rejected_when_superseded(self, client, user, bootstrap_source):
         """An edit on the title after delete invalidates Undo of the delete."""

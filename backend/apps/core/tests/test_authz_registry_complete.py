@@ -55,8 +55,36 @@ _ACTIVITIES_EXEMPT_FROM_EMAIL_VERIFIED = frozenset(
 )
 
 
+def _target_less_activities() -> list[Activity]:
+    """Activities whose rules can be evaluated with ``target=None``.
+
+    A rule that declares a ``target`` Protocol has at least one
+    predicate that reads attributes off the target; calling that
+    predicate with ``target=None`` is a programming error and raises
+    ``TypeError``. The launch-predicate completeness tests below run
+    ``check(user, activity)`` with no target, so activities whose
+    rules declare a target Protocol are excluded — their launch
+    behavior is exercised in app-specific tests with a concrete
+    target stub. Activities with ``target_aware=True`` but no
+    ``target`` Protocol (e.g. ``claim.revert``, which reserves the
+    wire slot but reads nothing off the target) are still included.
+    """
+    out: list[Activity] = []
+    for a in Activity:
+        rule = get_rule(a)
+        if rule is None or rule.target is not None:
+            continue
+        out.append(a)
+    return out
+
+
 @pytest.mark.parametrize(
-    "activity", [a for a in Activity if a not in _ACTIVITIES_EXEMPT_FROM_EMAIL_VERIFIED]
+    "activity",
+    [
+        a
+        for a in _target_less_activities()
+        if a not in _ACTIVITIES_EXEMPT_FROM_EMAIL_VERIFIED
+    ],
 )
 def test_every_activity_requires_email_verified(activity: Activity) -> None:
     """An authenticated, active, unverified user must be denied with
@@ -93,7 +121,7 @@ def test_every_activity_requires_email_verified(activity: Activity) -> None:
     )
 
 
-@pytest.mark.parametrize("activity", list(Activity))
+@pytest.mark.parametrize("activity", _target_less_activities())
 def test_every_activity_denies_anonymous_with_auth_required(
     activity: Activity,
 ) -> None:

@@ -63,6 +63,6 @@ class TestMeCapabilities:
         client.force_login(user)
         caps = client.get("/api/auth/me/").json()["capabilities"]
         # `claim.revert` and `changeset.undo` are target-aware; their
-        # verdicts come from per-resource hints (Phase 8), not /me/.
+        # verdicts come from per-resource hints on each row, not /me/.
         assert Activity.CLAIM_REVERT.value not in caps
         assert Activity.CHANGESET_UNDO.value not in caps

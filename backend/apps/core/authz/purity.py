@@ -1,7 +1,6 @@
 """Helper for asserting a target-aware predicate runs zero queries.
 
-Per [Authz.md](../../../../docs/plans/auth/Authz.md#enforcing-pure-decisions),
-every target-aware predicate must have at least one test that wraps the
+Every target-aware predicate must have at least one test that wraps the
 call in ``CaptureQueriesContext`` and asserts a zero-query budget.
 Static type checking covers the typical mistake (reading an attribute
 outside the Protocol) but not dynamic access or a Protocol that

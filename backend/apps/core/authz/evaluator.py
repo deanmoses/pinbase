@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import cast
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
-from django.db.models import Model
 
 from .registry import get_rule
 from .types import (
@@ -32,9 +31,20 @@ _PRIORITY_FALLBACK = len(DENIAL_PRIORITY)
 def check(
     user: PolicyUser,
     activity: Activity,
-    target: Model | None = None,
+    target: object | None = None,
     context: PolicyContext | None = None,
 ) -> Decision:
+    """Evaluate ``activity`` and return a :class:`Decision`.
+
+    ``target`` is typed ``object | None`` to match the engine's actual
+    contract: the evaluator never reads anything off the target, it
+    just hands it to each predicate. Per-rule predicates declare a
+    narrow ``Protocol`` on their target parameter, and mypy enforces
+    the reads at predicate-definition time. Tightening to ``Model``
+    here would not catch any bug the predicate's own Protocol misses
+    and would force callers passing structurally-compatible non-Model
+    objects (test stubs, dataclasses) to cast.
+    """
     rule = get_rule(activity)
     if rule is None:
         # Missing rule is engine misconfiguration, not a permission
