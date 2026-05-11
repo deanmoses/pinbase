@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { floating } from '$lib/actions/floating';
   import { normalizeText } from '$lib/utils';
   import FieldGroup from './form/FieldGroup.svelte';
 
@@ -33,6 +34,7 @@
   let open = $state(false);
   let activeIndex = $state(-1);
   let inputEl: HTMLInputElement | undefined = $state();
+  let inputWrapEl: HTMLDivElement | undefined = $state();
   let listEl: HTMLUListElement | undefined = $state();
 
   let filteredOptions = $derived.by(() => {
@@ -145,18 +147,32 @@
     activeIndex = -1;
   });
 
-  // Click outside to close
+  // Click or focus outside to close
   $effect(() => {
     if (!open) return;
+    function isOutside(target: Node | null): boolean {
+      if (!target) return true;
+      const insideSelect = inputEl?.closest('.searchable-select')?.contains(target);
+      // The dropdown is portaled out of `.searchable-select`, so check it too.
+      const insideDropdown = listEl?.contains(target);
+      return !insideSelect && !insideDropdown;
+    }
+    function close() {
+      open = false;
+      query = '';
+    }
     function onPointerDown(e: PointerEvent) {
-      const target = e.target as Node;
-      if (!inputEl?.closest('.searchable-select')?.contains(target)) {
-        open = false;
-        query = '';
-      }
+      if (isOutside(e.target as Node)) close();
+    }
+    function onFocusIn(e: FocusEvent) {
+      if (isOutside(e.target as Node)) close();
     }
     document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('focusin', onFocusIn);
+    };
   });
 
   const inputId = `searchable-select-${Math.random().toString(36).slice(2, 8)}`;
@@ -165,7 +181,7 @@
 </script>
 
 {#snippet body()}
-  <div class="input-wrap">
+  <div class="input-wrap" bind:this={inputWrapEl}>
     <input
       id={inputId}
       bind:this={inputEl}
@@ -220,8 +236,19 @@
     </div>
   {/if}
 
-  {#if open}
-    <ul bind:this={listEl} id={listboxId} role="listbox" class="dropdown">
+  {#if open && inputWrapEl}
+    <ul
+      bind:this={listEl}
+      id={listboxId}
+      role="listbox"
+      class="dropdown"
+      use:floating={{
+        anchor: inputWrapEl,
+        placement: 'bottom-start',
+        matchAnchorWidth: true,
+        maxHeight: 'available',
+      }}
+    >
       {#each filteredOptions as opt, i (opt.slug)}
         <li
           id={`${listboxId}-${i}`}
@@ -233,6 +260,9 @@
           class:selected={isSelected(opt.slug)}
           class:disabled={isDisabled(opt)}
           class:active={i === activeIndex}
+          onpointerenter={() => {
+            if (!isDisabled(opt)) activeIndex = i;
+          }}
           onpointerdown={(e) => {
             e.preventDefault();
             if (!isDisabled(opt)) toggle(opt.slug);
@@ -274,10 +304,6 @@
 {/if}
 
 <style>
-  .searchable-select {
-    position: relative;
-  }
-
   .filter-label {
     display: block;
     font-size: var(--font-size-0);
@@ -346,13 +372,7 @@
   }
 
   .dropdown {
-    position: absolute;
     z-index: var(--z-dropdown);
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: var(--size-1);
-    max-height: 18rem;
     overflow-y: auto;
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -360,6 +380,7 @@
     box-shadow: var(--shadow-popover);
     list-style: none;
     padding: var(--size-1) 0;
+    margin: 0;
   }
 
   .option {
@@ -371,7 +392,6 @@
     font-size: var(--font-size-1);
   }
 
-  .option:hover,
   .option.active {
     background-color: var(--color-input-focus-ring);
   }
@@ -384,10 +404,6 @@
     color: var(--color-text-muted);
     opacity: 0.5;
     cursor: default;
-  }
-
-  .option.disabled:hover {
-    background-color: transparent;
   }
 
   .check {
