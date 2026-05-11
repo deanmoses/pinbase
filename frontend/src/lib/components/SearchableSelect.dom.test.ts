@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import SearchableSelect from './SearchableSelect.svelte';
+import SearchableSelectClipFixture from './SearchableSelect.clip.fixture.svelte';
 
 const OPTIONS = [
   { slug: 'stern', label: 'Stern Pinball', count: 5 },
@@ -163,6 +164,65 @@ describe('SearchableSelect', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument();
     expect(getCombobox()).toHaveValue('wil');
     expect(screen.queryByRole('button', { name: /clear selection/i })).not.toBeInTheDocument();
+  });
+
+  it('portals the listbox out of clipping ancestors', async () => {
+    const user = userEvent.setup();
+    render(SearchableSelectClipFixture);
+
+    await user.click(getCombobox());
+
+    const listbox = screen.getByRole('listbox');
+    const wrapper = screen.getByTestId('clip-wrapper');
+    expect(wrapper).not.toContainElement(listbox);
+  });
+
+  it('syncs activeIndex with pointer hover so it does not conflict with keyboard nav', async () => {
+    const user = userEvent.setup();
+    renderSingle();
+
+    await user.click(getCombobox());
+
+    // Hover Bally — it should become the active option.
+    const bally = screen.getByRole('option', { name: /bally/i });
+    await fireEvent.pointerEnter(bally);
+
+    expect(bally).toHaveAttribute('data-active', 'true');
+    expect(getCombobox()).toHaveAttribute('aria-activedescendant', bally.id);
+
+    // Keyboard-arrowing should move activity off Bally to exactly one other option.
+    await user.keyboard('{ArrowDown}');
+    expect(bally).toHaveAttribute('data-active', 'false');
+    expect(document.querySelectorAll('[data-active="true"]')).toHaveLength(1);
+  });
+
+  it('closes when focus moves outside the component (e.g. Tab to next field)', async () => {
+    const user = userEvent.setup();
+    renderSingle();
+    const after = document.createElement('button');
+    after.id = 'after';
+    after.textContent = 'After';
+    document.body.appendChild(after);
+
+    await user.click(getCombobox());
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    after.focus();
+    fireEvent.focusIn(after);
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('closes when clicking outside the portaled listbox', async () => {
+    const user = userEvent.setup();
+    render(SearchableSelectClipFixture);
+
+    await user.click(getCombobox());
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
   it('does not leave queued scroll work behind after keyboard navigation unmounts', async () => {

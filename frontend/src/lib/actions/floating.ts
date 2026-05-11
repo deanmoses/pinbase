@@ -43,8 +43,16 @@ export type FloatingOptions = {
     | 'right-end';
   /** Gap between anchor and floating element, in px. */
   offset?: number;
-  /** Padding from the viewport edge for `flip`/`shift`, in px. */
+  /** Padding from the viewport edge for `flip`/`shift`/`size`, in px. */
   padding?: number;
+  /** Set the floating element's width to match the anchor's width. */
+  matchAnchorWidth?: boolean;
+  /**
+   * Constrain the floating element's max-height. `'available'` fits it to the
+   * remaining viewport space along the placement axis (so a dropdown near the
+   * bottom shrinks instead of overflowing). A number sets a fixed px cap.
+   */
+  maxHeight?: 'available' | number;
 };
 
 let modulePromise: Promise<FloatingUiModule> | undefined;
@@ -91,11 +99,30 @@ export const floating: Action<HTMLElement, FloatingOptions> = (node, options) =>
   function reposition() {
     if (!fui) return;
     const opts = currentOptions;
+    const padding = opts.padding ?? 8;
     const middleware = [
       fui.offset(opts.offset ?? 4),
-      fui.flip({ padding: opts.padding ?? 8 }),
-      fui.shift({ padding: opts.padding ?? 8 }),
+      fui.flip({ padding }),
+      fui.shift({ padding }),
     ];
+
+    if (opts.matchAnchorWidth || opts.maxHeight != null) {
+      middleware.push(
+        fui.size({
+          padding,
+          apply({ rects, availableHeight }) {
+            if (opts.matchAnchorWidth) {
+              node.style.width = `${rects.reference.width}px`;
+            }
+            if (opts.maxHeight === 'available') {
+              node.style.maxHeight = `${Math.max(0, Math.floor(availableHeight))}px`;
+            } else if (typeof opts.maxHeight === 'number') {
+              node.style.maxHeight = `${Math.min(opts.maxHeight, Math.floor(availableHeight))}px`;
+            }
+          },
+        }),
+      );
+    }
 
     void fui
       .computePosition(opts.anchor, node, {
