@@ -11,22 +11,31 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterator
+from typing import NamedTuple
 
 from ninja import NinjaAPI
 
 _DUPLICATE_SLASHES = re.compile(r"/{2,}")
 
 
-def iter_operations(api: NinjaAPI) -> Iterator[tuple[str, str, Callable[..., object]]]:
-    """Yield `(method, full_path, view_func)` for every operation.
+class RouteOperation(NamedTuple):
+    """A single registered Ninja operation.
 
-    `method` is uppercase (matches `Operation.methods`).
-    `full_path` is `prefix + path` — the route as it appears under the
+    ``method`` is uppercase (matches ``Operation.methods``).
+    ``path`` is ``prefix + path`` — the route as it appears under the
     NinjaAPI mount.
-    `view_func` is the bare callable passed to `router.<verb>(...)`,
-    after any decorators. The inventory test reads marker attributes
-    off this object.
+    ``view_func`` is the bare callable passed to ``router.<verb>(...)``,
+    after any decorators. Consumers read marker attributes off this
+    object.
     """
+
+    method: str
+    path: str
+    view_func: Callable[..., object]
+
+
+def iter_operations(api: NinjaAPI) -> Iterator[RouteOperation]:
+    """Yield a :class:`RouteOperation` for every registered operation."""
     for prefix, router in api._routers:
         for path, path_view in router.path_operations.items():
             for op in path_view.operations:
@@ -39,4 +48,4 @@ def iter_operations(api: NinjaAPI) -> Iterator[tuple[str, str, Callable[..., obj
                 # casing.
                 full_path = _DUPLICATE_SLASHES.sub("/", f"{prefix}{path}")
                 for method in op.methods:
-                    yield method, full_path, op.view_func
+                    yield RouteOperation(method, full_path, op.view_func)

@@ -57,7 +57,7 @@ class ChangeSetSummarySchema(ChangeSetWithEntitySchema):
     retractions_count: int
     capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
-    policy_activities: ClassVar[list[Activity]] = [Activity.CHANGESET_UNDO]
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
     policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
@@ -71,7 +71,7 @@ class ChangeSetDetailSchema(ChangeSetWithEntitySchema):
     retractions: list[RetractionSchema]
     capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
-    policy_activities: ClassVar[list[Activity]] = [Activity.CHANGESET_UNDO]
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
     policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
@@ -89,7 +89,7 @@ class CitedChangeSetSchema(ChangeSetBaseSchema):
     citations: list[CitedChangeSetCitationSchema]
     capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
-    policy_activities: ClassVar[list[Activity]] = [Activity.CHANGESET_UNDO]
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
     policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 

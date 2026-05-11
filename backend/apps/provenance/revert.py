@@ -24,6 +24,7 @@ from django.db import IntegrityError, transaction
 from apps.accounts.models import User
 from apps.core.authz.exceptions import PolicyDeniedError
 from apps.core.authz.types import DenialCode, Deny
+from apps.core.types import EntityKey
 
 from .constants import REVERT_OTHERS_MIN_EDITS
 from .models import ChangeSet, ChangeSetAction, Claim, ClaimControlledModel
@@ -190,7 +191,7 @@ def execute_undo_changeset(
 
     from apps.catalog.resolve import resolve_after_mutation
 
-    affected_fields: dict[tuple[int, int], set[str]] = defaultdict(set)
+    affected_fields: dict[EntityKey, set[str]] = defaultdict(set)
     try:
         with transaction.atomic():
             new_cs = ChangeSet.objects.create(
@@ -200,7 +201,7 @@ def execute_undo_changeset(
                 claim.is_active = False
                 claim.retracted_by_changeset = new_cs
                 claim.save(update_fields=["is_active", "retracted_by_changeset"])
-                affected_fields[(claim.content_type_id, claim.object_id)].add(
+                affected_fields[EntityKey(claim.content_type_id, claim.object_id)].add(
                     claim.field_name
                 )
 
@@ -230,9 +231,9 @@ def execute_undo_changeset(
                     predecessor.is_active = True
                     predecessor.save(update_fields=["is_active"])
 
-            for (ct_id, obj_id), fields in affected_fields.items():
-                ct = ContentType.objects.get_for_id(ct_id)
-                entity = ct.get_object_for_this_type(pk=obj_id)
+            for key, fields in affected_fields.items():
+                ct = ContentType.objects.get_for_id(key.content_type_id)
+                entity = ct.get_object_for_this_type(pk=key.object_id)
                 # ContentType.get_object_for_this_type returns Model; by
                 # construction the affected entity carries claims, so it is
                 # always a ClaimControlledModel.

@@ -5,8 +5,10 @@ mispairing crashes early instead of producing a wrong verdict on the
 wire — which is the worst place for it.
 
 A schema declares the target-aware activities whose verdicts it embeds
-via a ``ClassVar[list[Activity]]`` named ``policy_activities``. This
-check walks every ninja ``Schema`` subclass and asserts:
+via a ``ClassVar[tuple[Activity, ...]]`` named ``policy_activities``
+(``list`` is also accepted, but ``tuple`` is the convention — the
+declaration is static and immutable in spirit). This check walks every
+ninja ``Schema`` subclass and asserts:
 
 - each listed activity is registered;
 - each listed activity is ``target_aware=True`` (a target-less verdict
@@ -75,8 +77,8 @@ def _check_one(schema: type) -> list[CheckMessage]:
     if not isinstance(declared, list | tuple):
         errors.append(
             Error(
-                f"{schema.__name__}.policy_activities must be a list of "
-                f"Activity members, got {type(declared).__name__}.",
+                f"{schema.__name__}.policy_activities must be a tuple or "
+                f"list of Activity members, got {type(declared).__name__}.",
                 obj=schema,
                 id="authz.E101",
             )

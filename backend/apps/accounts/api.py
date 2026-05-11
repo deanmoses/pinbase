@@ -78,7 +78,7 @@ class UserChangeSetSchema(Schema):
     entity_type_label: str
     capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
-    policy_activities: ClassVar[list[Activity]] = [Activity.CHANGESET_UNDO]
+    policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
     policy_target_model: ClassVar[type[Model]] = ChangeSet
 
 
