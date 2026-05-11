@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import TypeGuard
+from typing import NamedTuple, TypeGuard
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.contrib.contenttypes.models import ContentType
@@ -51,6 +51,18 @@ from .edit_claims import ClaimSpec, execute_multi_entity_claims
 from .schemas import BlockingReferrerSchema
 
 _UserLike = AbstractBaseUser | AnonymousUser
+
+
+class EntityKey(NamedTuple):
+    """Dedup key for a soft-delete cascade member or blocker.
+
+    ``label_lower`` (``app_label.model_name``) plus ``pk`` uniquely
+    identifies a row across the heterogeneous set of models the walker
+    touches.
+    """
+
+    label_lower: str
+    pk: int
 
 
 @dataclass(frozen=True)
@@ -128,8 +140,8 @@ def _entity_type(entity: db_models.Model) -> str:
     return cls.entity_type
 
 
-def _entity_key(entity: db_models.Model) -> tuple[str, int]:
-    return (entity._meta.label_lower, entity.pk)
+def _entity_key(entity: db_models.Model) -> EntityKey:
+    return EntityKey(entity._meta.label_lower, entity.pk)
 
 
 def _cascade_targets(root: CatalogModel) -> list[CatalogModel]:
@@ -139,7 +151,7 @@ def _cascade_targets(root: CatalogModel) -> list[CatalogModel]:
     resulting ChangeSet replays identically in tests.
     """
     result: list[CatalogModel] = []
-    seen: set[tuple[str, int]] = set()
+    seen: set[EntityKey] = set()
     stack: list[CatalogModel] = [root]
     while stack:
         entity = stack.pop(0)
@@ -222,7 +234,7 @@ def plan_soft_delete(root: CatalogModel) -> SoftDeletePlan:
     cascade_keys = {_entity_key(e) for e in cascade}
 
     blockers: list[BlockingReferrer] = []
-    seen_blockers: set[tuple[tuple[str, int], str]] = set()
+    seen_blockers: set[tuple[EntityKey, str]] = set()
 
     def _record(ref: db_models.Model, relation: str, target: CatalogModel) -> None:
         key = (_entity_key(ref), relation)

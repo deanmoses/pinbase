@@ -17,6 +17,8 @@ from apps.provenance.models import Claim, ClaimControlledModel
 
 from .._alias_registry import AliasType, discover_alias_types
 from ..models import (
+    AliasModel,
+    CatalogModel,
     CorporateEntity,
     CorporateEntityLocation,
     Credit,
@@ -77,7 +79,7 @@ class M2MFieldSpec:
 
     field_name: str  # claim field_name (also the value dict key): "theme", "tag"
     m2m_attr: str  # model attribute: "themes", "tags", "gameplay_features"
-    target_model: type[Model]  # Theme, Tag, GameplayFeature
+    target_model: type[CatalogModel]  # Theme, Tag, GameplayFeature
 
 
 M2M_FIELDS: dict[str, M2MFieldSpec] = {
@@ -611,7 +613,9 @@ def resolve_all_model_abbreviations(
 # ------------------------------------------------------------------
 
 
-def _get_alias_rel_info(parent: type[Model]) -> tuple[type[Model], str]:
+def _get_alias_rel_info(
+    parent: type[ClaimControlledModel],
+) -> tuple[type[AliasModel], str]:
     """Return (alias_model, fk_col) for ``parent``'s GenericRelation ``aliases``.
 
     ``parent.aliases.rel`` — and ``.rel.related_model`` / ``.rel.field.name`` —
@@ -620,12 +624,12 @@ def _get_alias_rel_info(parent: type[Model]) -> tuple[type[Model], str]:
     caller bodies.
     """
     rel = parent.aliases.rel  # type: ignore[attr-defined]
-    alias_model: type[Model] = rel.related_model
+    alias_model: type[AliasModel] = rel.related_model
     fk_col: str = rel.field.name + "_id"
     return alias_model, fk_col
 
 
-def _get_parents_through(parent: type[Model]) -> type[Model]:
+def _get_parents_through(parent: type[ClaimControlledModel]) -> type[Model]:
     """Return the through model for ``parent``'s self-referential ``parents`` M2M.
 
     ``parent.parents.through`` is a runtime-generated descriptor (same category
@@ -637,7 +641,7 @@ def _get_parents_through(parent: type[Model]) -> type[Model]:
 
 
 def _resolve_aliases(
-    parent_model: type[Model],
+    parent_model: type[ClaimControlledModel],
     claim_field_name: str,
 ) -> None:
     """Bulk-resolve alias claims into alias model rows.

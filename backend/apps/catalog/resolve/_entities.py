@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 
-from django.db import models
 from django.utils import timezone
 
 from apps.core.types import JsonBody
@@ -30,7 +29,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def _sync_markdown_references(obj: models.Model) -> None:
+def _sync_markdown_references(obj: ClaimControlledModel) -> None:
     """Sync RecordReference table for all markdown fields on the object.
 
     Always calls sync_references, even for empty fields, so that stale

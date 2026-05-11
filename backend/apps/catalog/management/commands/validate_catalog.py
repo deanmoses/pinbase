@@ -25,6 +25,7 @@ from django.db.models import Count, F, Model, Q
 from django.db.models.functions import Lower
 
 from apps.catalog.models import (
+    CatalogModel,
     Credit,
     CreditRole,
     GameplayFeature,
@@ -370,7 +371,7 @@ class _M2mCheck(NamedTuple):
 
     field_name: str
     pk_key: str
-    model_class: type[Model]
+    model_class: type[CatalogModel]
 
 
 def check_unresolved_m2m_claims(result: ValidationResult) -> None:
