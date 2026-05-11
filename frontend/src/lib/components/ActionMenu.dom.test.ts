@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import ActionMenuFixture from './ActionMenu.fixture.svelte';
 import ActionMenuListboxFixture from './ActionMenu.listbox.fixture.svelte';
+import ActionMenuPortalFixture from './ActionMenu.portal.fixture.svelte';
 import ActionMenuTriggerFixture from './ActionMenu.trigger.fixture.svelte';
 
 describe('ActionMenu', () => {
@@ -24,12 +25,26 @@ describe('ActionMenu', () => {
     await user.click(trigger);
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('menu')).toBeInTheDocument();
+    const menu = screen.getByRole('menu');
+    expect(menu).toBeInTheDocument();
+    expect(menu).toHaveAttribute('data-placement', 'bottom-end');
     expect(screen.getByRole('menuitem', { name: 'Sources' })).toHaveAttribute(
       'href',
       '/models/medieval-madness/sources',
     );
     expect(trigger).toHaveFocus();
+  });
+
+  it('portals the menu out of clipping ancestors', async () => {
+    const user = userEvent.setup();
+
+    render(ActionMenuPortalFixture);
+
+    await user.click(screen.getByRole('button', { name: 'Tools' }));
+
+    const menu = screen.getByRole('menu');
+    const wrapper = screen.getByTestId('clip-wrapper');
+    expect(wrapper).not.toContainElement(menu);
   });
 
   it('opens from the keyboard and focuses the first item', async () => {
@@ -155,6 +170,7 @@ describe('ActionMenu', () => {
 
       const listbox = screen.getByRole('listbox');
       expect(listbox).toBeInTheDocument();
+      expect(listbox).toHaveAttribute('data-placement', 'top-start');
 
       const options = screen.getAllByRole('option');
       expect(options.map((o) => o.textContent?.trim())).toEqual([

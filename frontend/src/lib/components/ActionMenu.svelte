@@ -233,6 +233,7 @@
     {role}
     tabindex="-1"
     aria-label={ariaLabel ?? label}
+    data-placement={placement}
     use:floating={{ anchor: triggerEl, placement }}
     onkeydown={handleMenuKeydown}
     onclick={handleMenuClick}

@@ -68,15 +68,21 @@ export const floating: Action<HTMLElement, FloatingOptions> = (node, options) =>
   let cleanupAutoUpdate: (() => void) | undefined;
   let subscribedAnchor: FloatingAnchor | undefined;
 
-  // Hide until the first position resolves to avoid a top-left flash on first
-  // open (the dynamic import is async, so the floating element would otherwise
-  // be visible briefly at translate(0,0) before computePosition runs).
-  // Use opacity rather than visibility so the element stays in the
-  // accessibility tree — testing-library's getByRole skips visibility:hidden.
-  const originalOpacity = node.style.opacity;
-  node.style.opacity = '0';
+  // Park the element far offscreen until the first computePosition resolves,
+  // to avoid a top-left flash while the dynamic floating-ui import is loading.
+  // We deliberately do NOT use visibility/opacity/pointer-events to hide:
+  //   - visibility:hidden removes the element from the a11y tree (testing-
+  //     library's getByRole skips it).
+  //   - opacity:0 keeps it in the a11y tree but leaves it clickable at (0,0),
+  //     and pointer-events:none on the parent doesn't help — menu items are
+  //     children with `auto` and would still be hit (and it trips up
+  //     @testing-library/user-event, which refuses to interact with any
+  //     descendant of a pointer-events:none ancestor).
+  // Offscreen positioning sidesteps all of that: the element remains
+  // measurable for computePosition and stays in the a11y tree, but a real
+  // pointer can't reach it.
   node.style.position = 'fixed';
-  node.style.top = '0';
+  node.style.top = '-9999px';
   node.style.left = '0';
 
   const portalTarget = findPortalTarget(node);
@@ -99,8 +105,8 @@ export const floating: Action<HTMLElement, FloatingOptions> = (node, options) =>
       })
       .then(({ x, y }) => {
         if (destroyed) return;
+        node.style.top = '0';
         node.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-        node.style.opacity = originalOpacity;
       });
   }
 
