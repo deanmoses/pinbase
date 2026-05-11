@@ -163,6 +163,8 @@ The backend API remains the source of truth for the contract.
 - OpenAPI is generated from Django
 - TypeScript types are generated from OpenAPI
 
+After changing Django Ninja endpoint response types or schema fields, run `make api-gen` so the frontend contract reflects the backend change.
+
 The goal is not "thin backend, smart page assembly." The goal is a clean contract where the backend exports the data shape the page actually needs.
 
 ### Page-endpoint heuristic
@@ -220,6 +222,16 @@ This is the inverse of the consolidation rule: don't merge separate scalars into
 A schema that is shape-equivalent to `Ref` (just `name + slug`) may still be worth keeping under its own name if the entity is plausibly going to grow display fields. Collapsing it to `Ref` is a one-line save now, but reintroducing the named schema later means touching every call site.
 
 The cost isn't free, though: every named schema is another OpenAPI component, another import, and another thing for new contributors to keep straight when browsing `schemas.py`. When the entity has a plausible growth path, keep the named schema. When it's a stable terminal value (e.g., a tag, a status), collapsing to `Ref` is fine.
+
+### Use schemas as the API boundary type
+
+When helper code builds an API response shape, return the Ninja/Pydantic `Schema` instance, not a `dict` that the endpoint later revalidates into the same schema. If no schema exists for that response shape, add one rather than maintaining a parallel `TypedDict`.
+
+Use dicts only when the dict is the real runtime contract, such as cached JSON-byte responses. In that case, leave a short comment naming the cache/wire contract.
+
+### Don't mutate response schemas as accumulators
+
+Collect intermediate state in a private mutable structure, then construct the response schema once.
 
 ### Document Pydantic union-dispatch dependencies
 
