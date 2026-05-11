@@ -217,7 +217,7 @@ Backend code should be as strongly typed as possible. Annotations are documentat
 
 Smells — sometimes legitimate, usually a sign the type can be tightened:
 
-- Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `TYPE_CHECKING` , `# type: ignore`, `# noqa`
+- Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `getattr`, `TYPE_CHECKING` , `# type: ignore`, `# noqa`
 - `tuple[...]` with 3+ positional fields, or the same tuple shape repeated across modules
 
 Prefer NamedTuple, dataclass, or TypedDict. Full catalogue, legitimate exception shapes (Django management `**kwargs`, signal receivers, Ninja dispatch, etc.), and the ruff ANN401 ratchet: [docs/plans/types/TypeFixing.md](plans/types/TypeFixing.md).
