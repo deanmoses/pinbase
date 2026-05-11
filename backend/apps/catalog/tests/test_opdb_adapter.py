@@ -34,7 +34,7 @@ def opdb_source(db):
 
 
 def _make_record(
-    **overrides: Any,  # noqa: ANN401 - dataclass kwargs are heterogeneous
+    **overrides: Any,  # noqa: ANN401 - heterogeneous OpdbRecord fields
 ) -> OpdbRecord:
     """Build a minimal OpdbRecord with sensible defaults."""
     defaults: dict[str, Any] = {

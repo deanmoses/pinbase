@@ -499,7 +499,9 @@ class Command(BaseCommand):
         self,
         model_class: type[CatalogModel],
         pending_claims: list[Claim],
-        **kwargs: Any,  # noqa: ANN401 - bulk_assert_claims kwargs passthrough
+        *,
+        sweep_field: str | list[str] = "",
+        authoritative_scope: set[tuple[int, int]] | None = None,
     ) -> dict[str, int]:
         """Assert claims, deferring description claims for later.
 
@@ -521,7 +523,10 @@ class Command(BaseCommand):
 
         if other_claims:
             s = Claim.objects.bulk_assert_claims(
-                self.flipcommons_source, other_claims, **kwargs
+                self.flipcommons_source,
+                other_claims,
+                sweep_field=sweep_field,
+                authoritative_scope=authoritative_scope,
             )
             for k in stats:
                 stats[k] += s[k]
@@ -828,7 +833,7 @@ class Command(BaseCommand):
                         Claim.for_object(
                             obj,
                             field_name="display_order",
-                            value=getattr(obj, "display_order", 0),
+                            value=entry.get("display_order", 0),
                         )
                     )
                 if parent:
@@ -1853,15 +1858,17 @@ class Command(BaseCommand):
         # pindata export retracts the stale claim.
         claim_stats: dict[str, int] = {}
         if pending_claims:
-            sweep_kwargs: dict[str, Any] = {}
             if touched_ids:
-                sweep_kwargs["sweep_field"] = ["franchise", "series"]
-                sweep_kwargs["authoritative_scope"] = make_authoritative_scope(
-                    Title, touched_ids
+                claim_stats = self._assert_claims_split_descriptions(
+                    Title,
+                    pending_claims,
+                    sweep_field=["franchise", "series"],
+                    authoritative_scope=make_authoritative_scope(Title, touched_ids),
                 )
-            claim_stats = self._assert_claims_split_descriptions(
-                Title, pending_claims, **sweep_kwargs
-            )
+            else:
+                claim_stats = self._assert_claims_split_descriptions(
+                    Title, pending_claims
+                )
 
         # Resolve touched titles.
         if touched_ids:

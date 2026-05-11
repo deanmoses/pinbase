@@ -390,10 +390,7 @@ def _collect_claims(
 ) -> None:
     """Collect scalar claims for one record into the assertions list."""
 
-    def _add(
-        field_name: str,
-        value: Any,  # noqa: ANN401 - claim value is arbitrary JSON
-    ) -> None:
+    def _add(field_name: str, value: object) -> None:
         assertions.append(
             PlannedClaimAssert(
                 field_name=field_name,

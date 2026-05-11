@@ -62,7 +62,7 @@ def _seed_mm_9998_and_9999(_seed_mm_9999, db):
 
 
 def _make_record(
-    **overrides: Any,  # noqa: ANN401 - dataclass kwargs are heterogeneous
+    **overrides: Any,  # noqa: ANN401 - heterogeneous IpdbRecord fields
 ) -> IpdbRecord:
     """Build a minimal IpdbRecord with sensible defaults."""
     defaults: dict[str, Any] = {"ipdb_id": 9999, "title": "Test Machine"}
