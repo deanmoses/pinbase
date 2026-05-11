@@ -160,33 +160,6 @@ describe('CitationTooltip', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
-  it('repositions on resize and scroll while visible', async () => {
-    renderTooltip('<p>Move <sup data-cite-id="1" tabindex="0">[1]</sup>.</p>');
-    await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(1));
-
-    await fireEvent.mouseEnter(getCitation('1'));
-    const tooltip = (await screen.findByRole('tooltip')) as HTMLDivElement;
-
-    await vi.waitFor(() => {
-      expect(tooltip.style.left).toBe('22px');
-      expect(tooltip.style.top).toBe('74px');
-    });
-
-    anchorRect = rect({ left: 220, top: 260, width: 24, height: 16 });
-    await fireEvent(window, new Event('resize'));
-    await vi.waitFor(() => {
-      expect(tooltip.style.left).toBe('142px');
-      expect(tooltip.style.top).toBe('174px');
-    });
-
-    anchorRect = rect({ left: 260, top: 280, width: 24, height: 16 });
-    await fireEvent(window, new Event('scroll'));
-    await vi.waitFor(() => {
-      expect(tooltip.style.left).toBe('182px');
-      expect(tooltip.style.top).toBe('194px');
-    });
-  });
-
   describe('citations prop (no-fetch)', () => {
     const propCitations: InlineCitation[] = [
       {

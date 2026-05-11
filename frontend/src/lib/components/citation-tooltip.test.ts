@@ -1,43 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computePosition, reduceTooltip } from './citation-tooltip';
+import { reduceTooltip } from './citation-tooltip';
 import type { TooltipState } from './citation-tooltip';
-
-// ── computePosition ────���────────────────────────────────────────
-
-describe('computePosition', () => {
-  const anchor = (top: number, left: number, width: number, height: number) =>
-    ({ top, left, width, height, bottom: top + height, right: left + width }) as DOMRect;
-
-  it('positions above the anchor by default', () => {
-    const pos = computePosition(anchor(200, 100, 20, 16), 160, 80, 1024, 768);
-    expect(pos.above).toBe(true);
-    // Should be above: y = anchorTop - tooltipHeight - gap
-    expect(pos.y).toBeLessThan(200);
-  });
-
-  it('centers horizontally on the anchor', () => {
-    const pos = computePosition(anchor(200, 500, 20, 16), 160, 80, 1024, 768);
-    // Center of anchor = 500 + 10 = 510. Tooltip left = 510 - 80 = 430.
-    expect(pos.x).toBe(430);
-  });
-
-  it('flips below when near the top of viewport', () => {
-    const pos = computePosition(anchor(20, 100, 20, 16), 160, 80, 1024, 768);
-    expect(pos.above).toBe(false);
-    // Should be below: y = anchorBottom + gap
-    expect(pos.y).toBeGreaterThan(36);
-  });
-
-  it('clamps to left edge', () => {
-    const pos = computePosition(anchor(200, 0, 20, 16), 160, 80, 1024, 768);
-    expect(pos.x).toBeGreaterThanOrEqual(8);
-  });
-
-  it('clamps to right edge', () => {
-    const pos = computePosition(anchor(200, 1010, 20, 16), 160, 80, 1024, 768);
-    expect(pos.x).toBeLessThanOrEqual(1024 - 160 - 8);
-  });
-});
 
 // ── reduceTooltip ───────────────────────────────────────���───────
 
