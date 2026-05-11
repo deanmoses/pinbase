@@ -30,7 +30,7 @@ from django.db import IntegrityError, transaction
 from django.db import models as db_models
 from django.db.models import Q
 
-from apps.catalog.models import CatalogModel
+from apps.catalog.models import AliasModel, CatalogModel
 from apps.catalog.naming import normalize_catalog_name
 from apps.core.models import meta_unique_fields
 from apps.core.validators import SLUG_FORMAT_MESSAGE, SLUG_RE
@@ -89,8 +89,8 @@ def validate_name(name: str, *, max_length: int) -> str:
 
 
 def _resolve_alias_relation(
-    model_cls: type[db_models.Model],
-) -> tuple[type[db_models.Model], str] | None:
+    model_cls: type[CatalogModel],
+) -> tuple[type[AliasModel], str] | None:
     """Return ``(alias_model, parent_fk_name)`` if *model_cls* exposes an
     ``aliases`` reverse manager, else ``None``.
 
@@ -104,7 +104,7 @@ def _resolve_alias_relation(
         if rel.get_accessor_name() == "aliases":
             related_model = rel.related_model
             assert isinstance(related_model, type)
-            assert issubclass(related_model, db_models.Model)
+            assert issubclass(related_model, AliasModel)
             return related_model, rel.field.name
     return None
 
