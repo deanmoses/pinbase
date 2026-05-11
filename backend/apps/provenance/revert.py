@@ -22,6 +22,8 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
 from apps.accounts.models import User
+from apps.core.authz.exceptions import PolicyDeniedError
+from apps.core.authz.types import DenialCode, Deny
 
 from .constants import REVERT_OTHERS_MIN_EDITS
 from .models import ChangeSet, ChangeSetAction, Claim, ClaimControlledModel
@@ -52,7 +54,11 @@ def execute_revert(
     claim_key, it is re-activated so the field falls back to their
     prior value rather than dropping to the source default.
 
-    Raises ``RevertError`` on validation or authorisation failures.
+    Raises ``RevertError`` on validation failures (bad note, missing
+    claim, source-attributed, already inactive) and ``PolicyDeniedError``
+    when the caller lacks authorization (sub-threshold edit count for
+    reverting another user's claim). Endpoint callers let the policy
+    error propagate to the global ``StructuredApiError`` handler.
     """
     if not note or not note.strip():
         raise RevertError("A note is required when reverting.")
@@ -76,9 +82,14 @@ def execute_revert(
     if target.user_id != user.pk:
         edit_count = ChangeSet.objects.filter(user=user).count()
         if edit_count < REVERT_OTHERS_MIN_EDITS:
-            raise RevertError(
-                f"You need at least {REVERT_OTHERS_MIN_EDITS} edits to revert other users' changes.",
-                status_code=403,
+            raise PolicyDeniedError(
+                Deny(
+                    DenialCode.EXPERIENCE_REQUIRED,
+                    context={
+                        "required": REVERT_OTHERS_MIN_EDITS,
+                        "current": edit_count,
+                    },
+                )
             )
 
     from apps.catalog.resolve import resolve_after_mutation

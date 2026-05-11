@@ -223,7 +223,12 @@ class TestRevertAuth:
         client.force_login(other)
         resp = _revert(client, claim.pk, "Reverting you")
         assert resp.status_code == 403
-        assert "5 edits" in resp.json()["detail"]
+        detail = resp.json()["detail"]
+        assert detail["kind"] == "policy_denied"
+        assert detail["code"] == "experience_required"
+        assert detail["context"] == {"required": 5, "current": 0}
+        assert "5 edits" in detail["message"]
+        assert "you have 0" in detail["message"]
 
     def test_revert_others_above_threshold_succeeds(self, client, user, pm, db):
         """Users with 5+ edits can revert another user's claims."""

@@ -72,7 +72,7 @@ The policy entry point and its return type:
 def check(
     user: PolicyUser,              # Protocol covering both authenticated User and AnonymousUser
     activity: Activity,            # closed enum of registered activity names
-    target: Model | None = None,   # a record of the domain object the activity acts on, when applicable
+    target: object | None = None,  # a record of the domain object the activity acts on, when applicable; per-rule predicates narrow this via their own Protocol (see Follow-ups)
     context: PolicyContext | None = None,  # caller-assembled ambient state (rate-limit, etc.)
 ) -> Decision: ...
 
@@ -166,7 +166,7 @@ class ClaimPolicyView(Protocol):
 
 def is_claim_author(user: PolicyUser, claim: ClaimPolicyView, context) -> Decision:
     if claim.author_id != user.id:
-        return Deny(DenialCode.ROLE_REQUIRED)
+        return Deny(DenialCode.OWNER_REQUIRED)
     return Allow()
 
 def claim_not_locked(user: PolicyUser, claim: ClaimPolicyView, context) -> Decision:
@@ -258,10 +258,12 @@ Multiple predicates can fail simultaneously (unverified email and deactivated ac
 2. `account_deactivated` — `is_active` is false (self-deactivated, dormant cleanup, etc.)
 3. `account_banned` — explicit ban (added when banning ships; separate from `account_deactivated` so the SPA can render different copy)
 4. `role_required` — moderator/admin needed
-5. `verification_required` — email not verified
-6. `rate_limited` — soft, retry possible
+5. `owner_required` — target row belongs to another user (e.g. undoing someone else's changeset)
+6. `verification_required` — email not verified
+7. `experience_required` — user hasn't accumulated the privilege threshold yet (e.g. reverting others' claims)
+8. `rate_limited` — soft, retry possible
 
-Telling a deactivated user to verify their email is the wrong UX; the priority order is what prevents that. The same logic puts `role_required` above `verification_required`: an unverified non-moderator who tries a moderator-only action should hear "moderator only," not "verify your email" — verifying won't grant them the access they're after, so the role message is the more useful one. The order is global to the registry, not per-activity.
+Telling a deactivated user to verify their email is the wrong UX; the priority order is what prevents that. The same logic puts `role_required` above `verification_required`: an unverified non-moderator who tries a moderator-only action should hear "moderator only," not "verify your email" — verifying won't grant them the access they're after, so the role message is the more useful one. `owner_required` sits between `role_required` and `verification_required` for the same reason — an unverified non-author trying to undo someone else's changeset should hear "not yours," not "verify your email" (verification won't grant ownership), but a future moderator-override path should still surface "moderator only" when relevant. `experience_required` sits below `verification_required` because verification is more actionable (one-click confirm vs. accumulate N edits) — an unverified user with too few edits should hear "verify your email" first. The order is global to the registry, not per-activity.
 
 ### Audit logging
 
@@ -452,7 +454,7 @@ Backend + frontend changes for the target-less capabilities surface. Capabilitie
 
 This is the phase that lets target-less affordances (create buttons, top-level New entries, Nav rows) gate on policy verdicts instead of role flags or "are they logged in."
 
-### 8. Per-resource capabilities
+### ✅ DONE: 8. Per-resource capabilities
 
 This phase introduces target-aware rules by codifying one rule that already exists imperatively in the codebase: `changeset.undo`'s author scoping. **This is not a tightening or changing of what a user can do** — every user who can undo today can undo after Phase 8, with identical constraints. The change is structural: the rule moves from imperative code into the policy module, and the SPA gains per-row verdicts so it can render the Undo affordance correctly instead of showing it for changesets the user can't actually undo.
 

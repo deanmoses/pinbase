@@ -33,7 +33,11 @@ from ninja import NinjaAPI
 
 from apps.accounts.models import User
 from apps.core.authz import enforce
-from apps.core.authz.exceptions import _DENIAL_MESSAGE, PolicyDeniedError
+from apps.core.authz.exceptions import (
+    _DENIAL_MESSAGE,
+    PolicyDeniedError,
+    _resolve_message,
+)
 from apps.core.authz.markers import get_required_activity, requires
 from apps.core.authz.route_walker import iter_operations
 from apps.core.authz.test_factories import StubPolicyUser
@@ -236,7 +240,7 @@ def test_policy_denied_serializes_as_structured_403() -> None:
     assert resp.json() == {
         "detail": {
             "kind": "policy_denied",
-            "message": _DENIAL_MESSAGE[DenialCode.ACCOUNT_DEACTIVATED],
+            "message": _resolve_message(Deny(DenialCode.ACCOUNT_DEACTIVATED)),
             "code": "account_deactivated",
             "context": {"hint": "contact support"},
         }
@@ -380,7 +384,7 @@ def test_requires_denies_with_structured_403_when_check_returns_deny(
     assert resp.json() == {
         "detail": {
             "kind": "policy_denied",
-            "message": _DENIAL_MESSAGE[DenialCode.ACCOUNT_DEACTIVATED],
+            "message": _resolve_message(Deny(DenialCode.ACCOUNT_DEACTIVATED)),
             "code": "account_deactivated",
             "context": {},
         }
@@ -453,7 +457,7 @@ def test_unverified_user_gets_structured_403_with_verification_required(
     assert resp.json() == {
         "detail": {
             "kind": "policy_denied",
-            "message": _DENIAL_MESSAGE[DenialCode.VERIFICATION_REQUIRED],
+            "message": _resolve_message(Deny(DenialCode.VERIFICATION_REQUIRED)),
             "code": "verification_required",
             "context": {},
         }

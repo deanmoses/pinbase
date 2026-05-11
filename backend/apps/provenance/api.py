@@ -141,7 +141,6 @@ changesets_router = Router(tags=["changesets", "private"])
     auth=django_auth,
     response={
         204: None,
-        403: ErrorDetailSchema,
         404: ErrorDetailSchema,
         422: ErrorDetailSchema,
     },

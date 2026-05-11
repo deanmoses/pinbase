@@ -50,6 +50,7 @@ class DenialCode(StrEnum):
     ROLE_REQUIRED = "role_required"
     OWNER_REQUIRED = "owner_required"
     VERIFICATION_REQUIRED = "verification_required"
+    EXPERIENCE_REQUIRED = "experience_required"
     RATE_LIMITED = "rate_limited"
 
 
@@ -62,13 +63,17 @@ class DenialCode(StrEnum):
 # to undo someone else's changeset should hear "not yours," not "verify
 # your email" — verifying won't grant ownership. OWNER sits below ROLE
 # so a future moderator-override path (if ever added) can still surface
-# "moderator only" copy when relevant.
+# "moderator only" copy when relevant. EXPERIENCE sits below VERIFICATION
+# because verification is more actionable (one-click confirm vs. accumulate
+# N edits) — an unverified user with too few edits should hear "verify
+# your email" first.
 DENIAL_PRIORITY: tuple[DenialCode, ...] = (
     DenialCode.AUTH_REQUIRED,
     DenialCode.ACCOUNT_DEACTIVATED,
     DenialCode.ROLE_REQUIRED,
     DenialCode.OWNER_REQUIRED,
     DenialCode.VERIFICATION_REQUIRED,
+    DenialCode.EXPERIENCE_REQUIRED,
     DenialCode.RATE_LIMITED,
 )
 
