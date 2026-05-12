@@ -403,8 +403,19 @@ a:hover {
   color: var(--color-text-muted);
 }
 
+/* Invalid: red border, plus an inset 1px shadow on unfocused inputs to
+   thicken the border to 2px-effective without layout shift. In light
+   mode of the default theme the error red and tan input border read as
+   similar warm strokes at 1px; doubling the weight keeps "invalid" loud
+   across every theme without a per-theme `--color-input-invalid` token.
+   The `:not(:focus)` carve-out lets the focus ring above show through
+   on focused-invalid — the red border still signals the invalid state. */
 :where(input, textarea, select)[aria-invalid='true'] {
   border-color: var(--color-error-text);
+}
+
+:where(input, textarea, select)[aria-invalid='true']:not(:focus) {
+  box-shadow: inset 0 0 0 1px var(--color-error-text);
 }
 
 /* ========================================
