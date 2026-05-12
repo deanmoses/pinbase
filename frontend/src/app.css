@@ -115,8 +115,39 @@
   --color-input-focus: #0078d4;
   --color-input-focus-ring: var(--color-focus-ring);
 
+  /* ---- Header chrome (warm paper tones, intentionally distinct from
+     --color-bg / --color-text to make the sticky nav read as its own
+     surface). Dark mode flips bg to a deep warm brown and lets text
+     fall back to the page text tokens. */
+  --color-header-bg: #efe8dc;
+  --color-header-text: #3d3529;
+  --color-header-text-muted: #6b5d4d;
+
+  /* ---- Card (polaroid-style listing cards: Card.svelte and friends).
+     Distinct from the white `--color-surface` family used by tooltips,
+     drawers, MediaCard, etc. `-bg-dim` is a recessed/placeholder
+     variant within the card body. */
+  --color-card-bg: #faf6f0;
+  --color-card-bg-dim: #e8e0d4;
+  --color-card-text: #3d3529;
+  /* Folded-corner variants: the lit and shadowed sides of a creased/
+     dog-eared card edge. WearEffect.svelte dims these via filter in
+     dark mode rather than redefining them, so no dark-mode override. */
+  --color-card-fold-light: #e8e0d0;
+  --color-card-fold-dark: #ded5c4;
+  /* Aged-paper tint applied as a translucent overlay on cards. Consumers
+     mix this token with `transparent` at a randomized per-card alpha
+     (see Card.svelte `--paper-yellow`) so the strength varies but the
+     hue is a single brand decision. */
+  --color-card-tint: #b49650;
+
   /* ---- Highlight ---- */
   --color-highlight-bg: #fff3cd; /* inline marks / search hits */
+
+  /* ---- Featured (theme-INVARIANT — accents a "chosen one" affordance,
+     e.g. the star on a primary image badge). Warm gold; sits over
+     arbitrary photo content, not a themed surface. */
+  --color-featured: #e8b923;
 
   /* ---- Diff (special-purpose) ---- */
   --color-diff-ins-bg: rgb(22 163 74 / 0.15);
@@ -231,6 +262,17 @@
     --color-input-border: #404040;
     --color-input-focus: #0078d4;
     --color-input-focus-ring: rgb(0 120 212 / 0.25);
+
+    /* ---- Header chrome ---- */
+    --color-header-bg: #26221d;
+    --color-header-text: var(--color-text);
+    --color-header-text-muted: var(--color-text-muted);
+
+    /* ---- Card ---- */
+    --color-card-bg: #2e2a24;
+    --color-card-bg-dim: #3a342b;
+    --color-card-text: #c8bfb0;
+    --color-card-tint: #8c6e3c;
 
     /* ---- Highlight ---- */
     --color-highlight-bg: rgb(251 191 36 / 0.2);

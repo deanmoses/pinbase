@@ -135,8 +135,12 @@
     position: absolute;
     bottom: var(--size-1);
     left: var(--size-1);
+    /* Badge scrim is intentionally more opaque than --color-scrim (0.5):
+       it sits over arbitrary photo content and needs to guarantee legibility
+       of the small label, not just dim the layer below. */
+    /* stylelint-disable-next-line function-disallowed-list */
     background: rgba(0, 0, 0, 0.65);
-    color: #fff;
+    color: var(--color-text-inverse);
     font-size: var(--font-size-0);
     padding: 0.1em 0.4em;
     border-radius: var(--radius-1);
@@ -153,9 +157,12 @@
     position: absolute;
     top: var(--size-1);
     right: var(--size-1);
-    color: #f5c518;
+    color: var(--color-featured);
     font-size: 1.25rem;
     line-height: 1;
+    /* Drop-shadow color is a filter primitive, not a themed surface color —
+       a literal black w/ alpha is the right tool here. */
+    /* stylelint-disable-next-line function-disallowed-list */
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
   }
 

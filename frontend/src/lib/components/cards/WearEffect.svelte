@@ -48,8 +48,8 @@
       135deg,
       rgba(0, 0, 0, 0.06) 0%,
       rgba(0, 0, 0, 0.02) 50%,
-      var(--polaroid-fold-light, #e8e0d0) 50%,
-      var(--polaroid-fold-dark, #ded5c4) 100%
+      var(--color-card-fold-light) 50%,
+      var(--color-card-fold-dark) 100%
     );
   }
 
@@ -71,8 +71,8 @@
       225deg,
       rgba(0, 0, 0, 0.06) 0%,
       rgba(0, 0, 0, 0.02) 50%,
-      var(--polaroid-fold-light, #e8e0d0) 50%,
-      var(--polaroid-fold-dark, #ded5c4) 100%
+      var(--color-card-fold-light) 50%,
+      var(--color-card-fold-dark) 100%
     );
   }
   .dog-ear--tr::after {
@@ -89,8 +89,8 @@
       315deg,
       rgba(0, 0, 0, 0.06) 0%,
       rgba(0, 0, 0, 0.02) 50%,
-      var(--polaroid-fold-light, #e8e0d0) 50%,
-      var(--polaroid-fold-dark, #ded5c4) 100%
+      var(--color-card-fold-light) 50%,
+      var(--color-card-fold-dark) 100%
     );
   }
   .dog-ear--tl::after {
@@ -105,8 +105,8 @@
   .dog-ear--br::before {
     background: linear-gradient(
       135deg,
-      var(--polaroid-fold-light, #e8e0d0) 0%,
-      var(--polaroid-fold-dark, #ded5c4) 50%,
+      var(--color-card-fold-light) 0%,
+      var(--color-card-fold-dark) 50%,
       rgba(0, 0, 0, 0.02) 50%,
       rgba(0, 0, 0, 0.06) 100%
     );
@@ -125,8 +125,8 @@
       45deg,
       rgba(0, 0, 0, 0.06) 0%,
       rgba(0, 0, 0, 0.02) 50%,
-      var(--polaroid-fold-light, #e8e0d0) 50%,
-      var(--polaroid-fold-dark, #ded5c4) 100%
+      var(--color-card-fold-light) 50%,
+      var(--color-card-fold-dark) 100%
     );
   }
   .dog-ear--bl::after {

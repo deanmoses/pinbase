@@ -229,15 +229,10 @@
   }
 
   .site-header {
-    /* Color tokens — overridden in dark mode */
-    --header-bg: #efe8dc;
-    --header-ink: #3d3529;
-    --header-ink-muted: #6b5d4d;
-
     position: sticky;
     top: 0;
     z-index: var(--z-header);
-    background-color: var(--header-bg);
+    background-color: var(--color-header-bg);
     border-bottom: none;
   }
 
@@ -246,6 +241,10 @@
     content: '';
     position: absolute;
     inset: 0;
+    /* Paper-grain texture: stops are intentionally near-transparent black,
+       not themed colors. Promoting these to tokens would add indirection
+       without enabling any real retheming. */
+    /* stylelint-disable function-disallowed-list */
     background: repeating-linear-gradient(
       0deg,
       transparent,
@@ -253,6 +252,7 @@
       rgba(0, 0, 0, 0.01) 2px,
       rgba(0, 0, 0, 0.01) 4px
     );
+    /* stylelint-enable function-disallowed-list */
     pointer-events: none;
     z-index: 1;
   }
@@ -264,7 +264,7 @@
     left: 0;
     right: 0;
     height: 8px;
-    background: var(--header-bg);
+    background: var(--color-header-bg);
     pointer-events: none;
     z-index: 3;
   }
@@ -284,7 +284,7 @@
   .site-title {
     font-size: var(--font-size-4);
     font-weight: 700;
-    color: var(--header-ink);
+    color: var(--color-header-text);
     text-decoration: none;
   }
 
@@ -298,7 +298,7 @@
   }
 
   .nav-link {
-    color: var(--header-ink-muted);
+    color: var(--color-header-text-muted);
     text-decoration: none;
     font-size: var(--font-size-2);
     font-weight: 500;
@@ -310,7 +310,7 @@
   }
 
   .nav-link:hover {
-    color: var(--header-ink);
+    color: var(--color-header-text);
   }
 
   .nav-link.active {
@@ -325,7 +325,7 @@
   }
 
   .search-link {
-    color: var(--header-ink-muted);
+    color: var(--color-header-text-muted);
     padding: var(--size-1);
     display: flex;
     align-items: center;
@@ -333,7 +333,7 @@
   }
 
   .search-link:hover {
-    color: var(--header-ink);
+    color: var(--color-header-text);
   }
 
   .search-link.active {
@@ -342,14 +342,14 @@
 
   .auth-link {
     font-size: var(--font-size-2);
-    color: var(--header-ink-muted);
+    color: var(--color-header-text-muted);
     text-decoration: none;
     font-weight: 500;
     transition: color 0.15s var(--ease-2);
   }
 
   .auth-link:hover {
-    color: var(--header-ink);
+    color: var(--color-header-text);
   }
 
   /* Hamburger / desktop-account wrappers: ActionMenu's `bare` trigger inherits
@@ -364,13 +364,13 @@
     --menu-section-header-font-size: 0.875rem;
     display: flex;
     align-items: center;
-    color: var(--header-ink-muted);
+    color: var(--color-header-text-muted);
     transition: color 0.15s var(--ease-2);
   }
 
   .hamburger:hover,
   .desktop-account:hover {
-    color: var(--header-ink);
+    color: var(--color-header-text);
   }
 
   /* ── Three responsive tiers ──
@@ -421,12 +421,8 @@
 
   /* ---- Dark mode ---- */
   @media (prefers-color-scheme: dark) {
-    .site-header {
-      --header-bg: #26221d;
-      --header-ink: var(--color-text);
-      --header-ink-muted: var(--color-text-muted);
-    }
-
+    /* Paper grain is a light-mode-only flourish; in dark mode the
+       low-contrast stops vanish into the bg anyway, so skip the layer. */
     .site-header::before {
       background: none;
     }
