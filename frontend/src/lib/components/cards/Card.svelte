@@ -1,3 +1,8 @@
+<script lang="ts" module>
+  export type CardDistressType = 'none' | 'dog-ear' | 'crease' | 'torn-corner';
+  export type CardDistressCorner = 'tr' | 'tl' | 'br' | 'bl';
+</script>
+
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import CoffeeStain from '../effects/CoffeeStain.svelte';
@@ -7,11 +12,21 @@
     href,
     title,
     thumbnailUrl = null,
+    distressType = undefined,
+    distressCorner = undefined,
+    distressEarSize = undefined,
+    distressCreaseAngle = undefined,
+    distressCreasePos = undefined,
     children = undefined,
   }: {
     href: string;
     title: string;
     thumbnailUrl?: string | null;
+    distressType?: CardDistressType;
+    distressCorner?: CardDistressCorner;
+    distressEarSize?: number;
+    distressCreaseAngle?: number;
+    distressCreasePos?: number;
     children?: Snippet;
   } = $props();
 
@@ -35,9 +50,8 @@
   const paperYellow = `${rand(0.03, 0.08)}`;
 
   // Wear effect: ~40% of cards get one
-  type WearType = 'none' | 'dog-ear' | 'crease' | 'torn-corner';
   const wearRoll = Math.random();
-  const wearType: WearType =
+  const randomWearType: CardDistressType =
     wearRoll < 0.6
       ? 'none'
       : wearRoll < 0.73
@@ -47,10 +61,16 @@
           : 'torn-corner';
 
   const corners = ['tr', 'tl', 'br', 'bl'] as const;
-  const wearCorner = corners[randInt(corners.length)];
-  const creaseAngle = -25 + Math.random() * 50;
-  const creasePos = 30 + Math.random() * 40;
-  const earSize = 1 + Math.random() * 0.8;
+  const randomWearCorner = corners[randInt(corners.length)];
+  const randomCreaseAngle = -25 + Math.random() * 50;
+  const randomCreasePos = 30 + Math.random() * 40;
+  const randomEarSize = 1 + Math.random() * 0.8;
+
+  const wearType = $derived(distressType ?? randomWearType);
+  const wearCorner = $derived(distressCorner ?? randomWearCorner);
+  const creaseAngle = $derived(distressCreaseAngle ?? randomCreaseAngle);
+  const creasePos = $derived(distressCreasePos ?? randomCreasePos);
+  const earSize = $derived(distressEarSize ?? randomEarSize);
 </script>
 
 <!-- Film grain filter definition -->
@@ -74,6 +94,8 @@
 <a
   {href}
   class="card"
+  data-wear-type={wearType}
+  data-wear-corner={wearCorner}
   style:--rotation={rotation}
   style:--sepia={sepia}
   style:--brightness={brightness}
@@ -81,6 +103,7 @@
   style:--saturate={saturate}
   style:--paper-yellow={paperYellow}
   style:--grain-url="url(#{grainId})"
+  style:--ear-size="{earSize}rem"
 >
   <div class="card-photo">
     {#if thumbnailUrl}
@@ -179,6 +202,37 @@
     position: relative;
     overflow: hidden;
     border-radius: 1px;
+  }
+
+  /* When a dog-ear sits over a top corner of the photo, clip the photo's
+     corner along the fold's diagonal so the photo edge follows the fold
+     instead of running straight past it. The dog-ear box (var(--ear-size))
+     is anchored to .card's outer edge, which is 0.6rem outside .card-photo
+     (.card has 0.6rem horizontal/top padding). The fold line crosses
+     .card-photo only when ear-size > 1.1rem; below that, the calc()s go
+     negative and the clip is a no-op. The 1.1rem (instead of 1.2rem, the
+     exact geometric inset) overshoots the fold diagonal by ~0.1rem so
+     sub-pixel anti-aliasing on both the clip and the gradient's 50% stop
+     can't leak a sliver of photo at the fold. The overshoot lands inside
+     the fold's opaque half and is invisibly covered. */
+  .card[data-wear-type='dog-ear'][data-wear-corner='tl'] .card-photo {
+    clip-path: polygon(
+      calc(var(--ear-size) - 1.1rem) 0,
+      100% 0,
+      100% 100%,
+      0 100%,
+      0 calc(var(--ear-size) - 1.1rem)
+    );
+  }
+
+  .card[data-wear-type='dog-ear'][data-wear-corner='tr'] .card-photo {
+    clip-path: polygon(
+      0 0,
+      calc(100% + 1.1rem - var(--ear-size)) 0,
+      100% calc(var(--ear-size) - 1.1rem),
+      100% 100%,
+      0 100%
+    );
   }
 
   .card-img {

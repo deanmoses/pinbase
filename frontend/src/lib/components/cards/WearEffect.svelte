@@ -86,7 +86,7 @@
   }
   .dog-ear--tl::before {
     background: linear-gradient(
-      315deg,
+      135deg,
       rgba(0, 0, 0, 0.06) 0%,
       rgba(0, 0, 0, 0.02) 50%,
       var(--color-card-fold-light) 50%,
