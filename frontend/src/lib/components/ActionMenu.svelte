@@ -206,6 +206,22 @@
       document.removeEventListener('focusin', handleFocusIn);
     };
   });
+
+  // Close if the trigger is hidden out from under us (e.g. a responsive
+  // breakpoint swaps which trigger is rendered). The menu is portaled to
+  // <body>, so it would otherwise stay visible and get repositioned against
+  // a zero-sized anchor.
+  $effect(() => {
+    if (!open || !triggerEl) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect && rect.width === 0 && rect.height === 0) closeMenu();
+    });
+    observer.observe(triggerEl);
+
+    return () => observer.disconnect();
+  });
 </script>
 
 <button
