@@ -97,6 +97,58 @@ describe('title layout', () => {
     expect(body).not.toContain('History');
   });
 
+  it('renders History and Sources as menu triggers on single-Model titles', () => {
+    // On single-Model titles the action bar swaps the plain History link and
+    // the existing "Tools" Sources menu for two-item dropdowns that surface
+    // the Model's audit pages alongside the Title's. Menu items themselves
+    // render in a portal on click and aren't observable via SSR — those are
+    // covered by EditSectionMenu.dom.test.ts. Here we verify the layout
+    // selects the menu shape instead of the plain link when model_detail is
+    // populated.
+    pageState.params.slug = 'doctor-who';
+    pageState.url = new URL('http://localhost:5173/titles/doctor-who');
+
+    const singleModelTitle = {
+      ...MOCK_TITLE,
+      name: 'Doctor Who',
+      slug: 'doctor-who',
+      model_detail: {
+        name: 'Doctor Who',
+        slug: 'doctor-who-1992',
+        description: { text: '', html: '', citations: [], attribution: null },
+        abbreviations: [],
+        extra_data: {},
+        credits: [],
+        sources: [],
+        uploaded_media: [],
+        variant_features: [],
+        variants: [],
+        themes: [],
+        gameplay_features: [],
+        tags: [],
+        reward_types: [],
+        variant_siblings: [],
+        conversions: [],
+        remakes: [],
+        title_models: [],
+        production_quantity: '',
+      },
+    };
+
+    const { body } = render(Harness, {
+      props: { data: { title: singleModelTitle } } as never,
+    });
+
+    // Two ActionMenu triggers: History and Sources. (Multi-Model titles have
+    // just one — the Sources/Tools menu.)
+    const triggerCount = (body.match(/aria-haspopup="menu"/g) ?? []).length;
+    expect(triggerCount).toBe(2);
+
+    // The plain "<a href=…/edit-history>History" link from the multi-Model
+    // shape is suppressed when the menu takes over.
+    expect(body).not.toMatch(/<a[^>]+href="[^"]*\/edit-history"[^>]*>\s*History/);
+  });
+
   it('renders direct edit links on editable title sidebar sections when authenticated', () => {
     authState.isAuthenticated = true;
 

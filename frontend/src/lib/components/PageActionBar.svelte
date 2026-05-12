@@ -11,6 +11,10 @@
     editDropdowns?: EditSectionDropdown[];
     historyHref?: string;
     sourcesHref?: string;
+    /** When set, renders History as a dropdown (e.g. single-model title: "Title History" + "Model History") instead of historyHref. */
+    historyMenu?: EditSectionMenuItem[];
+    /** When set, renders Sources as a dropdown instead of sourcesHref. */
+    sourcesMenu?: EditSectionMenuItem[];
   };
 
   let {
@@ -20,6 +24,8 @@
     editDropdowns,
     historyHref,
     sourcesHref,
+    historyMenu,
+    sourcesMenu,
   }: Props = $props();
 </script>
 
@@ -37,10 +43,14 @@
     {:else if editHref}
       <a href={editHref}>Edit</a>
     {/if}
-    {#if historyHref}
+    {#if historyMenu && historyMenu.length > 0}
+      <EditSectionMenu label="History" items={historyMenu} />
+    {:else if historyHref}
       <a href={historyHref}>History</a>
     {/if}
-    {#if sourcesHref}
+    {#if sourcesMenu && sourcesMenu.length > 0}
+      <EditSectionMenu label="Sources" items={sourcesMenu} />
+    {:else if sourcesHref}
       <ActionMenu label="Tools">
         <a class="tools-item" href={sourcesHref} role="menuitem">Sources</a>
       </ActionMenu>

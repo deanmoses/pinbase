@@ -228,6 +228,8 @@ Prefer NamedTuple, dataclass, or TypedDict. For the full catalogue and legitimat
 
 See [DomainModel.md](DomainModel.md) for the catalog entity hierarchy (Title → Model, variants, remakes, manufacturers, taxonomy, etc.).
 
+See [SingleModelTitles.md](SingleModelTitles.md) for how the catalog handles Titles with exactly one Model — the UI collapse rule, the asymmetric Title/Model info split, and the description forward-compat rule.
+
 See [docs/DataModeling.md](DataModeling.md) for modeling principles, Django pitfalls, and constraint testing patterns. Key rules:
 
 - **Validate strictly** — start with the tightest constraint you can defend. Relaxing is a one-line migration; tightening requires auditing every row.

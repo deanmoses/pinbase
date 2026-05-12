@@ -172,6 +172,42 @@
 
   let editSectionsForBar = $derived(auth.isAuthenticated ? switcherItems : undefined);
 
+  // On single-Model Titles the Model's detail URL redirects to the Title,
+  // so the Model's audit subroutes are otherwise unreachable from the UI —
+  // surface them here alongside the Title's. See docs/SingleModelTitles.md.
+  let historyMenu: EditSectionMenuItem[] | undefined = $derived(
+    md
+      ? [
+          {
+            key: 'title',
+            label: 'Title History',
+            href: resolve(`/titles/${slug}/edit-history`),
+          },
+          {
+            key: 'model',
+            label: 'Model History',
+            href: resolve(`/models/${md.slug}/edit-history`),
+          },
+        ]
+      : undefined,
+  );
+  let sourcesMenu: EditSectionMenuItem[] | undefined = $derived(
+    md
+      ? [
+          {
+            key: 'title',
+            label: 'Title Sources',
+            href: resolve(`/titles/${slug}/sources`),
+          },
+          {
+            key: 'model',
+            label: 'Model Sources',
+            href: resolve(`/models/${md.slug}/sources`),
+          },
+        ]
+      : undefined,
+  );
+
   function editAction(key: CombinedSectionKey): (() => void) | undefined {
     if (!auth.isAuthenticated) return undefined;
     return getMenuItemAction(switcherItems, key, (href) => goto(href));
@@ -201,6 +237,8 @@
       editSections={editSectionsForBar}
       historyHref={resolve(`/titles/${slug}/edit-history`)}
       sourcesHref={resolve(`/titles/${slug}/sources`)}
+      {historyMenu}
+      {sourcesMenu}
     />
   {/snippet}
 
