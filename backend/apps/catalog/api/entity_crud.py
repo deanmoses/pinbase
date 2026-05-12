@@ -418,7 +418,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         request: HttpRequest,
         data: EntityCreateInputSchema,
         parent: CatalogModel | None = None,
-    ) -> Status[Any]:
+    ) -> Status[SchemaT]:
         check_and_record(request.user, CREATE_RATE_LIMIT_SPEC)
 
         scope_filter = (
@@ -492,7 +492,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
             request: HttpRequest,
             parent_public_id: str,
             data: request_body_schema,  # type: ignore[valid-type]
-        ) -> Status[Any]:
+        ) -> Status[SchemaT]:
             parent = get_object_or_404(
                 parent_model.objects.active(),
                 **{parent_lookup_field: parent_public_id},
@@ -516,7 +516,7 @@ def register_entity_create[ModelT: CatalogModel, SchemaT: Schema](
         def _create_unparented(
             request: HttpRequest,
             data: request_body_schema,  # type: ignore[valid-type]
-        ) -> Status[Any]:
+        ) -> Status[SchemaT]:
             return _do_create(request, data)
 
         _create_unparented.__name__ = f"{entity_label.lower()}_create{op_id_suffix}"

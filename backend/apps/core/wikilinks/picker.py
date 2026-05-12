@@ -24,6 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from apps.core.models import LinkableModel
 from apps.core.schemas import LinkTargetSchema
 
 FLOWS = ("standard", "custom")
@@ -54,7 +55,7 @@ class PickerType:
     autocomplete_search_fields: tuple[str, ...] = ()
     autocomplete_ordering: tuple[str, ...] = ()
     autocomplete_select_related: tuple[str, ...] = ()
-    autocomplete_serialize: Callable[[Any], LinkTargetSchema] | None = None
+    autocomplete_serialize: Callable[[LinkableModel], LinkTargetSchema] | None = None
 
     # --- Runtime toggle (evaluated at usage time, not registration time) ---
     is_enabled: Callable[[], bool] = field(default=lambda: True)
