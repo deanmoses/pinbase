@@ -84,6 +84,7 @@
       <MenuSectionHeader>admin</MenuSectionHeader>
       {#if auth.can('kiosk.edit')}
         <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
+        <MenuItem href={resolve('/style-lab')} current={isActive('/style-lab')}>Style Lab</MenuItem>
       {/if}
       {#if auth.can('django_admin.access')}
         <MenuItem href="/admin/" reload>Django Admin</MenuItem>
@@ -122,7 +123,6 @@
       >
         <FaIcon icon={faMagnifyingGlass} size="1.1rem" />
       </a>
-
       {#if auth.loaded}
         <div class="desktop-account">
           {#if auth.isAuthenticated}
@@ -407,7 +407,7 @@
   }
 
   .header-stains {
-    display: none;
+    display: var(--header-stains-display, none);
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -415,7 +415,7 @@
 
   @media (prefers-color-scheme: light) {
     .header-stains {
-      display: block;
+      display: var(--header-stains-display, block);
     }
   }
 
