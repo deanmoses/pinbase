@@ -87,7 +87,7 @@
     position: fixed;
     inset: 0;
     z-index: var(--z-modal);
-    background: rgba(0, 0, 0, 0.85);
+    background: var(--color-scrim-strong);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -125,7 +125,7 @@
     right: -0.5rem;
     background: none;
     border: none;
-    color: #fff;
+    color: var(--color-text-inverse);
     font-size: 2rem;
     cursor: pointer;
     padding: var(--size-1);
@@ -141,9 +141,9 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--color-scrim);
     border: none;
-    color: #fff;
+    color: var(--color-text-inverse);
     font-size: 2.5rem;
     padding: var(--size-2) var(--size-3);
     cursor: pointer;
@@ -172,7 +172,7 @@
     justify-content: center;
     gap: var(--size-3);
     margin-top: var(--size-2);
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-inverse-muted);
     font-size: var(--font-size-1);
   }
 

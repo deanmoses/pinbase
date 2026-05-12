@@ -150,7 +150,7 @@
       display: block;
       position: fixed;
       inset: 0;
-      background-color: rgba(0, 0, 0, 0.4);
+      background-color: var(--color-scrim);
       z-index: var(--z-drawer);
     }
   }

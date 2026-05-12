@@ -153,14 +153,9 @@ module.exports = {
     // each file is cleaned up.
     {
       files: [
-        'src/lib/components/Modal.svelte',
-        'src/lib/components/CitationTooltip.svelte',
-        'src/lib/components/FilterDrawer.svelte',
-        'src/lib/components/ActionMenu.svelte',
         'src/lib/components/Nav.svelte',
         'src/lib/components/cards/WearEffect.svelte',
         'src/lib/components/cards/Card.svelte',
-        'src/lib/components/media/MediaLightbox.svelte',
         'src/lib/components/media/MediaCard.svelte',
       ],
       rules: {

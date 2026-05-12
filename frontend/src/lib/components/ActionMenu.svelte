@@ -274,8 +274,8 @@
   }
 
   .trigger.pill {
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
+    background: var(--color-scrim);
+    color: var(--color-text-inverse);
     font-size: var(--font-size-0);
     padding: 0.1em 0.4em;
     border-radius: var(--radius-1);
@@ -283,8 +283,8 @@
 
   .trigger.pill:hover,
   .trigger.pill[aria-expanded='true'] {
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
+    background: var(--color-scrim-strong);
+    color: var(--color-text-inverse);
   }
 
   .trigger:hover,
