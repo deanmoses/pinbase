@@ -149,17 +149,13 @@ module.exports = {
         'csstools/value-no-unknown-custom-properties': null,
       },
     },
-    // Components with pre-stylelint hex/rgb violations. Remove entries as
-    // each file is cleaned up.
+    // Components whose decorative texture is built from many rgba black/
+    // white gradient stops (shadow/highlight intensities, not themed
+    // colors). Promoting these to tokens would add indirection without
+    // enabling retheming. Intentional exception, not a cleanup target.
     {
-      files: [
-        'src/lib/components/Nav.svelte',
-        'src/lib/components/cards/WearEffect.svelte',
-        'src/lib/components/cards/Card.svelte',
-        'src/lib/components/media/MediaCard.svelte',
-      ],
+      files: ['src/lib/components/cards/WearEffect.svelte'],
       rules: {
-        'color-no-hex': null,
         'function-disallowed-list': null,
       },
     },

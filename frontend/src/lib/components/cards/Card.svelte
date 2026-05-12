@@ -135,15 +135,10 @@
   }
 
   .card {
-    /* Color tokens — overridden in dark mode */
-    --polaroid-paper: #faf6f0;
-    --polaroid-paper-dim: #e8e0d4;
-    --polaroid-ink: #3d3529;
-
     position: relative;
     display: flex;
     flex-direction: column;
-    background-color: var(--polaroid-paper);
+    background-color: var(--color-card-bg);
     border: none;
     border-radius: 2px;
     overflow: hidden;
@@ -157,12 +152,18 @@
       box-shadow 0.2s ease;
   }
 
-  /* Yellowed paper tint overlay */
+  /* Yellowed paper tint overlay. Hue is the themed --color-card-tint
+     (dimmer in dark mode); alpha is randomized per-card via --paper-yellow
+     so individual cards age unevenly. */
   .card::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: rgba(180, 150, 80, var(--paper-yellow, 0.05));
+    background: color-mix(
+      in srgb,
+      var(--color-card-tint) calc(var(--paper-yellow, 0.05) * 100%),
+      transparent
+    );
     pointer-events: none;
     border-radius: 2px;
     z-index: 2;
@@ -191,7 +192,7 @@
   .card-img-placeholder {
     width: 100%;
     height: 8rem;
-    background-color: var(--polaroid-paper-dim);
+    background-color: var(--color-card-bg-dim);
   }
 
   .card-body {
@@ -201,22 +202,12 @@
   .card-title {
     font-size: var(--font-size-2);
     font-weight: 600;
-    color: var(--polaroid-ink);
+    color: var(--color-card-text);
     margin-bottom: var(--size-1);
   }
 
   /* ---- Dark mode ---- */
   @media (prefers-color-scheme: dark) {
-    .card {
-      --polaroid-paper: #2e2a24;
-      --polaroid-paper-dim: #3a342b;
-      --polaroid-ink: #c8bfb0;
-    }
-
-    .card::before {
-      background: rgba(140, 110, 60, var(--paper-yellow, 0.05));
-    }
-
     .card-img {
       filter: var(--grain-url) sepia(var(--sepia, 0.5))
         brightness(calc(var(--brightness, 0.95) * 0.85)) contrast(var(--contrast, 0.9))
