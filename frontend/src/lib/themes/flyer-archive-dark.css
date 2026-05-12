@@ -1,0 +1,65 @@
+:root[data-theme='flyer-archive-dark'] {
+  color-scheme: dark;
+  --theme-bg-pattern:
+    radial-gradient(circle at 1px 1px, rgb(255 214 68 / 0.11) 1px, transparent 0),
+    linear-gradient(135deg, rgb(232 56 37 / 0.12), transparent 30%),
+    linear-gradient(315deg, rgb(0 165 190 / 0.1), transparent 36%);
+  --theme-bg-pattern-size: 9px 9px, 100% 100%, 100% 100%;
+
+  --color-bg: #1d1713;
+  --color-surface: #2a211a;
+  --color-surface-elevated: #34281f;
+  --color-surface-muted: #17110e;
+  --color-surface-inverse: #070504;
+
+  --color-text: #f6e7c6;
+  --color-text-muted: #c9a981;
+
+  --color-border: #7b5f45;
+  --color-border-soft: #4a382a;
+
+  --color-accent: #00a5be;
+  --color-accent-hover: #31c7dc;
+  --color-accent-soft: rgb(0 165 190 / 0.16);
+  --color-accent-border: rgb(0 165 190 / 0.48);
+  --color-link: #45d6e8;
+  --color-focus-ring: rgb(69 214 232 / 0.38);
+
+  --color-text-disabled: #8f765c;
+  --color-bg-disabled: #2e251d;
+  --color-border-disabled: #493727;
+
+  --color-success-bg: rgb(126 188 65 / 0.16);
+  --color-success-border: #587b30;
+  --color-success-text: #a8e063;
+  --color-warning-bg: rgb(255 214 68 / 0.16);
+  --color-warning-border: #84681d;
+  --color-warning-text: #ffd644;
+  --color-error-bg: rgb(232 56 37 / 0.16);
+  --color-error-border: #84382d;
+  --color-error-text: #ff7b5f;
+  --color-info-bg: rgb(69 214 232 / 0.12);
+  --color-info-border: #23616c;
+  --color-info-text: #45d6e8;
+
+  --color-input-bg: #241c16;
+  --color-input-border: #6d533a;
+  --color-input-focus: #00a5be;
+  --color-input-focus-ring: var(--color-focus-ring);
+
+  --color-header-bg: #0e0a08;
+  --color-header-text: #ffd644;
+  --color-header-text-muted: #e7b776;
+
+  --color-card-bg: #342819;
+  --color-card-bg-dim: #49351f;
+  --color-card-text: #ffe6ac;
+  --color-card-tint: #e83825;
+  --color-highlight-bg: rgb(255 214 68 / 0.24);
+
+  --color-diff-ins-bg: rgb(168 224 99 / 0.24);
+  --color-diff-del-bg: rgb(255 123 95 / 0.24);
+
+  --shadow-color: 24 60% 2%;
+  --shadow-strength: 30%;
+}

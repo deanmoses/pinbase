@@ -1,0 +1,67 @@
+:root[data-theme='flyer-archive-light'] {
+  color-scheme: light;
+  --header-stains-display: none;
+  --theme-bg-pattern:
+    radial-gradient(circle at 1px 1px, rgb(33 25 20 / 0.16) 1px, transparent 0),
+    linear-gradient(135deg, rgb(232 56 37 / 0.1), transparent 32%),
+    linear-gradient(315deg, rgb(0 134 164 / 0.09), transparent 36%);
+  --theme-bg-pattern-size: 9px 9px, 100% 100%, 100% 100%;
+
+  --color-bg: #fff2d7;
+  --color-surface: #fffaf0;
+  --color-surface-elevated: #fffdf7;
+  --color-surface-muted: #f1dfbc;
+  --color-surface-inverse: #211914;
+
+  --color-text: #211914;
+  --color-text-muted: #694f3d;
+
+  --color-border: #9f744c;
+  --color-border-soft: #d9b985;
+
+  --color-accent: #007a96;
+  --color-accent-hover: #005f75;
+  --color-accent-soft: rgb(0 122 150 / 0.13);
+  --color-accent-border: rgb(0 122 150 / 0.46);
+  --color-link: #006b83;
+  --color-focus-ring: rgb(0 122 150 / 0.38);
+
+  --color-text-disabled: #9e8772;
+  --color-bg-disabled: #f2e2c4;
+  --color-border-disabled: #d9c29d;
+
+  --color-success-bg: #ecf8dc;
+  --color-success-border: #a7cf66;
+  --color-success-text: #4c7e18;
+  --color-warning-bg: #fff3bf;
+  --color-warning-border: #dfb52d;
+  --color-warning-text: #805600;
+  --color-error-bg: #ffe8df;
+  --color-error-border: #f0967b;
+  --color-error-text: #b73422;
+  --color-info-bg: #e5f7fa;
+  --color-info-border: #83cedb;
+  --color-info-text: #006b83;
+
+  --color-input-bg: #fffaf0;
+  --color-input-border: #b88e5e;
+  --color-input-focus: #007a96;
+  --color-input-focus-ring: var(--color-focus-ring);
+
+  --color-header-bg: #211914;
+  --color-header-text: #ffd644;
+  --color-header-text-muted: #f5c58d;
+
+  --color-card-bg: #ffe8b0;
+  --color-card-bg-dim: #e0b869;
+  --color-card-text: #211914;
+  --color-card-tint: #e83825;
+  --color-highlight-bg: rgb(255 214 68 / 0.55);
+
+  --color-featured: #ffd644;
+  --color-diff-ins-bg: rgb(76 126 24 / 0.16);
+  --color-diff-del-bg: rgb(183 52 34 / 0.16);
+
+  --shadow-color: 24 55% 18%;
+  --shadow-strength: 6%;
+}

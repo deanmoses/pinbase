@@ -1,50 +1,54 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import {
+    THEMES,
+    THEME_STORAGE_KEY,
+    isThemeId,
+    getTheme,
+    normalizeThemeId,
+    type ThemeId,
+  } from '$lib/themes';
 
-  const STORAGE_KEY = 'flipcommons-theme';
-
-  const themes = [
-    { id: 'system', label: 'Current' },
-    { id: 'current-v2', label: 'Current v2' },
-    { id: 'flyer-archive', label: 'Pinball Flyer Archive' },
-    { id: 'score-reel', label: 'Score Reel' },
-    { id: 'operators-log', label: "Operator's Log" },
-    { id: 'backglass-glow', label: 'Backglass Glow' },
-  ] as const;
-
-  type ThemeId = (typeof themes)[number]['id'];
+  // /style-lab-only component: deliberately NOT hardened against
+  // localStorage / dynamic-import failures. If something here breaks, a
+  // dev sees it loudly and fixes it. End users never reach this code.
+  // The page-load bootstrap in lib/themes/index.ts IS hardened — that's
+  // the path that runs for every visitor on every page.
 
   let selectedTheme = $state<ThemeId>('system');
+  // Monotonic token so a slow CSS chunk from a previous selection can't
+  // overwrite the DOM/storage after the user has moved on to another theme.
+  let applyToken = 0;
 
-  function isThemeId(value: string): value is ThemeId {
-    return themes.some((theme) => theme.id === value);
-  }
-
-  function applyTheme(theme: ThemeId) {
+  async function applyTheme(theme: ThemeId) {
     selectedTheme = theme;
+    const token = ++applyToken;
 
     if (theme === 'system') {
       delete document.documentElement.dataset.theme;
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(THEME_STORAGE_KEY);
       return;
     }
 
+    await getTheme(theme).load();
+    if (token !== applyToken) return;
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
   }
 
   function handleChange(event: Event) {
     const target = event.currentTarget;
     if (!(target instanceof HTMLSelectElement)) return;
-    if (isThemeId(target.value)) applyTheme(target.value);
+    if (isThemeId(target.value)) void applyTheme(target.value);
   }
 
   onMount(() => {
-    const storedTheme = localStorage.getItem(STORAGE_KEY);
-    if (storedTheme && isThemeId(storedTheme)) {
-      applyTheme(storedTheme);
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    const theme = storedTheme ? normalizeThemeId(storedTheme) : null;
+    if (theme) {
+      void applyTheme(theme);
     } else if (storedTheme) {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(THEME_STORAGE_KEY);
     }
   });
 </script>
@@ -52,7 +56,7 @@
 <div class="theme-switcher">
   <label for="theme-select">Theme</label>
   <select id="theme-select" value={selectedTheme} onchange={handleChange}>
-    {#each themes as theme (theme.id)}
+    {#each THEMES as theme (theme.id)}
       <option value={theme.id}>{theme.label}</option>
     {/each}
   </select>

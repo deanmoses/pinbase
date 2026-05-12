@@ -122,10 +122,11 @@ module.exports = {
       customSyntax: 'postcss-html',
     },
     // ---- Baseline ----
-    // app.css defines the design tokens; raw hex/rgba inside :root blocks is
-    // the source of truth and exempt from the no-color rules.
+    // app.css and lib/themes/*.css define the design tokens; raw hex/rgba
+    // inside :root[data-theme] blocks is the source of truth and exempt
+    // from the no-color rules.
     {
-      files: ['src/app.css'],
+      files: ['src/app.css', 'src/lib/themes/*.css'],
       rules: {
         'color-no-hex': null,
         'function-disallowed-list': null,

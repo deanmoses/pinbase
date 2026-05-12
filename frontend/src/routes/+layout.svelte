@@ -7,6 +7,7 @@
   import ToastHost from '$lib/toast/ToastHost.svelte';
   import { isFocusModePath } from '$lib/focus-mode';
   import { isKioskCookieSet } from '$lib/kiosk/config';
+  import { bootstrapTheme } from '$lib/themes';
   import { onMount } from 'svelte';
 
   // When SvelteKit's version.json poll detects a new deploy, swap the next
@@ -27,6 +28,7 @@
   let isKiosk = $state(false);
   onMount(() => {
     isKiosk = isKioskCookieSet();
+    void bootstrapTheme();
   });
 </script>
 

@@ -1,0 +1,66 @@
+/* Based on VS Code's "Dark Modern":
+   https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json */
+:root[data-theme='original-dark'] {
+  color-scheme: dark;
+  --header-stains-display: none;
+  --theme-bg-pattern: none;
+  --theme-bg-pattern-size: auto;
+
+  --color-bg: #1f1f1f;
+  --color-surface: #252525;
+  --color-surface-elevated: #2d2d2d;
+  --color-surface-muted: #1a1a1a;
+  --color-surface-inverse: #0a0a0a;
+
+  --color-text: #cccccc;
+  --color-text-muted: #9ca3af;
+
+  --color-border: #616161;
+  --color-border-soft: #3a3a3a;
+
+  --color-accent: #0078d4;
+  --color-accent-hover: #026ec1;
+  --color-accent-soft: rgb(0 120 212 / 0.18);
+  --color-accent-border: rgb(0 120 212 / 0.5);
+  --color-link: #4daafc;
+  --color-focus-ring: rgb(0 120 212 / 0.5);
+
+  --color-text-disabled: #6b6b6b;
+  --color-bg-disabled: #2a2a2a;
+  --color-border-disabled: #3a3a3a;
+
+  --color-success-bg: rgb(46 160 67 / 0.15);
+  --color-success-border: #1f5132;
+  --color-success-text: #2ea043;
+  --color-warning-bg: rgb(251 191 36 / 0.15);
+  --color-warning-border: #5a4c1a;
+  --color-warning-text: #fbbf24;
+  --color-error-bg: rgb(248 81 73 / 0.15);
+  --color-error-border: #671e1e;
+  --color-error-text: #f85149;
+  --color-info-bg: rgb(77 170 252 / 0.12);
+  --color-info-border: #1e3a5f;
+  --color-info-text: #4daafc;
+
+  --color-input-bg: #2b2b2b;
+  --color-input-border: #404040;
+  --color-input-focus: #0078d4;
+  --color-input-focus-ring: rgb(0 120 212 / 0.25);
+
+  --color-header-bg: #26221d;
+  --color-header-text: var(--color-text);
+  --color-header-text-muted: var(--color-text-muted);
+
+  --color-card-bg: #2e2a24;
+  --color-card-bg-dim: #3a342b;
+  --color-card-text: #c8bfb0;
+  --color-card-tint: #8c6e3c;
+  --color-highlight-bg: rgb(251 191 36 / 0.2);
+
+  --color-featured: #e8b923;
+  --color-diff-ins-bg: rgb(46 160 67 / 0.25);
+  --color-diff-del-bg: rgb(248 81 73 / 0.25);
+
+  --shadow-color: 220 40% 2%;
+  --shadow-strength: 25%;
+}

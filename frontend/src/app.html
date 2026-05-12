@@ -10,78 +10,24 @@
       href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap"
       rel="stylesheet"
     />
-    <script>
-      try {
-        const theme = localStorage.getItem('flipcommons-theme');
-        if (
-          theme === 'current-v2' ||
-          theme === 'flyer-archive' ||
-          theme === 'score-reel' ||
-          theme === 'operators-log' ||
-          theme === 'backglass-glow'
-        ) {
-          document.documentElement.dataset.theme = theme;
-        }
-      } catch {
-        // Ignore storage failures; the app will fall back to system theme.
-      }
-    </script>
     <style>
-      /* Critical dark-mode background inlined to prevent flash on pre-rendered pages.
-			   Values must stay in sync with app.css. */
+      /* Critical default-theme background inlined to prevent flash on
+         pre-rendered pages. Values must stay in sync with app.css.
+         Manual themes (set by ThemeSwitcher) are test-only and tolerate
+         a brief flash while their CSS chunk loads; no FOUC wiring here. */
       html {
-        background-color: #fbf7f0;
-        color: #333333;
-      }
-      html[data-theme='current-v2'] {
-        background-color: #fcfaf6;
-        color: #282828;
-      }
-      html[data-theme='flyer-archive'] {
-        background-color: #fff2d7;
-        color: #211914;
-      }
-      html[data-theme='score-reel'] {
         background-color: #f9f1df;
         color: #241f19;
       }
-      html[data-theme='operators-log'] {
-        background-color: #f2f1e9;
-        color: #252b27;
-      }
-      html[data-theme='backglass-glow'] {
-        background-color: #151923;
-        color: #f3efe7;
-      }
       @media (prefers-color-scheme: dark) {
         html:not([data-theme]) {
-          background-color: #1f1f1f;
-          color: #cccccc;
-        }
-        html[data-theme='current-v2'] {
-          background-color: #1d1d1d;
-          color: #dfdfdf;
-        }
-        html[data-theme='flyer-archive'] {
-          background-color: #1d1713;
-          color: #f6e7c6;
-        }
-        html[data-theme='score-reel'] {
           background-color: #211d18;
           color: #eadfcb;
         }
-        html[data-theme='operators-log'] {
-          background-color: #1b211e;
-          color: #e4e9df;
-        }
-        html[data-theme='backglass-glow'] {
-          background-color: #0b0f19;
-          color: #f3efe7;
-        }
       }
     </style>
-    <meta name="theme-color" content="#fbf7f0" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f9f1df" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#211d18" media="(prefers-color-scheme: dark)" />
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

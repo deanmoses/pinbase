@@ -57,7 +57,7 @@
     gap: var(--size-1);
     padding: var(--size-1) var(--size-2);
     font-size: var(--font-size-0);
-    background-color: var(--color-link);
+    background-color: var(--color-accent);
     color: var(--color-text-inverse);
     border-radius: var(--radius-2);
   }

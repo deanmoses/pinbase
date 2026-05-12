@@ -1,0 +1,67 @@
+:root[data-theme='backglass-glow-dark'] {
+  color-scheme: dark;
+  --header-stains-display: none;
+  --theme-bg-pattern:
+    radial-gradient(circle at 18% 12%, rgb(255 193 86 / 0.14), transparent 22rem),
+    radial-gradient(circle at 82% 18%, rgb(0 210 255 / 0.12), transparent 24rem),
+    radial-gradient(circle at 50% 92%, rgb(218 70 255 / 0.1), transparent 24rem);
+  --theme-bg-pattern-size: 100% 100%, 100% 100%, 100% 100%;
+
+  --color-bg: #151923;
+  --color-surface: #1f2531;
+  --color-surface-elevated: #2a3140;
+  --color-surface-muted: #10141d;
+  --color-surface-inverse: #05070c;
+
+  --color-text: #f3efe7;
+  --color-text-muted: #b9b8c6;
+
+  --color-border: #596274;
+  --color-border-soft: #343d4f;
+
+  --color-accent: #00b7d7;
+  --color-accent-hover: #35d4eb;
+  --color-accent-soft: rgb(0 183 215 / 0.16);
+  --color-accent-border: rgb(0 183 215 / 0.48);
+  --color-link: #55dff2;
+  --color-focus-ring: rgb(85 223 242 / 0.38);
+
+  --color-text-disabled: #767c8b;
+  --color-bg-disabled: #252b36;
+  --color-border-disabled: #3d4658;
+
+  --color-success-bg: rgb(58 205 132 / 0.15);
+  --color-success-border: #34764f;
+  --color-success-text: #6ee7a1;
+  --color-warning-bg: rgb(255 193 86 / 0.16);
+  --color-warning-border: #83622a;
+  --color-warning-text: #ffc156;
+  --color-error-bg: rgb(255 83 105 / 0.16);
+  --color-error-border: #833541;
+  --color-error-text: #ff7e91;
+  --color-info-bg: rgb(85 223 242 / 0.13);
+  --color-info-border: #2b6874;
+  --color-info-text: #55dff2;
+
+  --color-input-bg: #1b212d;
+  --color-input-border: #4b566a;
+  --color-input-focus: #00b7d7;
+  --color-input-focus-ring: var(--color-focus-ring);
+
+  --color-header-bg: #0b0f19;
+  --color-header-text: #ffc156;
+  --color-header-text-muted: #c8cad6;
+
+  --color-card-bg: #252638;
+  --color-card-bg-dim: #34364b;
+  --color-card-text: #fff0c9;
+  --color-card-tint: #b338d4;
+  --color-highlight-bg: rgb(255 193 86 / 0.23);
+
+  --color-featured: #ffc156;
+  --color-diff-ins-bg: rgb(110 231 161 / 0.24);
+  --color-diff-del-bg: rgb(255 126 145 / 0.24);
+
+  --shadow-color: 225 58% 3%;
+  --shadow-strength: 30%;
+}
