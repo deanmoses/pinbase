@@ -341,7 +341,7 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: var(--size-1);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     overflow-wrap: break-word;
     flex: 1;
   }
@@ -391,8 +391,8 @@
   }
 
   .btn-revert:hover {
-    border-color: var(--color-danger);
-    color: var(--color-danger);
+    border-color: var(--color-error-text);
+    color: var(--color-error-text);
   }
 
   .btn-revert-dim {
@@ -423,9 +423,9 @@
   .btn-revert-submit {
     font-size: var(--font-size-00, 0.75rem);
     padding: 0.25em 0.75em;
-    border: 1px solid var(--color-danger);
+    border: 1px solid var(--color-error-text);
     border-radius: var(--radius-1);
-    background: var(--color-danger);
+    background: var(--color-error-text);
     color: var(--color-text-inverse);
     cursor: pointer;
   }
@@ -447,7 +447,7 @@
 
   .revert-error {
     font-size: var(--font-size-00, 0.75rem);
-    color: var(--color-danger);
+    color: var(--color-error-text);
     margin: 0;
   }
 
@@ -460,7 +460,7 @@
     font-size: var(--font-size-00, 0.75rem);
     padding: 0.1em 0.4em;
     border-radius: var(--radius-1);
-    background: var(--color-danger);
+    background: var(--color-error-text);
     color: var(--color-text-inverse);
     font-weight: 500;
     text-transform: uppercase;

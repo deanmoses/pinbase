@@ -72,7 +72,7 @@
     padding: var(--menu-item-padding, var(--size-1) var(--size-3));
     font-size: var(--menu-item-font-size, var(--font-size-0));
     font-family: inherit;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     text-decoration: none;
     background: none;
     border: none;
@@ -85,7 +85,7 @@
      warm-cream looked harsh). Dark mode keeps the existing flat surface. */
   .menu-item:hover,
   .menu-item:focus-visible {
-    background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
     color: var(--color-link);
   }
 
@@ -105,12 +105,12 @@
      dark mode). On hover/focus, deepen the tint so the item visibly
      reacts even though it's already highlighted. */
   .menu-item.current[role='menuitem'] {
-    background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
   }
 
   .menu-item.current[role='menuitem']:hover,
   .menu-item.current[role='menuitem']:focus-visible {
-    background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+    background: color-mix(in srgb, var(--color-text) 18%, transparent);
   }
 
   /* Listboxes: the selected option gets a checkmark, like a native <select>. */

@@ -90,7 +90,7 @@
     padding: 2px 6px;
     font-size: var(--font-size-0);
     white-space: nowrap;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     background: var(--color-surface);
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-1);

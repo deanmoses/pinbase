@@ -226,7 +226,7 @@
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-2);
     background-color: var(--color-input-bg);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     cursor: pointer;
     text-transform: capitalize;
   }
@@ -243,7 +243,7 @@
   }
 
   .form-error {
-    color: var(--color-danger);
+    color: var(--color-error-text);
     font-size: var(--font-size-0);
   }
 
@@ -254,7 +254,7 @@
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-2);
     background-color: var(--color-input-focus-ring);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     cursor: pointer;
   }
 

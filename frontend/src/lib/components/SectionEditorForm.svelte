@@ -52,7 +52,7 @@
 
 <style>
   .save-error {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: var(--font-size-1);
     margin: 0 0 var(--size-3);
   }
@@ -68,7 +68,7 @@
     margin-right: calc(-1 * var(--size-4));
     margin-bottom: calc(-1 * var(--size-4));
     padding: var(--size-3) var(--size-4);
-    background: var(--color-background);
+    background: var(--color-bg);
     border-top: 1px solid var(--color-border-soft);
   }
 </style>

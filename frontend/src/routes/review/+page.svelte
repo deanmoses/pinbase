@@ -101,7 +101,7 @@
     font-size: var(--font-size-0);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-warning);
+    color: var(--color-warning-text);
   }
 
   .source {
@@ -137,7 +137,7 @@
   }
 
   .claim-links a {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     text-decoration: underline;
   }
 </style>

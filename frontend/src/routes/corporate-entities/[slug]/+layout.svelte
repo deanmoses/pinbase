@@ -204,7 +204,7 @@
 <style>
   .sidebar-value {
     font-size: var(--font-size-1);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin: 0;
   }
 

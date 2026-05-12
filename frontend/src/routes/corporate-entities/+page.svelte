@@ -72,7 +72,7 @@
 
   .entity-name {
     font-size: var(--font-size-2);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     font-weight: 500;
   }
 

@@ -227,7 +227,7 @@
   }
 
   .save-error {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: var(--font-size-1);
     margin: 0;
   }

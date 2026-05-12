@@ -41,7 +41,7 @@
   }
 
   .footer-links a:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .copyright {

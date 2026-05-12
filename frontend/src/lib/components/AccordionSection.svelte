@@ -114,7 +114,7 @@
     font-size: var(--font-size-2);
     font-weight: 600;
     min-width: 0;
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .edit-link {

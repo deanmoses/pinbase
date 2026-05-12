@@ -196,7 +196,7 @@
     padding: var(--size-3) 0;
     border-bottom: 1px solid var(--color-border-soft);
     text-decoration: none;
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .item-row:hover {

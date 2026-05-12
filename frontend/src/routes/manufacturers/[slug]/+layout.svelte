@@ -282,7 +282,7 @@
 
   .entity-name {
     font-weight: 500;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     text-decoration: none;
   }
 
@@ -297,7 +297,7 @@
 
   .sidebar-value {
     font-size: var(--font-size-1);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin: 0;
   }
 </style>

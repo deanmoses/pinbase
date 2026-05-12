@@ -65,12 +65,12 @@
     /* Subtle neutral tint that reads in both light and dark — 8% of the
        text color over transparent gives a soft fill in either palette. */
     background: color-mix(in srgb, var(--color-text) 8%, transparent);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     border-color: var(--color-text-muted);
   }
 
   .btn-destructive {
-    background: var(--color-danger);
+    background: var(--color-error-text);
     color: var(--color-text-inverse);
     border: none;
   }

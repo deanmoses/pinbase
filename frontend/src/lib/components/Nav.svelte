@@ -423,7 +423,7 @@
   @media (prefers-color-scheme: dark) {
     .site-header {
       --header-bg: #26221d;
-      --header-ink: var(--color-text-primary);
+      --header-ink: var(--color-text);
       --header-ink-muted: var(--color-text-muted);
     }
 

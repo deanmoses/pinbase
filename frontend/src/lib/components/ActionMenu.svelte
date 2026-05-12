@@ -314,7 +314,7 @@
   }
 
   .menu {
-    background: var(--color-background);
+    background: var(--color-bg);
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
     padding: var(--size-1) 0;

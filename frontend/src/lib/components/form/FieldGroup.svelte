@@ -55,7 +55,7 @@
 
   .field-error {
     font-size: var(--font-size-0);
-    color: var(--color-error);
+    color: var(--color-error-text);
     margin: 0;
   }
 </style>

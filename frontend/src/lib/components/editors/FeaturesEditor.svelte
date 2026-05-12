@@ -297,7 +297,7 @@
 
   .row-error {
     font-size: var(--font-size-0);
-    color: var(--color-error);
+    color: var(--color-error-text);
     margin: 0;
   }
 
@@ -330,8 +330,8 @@
   }
 
   .remove-btn:hover {
-    color: var(--color-danger);
-    border-color: var(--color-danger);
+    color: var(--color-error-text);
+    border-color: var(--color-error-text);
   }
 
   .add-btn {

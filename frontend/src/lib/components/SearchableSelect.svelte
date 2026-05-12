@@ -336,7 +336,7 @@
   }
 
   .clear-btn:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .selected-tags {
@@ -368,7 +368,7 @@
   }
 
   .tag-remove:hover {
-    color: var(--color-error);
+    color: var(--color-error-text);
   }
 
   .dropdown {
@@ -435,7 +435,7 @@
 
   .field-error {
     font-size: var(--font-size-0);
-    color: var(--color-error);
+    color: var(--color-error-text);
     margin: var(--size-1) 0 0;
   }
 </style>

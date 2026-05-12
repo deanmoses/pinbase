@@ -82,7 +82,7 @@
     transform: translate(-50%, -50%);
     width: min(48rem, calc(100vw - 2 * var(--size-4)));
     max-height: calc(100vh - 2 * var(--size-4));
-    background: var(--color-background);
+    background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-3);
     display: flex;
@@ -114,7 +114,7 @@
     font-size: var(--font-size-3);
     font-weight: 600;
     margin: 0;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     min-width: 0;
   }
 
@@ -133,7 +133,7 @@
   }
 
   .close-btn:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .modal-body {

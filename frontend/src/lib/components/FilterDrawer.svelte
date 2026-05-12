@@ -81,7 +81,7 @@
     font-size: var(--font-size-1);
     font-family: var(--font-body);
     background-color: var(--color-surface);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-2);
     cursor: pointer;
@@ -105,7 +105,7 @@
   }
 
   .drawer-close:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   /* Backdrop — only visible on mobile */
@@ -134,7 +134,7 @@
       left: 0;
       bottom: 0;
       width: min(20rem, 85vw);
-      background-color: var(--color-background);
+      background-color: var(--color-bg);
       z-index: var(--z-drawer);
       padding: var(--size-4);
       overflow-y: auto;

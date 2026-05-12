@@ -147,7 +147,7 @@
   }
 
   .bio-meta dd {
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin: 0;
   }
 </style>

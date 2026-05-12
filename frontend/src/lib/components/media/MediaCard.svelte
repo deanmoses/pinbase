@@ -183,7 +183,7 @@
   }
 
   .action-btn--danger:hover {
-    color: var(--color-error);
-    border-color: var(--color-error);
+    color: var(--color-error-text);
+    border-color: var(--color-error-text);
   }
 </style>

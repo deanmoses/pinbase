@@ -196,7 +196,7 @@
   h2 {
     font-size: var(--font-size-3);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-3);
   }
 
@@ -252,7 +252,7 @@
   .sources-group h3 {
     font-size: var(--font-size-1);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-2);
   }
 
@@ -291,7 +291,7 @@
     flex-direction: column;
     gap: var(--size-1);
     font-size: var(--font-size-0);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     overflow-wrap: break-word;
   }
 

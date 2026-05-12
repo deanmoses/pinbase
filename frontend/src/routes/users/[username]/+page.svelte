@@ -83,7 +83,7 @@
   .profile-header h1 {
     font-size: var(--font-size-5);
     font-weight: 700;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin: 0 0 var(--size-1) 0;
   }
 
@@ -100,7 +100,7 @@
   .section h2 {
     font-size: var(--font-size-3);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-3);
   }
 
@@ -134,7 +134,7 @@
     align-items: baseline;
     gap: var(--size-2);
     text-decoration: none;
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .entity-link:hover .entity-name {

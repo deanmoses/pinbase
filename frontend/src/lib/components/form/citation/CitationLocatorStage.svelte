@@ -102,7 +102,7 @@
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-2);
     background-color: var(--color-input-focus-ring);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     cursor: pointer;
   }
 
@@ -121,6 +121,6 @@
   }
 
   .skip-btn:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 </style>

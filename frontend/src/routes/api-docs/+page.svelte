@@ -6,10 +6,10 @@
 
   const scalarCustomCss = `
 		.scalar-api-reference {
-			--scalar-background-1: var(--color-background);
+			--scalar-background-1: var(--color-bg);
 			--scalar-background-2: var(--color-surface);
-			--scalar-background-3: var(--color-background);
-			--scalar-color-1: var(--color-text-primary);
+			--scalar-background-3: var(--color-bg);
+			--scalar-color-1: var(--color-text);
 			--scalar-color-2: var(--color-text-muted);
 			--scalar-color-3: var(--color-text-muted);
 			--scalar-color-accent: var(--color-accent);
@@ -125,7 +125,7 @@
   .hero h1 {
     font-size: var(--font-size-7);
     font-weight: 700;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-3);
   }
 
@@ -139,7 +139,7 @@
   h2 {
     font-size: var(--font-size-3);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-4);
   }
 
@@ -155,7 +155,7 @@
   }
 
   .error-message {
-    color: var(--color-error);
+    color: var(--color-error-text);
   }
 
   .developer-resources {
@@ -173,7 +173,7 @@
   .resource-card h3 {
     font-size: var(--font-size-2);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-2);
   }
 
@@ -185,7 +185,7 @@
   }
 
   pre {
-    background-color: var(--color-background);
+    background-color: var(--color-bg);
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
     padding: var(--size-3) var(--size-4);

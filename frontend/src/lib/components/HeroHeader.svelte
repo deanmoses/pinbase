@@ -97,7 +97,7 @@
   h1 {
     font-size: var(--font-size-7);
     font-weight: 700;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-2);
   }
 
@@ -110,7 +110,7 @@
 
   .alias-label {
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-right: var(--size-1);
   }
 

@@ -170,14 +170,6 @@
   --z-dropdown: 1050; /* popovers, autocomplete, action menus — above modals so popovers launched from inside a modal aren't covered */
   --z-toast: 1100; /* always above modals */
   --z-tooltip: 1200; /* always above everything */
-
-  /* ---- Aliases (legacy names — keep until all consumers migrate) ---- */
-  --color-background: var(--color-bg);
-  --color-text-primary: var(--color-text);
-  --color-success: var(--color-success-text);
-  --color-warning: var(--color-warning-text);
-  --color-error: var(--color-error-text);
-  --color-danger: var(--color-error-text);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -270,8 +262,8 @@
    ======================================== */
 html {
   font-family: var(--font-body);
-  background-color: var(--color-background);
-  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+  color: var(--color-text);
 }
 
 a {
@@ -308,7 +300,7 @@ a:hover {
   font-size: var(--font-size-1);
   font-family: inherit;
   background-color: var(--color-input-bg);
-  color: var(--color-text-primary);
+  color: var(--color-text);
   border: 1px solid var(--color-input-border);
   border-radius: var(--radius-2);
 }
@@ -322,7 +314,7 @@ a:hover {
   font-size: var(--font-size-1);
   font-family: inherit;
   background-color: var(--color-input-bg);
-  color: var(--color-text-primary);
+  color: var(--color-text);
   border: 1px solid var(--color-input-border);
   border-radius: var(--radius-2);
 }
@@ -349,7 +341,7 @@ a:hover {
 }
 
 :where(input, textarea, select)[aria-invalid='true'] {
-  border-color: var(--color-error);
+  border-color: var(--color-error-text);
 }
 
 /* ========================================

@@ -34,7 +34,7 @@
     gap: var(--size-2);
     font-size: var(--font-size-1);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-1);
     text-transform: uppercase;
     letter-spacing: 0.04em;

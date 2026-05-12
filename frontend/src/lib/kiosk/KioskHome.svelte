@@ -141,7 +141,7 @@
   .card-hook {
     padding: var(--size-3) var(--size-4) var(--size-4);
     font-size: var(--font-size-2);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin: 0;
     line-height: 1.4;
   }

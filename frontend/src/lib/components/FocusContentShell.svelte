@@ -62,7 +62,7 @@
   }
 
   .back-link:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .record-name {
@@ -73,7 +73,7 @@
     white-space: nowrap;
     font-size: var(--font-size-3);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     text-decoration: none;
   }
 

@@ -55,7 +55,7 @@
 <style>
   .content {
     font-size: var(--font-size-2);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     line-height: var(--font-lineheight-3);
   }
 
@@ -151,7 +151,7 @@
   .content :global(h5),
   .content :global(h6) {
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-2);
   }
 

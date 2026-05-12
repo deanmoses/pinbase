@@ -53,7 +53,7 @@
   h1 {
     font-size: var(--font-size-7);
     font-weight: 700;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--page-header-title-mb, var(--size-4));
   }
 

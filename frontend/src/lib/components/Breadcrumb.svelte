@@ -42,11 +42,11 @@
   }
 
   a:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
     text-decoration: underline;
   }
 
   li[aria-current='page'] {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 </style>

@@ -159,7 +159,7 @@
 <style>
   .submit-error {
     padding: var(--size-2) var(--size-3);
-    color: var(--color-danger);
+    color: var(--color-error-text);
     font-size: var(--font-size-0);
     text-align: center;
   }

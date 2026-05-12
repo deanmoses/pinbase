@@ -164,7 +164,7 @@
   .recent-heading {
     font-size: var(--font-size-4);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-4);
   }
 

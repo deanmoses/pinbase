@@ -255,12 +255,12 @@
   }
 
   .parent-breadcrumb a:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
     text-decoration: underline;
   }
 
   .save-error {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: var(--font-size-1);
     margin: 0;
   }

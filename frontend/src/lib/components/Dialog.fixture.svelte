@@ -64,7 +64,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: var(--color-background);
+    background: var(--color-bg);
     padding: var(--size-3);
   }
 </style>

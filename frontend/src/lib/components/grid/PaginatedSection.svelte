@@ -38,7 +38,7 @@
   h2 {
     font-size: var(--font-size-3);
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin-bottom: var(--size-3);
   }
 

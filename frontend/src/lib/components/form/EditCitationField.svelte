@@ -129,7 +129,7 @@
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
     background: var(--color-surface);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     font-size: var(--font-size-1);
   }
 
@@ -144,7 +144,7 @@
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-2);
     background: var(--color-input-bg);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     font: inherit;
     cursor: pointer;
   }
@@ -162,7 +162,7 @@
   .citation-error {
     margin: 0;
     font-size: var(--font-size-0);
-    color: var(--color-error);
+    color: var(--color-error-text);
   }
 
   .citation-picker {

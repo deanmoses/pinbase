@@ -311,7 +311,7 @@
   .page-header h1 {
     font-size: var(--font-size-5);
     font-weight: 700;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     margin: 0;
   }
 
@@ -345,7 +345,7 @@
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-1);
     background-color: var(--color-surface);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     font-size: var(--font-size-1);
   }
 
@@ -396,7 +396,7 @@
     align-items: baseline;
     gap: var(--size-2);
     text-decoration: none;
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .entity-link:hover .entity-name {
@@ -493,7 +493,7 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: var(--size-1);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     overflow-wrap: break-word;
   }
 
@@ -527,13 +527,13 @@
 
   .retraction-label {
     font-weight: 600;
-    color: var(--color-danger);
+    color: var(--color-error-text);
     font-size: var(--font-size-00, 0.7rem);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 1px var(--size-2);
     border-radius: var(--radius-1);
-    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+    background-color: color-mix(in srgb, var(--color-error-text) 10%, transparent);
   }
 
   /* Status messages */
@@ -544,7 +544,7 @@
   }
 
   .status-message.error {
-    color: var(--color-danger);
+    color: var(--color-error-text);
   }
 
   .no-changes {

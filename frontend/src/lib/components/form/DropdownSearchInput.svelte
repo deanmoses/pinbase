@@ -48,7 +48,7 @@
     font-size: var(--font-size-1);
     font-family: inherit;
     background-color: var(--color-input-bg);
-    color: var(--color-text-primary);
+    color: var(--color-text);
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-2);
   }

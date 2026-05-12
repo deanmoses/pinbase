@@ -193,7 +193,7 @@
 
   .entity-name {
     font-weight: 500;
-    color: var(--color-text-primary);
+    color: var(--color-text);
     text-decoration: none;
   }
 

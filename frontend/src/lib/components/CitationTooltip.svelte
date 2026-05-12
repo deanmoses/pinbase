@@ -237,7 +237,7 @@
     box-shadow: var(--shadow-popover);
     font-size: var(--font-size-1);
     line-height: var(--font-lineheight-3);
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   .source-name {

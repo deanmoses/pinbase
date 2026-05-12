@@ -78,7 +78,7 @@
   }
 
   .toggle:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text);
   }
 
   ol {

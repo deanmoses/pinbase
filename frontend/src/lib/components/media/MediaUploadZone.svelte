@@ -270,7 +270,7 @@
   }
 
   .file-entry.error {
-    color: var(--color-error);
+    color: var(--color-error-text);
   }
 
   .file-name {

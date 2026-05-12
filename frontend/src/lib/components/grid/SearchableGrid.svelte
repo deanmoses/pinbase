@@ -79,7 +79,7 @@
 
   .error {
     text-align: center;
-    color: var(--color-error);
+    color: var(--color-error-text);
     padding: var(--size-6) 0;
   }
 </style>
