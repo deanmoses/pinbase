@@ -6,7 +6,26 @@
   import MenuSectionHeader from '$lib/components/MenuSectionHeader.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+  import Card, {
+    type CardDistressCorner,
+    type CardDistressType,
+  } from '$lib/components/cards/Card.svelte';
   import MachineCard from '$lib/components/cards/MachineCard.svelte';
+
+  const distressCases: {
+    label: string;
+    type: CardDistressType;
+    corner: CardDistressCorner;
+  }[] = [
+    { label: 'Torn top left', type: 'torn-corner', corner: 'tl' },
+    { label: 'Torn top right', type: 'torn-corner', corner: 'tr' },
+    { label: 'Torn bottom left', type: 'torn-corner', corner: 'bl' },
+    { label: 'Torn bottom right', type: 'torn-corner', corner: 'br' },
+    { label: 'Dog ear top left', type: 'dog-ear', corner: 'tl' },
+    { label: 'Dog ear top right', type: 'dog-ear', corner: 'tr' },
+    { label: 'Dog ear bottom left', type: 'dog-ear', corner: 'bl' },
+    { label: 'Dog ear bottom right', type: 'dog-ear', corner: 'br' },
+  ];
 </script>
 
 <div class="lab-header">
@@ -36,29 +55,6 @@
         Match results across <a href="/titles">titles</a>, manufacturers, people, systems, and
         gameplay features.
       </p>
-    </div>
-  </section>
-
-  <section class="specimen">
-    <div class="section-heading">
-      <h2>Catalog Cards</h2>
-      <p>Polaroid cards, muted metadata, and link contrast.</p>
-    </div>
-
-    <div class="card-grid">
-      <MachineCard
-        slug="black-knight-2000"
-        name="Black Knight 2000"
-        manufacturerName="Williams"
-        year={1989}
-      />
-      <MachineCard slug="centaur" name="Centaur" manufacturerName="Bally" year={1981} />
-      <MachineCard
-        slug="medieval-madness"
-        name="Medieval Madness"
-        manufacturerName="Williams"
-        year={1997}
-      />
     </div>
   </section>
 
@@ -120,6 +116,67 @@
           <MenuItem>Request review</MenuItem>
         </ActionMenu>
       </div>
+    </div>
+  </section>
+  <section class="specimen">
+    <div class="section-heading">
+      <h2>Catalog Cards</h2>
+      <p>Polaroid cards, muted metadata, and link contrast.</p>
+    </div>
+
+    <div class="card-grid">
+      <MachineCard
+        slug="go-go"
+        name="Go Go"
+        thumbnailUrl="/fakes/fake_backglass1.avif"
+        manufacturerName="Williams"
+        year={1966}
+      />
+      <MachineCard
+        slug="critters"
+        name="Critters"
+        thumbnailUrl="/fakes/fake_backglass2.avif"
+        manufacturerName="Jersey Jack"
+        year={2023}
+      />
+      <MachineCard
+        slug="astro-blitz"
+        name="Astro Blitz"
+        thumbnailUrl="/fakes/fake_backglass3.avif"
+        manufacturerName="Williams"
+        year={1982}
+      />
+    </div>
+  </section>
+
+  <section class="specimen">
+    <div class="section-heading">
+      <h2>Torn Surfaces</h2>
+      <p>Forced wear-effect variants for visually debugging every distressed card corner.</p>
+    </div>
+
+    <div class="distress-grid">
+      {#each distressCases as distressCase (distressCase.label)}
+        <Card
+          href="/style-lab"
+          title={distressCase.label}
+          distressType={distressCase.type}
+          distressCorner={distressCase.corner}
+          distressEarSize={1.7}
+        >
+          <p class="distress-note">{distressCase.type} · {distressCase.corner}</p>
+        </Card>
+      {/each}
+      <Card
+        href="/style-lab"
+        title="Crease"
+        distressType="crease"
+        distressCorner="tl"
+        distressCreaseAngle={-16}
+        distressCreasePos={44}
+      >
+        <p class="distress-note">crease · fixed angle</p>
+      </Card>
     </div>
   </section>
 </div>
@@ -198,6 +255,17 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--size-4);
+  }
+
+  .distress-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--size-4);
+  }
+
+  .distress-note {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-0);
   }
 
   .detail-shell {
@@ -307,6 +375,7 @@
 
     .search-row,
     .card-grid,
+    .distress-grid,
     .detail-shell,
     .states-grid {
       grid-template-columns: 1fr;
