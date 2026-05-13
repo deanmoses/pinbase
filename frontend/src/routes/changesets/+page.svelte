@@ -5,9 +5,10 @@
   import { SITE_TITLE } from '$lib/constants';
   import { resolveHref } from '$lib/utils';
   import ClaimAttribution from '$lib/components/ClaimAttribution.svelte';
+  import ClaimValue from '$lib/components/ClaimValue.svelte';
   import InlineDiff from '$lib/components/InlineDiff.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-  import { isDiffable, formatValue } from '$lib/components/change-display';
+  import { isDiffable } from '$lib/components/change-display';
   import { changesLabel } from './changes';
 
   type ChangeSetSummary = ChangeSetSummarySchema;
@@ -246,10 +247,14 @@
                         <dt>{change.field_name}</dt>
                         <dd>
                           {#if change.old_value != null}
-                            <span class="old-value">{formatValue(change.old_value.raw)}</span>
+                            <span class="old-value claim-value-inline"
+                              ><ClaimValue value={change.old_value} /></span
+                            >
                             <span class="arrow">&rarr;</span>
                           {/if}
-                          <span class="new-value">{formatValue(change.new_value.raw)}</span>
+                          <span class="new-value claim-value-inline"
+                            ><ClaimValue value={change.new_value} /></span
+                          >
                         </dd>
                       </div>
                     {/if}
@@ -264,7 +269,9 @@
                       <dt>{retraction.field_name}</dt>
                       <dd>
                         <span class="retraction-label">Removed</span>
-                        <span class="old-value">{formatValue(retraction.old_value.raw)}</span>
+                        <span class="old-value claim-value-inline"
+                          ><ClaimValue value={retraction.old_value} /></span
+                        >
                       </dd>
                     </div>
                   {/each}
@@ -500,6 +507,15 @@
 
   .new-value {
     font-weight: 500;
+  }
+
+  .claim-value-inline {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
   }
 
   /* Retractions */

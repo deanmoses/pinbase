@@ -7,7 +7,7 @@ describe('groupSourcesByField', () => {
     const result = groupSourcesByField([
       {
         field_name: 'year',
-        value: 1997,
+        value: { raw: 1997 },
         attribution: {
           source_name: 'IPDB',
           user_username: null,
@@ -19,7 +19,7 @@ describe('groupSourcesByField', () => {
       },
       {
         field_name: 'year',
-        value: 1998,
+        value: { raw: 1998 },
         attribution: {
           source_name: 'OPDB',
           user_username: null,
@@ -31,7 +31,7 @@ describe('groupSourcesByField', () => {
       },
       {
         field_name: 'description',
-        value: 'Updated copy',
+        value: { raw: 'Updated copy' },
         attribution: {
           source_name: null,
           user_username: 'editor',
@@ -43,7 +43,7 @@ describe('groupSourcesByField', () => {
       },
       {
         field_name: 'description',
-        value: 'Updated copy',
+        value: { raw: 'Updated copy' },
         attribution: {
           source_name: 'IPDB',
           user_username: null,
@@ -55,7 +55,7 @@ describe('groupSourcesByField', () => {
       },
       {
         field_name: 'manufacturer',
-        value: 'Williams',
+        value: { raw: 'Williams' },
         attribution: {
           source_name: 'IPDB',
           user_username: null,

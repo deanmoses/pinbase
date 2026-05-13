@@ -8,6 +8,7 @@ from typing import cast
 from django.db import models
 from django.db.models import Case, F, IntegerField, Prefetch, QuerySet, Value, When
 
+from .display import FieldValue, claim_value, resolve_labels
 from .models import CitationInstance, Claim
 from .schemas import ClaimAttributionSchema, ClaimSchema
 
@@ -76,7 +77,12 @@ def build_sources(claims: Iterable[Claim]) -> list[ClaimSchema]:
 
     Claims should be ordered by claim_key, -priority, -created_at. The first
     claim seen per claim_key is marked as the winner.
+
+    The iterable is materialized to a list internally so FK display labels can
+    be resolved in a single batched pass before the per-claim loop.
     """
+    claims = list(claims)
+    labels = resolve_labels(FieldValue(c.field_name, c.value) for c in claims)
     winners: set[str] = set()
     sources: list[ClaimSchema] = []
     for claim in claims:
@@ -91,7 +97,7 @@ def build_sources(claims: Iterable[Claim]) -> list[ClaimSchema]:
                     created_at=claim.created_at.isoformat(),
                 ),
                 field_name=claim.field_name,
-                value=claim.value,
+                value=claim_value(claim.field_name, claim.value, labels),
                 citation=claim.citation,
                 is_winner=is_winner,
                 changeset_note=claim.changeset.note if claim.changeset else None,

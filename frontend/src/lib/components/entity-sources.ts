@@ -23,7 +23,7 @@ export function groupSourcesByField(sources: Claim[]): {
     if (claims.length === 1) {
       single.push(group);
     } else {
-      const values = claims.map((c) => JSON.stringify(c.value));
+      const values = claims.map((c) => JSON.stringify(c.value.raw));
       const allSame = values.every((v) => v === values[0]);
       if (allSame) agreed.push(group);
       else conflicts.push(group);

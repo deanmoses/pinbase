@@ -29,6 +29,7 @@ from apps.core.authz.types import Activity
 from apps.core.models import LinkableModel
 from apps.core.schemas import ErrorDetailSchema
 
+from .display import FieldValue, claim_value, resolve_labels
 from .models import CitationInstance, Claim, ClaimControlledModel, Source
 from .page_endpoints import pages_router
 from .schemas import (
@@ -108,11 +109,13 @@ def _build_claim_review_context(
 @decorate_view(cache_control(no_cache=True))
 def list_review_claims(request: HttpRequest) -> list[ReviewClaimSchema]:
     """Return all active claims flagged for review."""
-    claims = (
+    claims = list(
         Claim.objects.filter(is_active=True, needs_review=True)
         .select_related("source", "content_type")
+        .prefetch_related("subject")
         .order_by("-created_at")
     )
+    labels = resolve_labels(FieldValue(c.field_name, c.value) for c in claims)
 
     results: list[ReviewClaimSchema] = []
     for claim in claims:
@@ -131,7 +134,7 @@ def list_review_claims(request: HttpRequest) -> list[ReviewClaimSchema]:
                 id=claim.pk,
                 source_name=claim.source.name if claim.source else "User",
                 field_name=claim.field_name,
-                value=claim.value,
+                value=claim_value(claim.field_name, claim.value, labels),
                 needs_review_notes=claim.needs_review_notes,
                 created_at=claim.created_at.isoformat(),
                 subject_type=_subject_entity_type(claim),

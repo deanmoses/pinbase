@@ -1,10 +1,12 @@
-"""Tests for provenance helpers: active_claims() and citation_instances()."""
+"""Tests for provenance helpers: active_claims(), citation_instances(), build_sources()."""
 
 import pytest
 
-from apps.catalog.models import Series
+from apps.catalog.models import CreditRole, Person, Series
+from apps.catalog.tests.conftest import make_machine_model
 from apps.provenance.helpers import (
     active_claims,
+    build_sources,
     citation_instances,
     claims_prefetch,
 )
@@ -56,3 +58,42 @@ class TestCitationInstances:
 
         with pytest.raises(AssertionError, match="claims_prefetch"):
             citation_instances(bare_claim)
+
+
+@pytest.mark.django_db
+class TestBuildSources:
+    """Wiring check: ``build_sources()`` must populate ``value.display`` for
+    relationship claims and leave it null for scalars. Guards against the
+    helper being called with an empty ``LabelLookup``."""
+
+    def test_relationship_claim_value_has_display(self, source):
+        pm = make_machine_model(name="MM", slug="mm", year=1997)
+        person = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
+        role = CreditRole.objects.create(name="Art", slug="art")
+        Claim.objects.assert_claim(
+            pm,
+            "credit",
+            {"person": person.pk, "role": role.pk, "exists": True},
+            source=source,
+            claim_key=f"credit|person:{person.pk}|role:{role.pk}",
+        )
+
+        loaded = pm.__class__.objects.prefetch_related(claims_prefetch()).get(pk=pm.pk)
+        sources = build_sources(active_claims(loaded))
+        credit = next(s for s in sources if s.field_name == "credit")
+
+        assert credit.value.display is not None
+        assert [(p.key, p.label) for p in credit.value.display.identity] == [
+            ("person", "Pat Lawlor"),
+            ("role", "Art"),
+        ]
+
+    def test_scalar_claim_value_has_null_display(self, source):
+        series = Series.objects.create(slug="s", name="S")
+        Claim.objects.assert_claim(series, "name", "S", source=source)
+
+        loaded = Series.objects.prefetch_related(claims_prefetch()).get(pk=series.pk)
+        sources = build_sources(active_claims(loaded))
+
+        assert sources[0].value.raw == "S"
+        assert sources[0].value.display is None

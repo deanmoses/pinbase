@@ -2,6 +2,7 @@
   import type { CitedChangeSetSchema, ClaimSchema } from '$lib/api/schema';
   import ClaimAttribution from './ClaimAttribution.svelte';
   import ClaimAuthor from './ClaimAuthor.svelte';
+  import ClaimValue from './ClaimValue.svelte';
   import FocusContentShell from './FocusContentShell.svelte';
   import { getEntityContext } from '$lib/entity-context';
   import { groupSourcesByField } from './entity-sources';
@@ -23,16 +24,11 @@
   function claimAttribution(claim: Claim): string {
     return claim.attribution.source_name ?? claim.attribution.user_username ?? 'Unknown';
   }
-
-  function formatValue(v: unknown): string {
-    const s = typeof v === 'string' ? v : JSON.stringify(v);
-    return s.length > 100 ? s.slice(0, 100) + '...' : s;
-  }
 </script>
 
 {#snippet claimDetail(claim: Claim)}
   <ClaimAuthor attribution={claim.attribution} />
-  {formatValue(claim.value)}
+  <span class="claim-value-inline"><ClaimValue value={claim.value} /></span>
   {#if claim.is_winner}
     <span class="badge-used">used</span>
   {/if}
@@ -135,9 +131,13 @@
                 <dt>{field}</dt>
                 <dd>
                   <span class="claim used">
-                    {formatValue(claims[0].value)}
+                    <span class="claim-value-inline"><ClaimValue value={claims[0].value} /></span>
                     <span class="source-list">
-                      {claims.map(claimAttribution).join(', ')}
+                      {#each claims as claim, i (i)}
+                        {#if i > 0},
+                        {/if}
+                        <ClaimAuthor attribution={claim.attribution} />
+                      {/each}
                     </span>
                   </span>
                 </dd>
@@ -287,6 +287,14 @@
 
   .claim.used {
     opacity: 1;
+  }
+
+  .claim-value-inline {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .badge-used {

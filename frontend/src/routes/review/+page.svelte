@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import ClaimValue from '$lib/components/ClaimValue.svelte';
   import Page from '$lib/components/Page.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { pageTitle } from '$lib/constants';
@@ -31,6 +32,9 @@
               >{claim.field_name === 'group' ? 'title' : claim.field_name}</span
             >
             <span class="source">{claim.source_name}</span>
+          </div>
+          <div class="claim-value">
+            <ClaimValue value={claim.value} />
           </div>
           <div class="claim-subject">
             <span class="label">Model:</span>
@@ -107,6 +111,12 @@
   .source {
     font-size: var(--font-size-0);
     color: var(--color-text-muted);
+  }
+
+  .claim-value {
+    font-size: var(--font-size-1);
+    margin-bottom: var(--size-2);
+    overflow-wrap: anywhere;
   }
 
   .claim-subject {

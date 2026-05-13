@@ -12,7 +12,7 @@ the frontend; the backend's job is FK-pk-to-label resolution.
 Usage::
 
     labels = resolve_labels([FieldValue(field_name, value), ...])
-    display = build_display_value(field_name, value, labels)
+    bundled = claim_value(field_name, value, labels)  # {raw, display}
 
 ``resolve_labels`` queries one row per FK target model (no per-row N+1).
 Bare scalars (direct-field claims like ``technology_generation``) and
@@ -34,6 +34,7 @@ from .schemas import (
     ClaimDisplayIdentityState,
     ClaimDisplayQualifierPartSchema,
     ClaimDisplayValueSchema,
+    ClaimValueSchema,
 )
 from .validation import (
     RelationshipSchema,
@@ -340,3 +341,12 @@ def build_display_value(
         )
 
     return ClaimDisplayValueSchema(identity=identity_parts, qualifiers=qualifier_parts)
+
+
+def claim_value(
+    field_name: str, value: object, labels: LabelLookup
+) -> ClaimValueSchema:
+    """Bundle a raw claim value with its structured display rendering."""
+    return ClaimValueSchema(
+        raw=value, display=build_display_value(field_name, value, labels)
+    )

@@ -10,7 +10,7 @@ const sampleClaim = {
     created_at: '2026-04-07T00:00:00Z',
   },
   field_name: 'year',
-  value: 1997,
+  value: { raw: 1997 },
   citation: '',
   is_winner: true,
   changeset_note: null,
@@ -51,6 +51,24 @@ describe('EntitySources', () => {
     expect(screen.getByText('Williams Flyer')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sources', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('Single source (1 field)')).toBeInTheDocument();
+  });
+
+  it('renders the claim value text', () => {
+    render(EntitySources, {
+      props: { sources: [sampleClaim], evidence: [] },
+    });
+
+    expect(screen.getByText('1997')).toBeInTheDocument();
+  });
+
+  it('renders a long scalar value verbatim (no string truncation)', () => {
+    const long = 'a'.repeat(200);
+    const longClaim = { ...sampleClaim, field_name: 'description', value: { raw: long } };
+    render(EntitySources, {
+      props: { sources: [longClaim], evidence: [] },
+    });
+
+    expect(screen.getByText(long)).toBeInTheDocument();
   });
 
   it('omits the Evidence section when no cited changesets are supplied', () => {

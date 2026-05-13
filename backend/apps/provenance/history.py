@@ -4,18 +4,18 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
+from itertools import chain
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, When
 
 from apps.core.authz import PolicyUser, compute_row_capabilities
 
-from .display import FieldValue, LabelLookup, build_display_value, resolve_labels
+from .display import FieldValue, LabelLookup, claim_value, resolve_labels
 from .models import ChangeSet, Claim
 from .schemas import (
     ChangeSetSchema,
     ClaimAttributionSchema,
-    ClaimValueSchema,
     FieldChangeSchema,
     RetractionSchema,
 )
@@ -59,33 +59,18 @@ def build_changes(
     rets = list(retracted)
 
     if labels is None:
-
-        def _label_refs() -> Iterable[FieldValue]:
-            for c in own:
-                yield FieldValue(c.field_name, c.value)
-            for c in rets:
-                yield FieldValue(c.field_name, c.value)
-            for chain in history_by_key.values():
-                for c in chain:
-                    yield FieldValue(c.field_name, c.value)
-
-        labels = resolve_labels(_label_refs())
+        labels = resolve_labels(
+            FieldValue(c.field_name, c.value)
+            for c in chain(own, rets, *history_by_key.values())
+        )
 
     changes: list[FieldChangeSchema] = []
     for claim in own:
         prior = _prior_value(claim, history_by_key.get(claim.claim_key, []))
         old_value = (
-            ClaimValueSchema(
-                raw=prior,
-                display=build_display_value(claim.field_name, prior, labels),
-            )
-            if prior is not None
-            else None
+            claim_value(claim.field_name, prior, labels) if prior is not None else None
         )
-        new_value = ClaimValueSchema(
-            raw=claim.value,
-            display=build_display_value(claim.field_name, claim.value, labels),
-        )
+        new_value = claim_value(claim.field_name, claim.value, labels)
         changes.append(
             FieldChangeSchema(
                 field_name=claim.field_name,
@@ -107,10 +92,7 @@ def build_changes(
             claim_id=c.pk,
             field_name=c.field_name,
             claim_key=c.claim_key,
-            old_value=ClaimValueSchema(
-                raw=c.value,
-                display=build_display_value(c.field_name, c.value, labels),
-            ),
+            old_value=claim_value(c.field_name, c.value, labels),
         )
         for c in rets
     ]

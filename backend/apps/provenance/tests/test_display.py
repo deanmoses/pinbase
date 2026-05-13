@@ -22,6 +22,7 @@ from apps.provenance.display import (
     FkRef,
     LabelLookup,
     build_display_value,
+    claim_value,
     resolve_labels,
 )
 from apps.provenance.models import Claim, Source
@@ -346,6 +347,43 @@ class TestBuildDisplayValue:
         assert labels.get(FkRef(Theme, theme.pk)) == "Sci-Fi"
         # Pks that were never referenced return None.
         assert labels.get(FkRef(Person, 999)) is None
+
+
+@pytest.mark.django_db
+class TestClaimValue:
+    def test_relationship_field_bundles_display(self):
+        person = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
+        role = CreditRole.objects.create(name="Art", slug="art")
+        value = {"person": person.pk, "role": role.pk, "exists": True}
+
+        labels = resolve_labels([FieldValue("credit", value)])
+        bundled = claim_value("credit", value, labels)
+
+        assert bundled.raw == value
+        assert bundled.display == ClaimDisplayValueSchema(
+            identity=_identity([("person", "Pat Lawlor"), ("role", "Art")]),
+            qualifiers=[],
+        )
+
+    def test_scalar_field_has_null_display(self):
+        bundled = claim_value("name", "Medieval Madness", LabelLookup())
+        assert bundled.raw == "Medieval Madness"
+        assert bundled.display is None
+
+    def test_deleted_fk_target_emits_deleted_state(self):
+        person = Person.objects.create(name="Pat Lawlor", slug="pat-lawlor")
+        role = CreditRole.objects.create(name="Art", slug="art")
+        value = {"person": person.pk, "role": role.pk, "exists": True}
+
+        person.delete()
+        # Resolve after deletion to simulate a stale-but-stored FK pk.
+        labels = resolve_labels([FieldValue("credit", value)])
+        bundled = claim_value("credit", value, labels)
+
+        assert bundled.display is not None
+        states = {part.key: part.state for part in bundled.display.identity}
+        assert states["person"] == "deleted"
+        assert states["role"] == "resolved"
 
 
 # ---------------------------------------------------------------------------

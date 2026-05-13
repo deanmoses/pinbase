@@ -190,18 +190,11 @@ class ChangeSetSchema(ChangeSetBaseSchema):
 
 
 class ClaimSchema(Schema):
-    """A single per-field claim as surfaced to the Sources UI.
-
-    ``value`` is the raw JSONField payload — kept flat (``object``, not
-    bundled into :class:`ClaimValueSchema`) until Sources UI display
-    rendering is actually implemented. Bundling now would require
-    rewriting the live Sources consumers (``EntitySources.svelte``,
-    ``entity-sources.ts``) — out of scope for this PR.
-    """
+    """A single per-field claim as surfaced to the Sources UI."""
 
     attribution: ClaimAttributionSchema
     field_name: str
-    value: object
+    value: ClaimValueSchema
     citation: str
     is_winner: bool
     changeset_note: str | None = None
@@ -298,10 +291,7 @@ class ReviewClaimSchema(Schema):
     id: int
     source_name: str
     field_name: str
-    # ``value`` is the raw JSONField payload — kept flat (``object``, not
-    # bundled into :class:`ClaimValueSchema`) until the review UI grows
-    # structured display rendering.
-    value: object
+    value: ClaimValueSchema
     needs_review_notes: str
     created_at: str
     # Context about the subject (the entity this claim targets).
