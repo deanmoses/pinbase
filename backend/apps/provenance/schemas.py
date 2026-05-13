@@ -125,6 +125,12 @@ class FieldChangeSchema(Schema):
 
 
 class RetractionSchema(Schema):
+    """A claim that was retracted (not superseded) within a ChangeSet.
+
+    Distinct from :class:`FieldChangeSchema`: a retraction removes a prior
+    claim without replacing it, so there is no ``new_value``.
+    """
+
     claim_id: int
     field_name: str
     claim_key: str
@@ -264,6 +270,13 @@ class RichTextSchema(Schema):
 
 
 class CitationSourceSchema(Schema):
+    """A reusable citation source (a book, website, person, etc.).
+
+    The source itself — not an individual reference *to* it. Distinct from
+    :class:`CitationInstanceSchema`, which is one use of a source on a
+    specific claim.
+    """
+
     name: str
     slug: str
     source_type: str
@@ -273,6 +286,15 @@ class CitationSourceSchema(Schema):
 
 
 class ReviewClaimSchema(Schema):
+    """A flagged claim as surfaced in the global review queue.
+
+    Self-contains subject context (``subject_*``, ``title_slug``,
+    ``review_links``) because the review UI displays claims *outside* any
+    entity page. Distinct from :class:`ClaimSchema`, which assumes the
+    entity context is already known (Sources page) and instead carries
+    priority/citation metadata (``citation``, ``is_winner``).
+    """
+
     id: int
     source_name: str
     field_name: str
@@ -293,18 +315,31 @@ class ReviewClaimSchema(Schema):
 
 
 class RevertNoteSchema(Schema):
+    """Input for reverting a single claim to a prior value. ``note`` is required."""
+
     note: str
 
 
 class UndoChangeSetSchema(Schema):
+    """Input for undoing an entire ChangeSet (a create/edit/delete grouping)."""
+
     note: str = ""
 
 
 class UndoResultSchema(Schema):
+    """Result of an undo: the id of the new compensating ChangeSet."""
+
     changeset_id: int
 
 
 class CitationInstanceSchema(Schema):
+    """One use of a CitationSource on a specific claim, with a locator.
+
+    The "instance" half of source/instance: a :class:`CitationSourceSchema`
+    is the source itself; a CitationInstance attaches it to a claim with a
+    page number, URL fragment, or other locator.
+    """
+
     id: int
     citation_source_id: int
     citation_source_name: str
@@ -314,6 +349,13 @@ class CitationInstanceSchema(Schema):
 
 
 class CitationInstanceBatchSchema(Schema):
+    """A CitationInstance flattened with its source fields for batch rendering.
+
+    Used where the UI needs source metadata (name, type, author, year)
+    alongside the instance without a separate source lookup — typically
+    when rendering many citations at once.
+    """
+
     id: int
     source_name: str
     source_type: str
@@ -324,5 +366,7 @@ class CitationInstanceBatchSchema(Schema):
 
 
 class CitationInstanceCreateSchema(Schema):
+    """Input for creating a new CitationInstance against an existing source."""
+
     citation_source_id: int
     locator: str = ""

@@ -25,6 +25,12 @@ class EntityCreateInputSchema(ChangeSetInputSchema):
 
 
 class ClaimPatchSchema(ChangeSetInputSchema):
+    """Generic claim-patch body for entity types with no list-shaped
+    payloads beyond ``fields``. Entity types that own M2M/list relations
+    (parents, aliases, themes, credits, …) use the per-entity subclasses
+    below instead.
+    """
+
     # ``fields`` maps claim-field name → new value. Values are polymorphic per
     # field (str, int, bool, slug string for FK-backed claims, None) and are
     # validated downstream by ``validate_claim_value``; no fixed TypedDict.
@@ -32,6 +38,10 @@ class ClaimPatchSchema(ChangeSetInputSchema):
 
 
 class HierarchyClaimPatchSchema(ChangeSetInputSchema):
+    """Patch body for hierarchy-shaped taxonomies (themes, locations,
+    technology generations, …) whose claims include parent links and aliases.
+    """
+
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     parents: list[str] | None = None
@@ -39,22 +49,37 @@ class HierarchyClaimPatchSchema(ChangeSetInputSchema):
 
 
 class CorporateEntityClaimPatchSchema(ChangeSetInputSchema):
+    """Patch body for manufacturer/operator/etc. — aliases, but no parents
+    (corporate entities are flat, not hierarchical)."""
+
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     aliases: list[str] | None = None
 
 
 class GameplayFeatureInputSchema(Schema):
+    """Nested entry in :class:`ModelClaimPatchSchema.gameplay_features` —
+    standalone because each entry carries a ``count`` alongside the slug.
+    """
+
     slug: str
     count: int | None = None
 
 
 class CreditInputSchema(Schema):
+    """Nested entry in :class:`ModelClaimPatchSchema.credits` — standalone
+    because each entry pairs a person slug with a role.
+    """
+
     person_slug: str
     role: str
 
 
 class ModelClaimPatchSchema(ChangeSetInputSchema):
+    """Patch body for Model — the widest entity, with several list payloads
+    on top of the generic ``fields`` bag.
+    """
+
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     themes: list[str] | None = None
@@ -66,6 +91,10 @@ class ModelClaimPatchSchema(ChangeSetInputSchema):
 
 
 class TitleClaimPatchSchema(ChangeSetInputSchema):
+    """Patch body for Title — narrow because most attributes live on Model
+    (see [docs/SingleModelTitles.md] for the asymmetric split).
+    """
+
     # See ClaimPatchSchema.fields — polymorphic per claim field, validated downstream.
     fields: dict[str, Any] = {}
     abbreviations: list[str] | None = None
@@ -269,11 +298,21 @@ class CreditSchema(Schema):
 
 
 class CorporateEntityLocationAncestorRef(Schema):
+    """Narrowed ancestor row in :class:`CorporateEntityLocationSchema.ancestors`
+    — omits ``slug``/``location_type`` because ancestors render as a
+    breadcrumb, not as links.
+    """
+
     display_name: str
     location_path: str
 
 
 class CorporateEntityLocationSchema(Schema):
+    """A corporate entity's location plus its ancestor chain. The location
+    itself is linkable (``slug``, ``location_type``); ancestors use the
+    narrower :class:`CorporateEntityLocationAncestorRef`.
+    """
+
     location_path: str
     location_type: str
     display_name: str

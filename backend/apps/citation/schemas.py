@@ -42,6 +42,12 @@ class CitationSourceParentSchema(Schema):
 
 
 class CitationRecognitionSchema(Schema):
+    """A URL or ISBN typed into citation search was recognized as belonging
+    to a known parent source. ``child`` is set when a record with the
+    extracted ``identifier`` already exists; otherwise the UI has enough to
+    prefill a create form.
+    """
+
     parent: CitationSourceParentSchema
     child: CitationSourceMatchSchema | None = None
     identifier: str | None = None
@@ -172,6 +178,11 @@ class CitationExtractDraftSchema(Schema):
 
 
 class CitationExtractResultSchema(Schema):
+    """Result of looking up a pasted URL/ISBN via an external API.
+    ``match`` points at an existing source if one was found; ``draft`` is a
+    prefill for the create form; ``error`` is a user-facing failure reason.
+    """
+
     draft: CitationExtractDraftSchema | None = None
     match: CitationSourceMatchSchema | None = None
     error: str | None = None

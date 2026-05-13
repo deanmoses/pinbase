@@ -23,12 +23,20 @@ class UploadedMediaSchema(Schema):
 
 
 class RenditionUrlsSchema(Schema):
+    """Rendition URLs returned in the upload response. Includes ``original``,
+    unlike the public-facing :class:`MediaRenditionsSchema`.
+    """
+
     original: str
     thumb: str
     display: str
 
 
 class AttachmentMetaSchema(Schema):
+    """Echo of where an upload was attached, returned inside
+    :class:`UploadSchema`.
+    """
+
     entity_type: str
     public_id: str
     category: str | None

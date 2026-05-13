@@ -70,7 +70,10 @@ class EntityLinkSchema(Schema):
 
 
 class LinkTypeSchema(Schema):
-    """One entry in the autocomplete type picker."""
+    """One *kind* of wikilink target (title, model, person, …) — populates
+    the type selector in the wikilink picker. Targets within a chosen type
+    are returned as :class:`LinkTargetSchema`.
+    """
 
     name: str
     label: str
@@ -79,10 +82,8 @@ class LinkTypeSchema(Schema):
 
 
 class LinkTargetSchema(Schema):
-    """Serialized shape for one autocomplete result.
-
-    Returned by ``LinkType.autocomplete_serialize`` and consumed by the
-    ``/link-types/targets/`` endpoint.
+    """One autocomplete result within a chosen :class:`LinkTypeSchema`.
+    ``ref`` is the wikilink string the editor inserts.
     """
 
     ref: str
