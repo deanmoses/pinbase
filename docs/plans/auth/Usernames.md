@@ -16,78 +16,6 @@ We landed on username because that's the best practice used by comparable user-g
   - We are pre-launch, know all existing users, and they are cool with their existing usernames. We have run a script that their current usernames meet the validation requirements -- including length 20 -- in this doc. And if that changes, DB migration fails and we address it then.
 - Usernames must be URL-friendly
 
-## How it works
-
-### No User record until username is chosen
-
-The user should not be a User in our system until they've chosen a username.
-
-I want User.username to remain required, non-nullable and unique at the DB level like it is now. When WorkOS hands us a user, we don't create the User record until they've chosen their username.
-
-This will require some rework, because currently the WorkOS callback immediately needs a Django User because it calls login(request, user, ...) after get_or_create_django_user(...). So holding off on creating the User record means adding a separate pending signup/onboarding state or something.
-
-I see the following options:
-
-- Pending Signup In Session
-- PendingSignup Table
-
-#### Session-based for now
-
-The right approach for v1 is probably a short-lived pending signup object in the Django session.
-
-The callback already depends on the same browser session for the WorkOS `state`
-round-trip, and the user chooses their username immediately after the callback.
-That makes the pending identity a continuation of one browser flow, not a durable
-account-like object. Django is using server-side sessions, so this does not put
-the pending email/name payload in a browser cookie.
-
-The callback should split the current `get_or_create_django_user(...)` behavior
-into two paths:
-
-1. Existing local account matched by `workos_user_id`, verified email link, or
-   reactivation: refresh mirrored WorkOS fields, call `login(...)`, and redirect
-   to the original `next`.
-2. No local account matched: store pending WorkOS identity in the session,
-   redirect to the username onboarding page, and do **not** create or log in a
-   `User`.
-
-The pending session payload should include only what is needed to create the
-eventual `User`. Something like:
-
-```python
-{
-    "workos_user_id": workos_user.id,
-    "email": workos_user.email,
-    "email_verified": workos_user.email_verified,
-    "first_name": workos_user.first_name or "",
-    "last_name": workos_user.last_name or "",
-    "next_url": next_url,
-    "created_at": timezone.now().isoformat(),
-}
-```
-
-Treat the payload as expired after a short window, e.g. 30 minutes. If it is
-missing or expired, the user restarts sign-in. That is acceptable because no
-local account exists yet.
-
-##### Why not a `PendingSignup` table
-
-A table is the right answer if pending signup becomes independently durable, such as:
-
-- users can resume onboarding across browsers/devices (which would be cool)
-- support needs to inspect pending attempts
-- we need cleanup metrics
-- we need to coordinate multiple pending attempts per WorkOS identity across sessions
-- the pending state starts carrying policy/audit significance
-
-A table would add a second identity-like lifecycle containing PII, cleanup semantics, uniqueness rules, and support states, so let's avoid it until we're sure we need it.
-
-### Choosing a username
-
-As the user types a username, we check whether it's already taken without them having to click submit.
-
-If it's taken, the user must choose another: no silent suffixing for public handles, no automatic incrementing like myHandle1.
-
 ## Username policy
 
 ### Username format
@@ -161,7 +89,7 @@ For v1, username does NOT free up when a user deactivates.
 
 ## User creation from Django Admin/CLI
 
-createsuperuser and any management commands must enforce same username policy with regards to uniqueness and allowed characters, but not reserved usernames.
+createsuperuser and any management commands must enforce same username policy with regards to uniqueness and allowed characters, but not reserved usernames — createsuperuser is operator-run, not user-facing, so reserved-list enforcement isn't a real risk there.
 
 ## Email verification
 
@@ -174,10 +102,6 @@ WorkOS verifies the user's email before even sending them our way. We don't re-c
 - A way to edit their first and last name, or mark them as public. WorkOS returns them and we store them, but we treat them as private right now. We will probably do this the future, but not in this PR.
 - A user account page where the user can manager their information. We'll have that, but not in this PR.
 
-## Code pointers
-
-A WorkOS callback creates a local user via User.objects.create*user(...) without passing username in backend/apps/accounts/api.py (line 266). The manager then fills username from derive_unique_username(email) in backend/apps/accounts/models.py (line 76). derive_username() takes the email local-part before @, lowercases it, replaces ./*/+ with -, strips other chars, and uses that as the public username in backend/apps/accounts/models.py (line 15). The test explicitly verifies Alice.Smith+tag@example.com becomes alice-smith-tag in backend/apps/accounts/tests/test_models.py (line 19).
-
 ## Design
 
 ### Validation
@@ -185,3 +109,117 @@ A WorkOS callback creates a local user via User.objects.create*user(...) without
 - **Format** (charset, length, hyphen rules) → DB CHECK constraint, per the project's "validate in the database" convention. This is what makes the admin/CLI path safe automatically.
 - **Uniqueness** → existing DB unique constraint, already in place.
 - **Reserved list** → can't be a DB constraint (it's policy data in code). Has to live in model clean() or the manager's create_user.
+
+### No User record until username is chosen
+
+The user should not be a User in our system until they've chosen a username.
+
+I want User.username to remain required, non-nullable and unique at the DB level like it is now. When WorkOS hands us a user, we don't create the User record until they've chosen their username.
+
+This will require some rework, because currently the WorkOS callback immediately needs a Django User because it calls login(request, user, ...) after get_or_create_django_user(...). So holding off on creating the User record means adding a separate pending signup/onboarding state or something.
+
+I see the following options:
+
+- Pending Signup In Session
+- PendingSignup Table
+
+#### Session-based for now
+
+The right approach for v1 is probably a short-lived pending signup object in the Django session.
+
+The callback already depends on the same browser session for the WorkOS `state`
+round-trip, and the user chooses their username immediately after the callback.
+That makes the pending identity a continuation of one browser flow, not a durable
+account-like object. Django is using server-side sessions, so this does not put
+the pending email/name payload in a browser cookie.
+
+The callback should split the current `get_or_create_django_user(...)` behavior
+into two paths:
+
+1. Existing local account matched. Three sub-paths, all converge on the same
+   outcome — refresh mirrored WorkOS fields, call `login(...)`, redirect to
+   the original `next`:
+   - `workos_user_id` matches an active local user (the common case).
+   - Email matches an active local user that predates WorkOS and has no
+     `workos_user_id` yet: bind it on first link.
+   - Email matches a soft-deleted local user: reactivate.
+2. No local account matched: store pending WorkOS identity in the session,
+   redirect to the username onboarding page, and do **not** create or log in a
+   `User`.
+
+The pending session payload should include only what is needed to create the
+eventual `User`. Something like:
+
+```python
+{
+    "workos_user_id": workos_user.id,
+    "email": workos_user.email,
+    "email_verified": workos_user.email_verified,
+    "first_name": workos_user.first_name or "",
+    "last_name": workos_user.last_name or "",
+    "next_url": next_url,
+    "created_at": timezone.now().isoformat(),
+}
+```
+
+Treat the payload as expired after a short window, e.g. 30 minutes. If it is
+missing or expired, the user restarts sign-in. That is acceptable because no
+local account exists yet.
+
+##### Why not a `PendingSignup` table
+
+A table is the right answer if pending signup becomes independently durable, such as:
+
+- users can resume onboarding across browsers/devices (which would be cool)
+- support needs to inspect pending attempts
+- we need cleanup metrics
+- we need to coordinate multiple pending attempts per WorkOS identity across sessions
+- the pending state starts carrying policy/audit significance
+
+A table would add a second identity-like lifecycle containing PII, cleanup semantics, uniqueness rules, and support states, so let's avoid it until we're sure we need it.
+
+### Flow of choosing a username
+
+As the user types a username, we check whether it's already taken without them having to click submit.
+
+If it's taken, the user must choose another: no silent suffixing for public handles, no automatic incrementing like myHandle1.
+
+### Submitting the chosen username
+
+When the user submits, the server does the following in a single transaction:
+
+1. Load the pending payload from the session. If missing or expired, return an error that sends the user back to sign-in.
+2. Validate the chosen username against the format rules and the reserved list.
+3. Create the `User`, copying the mirrored fields (`workos_user_id`, email, first/last name, `email_verified`) from the pending payload.
+4. Clear the pending payload from the session.
+5. Call `login(request, user, ...)` and redirect to `next_url`.
+
+#### Both signup endpoints are unauthenticated
+
+The live availability-check endpoint and the submit endpoint both run before any `User` exists, so neither can sit behind the usual `@requires(Activity.X)` authz. Both are gated only by "valid, unexpired pending payload in this session."
+
+#### Race: availability preview said "free", submit collides
+
+The live check during typing is advisory. Between preview and submit, another user can claim the same handle. At submit time the DB unique constraint will raise `IntegrityError`. We catch it and return a form-level error ("just taken, pick another") that re-renders the onboarding page with the pending payload intact. No 500, no lost pending state.
+
+#### Race: double-submit or two-tab signup
+
+The frontend disables the submit button on first click and re-enables only on error response. That handles the common case (impatient double-click) cleanly. The backend race handling below is the correctness backstop for the cases the frontend can't cover: two tabs (each with its own button state), client-side retry after a network hiccup, or a buggy/hostile client.
+
+Two requests can still land near-simultaneously for the same `workos_user_id` — two tabs submitting different handles, or a retry after a timeout. The `User.workos_user_id` unique constraint prevents duplicate accounts at the DB level. On the second request:
+
+1. Detect the `IntegrityError` on `workos_user_id` (distinct from the username-collision case above).
+2. Look up the existing `User` by `workos_user_id`, clear the pending payload, log them in, and redirect to `next_url`.
+3. The handle chosen in the losing request is discarded silently — the user is now logged in with the handle chosen in the winning request, which is acceptable because they just chose it themselves seconds earlier.
+
+### Case handling and lookups
+
+The same rule applies at every backend input point — the live check endpoint, the submit endpoint, URL routing for `/users/<username>`, and any future rename flow:
+
+- The editor lowercases as the user types so they don't fight the form. This is UX comfort only.
+- The backend rejects any input containing uppercase — it does NOT silently lowercase. A curl/postman submit with `JohnDoe` is rejected, same principle as the format rules above (final submit must reject invalid input rather than silently change the handle).
+- Lookups are strict, not case-folded. `/users/JohnDoe` returns 404, not a 301 to `/users/johndoe`. The validation rule and the lookup rule are the same rule: if it's not a valid username, it doesn't exist.
+
+## Code pointers
+
+A WorkOS callback creates a local user via User.objects.create*user(...) without passing username in backend/apps/accounts/api.py (line 266). The manager then fills username from derive_unique_username(email) in backend/apps/accounts/models.py (line 76). derive_username() takes the email local-part before @, lowercases it, replaces ./*/+ with -, strips other chars, and uses that as the public username in backend/apps/accounts/models.py (line 15). The test explicitly verifies Alice.Smith+tag@example.com becomes alice-smith-tag in backend/apps/accounts/tests/test_models.py (line 19).
