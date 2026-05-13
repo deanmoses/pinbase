@@ -100,9 +100,13 @@ export function simplifyClaimValue(v: unknown): { display: string; exists: boole
   return { display: scalar, exists: obj.exists };
 }
 
-/** Format an unknown claim value for inline display, with truncation. */
+/**
+ * Format an unknown claim value as a plain string. Null/undefined/empty
+ * collapse to em-dash; non-strings are JSON-serialized. No truncation:
+ * callers control overflow via container CSS (ellipsis vs. wrap), so the
+ * full value reaches the DOM and is available for copy/paste and a11y.
+ */
 export function formatValue(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
-  const s = typeof v === 'string' ? v : JSON.stringify(v);
-  return s.length > 120 ? s.slice(0, 120) + '...' : s;
+  return typeof v === 'string' ? v : JSON.stringify(v);
 }

@@ -41,16 +41,9 @@ describe('formatValue', () => {
     expect(formatValue('hello')).toBe('hello');
   });
 
-  it('truncates strings longer than 120 characters', () => {
+  it('preserves long strings verbatim (callers control overflow via CSS)', () => {
     const long = 'a'.repeat(150);
-    const result = formatValue(long);
-    expect(result).toBe('a'.repeat(120) + '...');
-    expect(result.length).toBe(123);
-  });
-
-  it('preserves strings of exactly 120 characters', () => {
-    const exact = 'b'.repeat(120);
-    expect(formatValue(exact)).toBe(exact);
+    expect(formatValue(long)).toBe(long);
   });
 
   it('JSON-serializes non-string values', () => {
@@ -59,11 +52,9 @@ describe('formatValue', () => {
     expect(formatValue({ key: 'val' })).toBe('{"key":"val"}');
   });
 
-  it('truncates long JSON-serialized values', () => {
+  it('preserves long JSON-serialized values verbatim', () => {
     const obj = { data: 'x'.repeat(200) };
-    const result = formatValue(obj);
-    expect(result.length).toBe(123);
-    expect(result.endsWith('...')).toBe(true);
+    expect(formatValue(obj)).toBe(JSON.stringify(obj));
   });
 });
 
