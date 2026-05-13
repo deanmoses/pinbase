@@ -303,6 +303,7 @@
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
     padding: var(--size-3);
+    container-type: inline-size;
   }
 
   .changeset-header {
@@ -385,6 +386,38 @@
 
   .new-value {
     font-weight: 500;
+  }
+
+  /*
+   * Narrow layout: when a changeset card is too narrow for `dt | dd | revert`
+   * to fit comfortably, stack to two rows — dt + revert on top, dd below.
+   * Short values then live alongside the field name? No — that would require
+   * value-length-aware layout, which CSS can't do. We optimise for legibility
+   * of the long-value case (json blobs, diffs) at the cost of a second line
+   * for short ones.
+   */
+  @container (max-width: 32rem) {
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: var(--size-2);
+      row-gap: var(--size-1);
+    }
+
+    .field-row dt {
+      min-width: 0;
+      grid-column: 1;
+    }
+
+    .field-row dd {
+      grid-column: 1 / -1;
+    }
+
+    .revert-cell {
+      grid-column: 2;
+      grid-row: 1;
+      margin-left: 0;
+    }
   }
 
   .no-history {
