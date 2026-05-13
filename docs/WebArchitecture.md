@@ -44,6 +44,37 @@ This keeps authentication and CSRF simple:
 - no JWT or CORS architecture is required
 - Django admin and the user-facing app share the same auth authority
 
+## API Layer
+
+The frontend talks to the backend through a single typed API mounted at `/api/`, built on [Django Ninja](https://django-ninja.dev/).
+
+### API routers
+
+Ninja API Routers are defined per Django app (`apps.catalog.api`, `apps.accounts.api`, etc.) and assembled in `config/api.py`.
+
+### Typed client
+
+The OpenAPI schema is generated from the Ninja routers and compiled into TypeScript types in `frontend/src/lib/api/schema.d.ts` (gitignored, regenerated via `make api-gen`). A hand-written client in `frontend/src/lib/api/client.ts` wraps `fetch` with the schema's typed paths, bodies, and responses.
+
+### Authentication and authorization
+
+All routes use Django session cookies. No JWT, no API key, no CORS. Mutating routes carry an `Activity`-based authorization marker (`@requires`, `@gated_inline`, or `@public_mutation`); a route-inventory test ensures every mutating route is classified. See [Authz.md](Authz.md).
+
+### CSRF enforcement
+
+Django Ninja marks every view as `csrf_exempt`, so Django's stock `CsrfViewMiddleware` short-circuits for `/api/` routes. This project re-enforces CSRF with a dedicated `NinjaCsrfMiddleware` (in `apps.core.middleware`) that runs Django's CSRF check against unsafe-method `/api/` requests via a non-exempt placeholder callable.
+
+The contract:
+
+- The frontend's `client.ts` reads the `csrftoken` cookie set by Django and sends its value as the `X-CSRFToken` header on every mutating request.
+- The backend's `NinjaCsrfMiddleware` validates the header against the cookie on every `POST`/`PATCH`/`DELETE` request to `/api/`. `GET` is unaffected.
+
+`NinjaCsrfMiddleware` is positioned immediately after Django's `CsrfViewMiddleware` in `MIDDLEWARE`; the stock middleware's `process_request` populates `request.META['CSRF_COOKIE']`, which the Ninja-specific middleware then compares against the submitted header. A route-inventory test (`apps/core/tests/test_csrf_inventory.py`) asserts every mutating `/api/` route is rejected without a valid token, and end-to-end integration tests against `/api/auth/logout/` cover the full middleware chain.
+
+### Endpoint design
+
+See [ApiDesign.md](ApiDesign.md) for endpoint shape (page-oriented vs. resource-oriented), schema consolidation heuristics, and inheritance smells.
+
 ## Development
 
 In local development, the browser talks to the SvelteKit dev server. Vite handles frontend routes and proxies backend paths to Django.
@@ -103,4 +134,5 @@ See [Svelte.md](Svelte.md) for route-level guidance and [ApiDesign.md](ApiDesign
 - [Architecture.md](Architecture.md)
 - [Svelte.md](Svelte.md)
 - [ApiDesign.md](ApiDesign.md)
+- [Authz.md](Authz.md)
 - [Hosting.md](Hosting.md)
