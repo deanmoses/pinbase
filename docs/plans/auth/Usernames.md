@@ -12,8 +12,9 @@ We landed on username because that's the best practice used by comparable user-g
 
 ## Invariants
 
-- No username migration. We are pre-launch, know all the existing users, and they are cool with their existing usernames.
-- Usernames must be URL-friendly. I think the existing logic for creating a username might have the right validation logic.
+- No username migration.
+  - We are pre-launch, know all existing users, and they are cool with their existing usernames. We have run a script that their current usernames meet the validation requirements -- including length 20 -- in this doc. And if that changes, DB migration fails and we address it then.
+- Usernames must be URL-friendly
 
 ## How it works
 
@@ -93,29 +94,36 @@ If it's taken, the user must choose another: no silent suffixing for public hand
 
 Same URL shape as the current derived usernames, but make it explicit:
 
-- lowercase ASCII letters, digits, and single hyphens
-- no leading/trailing hyphen
-- no '/', so we can use the username in routes
-- **length**. Must stay within `User.username`'s 150-character column. Is there a reason to require something shorter? That's pretty long for a URL...
+- **allowed characters**
+  - lowercase ASCII letters, digits, and single hyphens
+    - Yes, this excludes users whose names use non-Latin scripts. We accept this tradeoff for URL safety
+  - no leading/trailing hyphen
+  - No underscore. No other special characters. In particular no '/', so we can use usernames in routes
+- **min length**: 3 chars
+- **max length**: 20 chars
+  - Any longer and it causes problems for attribution chips, comment headers, and @mentions
+  - 20 is what Reddit uses and they're doing all right
+  - 30 is Instagram/Mastodon/Discord. We can relax later to here, but we can never tighten to 20.
 - collapse/normalization can be used for availability preview, but final submit must reject invalid input rather than silently changing the handle
 
-### Reserved usernames
+### Reserved usernames that connote authority
 
-Reserve usernames that connote authority or would be confusing for other users to see: `admin`, `support`, `moderator`,`mod`, `staff`, `superuser`, `flipcommons`, flip-commons, `flip`, `the-flip`, theflip, flipcommons-team, flip-commons-team, flipcommons-admin, flipcommons-support, flipcommons-help, `museum`, the-museum, museum-support, museum-help, museum-staff, musuem-admin, help, official, team, m0derator, flipc0mmons, sysadmin, system, administrator, flipcommons-staff... TBD
+Suffixes (alone and in front of stems): official, team, staff, admin, administrator, help, system, mod, moderator, m0derator, sysadmin, superuser, support, system ... TBD
 
-Suffixes: -official, -team, -staff, -admin, -administrator, -help, -system... TBD
+Stems (alone and in front of suffixes): flipcommons, flip-commons, flip, the-flip, theflip, museum, the-museum, , flipc0mmons... TBD
 
 #### Variants of reserved usernames
 
 Normalize before comparing to the reserved list — fold 0→o, 1→l, strip non-letters, lowercase — and reject if the normalized form hits a reserved entry.
 
-#### Deferred reserved usernames
+#### Deferred reserved usernames - FOLLOW-UP
 
 I would _like_ to reserve some of the following, but they need moderation/product policy, so let's defer them until later.
 
 - Reserve manufacturer names for manufacturers.
 - Reserve the names of the people credited with working on machines for those people.
 - Trademarks, famous people, and impersonation?
+- Profanity / slurs
 
 Let's get the basic idea out for now.
 
@@ -127,6 +135,34 @@ Reserved list needs to be expandable without a deploy. This is important but wil
 
 If we miss a username we need to reserve, we're stuck unless an admin can forcibly disable/rename. This is important but will be in a follow-up PR.
 
+## Treat username as mutable
+
+V1 won't allow the user to change their username after the fact, but we probably will in the future. This means username is NOT a stable identifier and MUST NOT be treated as such. Meaning:
+
+- **Database**. Any place we store a reference to a user in the database, store the user's db FK not their username.
+- **Caches**. Caches must key by user ID. Including CDN caches.
+- **API payloads**. API responses must include both user ID and username, so that the front end can use the stable ID as necessary.
+- **Logs**. Log entries must write both user ID _and_ username.
+- **@mentions**. If we support user @mentions, we turn those into IDs in the DB. We already have a wikilink system that serializes and deserializes public IDs like slugs into IDs in the DB.
+
+When we do allow username changes in the future:
+
+- prevent users from renaming again in N hours/days, to prevent spoofing
+- probably redirect old user URLs to the new user URL, but that's TBD
+- we want new users to be able to take the old handle, but that requres careful design. TBD.
+
+## Account deletion
+
+For v1, username does NOT free up when a user deactivates.
+
+## User creation from Django Admin/CLI
+
+createsuperuser and any management commands must enforce same username policy with regards to uniqueness and allowed characters, but not reserved usernames.
+
+## Email verification
+
+WorkOS verifies the user's email before even sending them our way. We don't re-check. We store email_verified from the pending payload for future reference, not a decision point.
+
 ## Out of scope
 
 - Allowing the user to change their username after the fact. Design it as if renames will exist later, but we're not implementing it right now.
@@ -137,3 +173,11 @@ If we miss a username we need to reserve, we're stuck unless an admin can forcib
 ## Code pointers
 
 A WorkOS callback creates a local user via User.objects.create*user(...) without passing username in backend/apps/accounts/api.py (line 266). The manager then fills username from derive_unique_username(email) in backend/apps/accounts/models.py (line 76). derive_username() takes the email local-part before @, lowercases it, replaces ./*/+ with -, strips other chars, and uses that as the public username in backend/apps/accounts/models.py (line 15). The test explicitly verifies Alice.Smith+tag@example.com becomes alice-smith-tag in backend/apps/accounts/tests/test_models.py (line 19).
+
+## Design
+
+### Validation
+
+- **Format** (charset, length, hyphen rules) → DB CHECK constraint, per the project's "validate in the database" convention. This is what makes the admin/CLI path safe automatically.
+- **Uniqueness** → existing DB unique constraint, already in place.
+- **Reserved list** → can't be a DB constraint (it's policy data in code). Has to live in model clean() or the manager's create_user.
