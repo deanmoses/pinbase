@@ -3,19 +3,119 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, When
 
 from apps.core.authz import PolicyUser, compute_row_capabilities
 
+from .display import FieldValue, LabelLookup, build_display_value, resolve_labels
 from .models import ChangeSet, Claim
 from .schemas import (
     ChangeSetSchema,
     ClaimAttributionSchema,
+    ClaimValueSchema,
     FieldChangeSchema,
     RetractionSchema,
 )
+
+
+def _prior_value(claim: Claim, chain: Sequence[Claim]) -> object | None:
+    """Return the value of the claim immediately preceding ``claim`` in ``chain``.
+
+    ``chain`` is ordered newest-first by ``(-created_at, -pk)``; the prior
+    claim is the entry immediately after ``claim`` in that ordering.
+    Returns ``None`` if ``claim`` is at the tail of the chain or absent
+    from it.
+    """
+    for i, c in enumerate(chain):
+        if c.pk == claim.pk and i + 1 < len(chain):
+            # Claim.value is a JSONField (django-stubs types it Any).
+            prior: object = chain[i + 1].value
+            return prior
+    return None
+
+
+def build_changes(
+    own_claims: Iterable[Claim],
+    retracted: Iterable[Claim],
+    history_by_key: Mapping[str, Sequence[Claim]],
+    *,
+    winning_ids: set[int] | None = None,
+    labels: LabelLookup | None = None,
+) -> tuple[list[FieldChangeSchema], list[RetractionSchema]]:
+    """Build per-field changes and retractions for a changeset.
+
+    No per-row DB lookups during display-label building: pass a pre-built ``labels``
+    when the caller already has one (e.g. a multi-changeset response that
+    resolved labels across the whole entity); otherwise this builds its
+    own from the union of values referenced here.
+
+    ``winning_ids`` is only meaningful for entity-wide history; omit it for
+    single-changeset detail views and ``is_winning`` will be left unset.
+    """
+    own = list(own_claims)
+    rets = list(retracted)
+
+    if labels is None:
+
+        def _label_refs() -> Iterable[FieldValue]:
+            for c in own:
+                yield FieldValue(c.field_name, c.value)
+            for c in rets:
+                yield FieldValue(c.field_name, c.value)
+            for chain in history_by_key.values():
+                for c in chain:
+                    yield FieldValue(c.field_name, c.value)
+
+        labels = resolve_labels(_label_refs())
+
+    changes: list[FieldChangeSchema] = []
+    for claim in own:
+        prior = _prior_value(claim, history_by_key.get(claim.claim_key, []))
+        old_value = (
+            ClaimValueSchema(
+                raw=prior,
+                display=build_display_value(claim.field_name, prior, labels),
+            )
+            if prior is not None
+            else None
+        )
+        new_value = ClaimValueSchema(
+            raw=claim.value,
+            display=build_display_value(claim.field_name, claim.value, labels),
+        )
+        changes.append(
+            FieldChangeSchema(
+                field_name=claim.field_name,
+                claim_key=claim.claim_key,
+                old_value=old_value,
+                new_value=new_value,
+                claim_id=claim.pk,
+                claim_user_id=claim.user_id,
+                is_active=claim.is_active,
+                is_winning=(
+                    (claim.pk in winning_ids) if winning_ids is not None else None
+                ),
+                is_retracted=claim.retracted_by_changeset_id is not None,
+            )
+        )
+
+    retractions = [
+        RetractionSchema(
+            claim_id=c.pk,
+            field_name=c.field_name,
+            claim_key=c.claim_key,
+            old_value=ClaimValueSchema(
+                raw=c.value,
+                display=build_display_value(c.field_name, c.value, labels),
+            ),
+        )
+        for c in rets
+    ]
+
+    return changes, retractions
 
 
 def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
@@ -55,9 +155,10 @@ def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
 def build_edit_history(entity: Model, user: PolicyUser) -> list[ChangeSetSchema]:
     """Build changeset-grouped edit history with old→new diffs for an entity.
 
-    Returns ChangeSetSchema rows newest first. Uses two queries to avoid N+1:
-    one for changesets with their claims, one for all inactive user claims
-    (to look up previous values).
+    Returns ChangeSetSchema rows newest first. Query count is bounded
+    independent of changeset count: changesets+prefetches, all claims for
+    the entity (for old-value lookup), winning-claim computation, and one
+    query per distinct FK target model build_display_label needs to resolve.
 
     ``user`` is the caller (boundary-cast via ``policy_user``) and is
     used to populate the per-row ``capabilities`` map.
@@ -111,41 +212,21 @@ def build_edit_history(entity: Model, user: PolicyUser) -> list[ChangeSetSchema]
     # 3. Compute winning claims for is_winning.
     winning_ids = _compute_winning_claim_ids(ct, entity.pk)
 
-    # 4. Build response.
+    # 4. Resolve FK labels once across every value any changeset will
+    #    render. ``all_claims`` is the superset (current claims, retracted
+    #    claims, and history chains all draw from it), so one pass suffices.
+    labels = resolve_labels(FieldValue(c.field_name, c.value) for c in all_claims)
+
+    # 5. Build response.
     result: list[ChangeSetSchema] = []
     for cs in changesets:
-        changes: list[FieldChangeSchema] = []
-        for claim in cs.claims.all():
-            chain = history.get(claim.claim_key, [])
-            old_value = None
-            for i, c in enumerate(chain):
-                if c.pk == claim.pk and i + 1 < len(chain):
-                    old_value = chain[i + 1].value
-                    break
-            changes.append(
-                FieldChangeSchema(
-                    field_name=claim.field_name,
-                    claim_key=claim.claim_key,
-                    old_value=old_value,
-                    new_value=claim.value,
-                    claim_id=claim.pk,
-                    claim_user_id=claim.user_id,
-                    is_active=claim.is_active,
-                    is_winning=claim.pk in winning_ids,
-                    is_retracted=claim.retracted_by_changeset_id is not None,
-                )
-            )
-
-        retractions: list[RetractionSchema] = [
-            RetractionSchema(
-                claim_id=c.pk,
-                field_name=c.field_name,
-                claim_key=c.claim_key,
-                old_value=c.value,
-            )
-            for c in cs.retracted_claims.all()
-        ]
-
+        changes, retractions = build_changes(
+            cs.claims.all(),
+            cs.retracted_claims.all(),
+            history,
+            winning_ids=winning_ids,
+            labels=labels,
+        )
         assert cs.pk is not None
         result.append(
             ChangeSetSchema(

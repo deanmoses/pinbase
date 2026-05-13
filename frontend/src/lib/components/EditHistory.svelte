@@ -2,14 +2,20 @@
   import { invalidateAll } from '$app/navigation';
   import client from '$lib/api/client';
   import { parseApiError } from '$lib/api/parse-api-error';
-  import type { ChangeSetSchema, ClaimAttributionSchema, FieldChangeSchema } from '$lib/api/schema';
+  import type {
+    ChangeSetSchema,
+    ClaimAttributionSchema,
+    ClaimValueSchema,
+    FieldChangeSchema,
+  } from '$lib/api/schema';
   import { auth } from '$lib/auth.svelte';
   import FocusContentShell from './FocusContentShell.svelte';
   import InlineDiff from './InlineDiff.svelte';
   import ClaimAttribution from './ClaimAttribution.svelte';
+  import ClaimValue from './ClaimValue.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { getEntityContext } from '$lib/entity-context';
-  import { isDiffable, formatValue } from './change-display';
+  import { hasMeaningfulValue, isDeletion, isDiffable, isUnchanged } from './change-display';
 
   type ChangeSet = ChangeSetSchema;
   type FieldChange = FieldChangeSchema;
@@ -118,6 +124,14 @@
   }
 </script>
 
+{#snippet oldValue(value: ClaimValueSchema | null | undefined)}
+  <span class="old-value"><ClaimValue {value} /></span>
+{/snippet}
+
+{#snippet newValue(value: ClaimValueSchema | null | undefined)}
+  <span class="new-value"><ClaimValue {value} /></span>
+{/snippet}
+
 {#snippet revertControls(change: FieldChange)}
   {#if canRevert(change)}
     <div class="revert-cell">
@@ -201,25 +215,48 @@
                             {info.note}{/if}
                         {/if}
                       </dd>
-                      {#if isDiffable(change)}
+                      {#if isUnchanged(change)}
+                        <dd>{@render oldValue(change.new_value)}</dd>
+                      {:else if isDiffable(change)}
                         <dd>
-                          <InlineDiff oldValue={change.old_value} newValue={change.new_value} />
+                          <InlineDiff
+                            oldValue={change.old_value.raw}
+                            newValue={change.new_value.raw}
+                          />
                         </dd>
                       {:else}
                         <dd>
-                          {#if change.old_value !== null && change.old_value !== undefined}
-                            <span class="old-value">{formatValue(change.old_value)}</span>
+                          {#if hasMeaningfulValue(change.old_value?.raw)}
+                            {@render oldValue(change.old_value)}
                             <span class="arrow">&rarr;</span>
                           {/if}
-                          <span class="old-value">{formatValue(change.new_value)}</span>
+                          {@render oldValue(change.new_value)}
                         </dd>
                       {/if}
+                    </div>
+                  {:else if isUnchanged(change)}
+                    <div class="field-row">
+                      <dt>{change.field_name}</dt>
+                      <dd>{@render newValue(change.new_value)}</dd>
+                      {@render revertControls(change)}
+                    </div>
+                  {:else if isDeletion(change)}
+                    <div class="field-row">
+                      <dt>{change.field_name}</dt>
+                      <dd>
+                        {@render oldValue(change.old_value)}
+                        <span class="deleted-marker" aria-label="removed">&#x2715;</span>
+                      </dd>
+                      {@render revertControls(change)}
                     </div>
                   {:else if isDiffable(change)}
                     <div class="field-row field-row-diff">
                       <dt>{change.field_name}</dt>
                       <dd>
-                        <InlineDiff oldValue={change.old_value} newValue={change.new_value} />
+                        <InlineDiff
+                          oldValue={change.old_value.raw}
+                          newValue={change.new_value.raw}
+                        />
                       </dd>
                       {@render revertControls(change)}
                     </div>
@@ -227,11 +264,11 @@
                     <div class="field-row">
                       <dt>{change.field_name}</dt>
                       <dd>
-                        {#if change.old_value !== null && change.old_value !== undefined}
-                          <span class="old-value">{formatValue(change.old_value)}</span>
+                        {#if hasMeaningfulValue(change.old_value?.raw)}
+                          {@render oldValue(change.old_value)}
                           <span class="arrow">&rarr;</span>
                         {/if}
-                        <span class="new-value">{formatValue(change.new_value)}</span>
+                        {@render newValue(change.new_value)}
                       </dd>
                       {@render revertControls(change)}
                     </div>
@@ -244,7 +281,7 @@
                       <dt>{retraction.field_name}</dt>
                       <dd>
                         <span class="reverted-badge">reverted</span>
-                        <span class="old-value">{formatValue(retraction.old_value)}</span>
+                        {@render oldValue(retraction.old_value)}
                       </dd>
                     </div>
                   {/if}
@@ -281,6 +318,7 @@
     border: 1px solid var(--color-border-soft);
     border-radius: var(--radius-2);
     padding: var(--size-3);
+    container-type: inline-size;
   }
 
   .changeset-header {
@@ -355,8 +393,46 @@
     font-size: var(--font-size-0);
   }
 
+  .deleted-marker {
+    color: var(--color-error-text);
+    font-size: var(--font-size-0);
+    margin-left: var(--size-1);
+  }
+
   .new-value {
     font-weight: 500;
+  }
+
+  /*
+   * Narrow layout: when a changeset card is too narrow for `dt | dd | revert`
+   * to fit comfortably, stack to two rows — dt + revert on top, dd below.
+   * Short values then live alongside the field name? No — that would require
+   * value-length-aware layout, which CSS can't do. We optimise for legibility
+   * of the long-value case (json blobs, diffs) at the cost of a second line
+   * for short ones.
+   */
+  @container (max-width: 32rem) {
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: var(--size-2);
+      row-gap: var(--size-1);
+    }
+
+    .field-row dt {
+      min-width: 0;
+      grid-column: 1;
+    }
+
+    .field-row dd {
+      grid-column: 1 / -1;
+    }
+
+    .revert-cell {
+      grid-column: 2;
+      grid-row: 1;
+      margin-left: 0;
+    }
   }
 
   .no-history {

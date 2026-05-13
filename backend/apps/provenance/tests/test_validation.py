@@ -1078,3 +1078,239 @@ class TestRegisterRelationshipSchemaGuards:
         # pre-existing entry (there shouldn't be one) to stay robust if a
         # future catalog namespace happens to be called "name".
         assert _relationship_schemas.get("name") == existing
+
+    def test_display_key_on_non_identity_rejected(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.provenance.validation import (
+            ValueKeySpec,
+            _relationship_schemas,
+            register_relationship_schema,
+        )
+
+        with pytest.raises(
+            ImproperlyConfigured, match="display_key is only allowed on identity specs"
+        ):
+            register_relationship_schema(
+                namespace="_test_display_key_non_identity",
+                value_keys=(
+                    ValueKeySpec(
+                        name="x",
+                        scalar_type=str,
+                        required=False,
+                        display_key="y",
+                    ),
+                    ValueKeySpec(name="y", scalar_type=str, required=False),
+                ),
+                valid_subjects={Theme},
+            )
+        assert "_test_display_key_non_identity" not in _relationship_schemas
+
+    def test_display_key_dangling_target_rejected(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.provenance.validation import (
+            ValueKeySpec,
+            _relationship_schemas,
+            register_relationship_schema,
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="does not name a sibling spec"):
+            register_relationship_schema(
+                namespace="_test_display_key_dangling",
+                value_keys=(
+                    ValueKeySpec(
+                        name="x",
+                        scalar_type=str,
+                        required=True,
+                        identity="x",
+                        display_key="nope",
+                    ),
+                ),
+                valid_subjects={Theme},
+            )
+        assert "_test_display_key_dangling" not in _relationship_schemas
+
+    def test_display_key_target_is_identity_rejected(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.provenance.validation import (
+            ValueKeySpec,
+            _relationship_schemas,
+            register_relationship_schema,
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="must be non-identity"):
+            register_relationship_schema(
+                namespace="_test_display_key_target_identity",
+                value_keys=(
+                    ValueKeySpec(
+                        name="a",
+                        scalar_type=str,
+                        required=True,
+                        identity="a",
+                        display_key="b",
+                    ),
+                    ValueKeySpec(
+                        name="b",
+                        scalar_type=str,
+                        required=True,
+                        identity="b",
+                    ),
+                ),
+                valid_subjects={Theme},
+            )
+        assert "_test_display_key_target_identity" not in _relationship_schemas
+
+    def test_display_key_scalar_type_mismatch_rejected(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.provenance.validation import (
+            ValueKeySpec,
+            _relationship_schemas,
+            register_relationship_schema,
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="scalar_type"):
+            register_relationship_schema(
+                namespace="_test_display_key_type_mismatch",
+                value_keys=(
+                    ValueKeySpec(
+                        name="x",
+                        scalar_type=str,
+                        required=True,
+                        identity="x",
+                        display_key="y",
+                    ),
+                    ValueKeySpec(name="y", scalar_type=int, required=False),
+                ),
+                valid_subjects={Theme},
+            )
+        assert "_test_display_key_type_mismatch" not in _relationship_schemas
+
+    def test_display_key_target_with_fk_target_rejected(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.provenance.validation import (
+            FkTarget,
+            ValueKeySpec,
+            _relationship_schemas,
+            register_relationship_schema,
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="must not declare fk_target"):
+            register_relationship_schema(
+                namespace="_test_display_key_target_fk",
+                value_keys=(
+                    ValueKeySpec(
+                        name="x",
+                        scalar_type=str,
+                        required=True,
+                        identity="x",
+                        display_key="y",
+                    ),
+                    ValueKeySpec(
+                        name="y",
+                        scalar_type=str,
+                        required=False,
+                        fk_target=FkTarget(Person, "slug"),
+                    ),
+                ),
+                valid_subjects={Theme},
+            )
+        assert "_test_display_key_target_fk" not in _relationship_schemas
+
+    def test_two_identity_specs_naming_same_display_key_rejected(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.provenance.validation import (
+            ValueKeySpec,
+            _relationship_schemas,
+            register_relationship_schema,
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="both declare display_key"):
+            register_relationship_schema(
+                namespace="_test_display_key_collision",
+                value_keys=(
+                    ValueKeySpec(
+                        name="a",
+                        scalar_type=str,
+                        required=True,
+                        identity="a",
+                        display_key="shared",
+                    ),
+                    ValueKeySpec(
+                        name="b",
+                        scalar_type=str,
+                        required=True,
+                        identity="b",
+                        display_key="shared",
+                    ),
+                    ValueKeySpec(name="shared", scalar_type=str, required=False),
+                ),
+                valid_subjects={Theme},
+            )
+        assert "_test_display_key_collision" not in _relationship_schemas
+
+
+class TestGetDisplayOverride:
+    """get_display_override truthy semantics match the resolver's historical
+    ``val.get("alias_display") or alias_val`` expression."""
+
+    def test_returns_override_when_truthy(self):
+        from apps.provenance.validation import (
+            get_display_override,
+            get_relationship_schema,
+        )
+
+        schema = get_relationship_schema("person_alias")
+        assert schema is not None
+        override = get_display_override(
+            {"alias_value": "the patster", "alias_display": "The Patster"},
+            schema,
+            "alias_value",
+        )
+        assert override == "The Patster"
+
+    def test_returns_none_when_override_absent(self):
+        from apps.provenance.validation import (
+            get_display_override,
+            get_relationship_schema,
+        )
+
+        schema = get_relationship_schema("person_alias")
+        assert schema is not None
+        override = get_display_override(
+            {"alias_value": "the patster"}, schema, "alias_value"
+        )
+        assert override is None
+
+    def test_returns_none_when_override_empty(self):
+        # Empty strings fall through to canonical identity — preserves the
+        # historical ``or`` semantics in the resolver.
+        from apps.provenance.validation import (
+            get_display_override,
+            get_relationship_schema,
+        )
+
+        schema = get_relationship_schema("person_alias")
+        assert schema is not None
+        override = get_display_override(
+            {"alias_value": "the patster", "alias_display": ""},
+            schema,
+            "alias_value",
+        )
+        assert override is None
+
+    def test_returns_none_when_no_display_key_declared(self):
+        # ``theme`` identity has no display_key — override is always None.
+        from apps.provenance.validation import (
+            get_display_override,
+            get_relationship_schema,
+        )
+
+        schema = get_relationship_schema("theme")
+        assert schema is not None
+        override = get_display_override({"theme": 7}, schema, "theme")
+        assert override is None

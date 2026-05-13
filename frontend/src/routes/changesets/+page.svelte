@@ -235,18 +235,21 @@
                       <div class="field-row field-row-diff">
                         <dt>{change.field_name}</dt>
                         <dd>
-                          <InlineDiff oldValue={change.old_value} newValue={change.new_value} />
+                          <InlineDiff
+                            oldValue={change.old_value.raw}
+                            newValue={change.new_value.raw}
+                          />
                         </dd>
                       </div>
                     {:else}
                       <div class="field-row">
                         <dt>{change.field_name}</dt>
                         <dd>
-                          {#if change.old_value !== null && change.old_value !== undefined}
-                            <span class="old-value">{formatValue(change.old_value)}</span>
+                          {#if change.old_value != null}
+                            <span class="old-value">{formatValue(change.old_value.raw)}</span>
                             <span class="arrow">&rarr;</span>
                           {/if}
-                          <span class="new-value">{formatValue(change.new_value)}</span>
+                          <span class="new-value">{formatValue(change.new_value.raw)}</span>
                         </dd>
                       </div>
                     {/if}
@@ -261,7 +264,7 @@
                       <dt>{retraction.field_name}</dt>
                       <dd>
                         <span class="retraction-label">Removed</span>
-                        <span class="old-value">{formatValue(retraction.old_value)}</span>
+                        <span class="old-value">{formatValue(retraction.old_value.raw)}</span>
                       </dd>
                     </div>
                   {/each}

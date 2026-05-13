@@ -259,7 +259,7 @@ class TestChangesDetail:
         assert data["entity"]["name"] == "Medieval Madness"
         assert len(data["changes"]) >= 1
         year_change = next(c for c in data["changes"] if c["field_name"] == "year")
-        assert year_change["new_value"] == 1998
+        assert year_change["new_value"]["raw"] == 1998
 
     def test_cross_author_old_value(self, client, user, user_b, pm):
         """User B editing after User A shows A's value as old_value."""
@@ -282,8 +282,8 @@ class TestChangesDetail:
         year_change = next(
             c for c in resp.json()["changes"] if c["field_name"] == "year"
         )
-        assert year_change["old_value"] == 1998
-        assert year_change["new_value"] == 2001
+        assert year_change["old_value"]["raw"] == 1998
+        assert year_change["new_value"]["raw"] == 2001
 
     def test_nonexistent_changeset_returns_404(self, client):
         resp = client.get("/api/pages/changesets/99999/")
@@ -326,7 +326,7 @@ class TestChangesDetail:
         assert data["changes"] == []
         assert len(data["retractions"]) == 1
         assert data["retractions"][0]["field_name"] == "year"
-        assert data["retractions"][0]["old_value"] == 2000
+        assert data["retractions"][0]["old_value"]["raw"] == 2000
 
 
 @pytest.mark.django_db

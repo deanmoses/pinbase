@@ -31,7 +31,7 @@ from apps.core.types import EntityKey
 from .entity_resolution import batch_resolve_entities
 from .evidence import build_cited_changesets
 from .helpers import active_claims, build_sources, claims_prefetch
-from .history import build_edit_history
+from .history import build_changes, build_edit_history
 from .models.changeset import ChangeSet
 from .schemas import (
     ChangeSetBaseSchema,
@@ -383,35 +383,7 @@ def change_detail(
     for c in history_claims:
         by_key[c.claim_key].append(c)
 
-    changes: list[FieldChangeSchema] = []
-    for claim in claims:
-        old_value = None
-        chain = by_key.get(claim.claim_key, [])
-        for c in chain:
-            before_this = c.created_at < claim.created_at or (
-                c.created_at == claim.created_at and c.pk < claim.pk
-            )
-            if before_this:
-                old_value = c.value
-                break
-        changes.append(
-            FieldChangeSchema(
-                field_name=claim.field_name,
-                claim_key=claim.claim_key,
-                old_value=old_value,
-                new_value=claim.value,
-            )
-        )
-
-    retractions = [
-        RetractionSchema(
-            claim_id=c.pk,
-            field_name=c.field_name,
-            claim_key=c.claim_key,
-            old_value=c.value,
-        )
-        for c in retracted
-    ]
+    changes, retractions = build_changes(claims, retracted, by_key)
 
     ingest_run = cs.ingest_run
     assert cs.pk is not None

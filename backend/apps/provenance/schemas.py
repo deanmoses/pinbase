@@ -3,14 +3,16 @@
 Used by api.py and the page-oriented changes endpoints (page_endpoints.py).
 
 Claim payloads are stored as JSON (``Claim.value`` is a ``JSONField``), so
-``old_value`` / ``new_value`` / ``value`` fields are typed as ``object`` —
-they carry scalars, dicts, lists, or null depending on the claim kind, and
-the catalog-level schema is what actually constrains each field's shape.
+the ``raw`` field of :class:`ClaimValueSchema` (used wherever a claim
+value crosses the wire — ``old_value`` / ``new_value`` / ``value``) is
+typed as ``object``: it carries scalars, dicts, lists, or null depending
+on the claim kind, and the catalog-level schema is what actually
+constrains each field's shape.
 """
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from django.db.models import Model
 from ninja import Field, Schema
@@ -19,14 +21,102 @@ from apps.core.authz import Activity
 
 from .models.changeset import ChangeSet
 
+ClaimDisplayIdentityState = Literal["resolved", "deleted", "missing"]
+"""Discriminant for :class:`ClaimDisplayIdentityPartSchema`.
+
+See that schema for what each value implies about the surrounding fields.
+"""
+
+
+class ClaimDisplayIdentityPartSchema(Schema):
+    """One identity slot of a relationship claim's user-facing rendering.
+
+    ``key`` names the identity ``ValueKeySpec`` (e.g. ``"person"``,
+    ``"alias_value"``).
+
+    ``state`` (see :data:`ClaimDisplayIdentityState`) discriminates three cases that
+    frontends typically want to render differently:
+
+    - ``"resolved"``: the backend produced a real label; ``label`` is the
+      non-empty user-facing string.
+    - ``"deleted"``: the claim references an FK target row that no longer
+      exists in the catalog (e.g. a Person was removed after the claim
+      was made). Legitimate runtime condition; ``label`` is null.
+    - ``"missing"``: the claim dict didn't carry this identity key at
+      all — an invariant violation that validation should have prevented.
+      Backend logs loudly when this happens; ``label`` is null.
+
+    No default on ``state``: every construction must pick one. Defaulting
+    to ``"resolved"`` would let ``ClaimDisplayIdentityPartSchema(key=..., label=None)``
+    construct silently with an incoherent ``(resolved, null)`` pair.
+    """
+
+    key: str
+    label: str | None
+    state: ClaimDisplayIdentityState
+
+
+class ClaimDisplayQualifierPartSchema(Schema):
+    """One qualifier on a relationship claim's user-facing rendering.
+
+    ``key`` names a non-identity ``ValueKeySpec`` (e.g. ``"count"``,
+    ``"category"``, ``"is_primary"``); ``value`` is the raw scalar so the
+    frontend can apply per-key rendering rules (``count > 1``, ``is_primary
+    === true``, etc.).
+
+    Union ordering is **most specific first**: ``bool`` before ``int``
+    because ``bool`` is an ``int`` subclass and Pydantic v2's default union
+    resolution would otherwise coerce ``True`` into ``1``, silently breaking
+    frontend ``v === true`` checks.
+    """
+
+    key: str
+    value: bool | int | str | None = None
+
+
+class ClaimDisplayValueSchema(Schema):
+    """Structured user-facing rendering of a relationship-claim value.
+
+    ``identity`` and ``qualifiers`` are lists (not dicts) so declaration
+    order is part of the wire format, not an implicit dict-insertion-order
+    contract. Direct-field scalar claims and non-relationship namespaces
+    have no ``ClaimDisplayValueSchema`` — the frontend falls back to the raw
+    ``old_value`` / ``new_value`` in that case.
+    """
+
+    identity: list[ClaimDisplayIdentityPartSchema]
+    qualifiers: list[ClaimDisplayQualifierPartSchema]
+
+
+class ClaimValueSchema(Schema):
+    """A claim value paired with its structured user-facing rendering.
+
+    ``raw`` is the JSONField payload (scalar/dict/list/null). ``display`` is
+    the structured rendering for relationship claims (see
+    :class:`ClaimDisplayValueSchema`) or ``None`` when there's no
+    structured rendering — direct-field scalars, unknown namespaces,
+    non-dict values. Clients fall back to ``raw`` when ``display`` is null.
+    """
+
+    raw: object
+    display: ClaimDisplayValueSchema | None = None
+
 
 class FieldChangeSchema(Schema):
-    """A single field change within a ChangeSet (old -> new)."""
+    """A single field change within a ChangeSet (old -> new).
+
+    ``old_value`` / ``new_value`` are :class:`ClaimValueSchema` — each
+    bundles the raw JSON payload with its structured display rendering.
+
+    ``old_value`` is null in two cases that this wire format does not
+    distinguish: (1) no prior claim exists in the chain, or (2) a prior
+    claim exists but its value is JSON null.
+    """
 
     field_name: str
     claim_key: str
-    old_value: object | None = None
-    new_value: object
+    old_value: ClaimValueSchema | None = None
+    new_value: ClaimValueSchema
     claim_id: int | None = None
     claim_user_id: int | None = None
     is_active: bool | None = None
@@ -38,17 +128,14 @@ class RetractionSchema(Schema):
     claim_id: int
     field_name: str
     claim_key: str
-    old_value: object
+    old_value: ClaimValueSchema
 
 
 class ClaimAttributionSchema(Schema):
     """Who asserted a Claim and when.
 
-    User-attributed: ``user_username`` set, ``source_name`` null.
-    Ingest-attributed: ``source_name`` set, ``user_username`` null.
-
-    Reused for ChangeSet attribution — a ChangeSet inherits its attribution
-    from its (uniform-author) claims, so the shape is identical.
+    Exactly one of ``user_username`` / ``source_name`` is non-null — set
+    by user (``user_username``) or ingest (``source_name``), never both.
     """
 
     user_username: str | None = None
@@ -97,7 +184,14 @@ class ChangeSetSchema(ChangeSetBaseSchema):
 
 
 class ClaimSchema(Schema):
-    """A single per-field claim as surfaced to the Sources UI."""
+    """A single per-field claim as surfaced to the Sources UI.
+
+    ``value`` is the raw JSONField payload — kept flat (``object``, not
+    bundled into :class:`ClaimValueSchema`) until Sources UI display
+    rendering is actually implemented. Bundling now would require
+    rewriting the live Sources consumers (``EntitySources.svelte``,
+    ``entity-sources.ts``) — out of scope for this PR.
+    """
 
     attribution: ClaimAttributionSchema
     field_name: str
@@ -182,9 +276,9 @@ class ReviewClaimSchema(Schema):
     id: int
     source_name: str
     field_name: str
-    # ``value`` is the raw JSONField payload of a claim — scalar, dict, list,
-    # or null depending on the field — and stays ``object`` for the same
-    # reason the shared schemas above do.
+    # ``value`` is the raw JSONField payload — kept flat (``object``, not
+    # bundled into :class:`ClaimValueSchema`) until the review UI grows
+    # structured display rendering.
     value: object
     needs_review_notes: str
     created_at: str

@@ -226,9 +226,9 @@ Code MUST be as strongly typed as possible.
 The following smells are _sometimes_ legitimate, but are usually a sign the type can be tightened:
 
 - Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `getattr`, `TYPE_CHECKING`, `# type: ignore`, `# noqa`
-- `tuple[...]` with 3+ positional fields, or the same tuple shape repeated across modules
+- Compound types in signatures whose meaning isn't obvious from the types alone — `tuple[...]`, nested dicts (`dict[X, dict[Y, Z]]`), `Callable[[A, B, C], R]`. **Heuristic**: if a reader would need a comment to know what each position/key means, name it. Applies to 2-tuples that cross a module boundary or appear in a public signature; locally unpacked pairs (`found, value = _lookup(key)`) are fine as plain tuples.
 
-Prefer NamedTuple, dataclass, or TypedDict. For the full catalogue and legitimate exceptions, see [docs/Python.md](Python.md).
+Prefer NamedTuple, dataclass, or TypedDict. For worked examples (including the no-op decorator pattern that pins `Callable` implementations to a typed contract) and the full catalogue of exceptions, see [docs/Python.md](Python.md).
 
 ## Data Modeling
 

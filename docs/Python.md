@@ -7,7 +7,7 @@ Code MUST be as strongly typed as possible.
 The following smells are _sometimes_ legitimate, but are usually a sign the type can be tightened:
 
 - Use of `Any`, `object`, `cast`, `isinstance`, `setattr`, `getattr`, `TYPE_CHECKING`, `# type: ignore`, `# noqa`
-- `tuple[...]` with 3+ positional fields, or the same tuple shape repeated across modules
+- Compound types in signatures whose meaning isn't obvious from the types alone — `tuple[...]`, nested dicts (`dict[X, dict[Y, Z]]`), `Callable[[A, B, C], R]`. **Heuristic**: if a reader would need a comment to know what each position/key means, name it (`NamedTuple` / `TypedDict` / `dataclass` / type alias). Applies to 2-tuples that cross a module boundary or appear in a public signature; locally unpacked pairs (`found, value = _lookup(key)`) are fine as plain tuples.
 
 ### Valid exceptions to strong types
 
@@ -31,6 +31,48 @@ Every exception needs a short reason at the use site.
 - Do not use `dict[str, Any]` for JSON-shaped data:
   - Use `apps.core.types.JsonData` for read-side JSON mappings
   - Use `apps.core.types.JsonBody` for mutable/test-client JSON bodies
+
+#### Worked examples
+
+```python
+# Bad — reader has to remember what the positions mean.
+def resolve_labels(items: Iterable[tuple[str, object]]) -> ...
+
+# Good — the record has a name and the fields are self-describing.
+class FieldValue(NamedTuple):
+    field_name: str
+    value: object
+
+def resolve_labels(items: Iterable[FieldValue]) -> ...
+```
+
+```python
+# Bad — three concepts (target model, pk, label) smushed into a nested dict.
+labels: dict[tuple[type[Model], int], str]
+
+# Good — the (model, pk) pair is named; the dict is just "labels keyed by FK refs."
+class FkRef(NamedTuple):
+    model: type[Model]
+    pk: int
+
+labels: dict[FkRef, str]
+```
+
+```python
+# Bad — Callable signature with non-obvious parameters; signature drift
+# is only caught wherever the formatter happens to be assigned.
+ValueFormatter = Callable[[dict[str, object], RelationshipSchema, LabelLookup], str | None]
+
+def _format_credit(value, schema, labels) -> str: ...
+
+# Good — a no-op decorator pins each implementation to the contract,
+# so signature drift is flagged on the function itself.
+def value_formatter(fn: ValueFormatter) -> ValueFormatter:
+    return fn
+
+@value_formatter
+def _format_credit(value, schema, labels) -> str: ...
+```
 
 ### Django typing idioms
 
