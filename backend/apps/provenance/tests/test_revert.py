@@ -397,7 +397,7 @@ class TestRevertInHistory:
         assert revert_cs["note"] == "Reverting year"
         assert len(revert_cs["retractions"]) == 1
         assert revert_cs["retractions"][0]["field_name"] == "year"
-        assert revert_cs["retractions"][0]["old_value"] == 2005
+        assert revert_cs["retractions"][0]["old_value"]["raw"] == 2005
 
 
 # ── Claim metadata in edit history ───────────────────────────────
@@ -433,7 +433,7 @@ class TestEditHistoryClaimMetadata:
         original = next(
             cs
             for cs in data
-            if cs["changes"] and cs["changes"][0].get("new_value") == 2005
+            if cs["changes"] and cs["changes"][0]["new_value"]["raw"] == 2005
         )
         change = original["changes"][0]
         assert change["is_active"] is False

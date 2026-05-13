@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { FieldChangeSchema } from '$lib/api/schema';
 import {
   formatValue,
   hasMeaningfulValue,
@@ -8,17 +9,32 @@ import {
   simplifyClaimValue,
 } from './change-display';
 
+/** Build a minimal FieldChangeSchema with raw-only old/new values. */
+function fc(
+  oldRaw: unknown,
+  newRaw: unknown,
+  field_name = 'field',
+  claim_key = 'k',
+): FieldChangeSchema {
+  return {
+    field_name,
+    claim_key,
+    old_value: oldRaw === undefined ? null : { raw: oldRaw },
+    new_value: { raw: newRaw },
+  };
+}
+
 describe('formatValue', () => {
   it('returns em-dash for null', () => {
-    expect(formatValue(null)).toBe('\u2014');
+    expect(formatValue(null)).toBe('—');
   });
 
   it('returns em-dash for undefined', () => {
-    expect(formatValue(undefined)).toBe('\u2014');
+    expect(formatValue(undefined)).toBe('—');
   });
 
   it('returns em-dash for empty string', () => {
-    expect(formatValue('')).toBe('\u2014');
+    expect(formatValue('')).toBe('—');
   });
 
   it('returns short strings verbatim', () => {
@@ -52,131 +68,72 @@ describe('formatValue', () => {
 });
 
 describe('isDiffable', () => {
-  it('returns true when old_value is a long string', () => {
-    const change = {
-      field_name: 'description',
-      claim_key: 'k',
-      old_value: 'a'.repeat(81),
-      new_value: 'short',
-    };
-    expect(isDiffable(change)).toBe(true);
+  it('returns true when old_value.raw is a long string', () => {
+    expect(isDiffable(fc('a'.repeat(81), 'short'))).toBe(true);
   });
 
-  it('returns true when new_value is a long string', () => {
-    const change = {
-      field_name: 'description',
-      claim_key: 'k',
-      old_value: 'short',
-      new_value: 'b'.repeat(81),
-    };
-    expect(isDiffable(change)).toBe(true);
+  it('returns true when new_value.raw is a long string', () => {
+    expect(isDiffable(fc('short', 'b'.repeat(81)))).toBe(true);
   });
 
   it('returns false when both strings are short', () => {
-    const change = {
-      field_name: 'name',
-      claim_key: 'k',
-      old_value: 'short old',
-      new_value: 'short new',
-    };
-    expect(isDiffable(change)).toBe(false);
+    expect(isDiffable(fc('short old', 'short new'))).toBe(false);
   });
 
   it('returns false when old_value is null', () => {
-    const change = {
+    const change: FieldChangeSchema = {
       field_name: 'name',
       claim_key: 'k',
       old_value: null,
-      new_value: 'a'.repeat(100),
+      new_value: { raw: 'a'.repeat(100) },
     };
     expect(isDiffable(change)).toBe(false);
   });
 
-  it('returns false when new_value is a number', () => {
-    const change = {
-      field_name: 'year',
-      claim_key: 'k',
-      old_value: 'a'.repeat(100),
-      new_value: 1990,
-    };
-    expect(isDiffable(change)).toBe(false);
+  it('returns false when new_value.raw is a number', () => {
+    expect(isDiffable(fc('a'.repeat(100), 1990))).toBe(false);
   });
 
   it('returns false at exactly the 80-character boundary', () => {
-    const change = {
-      field_name: 'desc',
-      claim_key: 'k',
-      old_value: 'a'.repeat(80),
-      new_value: 'b'.repeat(80),
-    };
-    expect(isDiffable(change)).toBe(false);
+    expect(isDiffable(fc('a'.repeat(80), 'b'.repeat(80)))).toBe(false);
   });
 
   it('returns true when one string is exactly 81 characters', () => {
-    const change = {
-      field_name: 'desc',
-      claim_key: 'k',
-      old_value: 'a'.repeat(81),
-      new_value: 'short',
-    };
-    expect(isDiffable(change)).toBe(true);
+    expect(isDiffable(fc('a'.repeat(81), 'short'))).toBe(true);
   });
 });
 
 describe('isUnchanged', () => {
   it('is true when scalar values are equal', () => {
-    expect(
-      isUnchanged({
-        field_name: 'tech',
-        claim_key: 'k',
-        old_value: 'solid-state',
-        new_value: 'solid-state',
-      }),
-    ).toBe(true);
+    expect(isUnchanged(fc('solid-state', 'solid-state'))).toBe(true);
   });
 
   it('is false when scalar values differ', () => {
-    expect(
-      isUnchanged({
-        field_name: 'tech',
-        claim_key: 'k',
-        old_value: 'electromechanical',
-        new_value: 'solid-state',
-      }),
-    ).toBe(false);
+    expect(isUnchanged(fc('electromechanical', 'solid-state'))).toBe(false);
   });
 
   it('is false when only one side is null', () => {
-    expect(
-      isUnchanged({
-        field_name: 'tech',
-        claim_key: 'k',
-        old_value: null,
-        new_value: 'solid-state',
-      }),
-    ).toBe(false);
+    const change: FieldChangeSchema = {
+      field_name: 'tech',
+      claim_key: 'k',
+      old_value: null,
+      new_value: { raw: 'solid-state' },
+    };
+    expect(isUnchanged(change)).toBe(false);
   });
 
   it('is true when both sides are null (nothing asserted)', () => {
-    expect(
-      isUnchanged({
-        field_name: 'tech',
-        claim_key: 'k',
-        old_value: null,
-        new_value: null,
-      }),
-    ).toBe(true);
+    const change: FieldChangeSchema = {
+      field_name: 'tech',
+      claim_key: 'k',
+      old_value: null,
+      new_value: { raw: null },
+    };
+    expect(isUnchanged(change)).toBe(true);
   });
 
   it('is true when arrays have the same contents', () => {
-    expect(
-      isUnchanged({
-        field_name: 'aliases',
-        claim_key: 'k',
-        old_value: ['a', 'b'],
-        new_value: ['a', 'b'],
-      }),
-    ).toBe(true);
+    expect(isUnchanged(fc(['a', 'b'], ['a', 'b']))).toBe(true);
   });
 });
 
@@ -208,72 +165,42 @@ describe('hasMeaningfulValue', () => {
 
 describe('isDeletion', () => {
   it('is true when old has a value and new is null', () => {
-    expect(
-      isDeletion({
-        field_name: 'tagline',
-        claim_key: 'k',
-        old_value: 'Save the universe',
-        new_value: null,
-      }),
-    ).toBe(true);
+    expect(isDeletion(fc('Save the universe', null))).toBe(true);
   });
 
   it('is true when old has a value and new is empty string', () => {
-    expect(
-      isDeletion({
-        field_name: 'tagline',
-        claim_key: 'k',
-        old_value: 'Save the universe',
-        new_value: '',
-      }),
-    ).toBe(true);
+    expect(isDeletion(fc('Save the universe', ''))).toBe(true);
   });
 
   it('is false for a normal edit (both sides have a value)', () => {
-    expect(
-      isDeletion({
-        field_name: 'tagline',
-        claim_key: 'k',
-        old_value: 'foo',
-        new_value: 'bar',
-      }),
-    ).toBe(false);
+    expect(isDeletion(fc('foo', 'bar'))).toBe(false);
   });
 
-  it('is false for a creation (old is null)', () => {
-    expect(
-      isDeletion({
-        field_name: 'tagline',
-        claim_key: 'k',
-        old_value: null,
-        new_value: 'bar',
-      }),
-    ).toBe(false);
+  it('is false for a creation (old_value bundle is null)', () => {
+    const change: FieldChangeSchema = {
+      field_name: 'tagline',
+      claim_key: 'k',
+      old_value: null,
+      new_value: { raw: 'bar' },
+    };
+    expect(isDeletion(change)).toBe(false);
   });
 
   it('is false when both sides are empty (no real change to display)', () => {
-    expect(
-      isDeletion({
-        field_name: 'tagline',
-        claim_key: 'k',
-        old_value: null,
-        new_value: null,
-      }),
-    ).toBe(false);
+    const change: FieldChangeSchema = {
+      field_name: 'tagline',
+      claim_key: 'k',
+      old_value: null,
+      new_value: { raw: null },
+    };
+    expect(isDeletion(change)).toBe(false);
   });
 
   it('is false when old is a bare retraction marker (no prior assertion)', () => {
-    // Repro for the display_subtype case: after delete-then-re-set, the
-    // backend supplies the prior retraction marker as old_value. That is
-    // not a real prior value, so this is a creation, not an edit.
-    expect(
-      isDeletion({
-        field_name: 'display_subtype',
-        claim_key: 'k',
-        old_value: { exists: false },
-        new_value: 'plasma-dmd',
-      }),
-    ).toBe(false);
+    // After delete-then-re-set, the backend supplies the prior retraction
+    // marker as old_value.raw. That is not a real prior value, so this is
+    // a creation, not an edit.
+    expect(isDeletion(fc({ exists: false }, 'plasma-dmd'))).toBe(false);
   });
 });
 

@@ -14,6 +14,10 @@ from typing import NamedTuple, cast
 from django.db.models import Model
 
 from apps.provenance.models import Claim, ClaimControlledModel
+from apps.provenance.validation import (
+    get_display_override,
+    get_relationship_schema,
+)
 
 from .._alias_registry import AliasType, discover_alias_types
 from ..models import (
@@ -676,7 +680,12 @@ def _resolve_aliases(
             winners_by_parent.setdefault(claim.object_id, []).append(claim)
 
     # Build desired aliases per parent: {lower_val → display_val}.
-    # alias_display (original case) is preferred; falls back to alias_value.
+    # alias_display (original case) is preferred via the schema's
+    # display_key declaration; falls back to alias_value when absent/empty.
+    schema = get_relationship_schema(claim_field_name)
+    assert schema is not None, (
+        f"alias namespace {claim_field_name!r} has no registered relationship schema"
+    )
     desired_by_parent: dict[int, dict[str, str]] = {}
     for parent_id, claims_list in winners_by_parent.items():
         desired: dict[str, str] = {}
@@ -686,7 +695,11 @@ def _resolve_aliases(
                 continue
             alias_val = val.get("alias_value", "")
             if alias_val:
-                display = val.get("alias_display") or alias_val
+                override = get_display_override(val, schema, "alias_value")
+                # Schema registration pins ``alias_display.scalar_type`` to
+                # ``str``, so the override (when present) is always a str at
+                # runtime. ``str(...)`` keeps mypy happy without coercing.
+                display = str(override) if override is not None else alias_val
                 desired[alias_val] = display  # alias_val is already lowercase
         desired_by_parent[parent_id] = desired
 

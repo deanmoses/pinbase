@@ -10,11 +10,12 @@ from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, W
 
 from apps.core.authz import PolicyUser, compute_row_capabilities
 
-from .display import FieldValue, LabelLookup, build_display_label, resolve_labels
+from .display import FieldValue, LabelLookup, build_display_value, resolve_labels
 from .models import ChangeSet, Claim
 from .schemas import (
     ChangeSetSchema,
     ClaimAttributionSchema,
+    ClaimValueSchema,
     FieldChangeSchema,
     RetractionSchema,
 )
@@ -70,32 +71,46 @@ def build_changes(
 
         labels = resolve_labels(_label_refs())
 
-    changes = [
-        FieldChangeSchema(
-            field_name=claim.field_name,
-            claim_key=claim.claim_key,
-            old_value=(
-                old := _prior_value(claim, history_by_key.get(claim.claim_key, []))
-            ),
-            new_value=claim.value,
-            old_display=build_display_label(claim.field_name, old, labels),
-            new_display=build_display_label(claim.field_name, claim.value, labels),
-            claim_id=claim.pk,
-            claim_user_id=claim.user_id,
-            is_active=claim.is_active,
-            is_winning=(claim.pk in winning_ids) if winning_ids is not None else None,
-            is_retracted=claim.retracted_by_changeset_id is not None,
+    changes: list[FieldChangeSchema] = []
+    for claim in own:
+        prior = _prior_value(claim, history_by_key.get(claim.claim_key, []))
+        old_value = (
+            ClaimValueSchema(
+                raw=prior,
+                display=build_display_value(claim.field_name, prior, labels),
+            )
+            if prior is not None
+            else None
         )
-        for claim in own
-    ]
+        new_value = ClaimValueSchema(
+            raw=claim.value,
+            display=build_display_value(claim.field_name, claim.value, labels),
+        )
+        changes.append(
+            FieldChangeSchema(
+                field_name=claim.field_name,
+                claim_key=claim.claim_key,
+                old_value=old_value,
+                new_value=new_value,
+                claim_id=claim.pk,
+                claim_user_id=claim.user_id,
+                is_active=claim.is_active,
+                is_winning=(
+                    (claim.pk in winning_ids) if winning_ids is not None else None
+                ),
+                is_retracted=claim.retracted_by_changeset_id is not None,
+            )
+        )
 
     retractions = [
         RetractionSchema(
             claim_id=c.pk,
             field_name=c.field_name,
             claim_key=c.claim_key,
-            old_value=c.value,
-            old_display=build_display_label(c.field_name, c.value, labels),
+            old_value=ClaimValueSchema(
+                raw=c.value,
+                display=build_display_value(c.field_name, c.value, labels),
+            ),
         )
         for c in rets
     ]

@@ -67,7 +67,7 @@ class TestEditHistoryBasic:
         assert cs["note"] == ""
         assert len(cs["changes"]) == 1
         assert cs["changes"][0]["field_name"] == "year"
-        assert cs["changes"][0]["new_value"] == 1998
+        assert cs["changes"][0]["new_value"]["raw"] == 1998
         # First edit — no old value
         assert cs["changes"][0]["old_value"] is None
 
@@ -92,12 +92,12 @@ class TestEditHistoryBasic:
         # Most recent first
         newest = data[0]
         assert newest["changes"][0]["field_name"] == "year"
-        assert newest["changes"][0]["old_value"] == 1998
-        assert newest["changes"][0]["new_value"] == 1999
+        assert newest["changes"][0]["old_value"]["raw"] == 1998
+        assert newest["changes"][0]["new_value"]["raw"] == 1999
 
         oldest = data[1]
         assert oldest["changes"][0]["old_value"] is None
-        assert oldest["changes"][0]["new_value"] == 1998
+        assert oldest["changes"][0]["new_value"]["raw"] == 1998
 
 
 @pytest.mark.django_db
@@ -144,13 +144,13 @@ class TestEditHistoryMultiUser:
 
         # User B's edit is newest — old value is User A's prior claim
         assert data[0]["attribution"]["user_username"] == user_b.username
-        assert data[0]["changes"][0]["old_value"] == 1998
-        assert data[0]["changes"][0]["new_value"] == 1999
+        assert data[0]["changes"][0]["old_value"]["raw"] == 1998
+        assert data[0]["changes"][0]["new_value"]["raw"] == 1999
 
         # User A's edit — no prior claim, so no old value
         assert data[1]["attribution"]["user_username"] == user.username
         assert data[1]["changes"][0]["old_value"] is None
-        assert data[1]["changes"][0]["new_value"] == 1998
+        assert data[1]["changes"][0]["new_value"]["raw"] == 1998
 
     def test_old_value_uses_source_claim(self, client, user, pm, source):
         """A user edit shows the prior source/ingest claim's value as old."""
@@ -166,8 +166,8 @@ class TestEditHistoryMultiUser:
         resp = client.get(f"/api/pages/edit-history/model/{pm.slug}/")
         data = resp.json()
         assert len(data) == 1
-        assert data[0]["changes"][0]["old_value"] == 1997
-        assert data[0]["changes"][0]["new_value"] == 1999
+        assert data[0]["changes"][0]["old_value"]["raw"] == 1997
+        assert data[0]["changes"][0]["new_value"]["raw"] == 1999
 
 
 @pytest.mark.django_db
@@ -216,7 +216,7 @@ class TestEditHistorySoftDeleted:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1
-        assert data[0]["changes"][0]["new_value"] == 1998
+        assert data[0]["changes"][0]["new_value"]["raw"] == 1998
 
 
 @pytest.mark.django_db

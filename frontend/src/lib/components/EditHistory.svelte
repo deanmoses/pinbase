@@ -2,7 +2,12 @@
   import { invalidateAll } from '$app/navigation';
   import client from '$lib/api/client';
   import { parseApiError } from '$lib/api/parse-api-error';
-  import type { ChangeSetSchema, ClaimAttributionSchema, FieldChangeSchema } from '$lib/api/schema';
+  import type {
+    ChangeSetSchema,
+    ClaimAttributionSchema,
+    ClaimValueSchema,
+    FieldChangeSchema,
+  } from '$lib/api/schema';
   import { auth } from '$lib/auth.svelte';
   import FocusContentShell from './FocusContentShell.svelte';
   import InlineDiff from './InlineDiff.svelte';
@@ -119,12 +124,12 @@
   }
 </script>
 
-{#snippet oldValue(value: unknown, display: string | null | undefined)}
-  <span class="old-value"><ClaimValue {value} {display} /></span>
+{#snippet oldValue(value: ClaimValueSchema | null | undefined)}
+  <span class="old-value"><ClaimValue {value} /></span>
 {/snippet}
 
-{#snippet newValue(value: unknown, display: string | null | undefined)}
-  <span class="new-value"><ClaimValue {value} {display} /></span>
+{#snippet newValue(value: ClaimValueSchema | null | undefined)}
+  <span class="new-value"><ClaimValue {value} /></span>
 {/snippet}
 
 {#snippet revertControls(change: FieldChange)}
@@ -211,32 +216,35 @@
                         {/if}
                       </dd>
                       {#if isUnchanged(change)}
-                        <dd>{@render oldValue(change.new_value, change.new_display)}</dd>
+                        <dd>{@render oldValue(change.new_value)}</dd>
                       {:else if isDiffable(change)}
                         <dd>
-                          <InlineDiff oldValue={change.old_value} newValue={change.new_value} />
+                          <InlineDiff
+                            oldValue={change.old_value.raw}
+                            newValue={change.new_value.raw}
+                          />
                         </dd>
                       {:else}
                         <dd>
-                          {#if hasMeaningfulValue(change.old_value)}
-                            {@render oldValue(change.old_value, change.old_display)}
+                          {#if hasMeaningfulValue(change.old_value?.raw)}
+                            {@render oldValue(change.old_value)}
                             <span class="arrow">&rarr;</span>
                           {/if}
-                          {@render oldValue(change.new_value, change.new_display)}
+                          {@render oldValue(change.new_value)}
                         </dd>
                       {/if}
                     </div>
                   {:else if isUnchanged(change)}
                     <div class="field-row">
                       <dt>{change.field_name}</dt>
-                      <dd>{@render newValue(change.new_value, change.new_display)}</dd>
+                      <dd>{@render newValue(change.new_value)}</dd>
                       {@render revertControls(change)}
                     </div>
                   {:else if isDeletion(change)}
                     <div class="field-row">
                       <dt>{change.field_name}</dt>
                       <dd>
-                        {@render oldValue(change.old_value, change.old_display)}
+                        {@render oldValue(change.old_value)}
                         <span class="deleted-marker" aria-label="removed">&#x2715;</span>
                       </dd>
                       {@render revertControls(change)}
@@ -245,7 +253,10 @@
                     <div class="field-row field-row-diff">
                       <dt>{change.field_name}</dt>
                       <dd>
-                        <InlineDiff oldValue={change.old_value} newValue={change.new_value} />
+                        <InlineDiff
+                          oldValue={change.old_value.raw}
+                          newValue={change.new_value.raw}
+                        />
                       </dd>
                       {@render revertControls(change)}
                     </div>
@@ -253,11 +264,11 @@
                     <div class="field-row">
                       <dt>{change.field_name}</dt>
                       <dd>
-                        {#if hasMeaningfulValue(change.old_value)}
-                          {@render oldValue(change.old_value, change.old_display)}
+                        {#if hasMeaningfulValue(change.old_value?.raw)}
+                          {@render oldValue(change.old_value)}
                           <span class="arrow">&rarr;</span>
                         {/if}
-                        {@render newValue(change.new_value, change.new_display)}
+                        {@render newValue(change.new_value)}
                       </dd>
                       {@render revertControls(change)}
                     </div>
@@ -270,7 +281,7 @@
                       <dt>{retraction.field_name}</dt>
                       <dd>
                         <span class="reverted-badge">reverted</span>
-                        {@render oldValue(retraction.old_value, retraction.old_display)}
+                        {@render oldValue(retraction.old_value)}
                       </dd>
                     </div>
                   {/if}

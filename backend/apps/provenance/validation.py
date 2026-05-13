@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -59,6 +59,12 @@ class ValueKeySpec:
 
     **INVARIANT**: ``identity is not None`` ⇒ ``required=True``. Enforced at
     registration time in ``register_relationship_schema``.
+
+    ``display_key`` (identity specs only) names a sibling spec whose value is
+    this identity's user-facing rendering — e.g. ``alias_value`` declares
+    ``display_key="alias_display"`` so resolvers and display engines both
+    read the override from one declaration. See
+    ``register_relationship_schema`` for the full set of invariants.
     """
 
     name: str
@@ -67,6 +73,7 @@ class ValueKeySpec:
     nullable: bool = False
     identity: str | None = None
     fk_target: FkTarget | None = None
+    display_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +175,51 @@ def register_relationship_schema(
                 f"(identity={spec.identity!r}, required=False)"
             )
 
+    # display_key invariants. Naming a sibling spec lets one declaration drive
+    # both the resolver (which stores the override into AliasModel.value) and
+    # the display engine (which renders identity slots in edit history). The
+    # checks below catch malformed declarations at app-ready time.
+    specs_by_name = {spec.name: spec for spec in value_keys}
+    seen_display_keys: dict[str, str] = {}  # display_key → identity spec name
+    for spec in value_keys:
+        if spec.display_key is None:
+            continue
+        if spec.identity is None:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}, value_key {spec.name!r}: "
+                f"display_key is only allowed on identity specs"
+            )
+        target = specs_by_name.get(spec.display_key)
+        if target is None:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}, value_key {spec.name!r}: "
+                f"display_key {spec.display_key!r} does not name a sibling spec"
+            )
+        if target.identity is not None:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}, value_key {spec.name!r}: "
+                f"display_key target {spec.display_key!r} must be non-identity"
+            )
+        if target.scalar_type is not spec.scalar_type:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}, value_key {spec.name!r}: "
+                f"display_key target {spec.display_key!r} scalar_type "
+                f"{target.scalar_type.__name__} must match identity scalar_type "
+                f"{spec.scalar_type.__name__}"
+            )
+        if target.fk_target is not None:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}, value_key {spec.name!r}: "
+                f"display_key target {spec.display_key!r} must not declare fk_target"
+            )
+        prior = seen_display_keys.get(spec.display_key)
+        if prior is not None:
+            raise ImproperlyConfigured(
+                f"namespace {namespace!r}: identity specs {prior!r} and "
+                f"{spec.name!r} both declare display_key={spec.display_key!r}"
+            )
+        seen_display_keys[spec.display_key] = spec.name
+
     # Lock down the input here so the schema's invariant (immutability) is
     # an internal guarantee, not something callers must satisfy.
     frozen_subjects = frozenset(valid_subjects)
@@ -216,6 +268,37 @@ def get_relationship_namespaces() -> frozenset[str]:
     if _namespaces_cache is None:
         _namespaces_cache = frozenset(_relationship_schemas)
     return _namespaces_cache
+
+
+def get_display_override(
+    value: Mapping[str, object],
+    schema: RelationshipSchema,
+    identity_spec_name: str,
+) -> object | None:
+    """Return the user-facing rendering override for one identity slot, or None.
+
+    Reads ``display_key`` from the identity spec named ``identity_spec_name``;
+    if set and the named sibling key has a truthy value in ``value``, returns
+    that value. Otherwise returns ``None`` so callers fall back to the
+    canonical identity value.
+
+    Truthy semantics match the historical resolver expression
+    ``val.get("alias_display") or alias_val`` so empty strings fall through
+    to the canonical identity rather than being treated as an override.
+
+    Shared by the catalog alias resolver (which stores the override into
+    ``AliasModel.value``) and the provenance display engine (which renders
+    the identity slot in edit history).
+    """
+    spec = next(
+        s
+        for s in schema.value_keys
+        if s.name == identity_spec_name and s.identity is not None
+    )
+    if spec.display_key is None:
+        return None
+    candidate = value.get(spec.display_key)
+    return candidate if candidate else None
 
 
 def is_valid_subject(

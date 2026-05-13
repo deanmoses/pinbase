@@ -214,6 +214,7 @@ def register_catalog_relationship_schemas() -> None:
                     scalar_type=str,
                     required=True,
                     identity="alias",
+                    display_key="alias_display",
                 ),
                 ValueKeySpec(
                     name="alias_display",
