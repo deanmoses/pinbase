@@ -108,13 +108,17 @@ Same URL shape as the current derived usernames, but make it explicit:
 
 ### Reserved usernames that connote authority
 
-Suffixes (alone and in front of stems): official, team, staff, admin, administrator, help, system, mod, moderator, m0derator, sysadmin, superuser, support, system ... TBD
+Two lists, symmetric: each is reserved alone, and reserved in combination with any entry from the other list (either order).
 
-Stems (alone and in front of suffixes): flipcommons, flip-commons, flip, the-flip, theflip, museum, the-museum, , flipc0mmons... TBD
+Suffixes (alone and in front of stems): official, team, staff, admin, administrator, help, system, mod, moderator, sysadmin, superuser, support ... TBD
 
-#### Variants of reserved usernames
+Stems (alone and in front of suffixes): flipcommons, flip-commons, flip, the-flip, theflip, museum, the-museum ... TBD
 
-Normalize before comparing to the reserved list — fold 0→o, 1→l, strip non-letters, lowercase — and reject if the normalized form hits a reserved entry.
+#### Matching rule
+
+Normalize both the candidate username and each reserved entry the same way before comparing: lowercase, fold homoglyphs (`0`→`o`, `1`→`l`), strip non-letters. Reject if the normalized candidate **equals** any stem, any suffix, or any `stem+suffix` / `suffix+stem` concatenation.
+
+Equality, not substring — otherwise a short stem like `flip` would block a legitimate handle like `flipperjones`. Normalizing both sides also means the source lists don't need literal homoglyph variants like `m0derator` or `flipc0mmons`; those fold into `moderator` and `flipcommons` automatically.
 
 #### Deferred reserved usernames - FOLLOW-UP
 
