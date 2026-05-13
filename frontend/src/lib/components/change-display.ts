@@ -17,6 +17,18 @@ export function isDiffable(
   );
 }
 
+/**
+ * True when a change asserts the same value that already existed — e.g. a
+ * second ingest source confirming the canonical value. Such rows should
+ * render as a single value, not as an old → new transition.
+ */
+export function isUnchanged(change: FieldChange): boolean {
+  const { old_value, new_value } = change;
+  if (old_value === new_value) return true;
+  if (old_value == null || new_value == null) return false;
+  return JSON.stringify(old_value) === JSON.stringify(new_value);
+}
+
 /** Format an unknown claim value for inline display, with truncation. */
 export function formatValue(v: unknown): string {
   if (v === null || v === undefined || v === '') return '\u2014';

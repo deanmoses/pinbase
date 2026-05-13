@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, isDiffable } from './change-display';
+import { formatValue, isDiffable, isUnchanged } from './change-display';
 
 describe('formatValue', () => {
   it('returns em-dash for null', () => {
@@ -113,5 +113,62 @@ describe('isDiffable', () => {
       new_value: 'short',
     };
     expect(isDiffable(change)).toBe(true);
+  });
+});
+
+describe('isUnchanged', () => {
+  it('is true when scalar values are equal', () => {
+    expect(
+      isUnchanged({
+        field_name: 'tech',
+        claim_key: 'k',
+        old_value: 'solid-state',
+        new_value: 'solid-state',
+      }),
+    ).toBe(true);
+  });
+
+  it('is false when scalar values differ', () => {
+    expect(
+      isUnchanged({
+        field_name: 'tech',
+        claim_key: 'k',
+        old_value: 'electromechanical',
+        new_value: 'solid-state',
+      }),
+    ).toBe(false);
+  });
+
+  it('is false when only one side is null', () => {
+    expect(
+      isUnchanged({
+        field_name: 'tech',
+        claim_key: 'k',
+        old_value: null,
+        new_value: 'solid-state',
+      }),
+    ).toBe(false);
+  });
+
+  it('is true when both sides are null (nothing asserted)', () => {
+    expect(
+      isUnchanged({
+        field_name: 'tech',
+        claim_key: 'k',
+        old_value: null,
+        new_value: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('is true when arrays have the same contents', () => {
+    expect(
+      isUnchanged({
+        field_name: 'aliases',
+        claim_key: 'k',
+        old_value: ['a', 'b'],
+        new_value: ['a', 'b'],
+      }),
+    ).toBe(true);
   });
 });

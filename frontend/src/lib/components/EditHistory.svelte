@@ -9,7 +9,7 @@
   import ClaimAttribution from './ClaimAttribution.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { getEntityContext } from '$lib/entity-context';
-  import { isDiffable, formatValue } from './change-display';
+  import { isDiffable, isUnchanged, formatValue } from './change-display';
 
   type ChangeSet = ChangeSetSchema;
   type FieldChange = FieldChangeSchema;
@@ -201,7 +201,11 @@
                             {info.note}{/if}
                         {/if}
                       </dd>
-                      {#if isDiffable(change)}
+                      {#if isUnchanged(change)}
+                        <dd>
+                          <span class="old-value">{formatValue(change.new_value)}</span>
+                        </dd>
+                      {:else if isDiffable(change)}
                         <dd>
                           <InlineDiff oldValue={change.old_value} newValue={change.new_value} />
                         </dd>
@@ -214,6 +218,14 @@
                           <span class="old-value">{formatValue(change.new_value)}</span>
                         </dd>
                       {/if}
+                    </div>
+                  {:else if isUnchanged(change)}
+                    <div class="field-row">
+                      <dt>{change.field_name}</dt>
+                      <dd>
+                        <span class="new-value">{formatValue(change.new_value)}</span>
+                      </dd>
+                      {@render revertControls(change)}
                     </div>
                   {:else if isDiffable(change)}
                     <div class="field-row field-row-diff">
