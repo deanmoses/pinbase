@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, isDiffable, isUnchanged } from './change-display';
+import { formatValue, isDiffable, isUnchanged, simplifyClaimValue } from './change-display';
 
 describe('formatValue', () => {
   it('returns em-dash for null', () => {
@@ -170,5 +170,54 @@ describe('isUnchanged', () => {
         new_value: ['a', 'b'],
       }),
     ).toBe(true);
+  });
+});
+
+describe('simplifyClaimValue', () => {
+  it('extracts a positive abbreviation claim', () => {
+    expect(simplifyClaimValue({ value: 'DW', exists: true })).toEqual({
+      display: 'DW',
+      exists: true,
+    });
+  });
+
+  it('extracts a negative abbreviation claim', () => {
+    expect(simplifyClaimValue({ value: 'DW', exists: false })).toEqual({
+      display: 'DW',
+      exists: false,
+    });
+  });
+
+  it('extracts an alias-style single-key claim regardless of key name', () => {
+    expect(simplifyClaimValue({ alias_value: 'Doctor Who', exists: true })).toEqual({
+      display: 'Doctor Who',
+      exists: true,
+    });
+  });
+
+  it('returns null for credit-style multi-key claims', () => {
+    expect(simplifyClaimValue({ person: 1, role: 2, exists: true })).toBeNull();
+  });
+
+  it('returns null for FK-pk integer values (not human-readable)', () => {
+    expect(simplifyClaimValue({ theme: 1, exists: true })).toBeNull();
+  });
+
+  it('returns null when exists is missing', () => {
+    expect(simplifyClaimValue({ value: 'DW' })).toBeNull();
+  });
+
+  it('returns null for bare scalars', () => {
+    expect(simplifyClaimValue('solid-state')).toBeNull();
+    expect(simplifyClaimValue(42)).toBeNull();
+    expect(simplifyClaimValue(null)).toBeNull();
+  });
+
+  it('returns null for arrays', () => {
+    expect(simplifyClaimValue(['a', 'b'])).toBeNull();
+  });
+
+  it('returns null for retraction-only dicts (just exists:false)', () => {
+    expect(simplifyClaimValue({ exists: false })).toBeNull();
   });
 });

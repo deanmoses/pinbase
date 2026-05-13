@@ -29,6 +29,27 @@ export function isUnchanged(change: FieldChange): boolean {
   return JSON.stringify(old_value) === JSON.stringify(new_value);
 }
 
+/**
+ * If `v` is a simple relationship-claim dict — `{exists: bool, <key>: string}`
+ * with exactly one non-`exists` key and a string value — return the scalar
+ * along with the existence flag, so the caller can render `DW` (or struck-
+ * through `DW` when `exists` is false) instead of the raw JSON dict.
+ *
+ * Returns null for shapes that need richer rendering (credits, gameplay
+ * features, media attachments, FK-pk relationships, alias_value+display).
+ * Bare scalars also return null — those go straight through `formatValue`.
+ */
+export function simplifyClaimValue(v: unknown): { display: string; exists: boolean } | null {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const obj = v as Record<string, unknown>;
+  if (typeof obj.exists !== 'boolean') return null;
+  const otherKeys = Object.keys(obj).filter((k) => k !== 'exists');
+  if (otherKeys.length !== 1) return null;
+  const scalar = obj[otherKeys[0]];
+  if (typeof scalar !== 'string') return null;
+  return { display: scalar, exists: obj.exists };
+}
+
 /** Format an unknown claim value for inline display, with truncation. */
 export function formatValue(v: unknown): string {
   if (v === null || v === undefined || v === '') return '\u2014';

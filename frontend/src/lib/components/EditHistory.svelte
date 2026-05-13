@@ -7,9 +7,10 @@
   import FocusContentShell from './FocusContentShell.svelte';
   import InlineDiff from './InlineDiff.svelte';
   import ClaimAttribution from './ClaimAttribution.svelte';
+  import ClaimValue from './ClaimValue.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { getEntityContext } from '$lib/entity-context';
-  import { isDiffable, isUnchanged, formatValue } from './change-display';
+  import { isDiffable, isUnchanged } from './change-display';
 
   type ChangeSet = ChangeSetSchema;
   type FieldChange = FieldChangeSchema;
@@ -203,7 +204,7 @@
                       </dd>
                       {#if isUnchanged(change)}
                         <dd>
-                          <span class="old-value">{formatValue(change.new_value)}</span>
+                          <span class="old-value"><ClaimValue value={change.new_value} /></span>
                         </dd>
                       {:else if isDiffable(change)}
                         <dd>
@@ -212,10 +213,10 @@
                       {:else}
                         <dd>
                           {#if change.old_value !== null && change.old_value !== undefined}
-                            <span class="old-value">{formatValue(change.old_value)}</span>
+                            <span class="old-value"><ClaimValue value={change.old_value} /></span>
                             <span class="arrow">&rarr;</span>
                           {/if}
-                          <span class="old-value">{formatValue(change.new_value)}</span>
+                          <span class="old-value"><ClaimValue value={change.new_value} /></span>
                         </dd>
                       {/if}
                     </div>
@@ -223,7 +224,7 @@
                     <div class="field-row">
                       <dt>{change.field_name}</dt>
                       <dd>
-                        <span class="new-value">{formatValue(change.new_value)}</span>
+                        <span class="new-value"><ClaimValue value={change.new_value} /></span>
                       </dd>
                       {@render revertControls(change)}
                     </div>
@@ -240,10 +241,10 @@
                       <dt>{change.field_name}</dt>
                       <dd>
                         {#if change.old_value !== null && change.old_value !== undefined}
-                          <span class="old-value">{formatValue(change.old_value)}</span>
+                          <span class="old-value"><ClaimValue value={change.old_value} /></span>
                           <span class="arrow">&rarr;</span>
                         {/if}
-                        <span class="new-value">{formatValue(change.new_value)}</span>
+                        <span class="new-value"><ClaimValue value={change.new_value} /></span>
                       </dd>
                       {@render revertControls(change)}
                     </div>
@@ -256,7 +257,7 @@
                       <dt>{retraction.field_name}</dt>
                       <dd>
                         <span class="reverted-badge">reverted</span>
-                        <span class="old-value">{formatValue(retraction.old_value)}</span>
+                        <span class="old-value"><ClaimValue value={retraction.old_value} /></span>
                       </dd>
                     </div>
                   {/if}
