@@ -4,7 +4,6 @@
   import client from '$lib/api/client';
   import MachineCard from '$lib/components/cards/MachineCard.svelte';
   import { SITE_NAME, SITE_TITLE } from '$lib/constants';
-  import { resolveHref } from '$lib/utils';
   import MetaTags from '$lib/components/MetaTags.svelte';
   import { page } from '$app/state';
   import { onMount } from 'svelte';
@@ -26,7 +25,7 @@
     e.preventDefault();
     const q = searchQuery.trim();
     if (q) {
-      goto(`${resolveHref('/search')}?q=${encodeURIComponent(q)}`);
+      goto(`${resolve('/search')}?q=${encodeURIComponent(q)}`);
     }
   }
 

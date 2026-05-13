@@ -1,23 +1,7 @@
 <script lang="ts">
-  import { resolveHref } from '$lib/utils';
+  import { resolve } from '$app/paths';
 
-  let {
-    username,
-    displayName,
-  }: {
-    username: string | null | undefined;
-    displayName: string | null | undefined;
-  } = $props();
+  let { username }: { username: string } = $props();
 </script>
 
-{#if username}
-  <a href={resolveHref(`/users/${username}`)}>{displayName || username}</a>
-{:else}
-  <span class="system">system</span>
-{/if}
-
-<style>
-  .system {
-    color: var(--color-text-muted);
-  }
-</style>
+<a href={resolve('/users/[username]', { username })}>{username}</a>

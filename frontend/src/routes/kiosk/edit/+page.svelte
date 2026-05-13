@@ -6,9 +6,9 @@
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import client from '$lib/api/client';
   import { parseApiError } from '$lib/api/parse-api-error';
-  import { resolveHref } from '$lib/utils';
   import { toast } from '$lib/toast/toast.svelte';
   import { clearKioskCookies, setKioskCookies } from '$lib/kiosk/config';
   import Page from '$lib/components/Page.svelte';
@@ -42,7 +42,7 @@
       return;
     }
     toast.success(`Created kiosk #${created.id}.`, { persistUntilNav: true });
-    await goto(resolveHref(`/kiosk/edit/${created.id}`));
+    await goto(resolve(`/kiosk/edit/${created.id}`));
   }
 
   function enterKioskMode(config: { id: number; idle_seconds: number }) {

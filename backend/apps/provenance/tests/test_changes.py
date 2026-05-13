@@ -120,11 +120,11 @@ class TestChangesList:
         data = resp.json()
         assert len(data["items"]) == 1
         item = data["items"][0]
-        assert item["user_username"] == user.username
+        assert item["attribution"]["user_username"] == user.username
         assert item["entity_name"] == "Medieval Madness"
         assert item["entity_type_label"] == "Model"
         assert item["changes_count"] >= 1
-        assert item["is_ingest"] is False
+        assert item["attribution"]["is_ingest"] is False
 
     def test_excludes_ingest_by_default(self, client, source, pm):
         run = IngestRun.objects.create(
@@ -154,8 +154,8 @@ class TestChangesList:
         assert resp.status_code == 200
         items = resp.json()["items"]
         assert len(items) == 1
-        assert items[0]["is_ingest"] is True
-        assert items[0]["source_name"] == "IPDB"
+        assert items[0]["attribution"]["is_ingest"] is True
+        assert items[0]["attribution"]["source_name"] == "IPDB"
 
     def test_entity_type_filter(self, client, user, pm, mfr):
         client.force_login(user)

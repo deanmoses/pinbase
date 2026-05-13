@@ -153,9 +153,3 @@ class User(AbstractUser):
 
     def __str__(self) -> str:
         return self.username or self.email
-
-    @property
-    def display_name(self) -> str:
-        """Human-readable name: "First Last", else either, else username."""
-        full = f"{self.first_name} {self.last_name}".strip()
-        return full or self.username

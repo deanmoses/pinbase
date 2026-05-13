@@ -1,22 +1,14 @@
 <script lang="ts">
+  import type { ChangeSetAttributionSchema } from '$lib/api/schema';
   import UserLink from './UserLink.svelte';
 
-  let {
-    cs,
-  }: {
-    cs: {
-      is_ingest?: boolean;
-      source_name?: string | null;
-      user_username?: string | null;
-      user_display_name?: string | null;
-    };
-  } = $props();
+  let { attribution }: { attribution: ChangeSetAttributionSchema } = $props();
 </script>
 
-{#if cs.is_ingest}
-  {cs.source_name ?? 'system'}
-{:else if cs.user_username}
-  <UserLink username={cs.user_username} displayName={cs.user_display_name} />
+{#if attribution.is_ingest}
+  {attribution.source_name ?? 'system'}
+{:else if attribution.user_username}
+  <UserLink username={attribution.user_username} />
 {:else}
   system
 {/if}

@@ -339,6 +339,6 @@ class TestCreditRoleEditHistory:
         body = resp.json()
         assert len(body) == 1
         entry = body[0]
-        assert entry["user_username"] == user.username
+        assert entry["attribution"]["user_username"] == user.username
         # The PATCH we issued edits the description field.
         assert [c["field_name"] for c in entry["changes"]] == ["description"]

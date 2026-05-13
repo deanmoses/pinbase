@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import EditSectionShell from '$lib/components/EditSectionShell.svelte';
   import type { EditSectionMenuItem } from '$lib/components/edit-section-menu';
   import {
@@ -11,7 +12,6 @@
   import { setEditLayoutContext } from '$lib/components/editors/edit-layout-context';
   import { WIDE_BREAKPOINT } from '$lib/constants';
   import { createBelowBreakpointFlag } from '$lib/use-below-breakpoint.svelte';
-  import { resolveHref } from '$lib/utils';
   import type { LocationDetailSchema } from '$lib/api/schema';
 
   let { data, children } = $props();
@@ -36,20 +36,20 @@
     visibleSections.map((section) => ({
       key: section.key,
       label: section.label,
-      href: resolveHref(`/locations/${path}/edit/${section.segment}`),
+      href: resolve(`/locations/${path}/edit/${section.segment}`),
     })),
   );
 
   $effect(() => {
     if (isMobile !== false) return;
     const segment = currentSection?.segment ?? defaultLocationSectionSegment();
-    goto(resolveHref(`/locations/${path}?edit=${segment}`), { replaceState: true });
+    goto(`${resolve(`/locations/${path}`)}?edit=${segment}`, { replaceState: true });
   });
 </script>
 
 {#if isMobile === true}
   <EditSectionShell
-    detailHref={resolveHref(`/locations/${path}`)}
+    detailHref={resolve(`/locations/${path}`)}
     {switcherItems}
     currentSectionKey={currentSection?.key}
     {editorDirty}

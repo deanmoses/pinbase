@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import SectionEditorForm from '$lib/components/SectionEditorForm.svelte';
   import { WIDE_BREAKPOINT } from '$lib/constants';
   import type { SectionEditorHandle } from '$lib/components/editors/editor-contract';
@@ -11,7 +12,6 @@
   } from '$lib/components/editors/location-edit-sections';
   import { createBelowBreakpointFlag } from '$lib/use-below-breakpoint.svelte';
   import type { SaveMeta } from '$lib/components/editors/save-claims-shared';
-  import { resolveHref } from '$lib/utils';
   import type { LocationDetailSchema } from '$lib/api/schema';
   import LocationEditorSwitch from '../LocationEditorSwitch.svelte';
 
@@ -34,7 +34,7 @@
 
   $effect(() => {
     if (isMobile === true && !sectionAvailable) {
-      goto(resolveHref(`/locations/${path}/edit/${defaultLocationSectionSegment()}`), {
+      goto(resolve(`/locations/${path}/edit/${defaultLocationSectionSegment()}`), {
         replaceState: true,
       });
     }
@@ -49,7 +49,7 @@
     if (editorRef?.isDirty() && !confirm('Discard unsaved changes?')) {
       return;
     }
-    goto(resolveHref(`/locations/${path}`));
+    goto(resolve(`/locations/${path}`));
   }
 
   function handleSaved() {

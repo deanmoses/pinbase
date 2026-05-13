@@ -108,19 +108,25 @@ type X = components["schemas"]["ValidationErrorBodySchema"];
 
 ### Frontend URLs and `resolve()`
 
-SvelteKit's `resolve()` from `$app/paths` is strongly typed and only accepts known route patterns. For dynamic URLs (e.g. from API data), use the `resolveHref()` wrapper from `$lib/utils` instead:
+Use SvelteKit's `resolve()` from `$app/paths` for internal routes by default. `resolve()` is strongly typed against the project's route tree and accepts dynamic params, so prefer it even when the URL has runtime values — it catches typos and route renames at compile time:
 
 ```svelte
 <script lang="ts">
-  import { resolveHref } from '$lib/utils';
+  import { resolve } from '$app/paths';
 </script>
 
-<!-- Internal dynamic URL -->
-<a href={resolveHref(someUrl)}>Link</a>
-
-<!-- External URL — don't use resolve at all -->
-<a href={externalUrl} target="_blank" rel="noopener">Link</a>
+<a href={resolve('/users/[username]', { username })}>{username}</a>
+<a href={resolve('/models/[slug]', { slug: model.slug })}>{model.name}</a>
 ```
+
+Only fall back to `$lib/utils/resolveHref()` when the route **pattern** itself isn't known at the call site — for example, an href returned from the API, or a base path passed as a prop:
+
+```svelte
+<a href={resolveHref(model.href)}>{model.name}</a>
+<a href={resolveHref(`${basePath}/${slug}`)}>{label}</a>
+```
+
+`resolveHref` casts through `as any` to bypass the route-pattern type, so each caller is silently opting out of type safety. Keep its surface area small.
 
 The `svelte/no-navigation-without-resolve` ESLint rule is disabled project-wide because it doesn't recognize the wrapper.
 

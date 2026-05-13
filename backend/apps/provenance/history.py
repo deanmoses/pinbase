@@ -10,7 +10,12 @@ from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, W
 from apps.core.authz import PolicyUser, compute_row_capabilities
 
 from .models import ChangeSet, Claim
-from .schemas import ChangeSetSchema, FieldChangeSchema, RetractionSchema
+from .schemas import (
+    ChangeSetAttributionSchema,
+    ChangeSetSchema,
+    FieldChangeSchema,
+    RetractionSchema,
+)
 
 
 def _compute_winning_claim_ids(ct: ContentType, entity_pk: int) -> set[int]:
@@ -145,12 +150,13 @@ def build_edit_history(entity: Model, user: PolicyUser) -> list[ChangeSetSchema]
         result.append(
             ChangeSetSchema(
                 id=cs.pk,
-                user_username=cs.user.username if cs.user else None,
-                user_display_name=cs.user.display_name if cs.user else None,
-                is_ingest=cs.ingest_run_id is not None,
-                source_name=cs.ingest_run.source.name if cs.ingest_run else None,
+                attribution=ChangeSetAttributionSchema(
+                    user_username=cs.user.username if cs.user else None,
+                    is_ingest=cs.ingest_run_id is not None,
+                    source_name=cs.ingest_run.source.name if cs.ingest_run else None,
+                    created_at=cs.created_at.isoformat(),
+                ),
                 note=cs.note,
-                created_at=cs.created_at.isoformat(),
                 changes=changes,
                 retractions=retractions,
                 capabilities=compute_row_capabilities(

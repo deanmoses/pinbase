@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { resolveHref } from '$lib/utils';
+  import { resolve } from '$app/paths';
 </script>
 
 <footer class="site-footer">
   <div class="footer-inner">
     <nav class="footer-links">
-      <a href={resolveHref('/licensing')}>Licensing</a>
-      <a href={resolveHref('/terms')}>Terms</a>
-      <a href={resolveHref('/privacy')}>Privacy</a>
-      <a href={resolveHref('/api-docs')}>API</a>
+      <a href={resolve('/licensing')}>Licensing</a>
+      <a href={resolve('/terms')}>Terms</a>
+      <a href={resolve('/privacy')}>Privacy</a>
+      <a href={resolve('/api-docs')}>API</a>
     </nav>
     <p class="copyright">&copy; {new Date().getFullYear()} The Flip</p>
   </div>

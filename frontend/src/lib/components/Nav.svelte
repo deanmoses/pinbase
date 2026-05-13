@@ -10,7 +10,6 @@
   import MenuDivider from './MenuDivider.svelte';
   import Avatar from './Avatar.svelte';
   import { SITE_NAME, NARROW_BREAKPOINT } from '$lib/constants';
-  import { resolveHref } from '$lib/utils';
   import { auth } from '$lib/auth.svelte';
   import { createBelowBreakpointFlag } from '$lib/use-below-breakpoint.svelte';
   import { toast } from '$lib/toast/toast.svelte';
@@ -45,7 +44,7 @@
     return `/api/auth/login/?next=${encodeURIComponent(page.url.pathname)}`;
   }
 
-  const myContributionsHref = $derived(resolveHref(`/users/${auth.username}`));
+  const myContributionsHref = $derived(resolve(`/users/${auth.username}`));
   const myContributionsActive = $derived(isActive(`/users/${auth.username}`));
 
   const randInt = (max: number) => Math.floor(Math.random() * max);
@@ -116,7 +115,7 @@
 
     <div class="header-actions">
       <a
-        href={resolveHref('/search')}
+        href={resolve('/search')}
         class="search-link"
         class:active={isActive('/search')}
         aria-label="Search"

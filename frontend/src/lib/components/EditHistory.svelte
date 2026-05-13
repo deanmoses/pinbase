@@ -2,7 +2,11 @@
   import { invalidateAll } from '$app/navigation';
   import client from '$lib/api/client';
   import { parseApiError } from '$lib/api/parse-api-error';
-  import type { ChangeSetSchema, FieldChangeSchema } from '$lib/api/schema';
+  import type {
+    ChangeSetAttributionSchema,
+    ChangeSetSchema,
+    FieldChangeSchema,
+  } from '$lib/api/schema';
   import { auth } from '$lib/auth.svelte';
   import FocusContentShell from './FocusContentShell.svelte';
   import InlineDiff from './InlineDiff.svelte';
@@ -23,11 +27,7 @@
   let revertLoading = $state(false);
 
   interface RetractionInfo {
-    user_username: string | null | undefined;
-    user_display_name: string | null | undefined;
-    is_ingest: boolean | undefined;
-    source_name: string | null | undefined;
-    created_at: string;
+    attribution: ChangeSetAttributionSchema;
     note: string;
   }
 
@@ -41,11 +41,7 @@
     for (const cs of changesets) {
       for (const r of cs.retractions ?? []) {
         lookup.set(r.claim_id, {
-          user_username: cs.user_username,
-          user_display_name: cs.user_display_name,
-          is_ingest: cs.is_ingest,
-          source_name: cs.source_name,
-          created_at: cs.created_at,
+          attribution: cs.attribution,
           note: cs.note,
         });
       }
@@ -187,7 +183,7 @@
           {#if !isEmptyChangeset(cs)}
             <li class="changeset">
               <div class="changeset-header">
-                By <ChangeSetAttribution {cs} />
+                By <ChangeSetAttribution attribution={cs.attribution} />
               </div>
               {#if cs.note}
                 <p class="changeset-note">{cs.note}</p>
@@ -205,7 +201,7 @@
                       <dd>
                         <span class="reverted-badge">reverted</span>
                         {#if info}
-                          by <ChangeSetAttribution cs={info} />{#if info.note}:
+                          by <ChangeSetAttribution attribution={info.attribution} />{#if info.note}:
                             {info.note}{/if}
                         {/if}
                       </dd>

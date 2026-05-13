@@ -1,20 +1,11 @@
 <script lang="ts">
+  import type { ChangeSetAttributionSchema } from '$lib/api/schema';
   import ChangeSetAuthor from './ChangeSetAuthor.svelte';
   import SmartDate from './SmartDate.svelte';
 
-  let {
-    cs,
-  }: {
-    cs: {
-      is_ingest?: boolean;
-      source_name?: string | null;
-      user_username?: string | null;
-      user_display_name?: string | null;
-      created_at: string;
-    };
-  } = $props();
+  let { attribution }: { attribution: ChangeSetAttributionSchema } = $props();
 </script>
 
-<ChangeSetAuthor {cs} />
+<ChangeSetAuthor {attribution} />
 <span aria-hidden="true">·</span>
-<SmartDate iso={cs.created_at} />
+<SmartDate iso={attribution.created_at} />

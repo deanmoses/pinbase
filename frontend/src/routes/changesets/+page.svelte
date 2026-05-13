@@ -200,7 +200,7 @@
               <span class="entity-type">{cs.entity_type_label}</span>
             </a>
             <span class="byline">
-              By <ChangeSetAttribution {cs} />
+              By <ChangeSetAttribution attribution={cs.attribution} />
             </span>
           </div>
 

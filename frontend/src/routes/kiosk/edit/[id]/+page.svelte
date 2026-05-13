@@ -13,7 +13,8 @@
   import { goto } from '$app/navigation';
   import client from '$lib/api/client';
   import { parseApiError } from '$lib/api/parse-api-error';
-  import { resolveHref, normalizeText } from '$lib/utils';
+  import { resolve } from '$app/paths';
+  import { normalizeText } from '$lib/utils';
   import { toast } from '$lib/toast/toast.svelte';
   import { matchesQuery } from '$lib/facet-engine';
   import {
@@ -245,7 +246,7 @@
     }
 
     toast.success(`Deleted kiosk ${idLabel}.`, { persistUntilNav: true });
-    await goto(resolveHref('/kiosk/edit'));
+    await goto(resolve('/kiosk/edit'));
   }
 </script>
 

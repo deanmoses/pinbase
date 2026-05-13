@@ -186,10 +186,10 @@ class TestUserProfileWithEdits:
 
 
 @pytest.mark.django_db
-class TestEditHistoryUserDisplayNull:
-    """Verify that build_edit_history returns null for non-user changesets."""
+class TestEditHistoryIngestAttribution:
+    """Verify that build_edit_history attributes ingest changesets correctly."""
 
-    def test_ingest_changeset_has_null_user_display(self, client, user):
+    def test_ingest_and_user_changesets_attributed_correctly(self, client, user):
         from apps.provenance.models import IngestRun
         from apps.provenance.test_factories import ingest_changeset, user_changeset
 
@@ -198,12 +198,10 @@ class TestEditHistoryUserDisplayNull:
         )
         pm = make_machine_model(name="Gorgar", slug="gorgar", year=1979)
 
-        # Create an ingest changeset with a claim — this is the non-user path
         ingest_run = IngestRun.objects.create(source=source, input_fingerprint="abc123")
         ingest_cs = ingest_changeset(ingest_run)
         Claim.objects.assert_claim(pm, "year", 1979, source=source, changeset=ingest_cs)
 
-        # Create a user changeset with a claim — this is the user path
         user_cs = user_changeset(user)
         Claim.objects.assert_claim(
             pm,
@@ -215,8 +213,15 @@ class TestEditHistoryUserDisplayNull:
 
         resp = client.get(f"/api/pages/edit-history/model/{pm.slug}/")
         data = resp.json()
-        # Partition by user_username: user-attributed vs ingest entries.
-        user_entries = [e for e in data if e["user_username"] is not None]
-        ingest_entries = [e for e in data if e["user_username"] is None]
-        assert len(user_entries) == 1
-        assert len(ingest_entries) == 1
+        attributions = {e["id"]: e["attribution"] for e in data}
+        assert len(attributions) == 2
+
+        ingest_attr = attributions[ingest_cs.pk]
+        assert ingest_attr["user_username"] is None
+        assert ingest_attr["is_ingest"] is True
+        assert ingest_attr["source_name"] == "IPDB"
+
+        user_attr = attributions[user_cs.pk]
+        assert user_attr["user_username"] == user.username
+        assert user_attr["is_ingest"] is False
+        assert user_attr["source_name"] is None

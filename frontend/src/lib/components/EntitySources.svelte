@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { CitedChangeSetSchema, ClaimSchema } from '$lib/api/schema';
+  import ChangeSetAttribution from './ChangeSetAttribution.svelte';
   import FocusContentShell from './FocusContentShell.svelte';
   import UserLink from './UserLink.svelte';
-  import SmartDate from './SmartDate.svelte';
   import { getEntityContext } from '$lib/entity-context';
   import { groupSourcesByField } from './entity-sources';
 
@@ -21,7 +21,7 @@
   const entity = getEntityContext();
 
   function claimAttribution(claim: Claim): string {
-    return claim.source_name ?? claim.user_display_name ?? claim.user_username ?? 'Unknown';
+    return claim.source_name ?? claim.user_username ?? 'Unknown';
   }
 
   function formatValue(v: unknown): string {
@@ -32,7 +32,7 @@
 
 {#snippet claimDetail(claim: Claim)}
   {#if claim.user_username}
-    <UserLink username={claim.user_username} displayName={claim.user_display_name} />
+    <UserLink username={claim.user_username} />
   {:else}
     <span class="source-badge">{claim.source_name ?? 'Unknown'}</span>
   {/if}
@@ -68,15 +68,7 @@
             {#each evidence as changeset (changeset.id)}
               <li class="changeset-card">
                 <div class="changeset-header">
-                  {#if changeset.user_username}
-                    <UserLink
-                      username={changeset.user_username}
-                      displayName={changeset.user_display_name}
-                    />
-                  {:else}
-                    <span class="source-badge">Unknown</span>
-                  {/if}
-                  <span class="timestamp"><SmartDate iso={changeset.created_at} /></span>
+                  <ChangeSetAttribution attribution={changeset.attribution} />
                 </div>
                 {#if changeset.note}
                   <p class="evidence-note">{changeset.note}</p>
@@ -230,11 +222,6 @@
     align-items: center;
     gap: var(--size-2);
     margin-bottom: var(--size-2);
-  }
-
-  .timestamp {
-    font-size: var(--font-size-0);
-    color: var(--color-text-muted);
   }
 
   .evidence-note {

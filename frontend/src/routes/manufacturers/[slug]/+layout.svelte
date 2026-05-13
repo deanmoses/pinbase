@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { resolve } from '$app/paths';
-  import { formatYearRange, resolveHref, websiteHostname } from '$lib/utils';
+  import { formatYearRange, websiteHostname } from '$lib/utils';
   import MetaTags from '$lib/components/MetaTags.svelte';
   import { auth } from '$lib/auth.svelte';
   import ExpandableSidebarList from '$lib/components/ExpandableSidebarList.svelte';
@@ -212,7 +212,7 @@
         <ExpandableSidebarList items={mfr.persons} limit={10} key={(person) => person.slug}>
           {#snippet children(person)}
             <SidebarListItem>
-              <a href={resolveHref(`/people/${person.slug}`)}>{person.name}</a>
+              <a href={resolve(`/people/${person.slug}`)}>{person.name}</a>
               {#if person.roles.length > 0}
                 <span class="muted">{person.roles.join(', ')}</span>
               {/if}

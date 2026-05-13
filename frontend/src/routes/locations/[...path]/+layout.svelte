@@ -1,9 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { auth } from '$lib/auth.svelte';
   import { WIDE_BREAKPOINT, pageTitle } from '$lib/constants';
-  import { resolveHref } from '$lib/utils';
   import PageActionBar from '$lib/components/PageActionBar.svelte';
   import RecordDetailShell from '$lib/components/RecordDetailShell.svelte';
   import SectionEditorHost from '$lib/components/SectionEditorHost.svelte';
@@ -92,7 +92,7 @@
 
   let editMenuItems = $derived.by<EditSectionMenuItem[]>(() => {
     if (isRoot) {
-      return [{ key: 'new', label: '+ New Country', href: resolveHref('/locations/new') }];
+      return [{ key: 'new', label: '+ New Country', href: resolve('/locations/new') }];
     }
     const childLabel = newChildLabel(profile);
     // Name, parent, slug, and location_type are intentionally absent because
@@ -102,7 +102,7 @@
         ? {
             key: section.key,
             label: section.label,
-            href: resolveHref(`/locations/${path}/edit/${section.segment}`),
+            href: resolve(`/locations/${path}/edit/${section.segment}`),
           }
         : {
             key: section.key,
@@ -114,13 +114,13 @@
       items.push({
         key: 'new',
         label: `+ New ${childLabel}`,
-        href: resolveHref(`/locations/${path}/new`),
+        href: resolve(`/locations/${path}/new`),
       });
     }
     items.push({
       key: 'delete',
       label: `Delete ${profile.name}`,
-      href: resolveHref(`/locations/${path}/delete`),
+      href: resolve(`/locations/${path}/delete`),
       separatorBefore: true,
     });
     return items;
@@ -143,8 +143,8 @@
   {:else}
     <PageActionBar
       editSections={auth.isAuthenticated ? editMenuItems : undefined}
-      historyHref={resolveHref(`/locations/${path}/edit-history`)}
-      sourcesHref={resolveHref(`/locations/${path}/sources`)}
+      historyHref={resolve(`/locations/${path}/edit-history`)}
+      sourcesHref={resolve(`/locations/${path}/sources`)}
     />
   {/if}
 {/snippet}
@@ -155,7 +155,7 @@
       <SidebarList>
         {#each profile.children as child (child.location_path)}
           <SidebarListItem>
-            <a href={resolveHref(`/locations/${child.location_path}`)}>
+            <a href={resolve(`/locations/${child.location_path}`)}>
               {child.name}
             </a>
             <span class="count">{child.manufacturer_count}</span>

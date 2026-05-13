@@ -23,9 +23,13 @@ describe('EntitySources', () => {
         evidence: [
           {
             id: 1,
-            user_username: 'editor',
+            attribution: {
+              user_username: 'editor',
+              is_ingest: false,
+              source_name: null,
+              created_at: '2026-04-08T00:00:00Z',
+            },
             note: 'Documented the flyer',
-            created_at: '2026-04-08T00:00:00Z',
             fields: ['year', 'description'],
             citations: [
               {

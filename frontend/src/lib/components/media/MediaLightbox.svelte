@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { resolveHref } from '$lib/utils';
+  import { resolve } from '$app/paths';
   import type { UploadedMediaSchema } from '$lib/api/schema';
   import Dialog from '../Dialog.svelte';
 
@@ -63,7 +63,7 @@
         {#if item.uploaded_by_username}
           <span class="uploader">
             Uploaded by <a
-              href={resolveHref(`/users/${item.uploaded_by_username}`)}
+              href={resolve(`/users/${item.uploaded_by_username}`)}
               class="uploader-link">{item.uploaded_by_username}</a
             >
           </span>

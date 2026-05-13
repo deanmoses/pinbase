@@ -88,7 +88,6 @@ def build_sources(claims: Iterable[Claim]) -> list[ClaimSchema]:
                 source_name=claim.source.name if claim.source else None,
                 source_slug=claim.source.slug if claim.source else None,
                 user_username=claim.user.username if claim.user else None,
-                user_display_name=claim.user.display_name if claim.user else None,
                 field_name=claim.field_name,
                 value=claim.value,
                 citation=claim.citation,

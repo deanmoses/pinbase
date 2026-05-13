@@ -4,7 +4,7 @@
   component only renders.
 -->
 <script lang="ts">
-  import { resolveHref } from '$lib/utils';
+  import { resolve } from '$app/paths';
   import type { KioskPageSchema } from '$lib/api/schema';
 
   let { config }: { config: KioskPageSchema } = $props();
@@ -20,7 +20,7 @@
   {/if}
   <div class="grid">
     {#each config.items as item (item.title.slug)}
-      <a class="card" href={resolveHref(`/titles/${item.title.slug}`)}>
+      <a class="card" href={resolve(`/titles/${item.title.slug}`)}>
         <div class="card-media">
           {#if item.title.thumbnail_url}
             <img src={item.title.thumbnail_url} alt="" class="card-img" loading="lazy" />

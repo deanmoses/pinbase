@@ -4,7 +4,7 @@
   import SearchBox from '$lib/components/SearchBox.svelte';
   import SearchResults from '$lib/components/SearchResults.svelte';
   import { SITE_TITLE } from '$lib/constants';
-  import { resolveHref } from '$lib/utils';
+  import { resolve } from '$app/paths';
 
   let searchQuery = $state('');
   let lastSyncedQ = '';
@@ -29,7 +29,7 @@
     if (q !== lastSyncedQ) {
       lastSyncedQ = q;
       const search = q ? `?q=${encodeURIComponent(q)}` : '';
-      replaceState(`${resolveHref('/search')}${search}`, {});
+      replaceState(`${resolve('/search')}${search}`, {});
     }
   });
 </script>
