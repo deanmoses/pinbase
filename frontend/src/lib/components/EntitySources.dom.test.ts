@@ -5,8 +5,7 @@ import EntitySources from './EntitySources.test-harness.svelte';
 
 const sampleClaim = {
   attribution: {
-    source_name: 'IPDB',
-    user_username: null,
+    author: { kind: 'source' as const, name: 'IPDB' },
     created_at: '2026-04-07T00:00:00Z',
   },
   field_name: 'year',
@@ -25,8 +24,7 @@ describe('EntitySources', () => {
           {
             id: 1,
             attribution: {
-              user_username: 'editor',
-              source_name: null,
+              author: { kind: 'user' as const, username: 'editor' },
               created_at: '2026-04-08T00:00:00Z',
             },
             note: 'Documented the flyer',

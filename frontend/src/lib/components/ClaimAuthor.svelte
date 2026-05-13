@@ -3,14 +3,13 @@
   import UserLink from './UserLink.svelte';
 
   let { attribution }: { attribution: ClaimAttributionSchema } = $props();
+  const author = $derived(attribution.author);
 </script>
 
-{#if attribution.source_name}
-  <span class="source-badge">{attribution.source_name}</span>
-{:else if attribution.user_username}
-  <UserLink username={attribution.user_username} />
+{#if author.kind === 'source'}
+  <span class="source-badge">{author.name}</span>
 {:else}
-  system
+  <UserLink username={author.username} />
 {/if}
 
 <style>

@@ -63,7 +63,10 @@ class TestEditHistoryBasic:
         assert len(data) == 1
 
         cs = data[0]
-        assert cs["attribution"]["user_username"] == user.username
+        assert cs["attribution"]["author"] == {
+            "kind": "user",
+            "username": user.username,
+        }
         assert cs["note"] == ""
         assert len(cs["changes"]) == 1
         assert cs["changes"][0]["field_name"] == "year"
@@ -143,12 +146,18 @@ class TestEditHistoryMultiUser:
         assert len(data) == 2
 
         # User B's edit is newest — old value is User A's prior claim
-        assert data[0]["attribution"]["user_username"] == user_b.username
+        assert data[0]["attribution"]["author"] == {
+            "kind": "user",
+            "username": user_b.username,
+        }
         assert data[0]["changes"][0]["old_value"]["raw"] == 1998
         assert data[0]["changes"][0]["new_value"]["raw"] == 1999
 
         # User A's edit — no prior claim, so no old value
-        assert data[1]["attribution"]["user_username"] == user.username
+        assert data[1]["attribution"]["author"] == {
+            "kind": "user",
+            "username": user.username,
+        }
         assert data[1]["changes"][0]["old_value"] is None
         assert data[1]["changes"][0]["new_value"]["raw"] == 1998
 

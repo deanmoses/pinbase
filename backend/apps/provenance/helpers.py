@@ -9,8 +9,30 @@ from django.db import models
 from django.db.models import Case, F, IntegerField, Prefetch, QuerySet, Value, When
 
 from .display import FieldValue, claim_value, resolve_labels
-from .models import CitationInstance, Claim
-from .schemas import ClaimAttributionSchema, ClaimSchema
+from .models import ChangeSet, CitationInstance, Claim
+from .schemas import (
+    ClaimAttributionSchema,
+    ClaimAuthorSchema,
+    ClaimSchema,
+    ClaimSourceAuthorSchema,
+    ClaimUserAuthorSchema,
+)
+
+
+def claim_author(claim: Claim) -> ClaimAuthorSchema:
+    """Build the tagged author for a Claim. Exactly one FK is set (DB CHECK)."""
+    if claim.user is not None:
+        return ClaimUserAuthorSchema(username=claim.user.username)
+    assert claim.source is not None
+    return ClaimSourceAuthorSchema(name=claim.source.name)
+
+
+def changeset_author(cs: ChangeSet) -> ClaimAuthorSchema:
+    """Build the tagged author for a ChangeSet. Exactly one FK is set (DB CHECK)."""
+    if cs.user is not None:
+        return ClaimUserAuthorSchema(username=cs.user.username)
+    assert cs.ingest_run is not None
+    return ClaimSourceAuthorSchema(name=cs.ingest_run.source.name)
 
 
 def claims_prefetch(
@@ -21,7 +43,7 @@ def claims_prefetch(
         "claims",
         queryset=Claim.objects.filter(is_active=True)
         .exclude(source__is_enabled=False)
-        .select_related("source", "user", "changeset")
+        .select_related("source", "user", "changeset__user")
         .prefetch_related(
             Prefetch(
                 "citation_instances",
@@ -92,8 +114,7 @@ def build_sources(claims: Iterable[Claim]) -> list[ClaimSchema]:
         sources.append(
             ClaimSchema(
                 attribution=ClaimAttributionSchema(
-                    user_username=claim.user.username if claim.user else None,
-                    source_name=claim.source.name if claim.source else None,
+                    author=claim_author(claim),
                     created_at=claim.created_at.isoformat(),
                 ),
                 field_name=claim.field_name,

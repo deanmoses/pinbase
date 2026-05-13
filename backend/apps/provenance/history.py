@@ -12,6 +12,7 @@ from django.db.models import Case, F, IntegerField, Model, Prefetch, Q, Value, W
 from apps.core.authz import PolicyUser, compute_row_capabilities
 
 from .display import FieldValue, LabelLookup, claim_value, resolve_labels
+from .helpers import changeset_author
 from .models import ChangeSet, Claim
 from .schemas import (
     ChangeSetSchema,
@@ -214,8 +215,7 @@ def build_edit_history(entity: Model, user: PolicyUser) -> list[ChangeSetSchema]
             ChangeSetSchema(
                 id=cs.pk,
                 attribution=ClaimAttributionSchema(
-                    user_username=cs.user.username if cs.user else None,
-                    source_name=cs.ingest_run.source.name if cs.ingest_run else None,
+                    author=changeset_author(cs),
                     created_at=cs.created_at.isoformat(),
                 ),
                 note=cs.note,

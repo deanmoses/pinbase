@@ -22,7 +22,8 @@
   const entity = getEntityContext();
 
   function claimAttribution(claim: Claim): string {
-    return claim.attribution.source_name ?? claim.attribution.user_username ?? 'Unknown';
+    const author = claim.attribution.author;
+    return author.kind === 'source' ? author.name : author.username;
   }
 </script>
 

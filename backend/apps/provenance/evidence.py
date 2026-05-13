@@ -29,7 +29,7 @@ class CitedCitation:
 class CitedChangeset:
     id: int
     user_id: int
-    user_username: str | None
+    user_username: str
     note: str
     created_at: str
     fields: list[str]
@@ -42,7 +42,7 @@ class _CitedChangesetBuilder:
 
     id: int
     user_id: int
-    user_username: str | None
+    user_username: str
     note: str
     created_at: str
     fields: list[str] = field(default_factory=list)
@@ -55,14 +55,13 @@ def build_cited_changesets(claims: Iterable[Claim]) -> list[CitedChangeset]:
     grouped: dict[int, _CitedChangesetBuilder] = {}
 
     for claim in claims:
-        # Filter on ``claim.changeset.user_id`` rather than
-        # ``claim.user_id``. The policy targets the changeset's author;
-        # the two match by write-time convention but aren't a DB
-        # invariant. Reading off the loaded changeset prevents a future
-        # drift (revert flows, ingest oddity, ORM bug) from silently
-        # misattributing authorship to the claim's writer.
+        # Read authorship off ``claim.changeset.user`` rather than
+        # ``claim.user``. The two match by write-time convention but
+        # aren't a DB invariant — revert flows can attach source-attributed
+        # claims to a user changeset, in which case ``claim.user`` is null.
+        # The changeset's user is the policy-relevant author.
         changeset = claim.changeset
-        if changeset is None or changeset.user_id is None:
+        if changeset is None or changeset.user is None:
             continue
 
         claim_citations = citation_instances(claim)
@@ -73,8 +72,8 @@ def build_cited_changesets(claims: Iterable[Claim]) -> list[CitedChangeset]:
         if entry is None:
             entry = _CitedChangesetBuilder(
                 id=changeset.pk,
-                user_id=changeset.user_id,
-                user_username=claim.user.username if claim.user else None,
+                user_id=changeset.user.pk,
+                user_username=changeset.user.username,
                 note=changeset.note,
                 created_at=changeset.created_at.isoformat(),
             )

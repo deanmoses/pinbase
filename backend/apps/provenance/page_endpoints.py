@@ -30,7 +30,7 @@ from apps.core.types import EntityKey
 
 from .entity_resolution import batch_resolve_entities
 from .evidence import build_cited_changesets
-from .helpers import active_claims, build_sources, claims_prefetch
+from .helpers import active_claims, build_sources, changeset_author, claims_prefetch
 from .history import build_changes, build_edit_history
 from .models.changeset import ChangeSet
 from .schemas import (
@@ -39,6 +39,7 @@ from .schemas import (
     CitationLinkSchema,
     ClaimAttributionSchema,
     ClaimSchema,
+    ClaimUserAuthorSchema,
     FieldChangeSchema,
     RetractionSchema,
 )
@@ -174,35 +175,36 @@ def sources_page(
     claims = active_claims(entity)
     sources = build_sources(claims)
     caller = policy_user(request.user)
-    evidence = [
-        CitedChangeSetSchema(
-            id=row.id,
-            attribution=ClaimAttributionSchema(
-                user_username=row.user_username,
-                created_at=row.created_at,
-            ),
-            note=row.note,
-            fields=row.fields,
-            citations=[
-                CitedChangeSetCitationSchema(
-                    source_name=c.source_name,
-                    source_type=c.source_type,
-                    author=c.author,
-                    year=c.year,
-                    locator=c.locator,
-                    links=[
-                        CitationLinkSchema(url=link.url, label=link.label)
-                        for link in c.links
-                    ],
-                )
-                for c in row.citations
-            ],
-            capabilities=compute_row_capabilities(
-                caller, row, CitedChangeSetSchema.policy_activities
-            ),
+    evidence: list[CitedChangeSetSchema] = []
+    for row in build_cited_changesets(claims):
+        evidence.append(
+            CitedChangeSetSchema(
+                id=row.id,
+                attribution=ClaimAttributionSchema(
+                    author=ClaimUserAuthorSchema(username=row.user_username),
+                    created_at=row.created_at,
+                ),
+                note=row.note,
+                fields=row.fields,
+                citations=[
+                    CitedChangeSetCitationSchema(
+                        source_name=c.source_name,
+                        source_type=c.source_type,
+                        author=c.author,
+                        year=c.year,
+                        locator=c.locator,
+                        links=[
+                            CitationLinkSchema(url=link.url, label=link.label)
+                            for link in c.links
+                        ],
+                    )
+                    for c in row.citations
+                ],
+                capabilities=compute_row_capabilities(
+                    caller, row, CitedChangeSetSchema.policy_activities
+                ),
+            )
         )
-        for row in build_cited_changesets(claims)
-    ]
     return SourcesPageSchema(
         sources=sources,
         evidence=evidence,
@@ -313,8 +315,7 @@ def list_changes(
             ChangeSetSummarySchema(
                 id=cs.pk,
                 attribution=ClaimAttributionSchema(
-                    user_username=cs.user.username if cs.user else None,
-                    source_name=cs.ingest_run.source.name if cs.ingest_run_id else None,
+                    author=changeset_author(cs),
                     created_at=cs.created_at.isoformat(),
                 ),
                 note=cs.note,
@@ -385,13 +386,11 @@ def change_detail(
 
     changes, retractions = build_changes(claims, retracted, by_key)
 
-    ingest_run = cs.ingest_run
     assert cs.pk is not None
     return ChangeSetDetailSchema(
         id=cs.pk,
         attribution=ClaimAttributionSchema(
-            user_username=cs.user.username if cs.user else None,
-            source_name=ingest_run.source.name if ingest_run is not None else None,
+            author=changeset_author(cs),
             created_at=cs.created_at.isoformat(),
         ),
         note=cs.note,

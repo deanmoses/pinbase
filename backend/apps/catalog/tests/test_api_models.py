@@ -127,7 +127,10 @@ class TestModelsAPI:
             c for c in sources_resp.json()["sources"] if c["field_name"] == "year"
         ]
         assert len(year_claims) == 1
-        assert year_claims[0]["attribution"]["source_name"] == "IPDB"
+        assert year_claims[0]["attribution"]["author"] == {
+            "kind": "source",
+            "name": "IPDB",
+        }
         assert year_claims[0]["is_winner"] is True
 
     def test_get_model_detail_images(self, client, db):

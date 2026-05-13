@@ -12,7 +12,7 @@ constrains each field's shape.
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 from django.db.models import Model
 from ninja import Field, Schema
@@ -137,15 +137,34 @@ class RetractionSchema(Schema):
     old_value: ClaimValueSchema
 
 
+class ClaimUserAuthorSchema(Schema):
+    """A Claim/ChangeSet authored by a user."""
+
+    kind: Literal["user"] = "user"
+    username: str
+
+
+class ClaimSourceAuthorSchema(Schema):
+    """A Claim/ChangeSet attributed to an ingest source."""
+
+    kind: Literal["source"] = "source"
+    name: str
+
+
+ClaimAuthorSchema = Annotated[
+    ClaimUserAuthorSchema | ClaimSourceAuthorSchema,
+    Field(discriminator="kind"),
+]
+"""Tagged union: a Claim/ChangeSet is authored by exactly one of a user or
+an ingest source. Mirrors the DB-level XOR CHECK constraints
+(``provenance_claim_source_xor_user``,
+``provenance_changeset_user_xor_ingest_run``) on the wire."""
+
+
 class ClaimAttributionSchema(Schema):
-    """Who asserted a Claim and when.
+    """Who asserted a Claim and when."""
 
-    Exactly one of ``user_username`` / ``source_name`` is non-null — set
-    by user (``user_username``) or ingest (``source_name``), never both.
-    """
-
-    user_username: str | None = None
-    source_name: str | None = None
+    author: ClaimAuthorSchema
     created_at: str
 
 

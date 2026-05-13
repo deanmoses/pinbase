@@ -9,8 +9,7 @@ describe('groupSourcesByField', () => {
         field_name: 'year',
         value: { raw: 1997 },
         attribution: {
-          source_name: 'IPDB',
-          user_username: null,
+          author: { kind: 'source', name: 'IPDB' },
           created_at: '2026-04-08T00:00:00Z',
         },
         citation: '',
@@ -21,8 +20,7 @@ describe('groupSourcesByField', () => {
         field_name: 'year',
         value: { raw: 1998 },
         attribution: {
-          source_name: 'OPDB',
-          user_username: null,
+          author: { kind: 'source', name: 'OPDB' },
           created_at: '2026-04-07T00:00:00Z',
         },
         citation: '',
@@ -33,8 +31,7 @@ describe('groupSourcesByField', () => {
         field_name: 'description',
         value: { raw: 'Updated copy' },
         attribution: {
-          source_name: null,
-          user_username: 'editor',
+          author: { kind: 'user', username: 'editor' },
           created_at: '2026-04-08T00:00:00Z',
         },
         citation: '',
@@ -45,8 +42,7 @@ describe('groupSourcesByField', () => {
         field_name: 'description',
         value: { raw: 'Updated copy' },
         attribution: {
-          source_name: 'IPDB',
-          user_username: null,
+          author: { kind: 'source', name: 'IPDB' },
           created_at: '2026-04-07T00:00:00Z',
         },
         citation: '',
@@ -57,8 +53,7 @@ describe('groupSourcesByField', () => {
         field_name: 'manufacturer',
         value: { raw: 'Williams' },
         attribution: {
-          source_name: 'IPDB',
-          user_username: null,
+          author: { kind: 'source', name: 'IPDB' },
           created_at: '2026-04-07T00:00:00Z',
         },
         citation: '',
