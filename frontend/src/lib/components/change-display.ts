@@ -30,6 +30,18 @@ export function isUnchanged(change: FieldChange): boolean {
 }
 
 /**
+ * True when a change deletes a scalar field — old had a value, new is null /
+ * undefined / empty string. These should render as just the struck-through
+ * old value with a removed indicator, not as `old → —`.
+ */
+export function isDeletion(change: FieldChange): boolean {
+  const { old_value, new_value } = change;
+  const hadValue = old_value !== null && old_value !== undefined && old_value !== '';
+  const hasValue = new_value !== null && new_value !== undefined && new_value !== '';
+  return hadValue && !hasValue;
+}
+
+/**
  * If `v` is a simple relationship-claim dict — `{exists: bool, <key>: string}`
  * with exactly one non-`exists` key and a string value — return the scalar
  * along with the existence flag, so the caller can render `DW` (or struck-

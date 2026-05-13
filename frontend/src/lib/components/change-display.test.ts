@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, isDiffable, isUnchanged, simplifyClaimValue } from './change-display';
+import {
+  formatValue,
+  isDeletion,
+  isDiffable,
+  isUnchanged,
+  simplifyClaimValue,
+} from './change-display';
 
 describe('formatValue', () => {
   it('returns em-dash for null', () => {
@@ -170,6 +176,63 @@ describe('isUnchanged', () => {
         new_value: ['a', 'b'],
       }),
     ).toBe(true);
+  });
+});
+
+describe('isDeletion', () => {
+  it('is true when old has a value and new is null', () => {
+    expect(
+      isDeletion({
+        field_name: 'tagline',
+        claim_key: 'k',
+        old_value: 'Save the universe',
+        new_value: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('is true when old has a value and new is empty string', () => {
+    expect(
+      isDeletion({
+        field_name: 'tagline',
+        claim_key: 'k',
+        old_value: 'Save the universe',
+        new_value: '',
+      }),
+    ).toBe(true);
+  });
+
+  it('is false for a normal edit (both sides have a value)', () => {
+    expect(
+      isDeletion({
+        field_name: 'tagline',
+        claim_key: 'k',
+        old_value: 'foo',
+        new_value: 'bar',
+      }),
+    ).toBe(false);
+  });
+
+  it('is false for a creation (old is null)', () => {
+    expect(
+      isDeletion({
+        field_name: 'tagline',
+        claim_key: 'k',
+        old_value: null,
+        new_value: 'bar',
+      }),
+    ).toBe(false);
+  });
+
+  it('is false when both sides are empty (no real change to display)', () => {
+    expect(
+      isDeletion({
+        field_name: 'tagline',
+        claim_key: 'k',
+        old_value: null,
+        new_value: null,
+      }),
+    ).toBe(false);
   });
 });
 

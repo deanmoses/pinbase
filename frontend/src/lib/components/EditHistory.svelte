@@ -10,7 +10,7 @@
   import ClaimValue from './ClaimValue.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { getEntityContext } from '$lib/entity-context';
-  import { isDiffable, isUnchanged } from './change-display';
+  import { isDeletion, isDiffable, isUnchanged } from './change-display';
 
   type ChangeSet = ChangeSetSchema;
   type FieldChange = FieldChangeSchema;
@@ -228,6 +228,15 @@
                       </dd>
                       {@render revertControls(change)}
                     </div>
+                  {:else if isDeletion(change)}
+                    <div class="field-row">
+                      <dt>{change.field_name}</dt>
+                      <dd>
+                        <span class="old-value"><ClaimValue value={change.old_value} /></span>
+                        <span class="deleted-marker" aria-label="removed">&#x2715;</span>
+                      </dd>
+                      {@render revertControls(change)}
+                    </div>
                   {:else if isDiffable(change)}
                     <div class="field-row field-row-diff">
                       <dt>{change.field_name}</dt>
@@ -366,6 +375,12 @@
   .arrow {
     color: var(--color-text-muted);
     font-size: var(--font-size-0);
+  }
+
+  .deleted-marker {
+    color: var(--color-error-text);
+    font-size: var(--font-size-0);
+    margin-left: var(--size-1);
   }
 
   .new-value {
