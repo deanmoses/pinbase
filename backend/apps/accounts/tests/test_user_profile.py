@@ -81,15 +81,15 @@ class TestUserProfileWithEdits:
         assert len(data["entities_edited"]) == 1
 
         entity = data["entities_edited"][0]
-        assert entity["entity_href"] == "/models/medieval-madness"
-        assert entity["entity_name"] == "Medieval Madness"
-        assert entity["entity_type_label"] == "Model"
+        assert entity["entity"]["href"] == "/models/medieval-madness"
+        assert entity["entity"]["name"] == "Medieval Madness"
+        assert entity["entity"]["type_label"] == "Model"
         assert entity["edit_count"] == 1
 
         assert len(data["recent_edits"]) == 1
         edit = data["recent_edits"][0]
-        assert edit["entity_href"] == "/models/medieval-madness"
-        assert edit["entity_name"] == "Medieval Madness"
+        assert edit["entity"]["href"] == "/models/medieval-madness"
+        assert edit["entity"]["name"] == "Medieval Madness"
 
     def test_multiple_entity_edits_ordered_by_recency(
         self, client, user, model_a, model_b
@@ -115,13 +115,13 @@ class TestUserProfileWithEdits:
         assert data["edit_count"] == 2
         assert len(data["entities_edited"]) == 2
         # Most recently edited first
-        assert data["entities_edited"][0]["entity_name"] == "Attack from Mars"
-        assert data["entities_edited"][1]["entity_name"] == "Medieval Madness"
+        assert data["entities_edited"][0]["entity"]["name"] == "Attack from Mars"
+        assert data["entities_edited"][1]["entity"]["name"] == "Medieval Madness"
 
         # Recent edits also newest first
         assert len(data["recent_edits"]) == 2
-        assert data["recent_edits"][0]["entity_name"] == "Attack from Mars"
-        assert data["recent_edits"][1]["entity_name"] == "Medieval Madness"
+        assert data["recent_edits"][0]["entity"]["name"] == "Attack from Mars"
+        assert data["recent_edits"][1]["entity"]["name"] == "Medieval Madness"
 
     def test_multiple_edits_same_entity(self, client, user, model_a):
         """Multiple edits to one entity count correctly."""
@@ -164,7 +164,7 @@ class TestUserProfileWithEdits:
 
         assert data["edit_count"] == 2
         assert len(data["entities_edited"]) == 2
-        entity_types = {e["entity_type_label"] for e in data["entities_edited"]}
+        entity_types = {e["entity"]["type_label"] for e in data["entities_edited"]}
         assert "Model" in entity_types
         assert "Manufacturer" in entity_types
 

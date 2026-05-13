@@ -25,6 +25,7 @@ from ninja.responses import Status
 
 from apps.core.authz import Activity, compute_row_capabilities, policy_user
 from apps.core.entity_types import get_linkable_model
+from apps.core.schemas import EntityLinkSchema
 from apps.core.types import EntityKey
 
 from .entity_resolution import batch_resolve_entities
@@ -44,11 +45,9 @@ from .schemas import (
 
 
 class ChangeSetWithEntitySchema(ChangeSetBaseSchema):
-    """Adds the entity-link fields shown on the changes page list/detail."""
+    """Adds the entity link shown on the changes page list/detail."""
 
-    entity_href: str
-    entity_name: str
-    entity_type_label: str
+    entity: EntityLinkSchema
 
 
 class ChangeSetSummarySchema(ChangeSetWithEntitySchema):
@@ -322,9 +321,7 @@ def list_changes(
                 note=cs.note,
                 changes_count=len(claims) + retractions_count,
                 retractions_count=retractions_count,
-                entity_href=meta["href"],
-                entity_name=meta["name"],
-                entity_type_label=meta["type_label"],
+                entity=meta,
                 capabilities=compute_row_capabilities(
                     caller, cs, ChangeSetSummarySchema.policy_activities
                 ),
@@ -428,9 +425,7 @@ def change_detail(
             created_at=cs.created_at.isoformat(),
         ),
         note=cs.note,
-        entity_href=meta["href"],
-        entity_name=meta["name"],
-        entity_type_label=meta["type_label"],
+        entity=meta,
         changes=changes,
         retractions=retractions,
         capabilities=compute_row_capabilities(

@@ -56,6 +56,19 @@ class RateLimitErrorSchema(Schema):
     detail: RateLimitErrorBodySchema
 
 
+class EntityLinkSchema(Schema):
+    """A reference to a catalog entity of unknown type.
+
+    Carries everything needed to render a link to the entity: a pre-built
+    ``href`` (the consumer can't construct it without knowing the model),
+    the display ``name``, and a human-readable ``type_label``.
+    """
+
+    href: str
+    name: str
+    type_label: str
+
+
 class LinkTypeSchema(Schema):
     """One entry in the autocomplete type picker."""
 

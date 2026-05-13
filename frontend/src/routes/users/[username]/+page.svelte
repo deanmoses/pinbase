@@ -27,16 +27,16 @@
     <section class="section">
       <h2>Entities edited</h2>
       <ul class="entity-list">
-        {#each profile.entities_edited as entity (entity.entity_href)}
+        {#each profile.entities_edited as contribution (contribution.entity.href)}
           <li class="entity-item">
-            <a href={resolveHref(entity.entity_href)} class="entity-link">
-              <span class="entity-name">{entity.entity_name}</span>
-              <span class="entity-type">{entity.entity_type_label}</span>
+            <a href={resolveHref(contribution.entity.href)} class="entity-link">
+              <span class="entity-name">{contribution.entity.name}</span>
+              <span class="entity-type">{contribution.entity.type_label}</span>
             </a>
             <span class="entity-meta">
-              {entity.edit_count}
-              {entity.edit_count === 1 ? 'edit' : 'edits'} · last
-              <SmartDate iso={entity.last_edited_at} />
+              {contribution.edit_count}
+              {contribution.edit_count === 1 ? 'edit' : 'edits'} · last
+              <SmartDate iso={contribution.last_edited_at} />
             </span>
           </li>
         {/each}
@@ -51,9 +51,9 @@
         {#each profile.recent_edits as edit (edit.id)}
           <li class="edit-item">
             <div class="edit-header">
-              <a href={resolveHref(edit.entity_href)} class="entity-link">
-                <span class="entity-name">{edit.entity_name}</span>
-                <span class="entity-type">{edit.entity_type_label}</span>
+              <a href={resolveHref(edit.entity.href)} class="entity-link">
+                <span class="entity-name">{edit.entity.name}</span>
+                <span class="entity-type">{edit.entity.type_label}</span>
               </a>
               <span class="timestamp"><SmartDate iso={edit.created_at} /></span>
             </div>

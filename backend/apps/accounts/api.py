@@ -30,7 +30,7 @@ from apps.core.authz import (
     policy_user,
 )
 from apps.core.authz.markers import public_mutation
-from apps.core.schemas import ErrorDetailSchema
+from apps.core.schemas import EntityLinkSchema, ErrorDetailSchema
 from apps.core.types import EntityKey
 from apps.provenance.entity_resolution import batch_resolve_entities
 from apps.provenance.models import ChangeSet, Claim
@@ -62,9 +62,7 @@ class AuthStatusSchema(Schema):
 
 
 class EntityContributionSchema(Schema):
-    entity_href: str
-    entity_name: str
-    entity_type_label: str
+    entity: EntityLinkSchema
     edit_count: int
     last_edited_at: str
 
@@ -73,9 +71,7 @@ class UserChangeSetSchema(Schema):
     id: int
     note: str
     created_at: str
-    entity_href: str
-    entity_name: str
-    entity_type_label: str
+    entity: EntityLinkSchema
     capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
     policy_activities: ClassVar[tuple[Activity, ...]] = (Activity.CHANGESET_UNDO,)
@@ -437,9 +433,7 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
             continue
         entities_edited.append(
             EntityContributionSchema(
-                entity_href=meta["href"],
-                entity_name=meta["name"],
-                entity_type_label=meta["type_label"],
+                entity=meta,
                 edit_count=entity_row["edit_count"],
                 last_edited_at=entity_row["last_edited_at"].isoformat(),
             )
@@ -478,9 +472,7 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
                 id=cs.pk,
                 note=cs.note,
                 created_at=cs.created_at.isoformat(),
-                entity_href=meta["href"],
-                entity_name=meta["name"],
-                entity_type_label=meta["type_label"],
+                entity=meta,
                 capabilities=compute_row_capabilities(
                     caller, cs, UserChangeSetSchema.policy_activities
                 ),

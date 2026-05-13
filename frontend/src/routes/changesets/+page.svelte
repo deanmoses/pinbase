@@ -195,9 +195,9 @@
       {#each items as cs (cs.id)}
         <li class="feed-item">
           <div class="feed-header">
-            <a href={resolveHref(cs.entity_href)} class="entity-link">
-              <span class="entity-name">{cs.entity_name}</span>
-              <span class="entity-type">{cs.entity_type_label}</span>
+            <a href={resolveHref(cs.entity.href)} class="entity-link">
+              <span class="entity-name">{cs.entity.name}</span>
+              <span class="entity-type">{cs.entity.type_label}</span>
             </a>
             <span class="byline">
               By <ChangeSetAttribution attribution={cs.attribution} />
