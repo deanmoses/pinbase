@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import logging
-import re
 import secrets
 from datetime import datetime
-from typing import ClassVar, Protocol, TypedDict
+from typing import ClassVar, TypedDict
 
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Model
 from django.http import (
@@ -31,18 +31,60 @@ from apps.core.authz import (
     policy_user,
 )
 from apps.core.authz.markers import public_mutation
-from apps.core.schemas import EntityLinkSchema, ErrorDetailSchema
+from apps.core.rate_limits import (
+    RateLimitSpec,
+    check_and_record_ip,
+    check_and_record_session,
+)
+from apps.core.schemas import EntityLinkSchema, ErrorDetailSchema, RateLimitErrorSchema
 from apps.core.types import EntityKey
 from apps.provenance.entity_resolution import batch_resolve_entities
 from apps.provenance.models import ChangeSet, Claim
 
+from .auth_errors import (
+    PendingInvalidError,
+    UsernameRejectedError,
+    UsernameTakenError,
+)
 from .models import User
+from .pending import (
+    PendingPayload,
+    WorkOSUser,
+    clear_pending,
+    extract_workos_session_id,
+    get_pending,
+    put_pending,
+)
+from .reserved import is_reserved
+from .schemas import (
+    PendingInvalidErrorSchema,
+    SignupCancelResponseSchema,
+    SignupCheckResponseSchema,
+    SignupPendingResponseSchema,
+    SignupSubmitRequestSchema,
+    SignupSubmitResponseSchema,
+    UsernameRejectedErrorSchema,
+    UsernameTakenErrorSchema,
+)
+from .usernames import UsernameFormatRejectReason, validate_username_format
 from .workos_client import get_workos_client
 
 log = logging.getLogger(__name__)
 
 auth_router = Router(tags=["auth", "private"])
+signup_router = Router(tags=["auth", "private"])
 user_page_router = Router(tags=["private"])
+
+
+# Rate-limit specs are built per-request from settings, NOT cached at
+# module-load. That preserves the design intent ("tunable without code
+# change") — overriding `settings.SIGNUP_*_RATELIMIT_*` at runtime
+# (env, pytest's `settings` fixture, future constance) takes effect on
+# the next request without a process restart. Spec construction is a
+# frozen-dataclass with three fields; the cost is negligible.
+def _spec(bucket: str, setting_key: str) -> RateLimitSpec:
+    limit, window = getattr(settings, setting_key)
+    return RateLimitSpec(bucket, limit, window)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────
@@ -85,14 +127,6 @@ class UserProfileSchema(Schema):
     edit_count: int
     entities_edited: list[EntityContributionSchema]
     recent_edits: list[UserChangeSetSchema]
-
-
-class WorkOSUser(Protocol):
-    id: str
-    email: str
-    email_verified: bool
-    first_name: str | None
-    last_name: str | None
 
 
 class EntityContributionRow(TypedDict):
@@ -238,74 +272,28 @@ def _try_match_existing(workos_user: WorkOSUser) -> User | None:
     return user
 
 
-def _derive_unique_username(email: str) -> str:
-    """Synthesize a placeholder username from an email's local part.
+def _require_pending(request: HttpRequest) -> PendingPayload:
+    """Return the pending payload, or raise `PendingInvalidError` (401).
 
-    TEMPORARY (Session 1 of the user-chosen-username work). The WorkOS
-    callback will be rewritten in Session 2 to redirect new users to an
-    onboarding page instead of creating a User with a derived username.
-    Until then, this helper keeps the existing callback green by
-    producing a handle that satisfies `validate_username_format`.
+    **New pre-auth endpoints MUST call this before any rate-limit call or
+    other code that writes the session.** The ordering is load-bearing
+    (see below).
 
-    Slug rules: lowercase the local part, swap `._+` for `-`, drop
-    anything outside `[a-z0-9-]`, collapse repeated hyphens, trim,
-    cap to 20 chars (with headroom for a `-N` collision suffix).
+    Deliberately does NOT call `ensure_session_key`. A valid pending payload
+    implies the callback already wrote a session row (that's where
+    `put_pending` calls `ensure_session_key`), so on the success path the
+    session_key is non-None. On the failure path, raising before any
+    session write means anonymous probes to /pending, /check, /submit do
+    NOT create a `django_session` row — closing the session-flood vector
+    a pre-auth `ensure_session_key()` would have opened.
+
+    The downstream rate-limiter assert (`session_key is not None`) still
+    holds because rate-limiting only runs after this guard succeeds.
     """
-    base = email.split("@", 1)[0].lower()
-    base = re.sub(r"[._+]", "-", base)
-    base = re.sub(r"[^a-z0-9-]", "", base)
-    base = re.sub(r"-+", "-", base).strip("-")
-    base = base[:17].rstrip("-") or "user"
-    # Pad to 3 chars if the local part collapsed to something shorter.
-    if len(base) < 3:
-        base = (base + "-usr")[:17].rstrip("-")
-    candidate = base
-    n = 1
-    while User.objects.filter(username=candidate).exists():
-        suffix = f"-{n}"
-        candidate = f"{base[: 20 - len(suffix)].rstrip('-')}{suffix}"
-        n += 1
-    return candidate
-
-
-def get_or_create_django_user(workos_user: WorkOSUser) -> User:
-    """Match or create a local User from an inbound WorkOS user payload.
-
-    Branches:
-      1. workos_user_id hit, active → refresh mirrored fields, return.
-      2. workos_user_id hit, inactive → refuse (theoretically unreachable;
-         the webhook clears workos_user_id on soft-delete).
-      3a. Email hit, active, workos_user_id IS NULL, email_verified=True
-          → first-time link (bind workos_user_id, refresh fields). Covers
-          the bootstrap-superuser case (`make superuser` then sign in).
-      3b. Email hit, active, workos_user_id already bound elsewhere
-          → refuse (two WorkOS accounts claim same local user).
-      4. Email hit, soft-deleted, email_verified=True → reactivate, return.
-         Email hit, guards failed → refuse; never silently fork identity.
-      5. No hit → create. On IntegrityError (concurrent first-login race
-         on email, workos_user_id, or username), re-run the lookup branches
-         and re-derive the username — the winning row is now visible — up
-         to a small bound, then propagate.
-    """
-    last_exc: IntegrityError | None = None
-    for _attempt in range(3):
-        match = _try_match_existing(workos_user)
-        if match is not None:
-            return match
-        try:
-            with transaction.atomic():
-                return User.objects.create_user(
-                    email=workos_user.email,
-                    username=_derive_unique_username(workos_user.email),
-                    first_name=workos_user.first_name or "",
-                    last_name=workos_user.last_name or "",
-                    workos_user_id=workos_user.id,
-                    email_verified=workos_user.email_verified,
-                )
-        except IntegrityError as exc:
-            last_exc = exc
-    assert last_exc is not None
-    raise last_exc
+    payload = get_pending(request)
+    if payload is None:
+        raise PendingInvalidError()
+    return payload
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
@@ -393,12 +381,25 @@ def auth_callback(request: HttpRequest) -> HttpResponse:
         )
 
     try:
-        user = get_or_create_django_user(auth_response.user)
+        user = _try_match_existing(auth_response.user)
     except LoginRefusedError as exc:
         log.warning("Login refused: %s", exc)
         return HttpResponseBadRequest(str(exc))
-    login(request, user, backend="apps.accounts.backends.WorkOSBackend")
-    return HttpResponseRedirect(next_url)
+    if user is not None:
+        login(request, user, backend="apps.accounts.backends.WorkOSBackend")
+        return HttpResponseRedirect(next_url)
+
+    # Brand-new user — stash WorkOS identity in the session and redirect
+    # to onboarding so they can pick a handle. No User INSERT happens here,
+    # so the retry-on-IntegrityError loop the old callback wore is gone;
+    # the submit endpoint inherits the workos_user_id and username races.
+    put_pending(
+        request,
+        auth_response.user,
+        next_url,
+        workos_session_id=extract_workos_session_id(auth_response.access_token),
+    )
+    return HttpResponseRedirect("/signup")
 
 
 @auth_router.post("/logout/", response=AuthStatusSchema)
@@ -416,6 +417,224 @@ def auth_logout(request: HttpRequest) -> AuthStatusSchema:
         is_authenticated=False,
         capabilities=compute_capability_map(policy_user(request.user)),
     )
+
+
+# ── Signup (onboarding) ──────────────────────────────────────────────
+
+
+def _format_reject_reason(username: str) -> UsernameFormatRejectReason | None:
+    """Return the format reject reason, or None when valid.
+
+    The validator carries a `code` matching `UsernameFormatRejectReason`
+    on every raise. Missing code = bug in the validator, not a wire-format
+    degradation, so fail loud rather than masking with a fake "bad_charset".
+
+    Callers that want to surface the reason as an error (the submit
+    endpoint) raise `UsernameRejectedError(reason=...)` on a non-None return.
+    The availability check uses the reason directly in its 200 body.
+    """
+    try:
+        validate_username_format(username)
+    except ValidationError as exc:
+        # PT017 is a pytest-only lint rule about test structure;
+        # the assert is correct here in app code.
+        assert exc.code is not None, (  # noqa: PT017
+            "validate_username_format raised without code"
+        )
+        reason: UsernameFormatRejectReason = exc.code  # type: ignore[assignment]
+        return reason
+    return None
+
+
+@signup_router.get(
+    "/pending/",
+    response={200: SignupPendingResponseSchema, 401: PendingInvalidErrorSchema},
+)
+def signup_pending(request: HttpRequest) -> SignupPendingResponseSchema:
+    """Return identity fields for the onboarding-page header.
+
+    Source is the pending session payload; missing/expired raises
+    `PendingInvalidError` (401).
+    """
+    pending = _require_pending(request)
+    return SignupPendingResponseSchema(
+        first_name=pending["first_name"],
+        last_name=pending["last_name"],
+        email=pending["email"],
+    )
+
+
+@signup_router.get(
+    "/check/",
+    response={
+        200: SignupCheckResponseSchema,
+        401: PendingInvalidErrorSchema,
+        429: RateLimitErrorSchema,
+    },
+)
+def signup_check(request: HttpRequest, username: str) -> SignupCheckResponseSchema:
+    """Availability check for a candidate username.
+
+    Always 200 (when session is valid). Every outcome — format-invalid,
+    reserved, taken, available — is a normal answer to "can the user
+    use this handle?" The typed `reason` carries the discriminator;
+    callers don't have to branch on status code.
+
+    Order is `pending guard → rate limit` (see plan §Decisions locked).
+    The pending guard short-circuits attackers without a legitimate
+    session shape so their requests don't consume rate-limit slots; for
+    real users whose session just expired, the typed `pending_invalid`
+    is more informative than a 429.
+    """
+    _require_pending(request)
+    check_and_record_session(
+        request, _spec("signup_check_session", "SIGNUP_CHECK_RATELIMIT_SESSION")
+    )
+    check_and_record_ip(request, _spec("signup_check_ip", "SIGNUP_CHECK_RATELIMIT_IP"))
+
+    reason = _format_reject_reason(username)
+    if reason is not None:
+        return SignupCheckResponseSchema(available=False, reason=reason)
+    if is_reserved(username):
+        return SignupCheckResponseSchema(available=False, reason="reserved")
+    if User.objects.filter(username=username).exists():
+        return SignupCheckResponseSchema(available=False, reason="taken")
+    return SignupCheckResponseSchema(available=True, reason=None)
+
+
+@signup_router.post(
+    "/",
+    response={
+        200: SignupSubmitResponseSchema,
+        400: UsernameRejectedErrorSchema,
+        401: PendingInvalidErrorSchema,
+        409: UsernameTakenErrorSchema,
+        429: RateLimitErrorSchema,
+    },
+)
+@public_mutation(
+    "Pre-auth signup; gated by pending session payload, not @requires() "
+    "because no User exists yet."
+)
+def signup_submit(
+    request: HttpRequest, payload: SignupSubmitRequestSchema
+) -> SignupSubmitResponseSchema:
+    """Create the User row from pending payload + chosen username, then log in.
+
+    Two races handled inline (callback no longer issues a User INSERT):
+    - `workos_user_id` race (two tabs of the same signup): re-query the
+      winner by `workos_user_id` and log the loser's session in as the
+      winner. The loser's typed handle is silently dropped — acceptable
+      per Usernames.md §Race. Logging in on the loser side (rather than
+      returning 409 and trusting the winner's cookie) is deterministic:
+      Django's `login()` rotates `session_key` via `cycle_key()`, so the
+      losing tab's in-flight submit may not pick up the rotated cookie
+      depending on response ordering.
+    - `username` race (two users picking the same handle simultaneously):
+      raises `UsernameTakenError` (409); pending payload stays intact so
+      the user can pick again.
+    """
+    pending = _require_pending(request)
+    check_and_record_session(
+        request, _spec("signup_submit_session", "SIGNUP_SUBMIT_RATELIMIT_SESSION")
+    )
+    check_and_record_ip(
+        request, _spec("signup_submit_ip", "SIGNUP_SUBMIT_RATELIMIT_IP")
+    )
+
+    username = payload.username
+    if (reason := _format_reject_reason(username)) is not None:
+        raise UsernameRejectedError(reason=reason) from None
+    if is_reserved(username):
+        raise UsernameRejectedError(reason="reserved")
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=pending["email"],
+                username=username,
+                first_name=pending["first_name"],
+                last_name=pending["last_name"],
+                workos_user_id=pending["workos_user_id"],
+                email_verified=pending["email_verified"],
+            )
+    except IntegrityError:
+        # Disambiguate by re-query, not by inspecting the exception:
+        # psycopg's diag.constraint_name attribute isn't portable across
+        # backends and SQLite tests would need a parallel code path.
+        winner = User.objects.filter(workos_user_id=pending["workos_user_id"]).first()
+        if winner is not None:
+            # Sibling tab won the workos_user_id race. The winner was just
+            # created from the same pending payload (same WorkOS callback,
+            # same session), so first_name / last_name / email_verified
+            # already match — do NOT call _refresh_mirrored_fields here.
+            clear_pending(request)
+            login(request, winner, backend="apps.accounts.backends.WorkOSBackend")
+            return SignupSubmitResponseSchema(redirect_url=pending["next_url"])
+        # Username collision against a different account.
+        # `from None`: the IntegrityError is implementation detail; chaining
+        # it onto the wire-shaped exception would leak the constraint
+        # message into logs without informing the response. Same rationale
+        # at the earlier UsernameRejectedError raise.
+        raise UsernameTakenError() from None
+
+    clear_pending(request)
+    login(request, user, backend="apps.accounts.backends.WorkOSBackend")
+    return SignupSubmitResponseSchema(redirect_url=pending["next_url"])
+
+
+def _absolute_return_to(request: HttpRequest, path: str) -> str:
+    """Resolve a relative return URL to absolute, since WorkOS requires that.
+
+    The setting accepts either form so dev/test can use a bare path.
+    """
+    if path.startswith(("http://", "https://")):
+        return path
+    return request.build_absolute_uri(path)
+
+
+@signup_router.post(
+    "/cancel/",
+    response={200: SignupCancelResponseSchema, 429: RateLimitErrorSchema},
+)
+@public_mutation(
+    "Pre-auth signup cancel — clears pending state and returns the WorkOS "
+    "logout URL. Idempotent; no editorial action is being authorized."
+)
+def signup_cancel(request: HttpRequest) -> SignupCancelResponseSchema:
+    """Clear pending state and return a WorkOS logout URL.
+
+    Idempotent — missing pending still returns a valid logout URL because
+    the user's intent is "get me out." Rate-limited by IP only; a
+    session-key limit would force a carve-out around ensure_session_key
+    and only catch the absurd "user click-spams Not-you?" case.
+    """
+    check_and_record_ip(
+        request, _spec("signup_cancel_ip", "SIGNUP_CANCEL_RATELIMIT_IP")
+    )
+    payload = get_pending(request)
+    clear_pending(request)
+
+    return_to = settings.SIGNUP_CANCEL_RETURN_URL
+    if (
+        payload is not None
+        and payload["workos_session_id"]
+        and settings.WORKOS_API_KEY
+        and settings.WORKOS_CLIENT_ID
+    ):
+        try:
+            client = get_workos_client()
+            logout_url = client.user_management.get_logout_url(
+                session_id=payload["workos_session_id"],
+                return_to=_absolute_return_to(request, return_to),
+            )
+            return SignupCancelResponseSchema(logout_url=logout_url)
+        except Exception:
+            log.exception("Failed to build WorkOS logout URL; falling back")
+    return SignupCancelResponseSchema(logout_url=return_to)
+
+
+# ── User profile page ────────────────────────────────────────────────
 
 
 @user_page_router.get(
@@ -522,5 +741,6 @@ def user_profile_page(request: HttpRequest, username: str) -> UserProfileSchema:
 
 routers = [
     ("/auth/", auth_router),
+    ("/auth/signup/", signup_router),
     ("/pages/user/", user_page_router),
 ]

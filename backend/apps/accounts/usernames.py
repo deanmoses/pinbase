@@ -28,26 +28,26 @@ _USERNAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # hyphen-shape diagnostics.
 _ALLOWED_CHARS_RE = re.compile(r"^[a-z0-9-]+$")
 
-UsernameRejectReason = Literal[
+UsernameFormatRejectReason = Literal[
     "too_short",
     "too_long",
     "bad_charset",
     "leading_or_trailing_hyphen",
     "consecutive_hyphens",
     "reserved",
-    "taken",
 ]
-"""Reasons a candidate username is rejected.
+"""Reasons the format validator + reserved check can emit.
 
-The format validator raises the first five. `is_reserved()` produces
-`reserved`. The DB uniqueness check (or the IntegrityError catch on submit)
-produces `taken`. Drives the UI's inline status copy — UI does i18n/wording.
+Used by `UsernameRejectedError` (HTTP 400) so generated TS narrows cleanly —
+no dead `reason === "taken"` branch inside a 400 handler. `"taken"` is its
+own kind (`UsernameTakenError`, 409), not a reason value here.
 """
 
-SignupErrorCode = Literal["pending_missing", "pending_expired"]
-"""Session-state errors — distinct from username-content errors.
+UsernameRejectReason = UsernameFormatRejectReason | Literal["taken"]
+"""Superset adding the availability-check-only outcome.
 
-The user has no recourse here except restarting sign-in.
+Used by `SignupCheckResponseSchema.reason`, which legitimately emits `"taken"`
+as one of several "why this handle isn't available" answers.
 """
 
 

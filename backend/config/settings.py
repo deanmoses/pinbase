@@ -212,6 +212,33 @@ LOGGING = {
     },
 }
 
+# ── Signup (onboarding) ───────────────────────────────────────────
+# Where to send a user who clicks "Not you?" on /signup after detaching
+# from WorkOS. Must be reachable unauthenticated AND must not redirect
+# to sign-in — landing the user back at the IdP after they just rejected
+# their identity is a near-guaranteed re-auth with the same wrong account.
+SIGNUP_CANCEL_RETURN_URL = os.environ.get("SIGNUP_CANCEL_RETURN_URL", "/").strip()
+
+# Pre-auth rate limits — buckets are keyed by session id / client IP
+# rather than user pk because there's no User yet. Two parallel buckets
+# (session + IP) per endpoint: session catches a single tab spamming;
+# IP catches a scraper rotating cookies but not addresses.
+#
+# Budgets are per-minute. Justification:
+# - check: ~250ms debounce × ~10 chars ≈ 5–10 checks per real session.
+#   60/min/session is generous headroom; 300/min/IP catches scrapers
+#   without breaking shared NATs (coffee shop, school).
+# - submit: real users submit once or twice (one retry on a collision).
+#   10/min/session, 30/min/IP.
+# - cancel: IP-only — a session-key limit would just catch the "user
+#   click-spams the link" case and force a carve-out around
+#   ensure_session_key. The IP cap is what actually deters abuse.
+SIGNUP_CHECK_RATELIMIT_SESSION = (60, 60)  # (limit, window_seconds)
+SIGNUP_CHECK_RATELIMIT_IP = (300, 60)
+SIGNUP_SUBMIT_RATELIMIT_SESSION = (10, 60)
+SIGNUP_SUBMIT_RATELIMIT_IP = (30, 60)
+SIGNUP_CANCEL_RATELIMIT_IP = (20, 60)
+
 # ── WorkOS AuthKit ────────────────────────────────────────────────
 WORKOS_API_KEY = os.environ.get("WORKOS_API_KEY", "").strip()
 WORKOS_CLIENT_ID = os.environ.get("WORKOS_CLIENT_ID", "").strip()
