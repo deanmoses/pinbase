@@ -324,7 +324,7 @@ class TestSignupCancel:
             user_management = _FakeUserManagement()
 
         monkeypatch.setattr(
-            "apps.accounts.api.get_workos_client", lambda: _FakeClient()
+            "apps.accounts.api.signup.get_workos_client", lambda: _FakeClient()
         )
         resp = self._cancel(client)
         assert resp.status_code == 200
@@ -350,7 +350,7 @@ class TestSignupCancel:
             user_management = _FakeUserManagement()
 
         monkeypatch.setattr(
-            "apps.accounts.api.get_workos_client", lambda: _FakeClient()
+            "apps.accounts.api.signup.get_workos_client", lambda: _FakeClient()
         )
         resp = self._cancel(client)
         assert resp.status_code == 200

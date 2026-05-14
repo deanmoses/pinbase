@@ -61,7 +61,7 @@ def _start_login(client: Client, next_url: str = "/") -> tuple[str, str]:
 @pytest.mark.django_db
 class TestAuthLogin:
     def test_login_redirects_to_workos(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock.return_value.user_management.get_authorization_url.return_value = (
                 "https://auth.workos.com/authorize?state=abc"
             )
@@ -71,7 +71,7 @@ class TestAuthLogin:
         assert "workos.com" in resp["Location"]
 
     def test_login_stores_state_in_session(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock.return_value.user_management.get_authorization_url.return_value = (
                 "https://auth.workos.com/authorize?state=test123"
             )
@@ -83,7 +83,7 @@ class TestAuthLogin:
         assert session[auth_keys[0]] == "/titles/foo"
 
     def test_login_sanitizes_next_url(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock.return_value.user_management.get_authorization_url.return_value = (
                 "https://auth.workos.com/authorize?state=abc"
             )
@@ -106,7 +106,7 @@ class TestAuthCallback:
     def _do_callback(self, client, *, workos_user=None):
         auth_response = _make_auth_response(workos_user=workos_user)
 
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
@@ -324,7 +324,7 @@ class TestAuthCallback:
         make_user(email="alice@example.com", workos_user_id="user_01ABC")
         auth_response = _make_auth_response()
 
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
@@ -344,7 +344,7 @@ class TestAuthCallback:
         """For brand-new users, `next_url` rides along in pending until submit."""
         auth_response = _make_auth_response()
 
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
@@ -372,7 +372,7 @@ class TestAuthCallback:
         assert resp.status_code == 400
 
     def test_callback_handles_code_exchange_failure(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (

@@ -1,8 +1,4 @@
-"""Schemas for signup (onboarding) endpoints.
-
-Existing accounts schemas live inline in `api.py` (grandfathered by the
-inline-schema baseline in `test_openapi_boundaries.py`). New schemas go
-here.
+"""Schemas for accounts endpoints.
 
 Error bodies mirror the envelope produced by the global
 `StructuredApiError` handler in [config/api.py](../../../config/api.py):
@@ -19,9 +15,24 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field
 
+from apps.core.authz import Activity
 from apps.core.schemas import StructuredErrorBodySchema
 
 from .usernames import UsernameFormatRejectReason, UsernameRejectReason
+
+
+class AuthStatusSchema(Schema):
+    is_authenticated: bool
+    id: int | None = None
+    username: str | None = None
+    first_name: str = ""
+    last_name: str = ""
+    # Verdict for every target-less registered activity. Anonymous
+    # callers get an all-false map (every rule's first predicate is
+    # `is_authenticated`). Target-aware activities (e.g. `claim.revert`)
+    # are excluded; those verdicts come from per-resource hints embedded
+    # in the resource's serializer.
+    capabilities: dict[Activity, bool] = Field(default_factory=dict)
 
 
 class SignupPendingResponseSchema(Schema):
