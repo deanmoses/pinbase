@@ -1,12 +1,5 @@
 :{$PORT:8080}
 
-# TEMPORARY — Step 1 of docs/plans/ClientIpTrust.md. Captures the immediate-peer
-# IP Caddy sees from Railway's edge. Remove after probe results captured.
-log {
-	output stdout
-	format json
-}
-
 @www host www.flipcommons.org
 handle @www {
 	redir https://flipcommons.org{uri} permanent

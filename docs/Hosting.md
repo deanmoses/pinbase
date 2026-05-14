@@ -89,8 +89,8 @@ Pre-auth rate limiters (signup flow, etc.) key off the caller's IP. Because Djan
 
 **Caddy** ([Caddyfile](../Caddyfile)):
 
-- Strips `Forwarded` — closes the attacker-controlled channel.
-- Strips Railway's rotating `X-Forwarded-For`, then conditionally rewrites it to the trusted `X-Real-IP` value. If `X-Real-IP` is absent (internal probe, future infra change), XFF stays stripped so future readers see "no info" rather than an empty string or stale fabric noise.
+- Strips `Forwarded` at site level (`request_header -Forwarded`) — closes the attacker-controlled channel.
+- Overwrites `X-Forwarded-For` with the trusted `X-Real-IP` value via `header_up` inside each `reverse_proxy` block. `header_up` is required (not site-level `request_header`) because Caddy's `reverse_proxy` has special handling for `X-Forwarded-*` headers that overrides any site-level mutations — site-level strips of XFF were verified empirically to be ignored. If `X-Real-IP` is absent (a state Railway never produces in practice), XFF becomes empty string; the deployment contract is that `X-Real-IP` is always populated at the proxy boundary.
 
 **Django** ([\_client_ip](../backend/apps/core/rate_limits.py)):
 

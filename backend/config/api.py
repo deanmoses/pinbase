@@ -1,5 +1,4 @@
 import importlib
-import logging
 
 from django.apps import apps
 from django.db import connection
@@ -59,29 +58,6 @@ def health(request: HttpRequest) -> dict[str, str]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
     return {"status": "ok"}
-
-
-# TEMPORARY — Step 1 of docs/plans/ClientIpTrust.md. Probes how Railway's edge
-# proxy handles client-supplied X-Forwarded-For. Remove after results captured.
-_probe_log = logging.getLogger("ip_probe")
-
-
-@api.get("/probe", tags=["private"])
-def probe(request: HttpRequest) -> dict[str, str | None]:
-    fields = {
-        "xff": request.META.get("HTTP_X_FORWARDED_FOR"),
-        "real_ip": request.META.get("HTTP_X_REAL_IP"),
-        "forwarded": request.META.get("HTTP_FORWARDED"),
-        "proto": request.META.get("HTTP_X_FORWARDED_PROTO"),
-        "host": request.META.get("HTTP_X_FORWARDED_HOST"),
-        "remote_addr": request.META.get("REMOTE_ADDR"),
-    }
-    _probe_log.info(
-        "ip_probe xff=%(xff)r real_ip=%(real_ip)r forwarded=%(forwarded)r "
-        "proto=%(proto)r host=%(host)r remote_addr=%(remote_addr)r",
-        fields,
-    )
-    return fields
 
 
 # ---------------------------------------------------------------------------

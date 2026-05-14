@@ -92,26 +92,29 @@ handle @www {
     redir https://flipcommons.org{uri} permanent
 }
 
-@has_real_ip header X-Real-IP *
 request_header -Forwarded
-request_header -X-Forwarded-For
-request_header @has_real_ip X-Forwarded-For {http.request.header.X-Real-IP}
 
 @django path /api /api/* /admin /admin/* /media/* /static /static/*
 handle @django {
-    reverse_proxy 127.0.0.1:{$DJANGO_PORT:8000}
+    reverse_proxy 127.0.0.1:{$DJANGO_PORT:8000} {
+        header_up X-Forwarded-For {http.request.header.X-Real-IP}
+    }
 }
 
 handle {
-    reverse_proxy 127.0.0.1:{$NODE_PORT:3000}
+    reverse_proxy 127.0.0.1:{$NODE_PORT:3000} {
+        header_up X-Forwarded-For {http.request.header.X-Real-IP}
+    }
 }
 ```
 
 What this does and doesn't do:
 
-- **Strips `Forwarded`** — the one attacker-controlled channel the probe surfaced.
-- **Strips XFF, then conditionally rewrites it** with the trusted `X-Real-IP` value. If `X-Real-IP` is absent (internal probe, future infra change), XFF stays stripped — any future reader sees "no info" rather than an empty value or Railway's rotating internal `100.64.0.X`. The conditional gate (`@has_real_ip header X-Real-IP *`) is what preserves the defense-in-depth claim under upstream degradation.
-- **Sanitization is site-level (`request_header`), not per-route (`header_up`).** One block applies to both Django and Node upstreams without duplication or a Caddyfile snippet. Also dodges a subtle reverse*proxy footgun: `header_up X-Forwarded-For {http.request.header.X-Real-IP}` reads the placeholder against the \_mutated* request, so any later edit that touches `X-Real-IP` in the same block silently changes XFF. `request_header` runs once, ahead of routing.
+- **Strips `Forwarded` at site level** — `request_header` works fine for arbitrary headers; this is the one attacker-controlled channel the probe surfaced.
+- **Rewrites `X-Forwarded-For` inside each `reverse_proxy` block via `header_up`** — not at site level, despite the duplication. Caddy's `reverse_proxy` has special handling for `X-Forwarded-*` headers that overrides any site-level `request_header` mutations (per [Caddy docs](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#defaults): _"By default, Caddy passes incoming headers to the backend without modification, with the exception of X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host."_). Empirically verified during deploy: a site-level `request_header -X-Forwarded-For` left Django seeing the original Railway-injected `100.64.0.X` value, while `header_up` inside `reverse_proxy` correctly overwrites it. `header_up` is the proxy-aware path.
+- **No conditional gate on X-Real-IP presence.** Earlier drafts gated the rewrite on a `@has_real_ip` matcher so XFF would be stripped (rather than blanked) if X-Real-IP were absent. Dropped because `header_up` doesn't accept matchers, and adding one via `handle` blocks isn't worth the complexity for a hypothetical failure mode Railway never produces in practice. The "X-Real-IP is present at the proxy boundary" assumption joins `RATE_LIMIT_TRUST_PROXY_HEADERS=true` as a deployment contract.
+- **`Forwarded` strip stays site-level** because it has no `reverse_proxy` special-casing — `request_header` is the right tool there, and keeping one directive at site level (instead of duplicating across both reverse_proxy blocks) is the lighter touch.
+- **Two `header_up` directives are duplicated** across the @django and catch-all Node blocks. A Caddyfile snippet (`(name) { }` + `import name`) was attempted to dedupe, but snippets must be defined at global scope (before any site address) and inline definition mid-site silently breaks the deploy. One-line duplication won; revisit if the directive grows.
 - **Does NOT add `trusted_proxies`, `trusted_proxies_strict`, or rewrite `X-Real-IP`.** Railway's edge already populates `X-Real-IP` correctly and cannot be overridden by clients (verified by probe). Computing it ourselves from XFF would be strictly worse. If we later move off Railway, this is the first thing to revisit — `trusted_proxies` becomes relevant when the upstream stops being trustworthy by itself.
 
 **Verify after deploy:** spin the probe endpoint back up briefly (or check via a one-off Django shell + curl) to confirm `Forwarded` is absent at Django and XFF equals the real client IP, not `100.64.0.X`.
