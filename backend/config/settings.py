@@ -211,6 +211,16 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",  # Django admin password login
 ]
 
+# ── Rate limiting ────────────────────────────────────────────────
+# Gate for trusting proxy-supplied client-IP headers in
+# ``apps.core.rate_limits._client_ip``. Default False so dev, tests, and
+# any unsanitized container key off REMOTE_ADDR. Production sets this to
+# True, asserting that Caddy has stripped Forwarded and that X-Real-IP
+# was populated by Railway's edge (see docs/plans/ClientIpTrust.md).
+RATE_LIMIT_TRUST_PROXY_HEADERS = os.environ.get(
+    "RATE_LIMIT_TRUST_PROXY_HEADERS", "false"
+).lower() in ("true", "1", "yes")
+
 # ── Sessions ─────────────────────────────────────────────────────
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 90  # 90 days
 SESSION_SAVE_EVERY_REQUEST = True  # sliding window — reset expiry on each request

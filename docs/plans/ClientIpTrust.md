@@ -14,7 +14,7 @@ Severity per endpoint (Session 2 onboarding flow):
 Secondary motivations bundled into the same change:
 
 - **Robustness across infrastructure changes.** The current behavior is an accident of Railway's edge architecture (Railway strips client-supplied XFF, populates `X-Real-IP` with the real client IP, then writes its own rotating internal IP into XFF). If we ever move off Railway, change Railway's edge config, or add a CDN, the same code could silently start trusting attacker-supplied XFF instead. Making the trust source explicit and gated by an env var means the trust assumption survives migrations.
-- **Caddy 2.11.2 is one patch release behind.** 2.11.3 fixes a FastCGI RCE, two admin-API auth bypasses, and a more thorough vars-module CVE patch. We're a year out of date with no signal to catch the next one.
+- **Caddy 2.11.2 is one patch release behind.** 2.11.3 fixes a FastCGI RCE, two admin-API auth bypasses, and a more thorough vars-module CVE patch. Bumping manually here preempts the next Dependabot run by a few days for the security content; it doesn't fix a missing signal — Dependabot already covers the Dockerfile, and in fact closed an unrelated year-long drift (2.10.2 → 2.11.2, [#204](https://github.com/The-Flip/flipcommons/pull/204)) three weeks before this plan was written.
 
 ## Decisions
 
@@ -80,7 +80,7 @@ Confirmed on 2026-05-14 by deploying `/api/probe` against `https://flipcommons.o
 
 ## Proposal
 
-(Probe deploy is complete — findings in [Railway](#railway). The original Step 1 probe section is omitted; the Caddyfile below reflects the results.)
+We ran a probe; findings in [Railway](#railway). The Caddyfile below reflects the results.
 
 ### Step 1: Caddyfile change
 
@@ -92,19 +92,14 @@ handle @www {
     redir https://flipcommons.org{uri} permanent
 }
 
+@has_real_ip header X-Real-IP *
+request_header -Forwarded
+request_header -X-Forwarded-For
+request_header @has_real_ip X-Forwarded-For {http.request.header.X-Real-IP}
+
 @django path /api /api/* /admin /admin/* /media/* /static /static/*
 handle @django {
-    reverse_proxy 127.0.0.1:{$DJANGO_PORT:8000} {
-        # Strip the RFC 7239 Forwarded header — Railway passes client-supplied
-        # values through verbatim, so it's attacker-controlled. No code reads
-        # it today; this neutralizes a future-middleware footgun.
-        header_up -Forwarded
-        # Overwrite XFF with the trusted real-client-IP value Railway placed in
-        # X-Real-IP, replacing Railway's rotating internal proxy IP. Not read
-        # by app code today, but ensures any future XFF reader gets a real
-        # scalar IP rather than internal-fabric noise.
-        header_up X-Forwarded-For {http.request.header.X-Real-IP}
-    }
+    reverse_proxy 127.0.0.1:{$DJANGO_PORT:8000}
 }
 
 handle {
@@ -115,9 +110,9 @@ handle {
 What this does and doesn't do:
 
 - **Strips `Forwarded`** — the one attacker-controlled channel the probe surfaced.
-- **Overwrites `X-Forwarded-For`** with the trusted `X-Real-IP` value so XFF becomes a meaningful scalar instead of Railway's rotating internal `100.64.0.X`. Defense in depth for any future XFF reader.
-- **Placeholder caveat:** `{http.request.header.X-Real-IP}` is the documented Caddy 2.x syntax for reading an incoming request header. It's safe here because we never strip or rewrite `X-Real-IP` ourselves; if a future edit adds `header_up -X-Real-IP` or `header_up X-Real-IP …` to the same block, the placeholder above may read a modified value (Caddy's reverse_proxy module doesn't fully copy the request before applying `header_up` operations). Keep `X-Real-IP` read-only at this layer.
-- **Does NOT add `trusted_proxies`, `trusted_proxies_strict`, or `header_up X-Real-IP`.** Railway's edge already populates `X-Real-IP` correctly and cannot be overridden by clients (verified by probe). Computing it ourselves from XFF would be strictly worse. If we later move off Railway, this is the first thing to revisit — `trusted_proxies` becomes relevant when the upstream stops being trustworthy by itself.
+- **Strips XFF, then conditionally rewrites it** with the trusted `X-Real-IP` value. If `X-Real-IP` is absent (internal probe, future infra change), XFF stays stripped — any future reader sees "no info" rather than an empty value or Railway's rotating internal `100.64.0.X`. The conditional gate (`@has_real_ip header X-Real-IP *`) is what preserves the defense-in-depth claim under upstream degradation.
+- **Sanitization is site-level (`request_header`), not per-route (`header_up`).** One block applies to both Django and Node upstreams without duplication or a Caddyfile snippet. Also dodges a subtle reverse*proxy footgun: `header_up X-Forwarded-For {http.request.header.X-Real-IP}` reads the placeholder against the \_mutated* request, so any later edit that touches `X-Real-IP` in the same block silently changes XFF. `request_header` runs once, ahead of routing.
+- **Does NOT add `trusted_proxies`, `trusted_proxies_strict`, or rewrite `X-Real-IP`.** Railway's edge already populates `X-Real-IP` correctly and cannot be overridden by clients (verified by probe). Computing it ourselves from XFF would be strictly worse. If we later move off Railway, this is the first thing to revisit — `trusted_proxies` becomes relevant when the upstream stops being trustworthy by itself.
 
 **Verify after deploy:** spin the probe endpoint back up briefly (or check via a one-off Django shell + curl) to confirm `Forwarded` is absent at Django and XFF equals the real client IP, not `100.64.0.X`.
 
@@ -148,9 +143,9 @@ Update [Dockerfile:29](../../Dockerfile#L29). One-line bump. Security patches (F
 
 ### Step 4: Dependabot for the Dockerfile
 
-Add `.github/dependabot.yml` (or equivalent in Renovate format if that's preferred) to scan the Dockerfile for upstream image updates. Weekly or monthly cadence — the goal is "we hear about new Caddy patches the day they ship," not aggressive churn.
+**Already done** — discovered during implementation. [.github/dependabot.yml](../../.github/dependabot.yml) has a `docker` ecosystem entry on `/` with a weekly schedule, which covers all base images in the root [Dockerfile](../../Dockerfile) (Caddy, Node, Python). The next 2.11.x → next-version Caddy bump will land as an automated PR.
 
-If the repo already has Dependabot for other ecosystems, just add a `docker` ecosystem entry; otherwise create the file.
+No change needed in this work.
 
 ## Out of scope
 
@@ -166,6 +161,10 @@ Separate branch (`feat/client-ip-trust`), separate AI session. One commit per lo
 Lands to `main` **before** the `feat/user-chosen-usernames` branch ships signup publicly. Doesn't block committing onboarding code on that branch — the rate limiters function on the session axis without this change; the IP axis is currently non-functional but neither relied on nor exploitable in a way that's worse than not having it.
 
 After merge, rebase `feat/user-chosen-usernames` onto `main` so the signup tests benefit from the hardened `_client_ip` semantics (the `RATE_LIMIT_TRUST_PROXY_HEADERS` setting defaults to `False`, so existing tests using `REMOTE_ADDR` will continue to pass unchanged).
+
+**Rebase conflict resolution — important.** Both branches touch `backend/apps/core/rate_limits.py`. This branch lands a minimal module containing only the hardened `_client_ip` plus a placeholder docstring. `feat/user-chosen-usernames` independently created the full module (RateLimitExceededError, RateLimitSpec, signup specs) with an **older, unhardened** `_client_ip` that reads `X-Forwarded-For`. Naively taking "theirs" at rebase silently reverts the hardening — and there is no compile error or test failure that would catch it, because the other branch's tests inject XFF and expect distinct-IP behavior.
+
+Resolution: keep this branch's `_client_ip` body (and the trust-gate import of `settings`), keep the other branch's surrounding classes/specs, and drop this branch's placeholder paragraph from the module docstring. Then audit the other branch's tests per [Step 2](#step-2-_client_ip-hardening) — any test that injects `HTTP_X_FORWARDED_FOR` expecting distinct buckets must either set `RATE_LIMIT_TRUST_PROXY_HEADERS=True` and switch to `HTTP_X_REAL_IP`, or be rewritten to use `REMOTE_ADDR`.
 
 ## Tests
 

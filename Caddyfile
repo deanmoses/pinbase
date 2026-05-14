@@ -5,6 +5,22 @@ handle @www {
 	redir https://flipcommons.org{uri} permanent
 }
 
+# Sanitize client-supplied trust headers before any reverse_proxy. Applies
+# site-wide so both the Django and Node upstreams see the same cleaned input.
+#
+# - Forwarded (RFC 7239) is passed through verbatim by Railway's edge, so
+#   it's attacker-controlled. Stripped unconditionally.
+# - X-Forwarded-For from Railway holds a rotating internal proxy IP
+#   (100.64.0.X), not the real client. Stripped first, then overwritten
+#   with the trusted X-Real-IP value — but only when X-Real-IP is present.
+#   If it's missing (internal probe, future infra change), XFF stays
+#   stripped so any future reader sees "no info" rather than an empty
+#   string or stale internal noise.
+@has_real_ip header X-Real-IP *
+request_header -Forwarded
+request_header -X-Forwarded-For
+request_header @has_real_ip X-Forwarded-For {http.request.header.X-Real-IP}
+
 @django path /api /api/* /admin /admin/* /media/* /static /static/*
 handle @django {
 	reverse_proxy 127.0.0.1:{$DJANGO_PORT:8000}
