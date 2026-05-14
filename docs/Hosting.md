@@ -38,9 +38,14 @@ Browser ──→ media.flipcommons.org       → Bunny CDN → iDrive e2 privat
    Bunny CDN on `media.flipcommons.org`, which pulls from the private iDrive e2
    bucket. Django is not in the production media-serving path.
 
-5. **Migrations on deploy**: Railway's `preDeployCommand` runs
-   `manage.py migrate` before the new container accepts traffic. If the
-   migration fails, the old container keeps serving.
+5. **Pre-deploy checks and migrations**: Railway's `preDeployCommand`
+   runs `manage.py check --deploy && manage.py migrate` before the new
+   container accepts traffic. `check --deploy` surfaces production-only
+   system checks (HSTS, SSL redirect, `core.W001` for missing
+   `RATE_LIMIT_TRUST_PROXY_HEADERS`, etc.); Error-level findings fail the
+   deploy, Warning-level findings are visible in logs but non-blocking.
+   If anything in the pre-deploy command fails, the old container keeps
+   serving.
 
 ## Process Model
 
@@ -160,8 +165,9 @@ Railway auto-injects `RAILWAY_GIT_COMMIT_SHA` as a Docker build arg for any depl
 ### 3. Deploy
 
 Push to `main`. Railway builds the Docker image and deploys. The
-`preDeployCommand` in `railway.toml` runs migrations before the new
-container starts accepting traffic.
+`preDeployCommand` in `railway.toml` runs `manage.py check --deploy`
+followed by `manage.py migrate` before the new container starts
+accepting traffic.
 
 ### 4. Create superuser (one-time)
 
@@ -196,9 +202,9 @@ Caddy may be up while the SvelteKit Node server failed to start or crashed.
 Check the container logs for Node startup errors and confirm the SSR process
 is listening on `127.0.0.1:3000`.
 
-**Bad migration**:
-`preDeployCommand` runs migrations before swapping containers. If a
-migration fails, the old container keeps serving and the deploy is marked
-as failed. Fix the migration and push again. Railway does not automatically
+**Bad migration or failed deploy check**:
+`preDeployCommand` runs `check --deploy` and migrations before swapping
+containers. If either fails, the old container keeps serving and the deploy
+is marked as failed. Fix and push again. Railway does not automatically
 roll back the database — if a migration partially applied, you may need to
 manually fix it via `railway run`.

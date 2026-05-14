@@ -60,22 +60,6 @@ def health(request: HttpRequest) -> dict[str, str]:
     return {"status": "ok"}
 
 
-# TEMPORARY — verifying RATE_LIMIT_TRUST_PROXY_HEADERS is live in prod.
-# Remove after confirmation.
-@api.get("/ip-check", tags=["private"])
-def ip_check(request: HttpRequest) -> dict[str, str | bool | None]:
-    from django.conf import settings as _s
-
-    from apps.core.rate_limits import _client_ip
-
-    return {
-        "trust_proxy_headers": bool(_s.RATE_LIMIT_TRUST_PROXY_HEADERS),
-        "client_ip": _client_ip(request),
-        "x_real_ip": request.META.get("HTTP_X_REAL_IP"),
-        "remote_addr": request.META.get("REMOTE_ADDR"),
-    }
-
-
 # ---------------------------------------------------------------------------
 # Router autodiscovery — each app's api module exports a `routers` list of
 # (prefix, router) tuples.  Adding a new router only requires editing the

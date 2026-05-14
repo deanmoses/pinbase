@@ -1,16 +1,12 @@
-"""System checks for ``LinkableModel`` subclass declarations.
+"""System checks for project-wide contracts.
 
-Verified at ``manage.py check`` (and at server boot) — never at first
-request — so a missing or malformed contract crashes early.
-
-Each concrete ``LinkableModel`` subclass must:
-
-- declare non-empty ``entity_type`` and ``entity_type_plural`` strings
-  (already validated in ``__init_subclass__``);
-- have unique ``entity_type`` and ``entity_type_plural`` values across all
-  subclasses;
-- declare a ``public_id_field`` that resolves to a real concrete model
-  field (or the inherited default, ``"slug"``) with ``unique=True``.
+Run via ``manage.py check`` (model-contract checks also run at server
+boot via Django's startup ``system_checks()``). Production-only checks
+are gated with ``deploy=True`` and run under ``manage.py check --deploy``
+— Railway's ``preDeployCommand`` includes this, so they surface in
+deploy logs. Errors block the deploy; Warnings are logged but
+non-blocking. See each check function's docstring for its specific
+contract.
 """
 
 from __future__ import annotations
@@ -19,7 +15,8 @@ from collections.abc import Sequence
 from typing import Any
 
 from django.apps.config import AppConfig
-from django.core.checks import CheckMessage, Error, Tags, register
+from django.conf import settings
+from django.core.checks import CheckMessage, Error, Tags, Warning, register
 from django.core.exceptions import FieldDoesNotExist
 
 from apps.core.models import LinkableModel
@@ -33,7 +30,17 @@ def check_linkable_models(
     # any of them, so ``Any`` is the documented type.
     **kwargs: Any,  # noqa: ANN401
 ) -> list[CheckMessage]:
-    """Validate every concrete ``LinkableModel`` subclass."""
+    """Validate every concrete ``LinkableModel`` subclass.
+
+    Each concrete subclass must:
+
+    - declare non-empty ``entity_type`` and ``entity_type_plural`` strings
+      (already validated in ``__init_subclass__``);
+    - have unique ``entity_type`` and ``entity_type_plural`` values across
+      all subclasses;
+    - declare a ``public_id_field`` that resolves to a real concrete model
+      field (or the inherited default, ``"slug"``) with ``unique=True``.
+    """
     _ = app_configs, kwargs
     errors: list[CheckMessage] = []
     seen_entity_type: dict[str, type] = {}
@@ -179,3 +186,38 @@ def _check_one(
         )
 
     return errors
+
+
+@register(Tags.security, deploy=True)
+def check_rate_limit_proxy_trust(
+    app_configs: Sequence[AppConfig] | None,
+    **kwargs: Any,  # noqa: ANN401
+) -> list[CheckMessage]:
+    """Warn when RATE_LIMIT_TRUST_PROXY_HEADERS is off in a non-DEBUG env.
+
+    The setting gates whether ``apps.core.rate_limits._client_ip`` reads
+    proxy-supplied headers. With Caddy on loopback in production, leaving
+    it False makes every request key off ``REMOTE_ADDR=127.0.0.1`` — the
+    IP-keyed rate limiters silently degrade to one shared bucket. Not a
+    security bug (observable, fixable), but easy to overlook because
+    nothing crashes. This check raises the missing-env-var case to a
+    deploy-time signal so it can't be silently mis-set in Railway.
+
+    See ``docs/Hosting.md`` § "Client IP trust".
+    """
+    _ = app_configs, kwargs
+    if settings.DEBUG or settings.RATE_LIMIT_TRUST_PROXY_HEADERS:
+        return []
+    return [
+        Warning(
+            "RATE_LIMIT_TRUST_PROXY_HEADERS is False in a non-DEBUG "
+            "environment. IP-keyed rate limiters will silently degrade to "
+            "one shared bucket (REMOTE_ADDR=127.0.0.1 behind Caddy on "
+            "loopback).",
+            hint=(
+                "Set RATE_LIMIT_TRUST_PROXY_HEADERS=true in the deployment "
+                "environment. See docs/Hosting.md § 'Client IP trust'."
+            ),
+            id="core.W001",
+        )
+    ]

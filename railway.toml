@@ -19,4 +19,8 @@ watchPatterns = [
 ]
 
 [deploy]
-preDeployCommand = ".venv/bin/python manage.py migrate --noinput"
+# check --deploy surfaces Django's production-only system checks (HSTS,
+# SSL redirect, RATE_LIMIT_TRUST_PROXY_HEADERS, etc.) in deploy logs and
+# fails the deploy on Error-level findings. Warnings (core.W001 et al.)
+# are visible but non-blocking. See docs/Hosting.md § "Client IP trust".
+preDeployCommand = ".venv/bin/python manage.py check --deploy && .venv/bin/python manage.py migrate --noinput"
