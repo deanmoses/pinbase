@@ -41,7 +41,7 @@
     "prettier-plugin-svelte": "^3.5.2",
     "stylelint": "^17.11.0",
     "stylelint-value-no-unknown-custom-properties": "^6.1.1",
-    "svelte": "^5.55.5",
+    "svelte": "^5.55.7",
     "svelte-check": "^4.4.8",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.3",
