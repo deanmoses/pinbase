@@ -1,6 +1,7 @@
 import pytest
 from django.core.cache import cache
 
+from apps.accounts.test_factories import make_user
 from apps.catalog.models import (
     Credit,
     CreditRole,
@@ -247,14 +248,12 @@ class TestTitleDetailAggregation:
         data = resp.json()
         assert data["media"] == []
 
-    def test_media_aggregation_union_with_source_model(
-        self, client, django_user_model, title
-    ):
+    def test_media_aggregation_union_with_source_model(self, client, db, title):
         from django.contrib.contenttypes.models import ContentType
 
         from apps.media.models import EntityMedia, MediaAsset
 
-        user = django_user_model.objects.create_user(email="u@example.com")
+        user = make_user(email="u@example.com")
         m1 = make_machine_model(name="MM", slug="mm-1", title=title)
         m2 = make_machine_model(name="MMR", slug="mm-2", title=title)
         ct = ContentType.objects.get_for_model(MachineModel)
@@ -307,14 +306,14 @@ class TestTitleDetailAggregation:
         assert "display" in by_source["mm-1"]["renditions"]
 
     def test_title_hero_uses_earliest_model_with_backglass_photo(
-        self, client, django_user_model, title
+        self, client, db, title
     ):
         from django.contrib.contenttypes.models import ContentType
 
         from apps.media.models import EntityMedia, MediaAsset
         from apps.media.storage import build_public_url, build_storage_key
 
-        user = django_user_model.objects.create_user(email="u@example.com")
+        user = make_user(email="u@example.com")
         earliest = make_machine_model(
             name="MM",
             slug="mm-1",
@@ -525,7 +524,7 @@ class TestTitlesAllFacets:
         assert "lcd" not in display_slugs
 
     def test_all_titles_thumbnail_prefers_uploaded_backglass(
-        self, client, db, williams_entity, django_user_model
+        self, client, db, williams_entity
     ):
         """A title's primary model with an uploaded backglass returns the
         upload's thumb URL on the /all/ endpoint, not the extra_data URL."""
@@ -543,7 +542,7 @@ class TestTitlesAllFacets:
             year=1997,
             extra_data={"opdb.images": SAMPLE_IMAGES},
         )
-        user = django_user_model.objects.create_user(email="up@example.com")
+        user = make_user(email="up@example.com")
         asset = MediaAsset.objects.create(
             kind=MediaAsset.Kind.IMAGE,
             status=MediaAsset.Status.READY,
@@ -591,7 +590,6 @@ class TestTitlesAllFacets:
         client,
         db,
         williams_entity,
-        django_user_model,
         django_capture_on_commit_callbacks,
     ):
         """Resolving a media_attachment claim busts the cached /all/ payload
@@ -623,7 +621,7 @@ class TestTitlesAllFacets:
         item = next(i for i in resp.json() if i["slug"] == "mm3")
         assert item["thumbnail_url"] == "https://img.opdb.org/md.jpg"
 
-        user = django_user_model.objects.create_user(email="up3@example.com")
+        user = make_user(email="up3@example.com")
         asset = MediaAsset.objects.create(
             kind=MediaAsset.Kind.IMAGE,
             status=MediaAsset.Status.READY,

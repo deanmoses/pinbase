@@ -61,7 +61,7 @@ def _start_login(client: Client, next_url: str = "/") -> tuple[str, str]:
 @pytest.mark.django_db
 class TestAuthLogin:
     def test_login_redirects_to_workos(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock.return_value.user_management.get_authorization_url.return_value = (
                 "https://auth.workos.com/authorize?state=abc"
             )
@@ -71,7 +71,7 @@ class TestAuthLogin:
         assert "workos.com" in resp["Location"]
 
     def test_login_stores_state_in_session(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock.return_value.user_management.get_authorization_url.return_value = (
                 "https://auth.workos.com/authorize?state=test123"
             )
@@ -83,7 +83,7 @@ class TestAuthLogin:
         assert session[auth_keys[0]] == "/titles/foo"
 
     def test_login_sanitizes_next_url(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock.return_value.user_management.get_authorization_url.return_value = (
                 "https://auth.workos.com/authorize?state=abc"
             )
@@ -106,7 +106,7 @@ class TestAuthCallback:
     def _do_callback(self, client, *, workos_user=None):
         auth_response = _make_auth_response(workos_user=workos_user)
 
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
@@ -122,36 +122,64 @@ class TestAuthCallback:
 
         return resp
 
-    def test_callback_creates_new_user(self, client):
+    def test_callback_new_user_redirects_to_signup_without_creating_row(self, client):
+        """Brand-new user stashes pending payload and redirects to /signup.
+
+        No User row exists until the onboarding submit endpoint runs — the
+        callback no longer issues an INSERT. Identity fields are stashed
+        in the session for the onboarding page to read.
+        """
         resp = self._do_callback(client)
         assert resp.status_code == 302
+        assert resp["Location"] == "/signup"
+        assert not User.objects.filter(email="alice@example.com").exists()
 
-        user = User.objects.get(email="alice@example.com")
-        assert user.workos_user_id == "user_01ABC"
-        assert user.first_name == "Alice"
-        # The first-time-create path is a parallel write site to
-        # _refresh_mirrored_fields and must persist verification at create
-        # time, not just on subsequent logins — otherwise a verified SSO
-        # user is 403'd by the policy gate for their entire first session.
-        assert user.email_verified is True
+        session = client.session
+        payload = session.get("auth_pending_signup")
+        assert payload is not None
+        assert payload["workos_user_id"] == "user_01ABC"
+        assert payload["email"] == "alice@example.com"
+        assert payload["first_name"] == "Alice"
+        assert payload["last_name"] == "Smith"
+        assert payload["email_verified"] is True
 
-    def test_callback_creates_new_user_unverified(self, client):
-        """Inverse of the create-path mirror test.
+    def test_callback_signup_redirect_mints_csrftoken_cookie(self, client):
+        """The signup-branch redirect must carry a csrftoken cookie.
 
-        Email+password sign-up with WorkOS arrives unverified until the
-        user clicks the verification email; the local row must reflect
-        that. Distinct from the first-time-link refusal in
-        _try_match_existing, which only fires when a local row already
-        exists for the email. With no pre-existing row, the unverified
-        user lands in the DB with email_verified=False and is gated by
-        the policy layer until they verify and log in again.
+        Regression: the matched-user branch calls `login()`, which calls
+        `rotate_token()` and mints csrftoken implicitly. The
+        put_pending+redirect-to-/signup branch does NOT call login(), so
+        without an explicit cookie-minting decorator on the callback view
+        the browser lands at /signup with no csrftoken. The first POST
+        (Continue or Not you?) then gets 403 from NinjaCsrfMiddleware
+        because client.ts only sends X-CSRFToken when the cookie exists.
+        """
+        resp = self._do_callback(client)
+        assert resp.status_code == 302
+        assert resp["Location"] == "/signup"
+        assert "csrftoken" in resp.cookies, (
+            "Callback response must Set-Cookie csrftoken so the signup "
+            "page's pre-auth POSTs can pass CSRF."
+        )
+
+    def test_callback_new_user_unverified_still_stashes_pending(self, client):
+        """Unverified email is fine at the pending stage.
+
+        The verification gate previously enforced at User-create time now
+        runs at submit (and across the policy layer for all gated
+        actions) — but pending stash is just identity-mirror state, not
+        a User row. Email-verified status rides along in the payload.
         """
         workos_user = _make_workos_user(email_verified=False)
         resp = self._do_callback(client, workos_user=workos_user)
         assert resp.status_code == 302
+        assert resp["Location"] == "/signup"
 
-        user = User.objects.get(email="alice@example.com")
-        assert user.email_verified is False
+        session = client.session
+        payload = session.get("auth_pending_signup")
+        assert payload is not None
+        assert payload["email_verified"] is False
+        assert not User.objects.filter(email="alice@example.com").exists()
 
     def test_callback_recognizes_returning_user(self, client):
         existing = make_user(email="alice@example.com", workos_user_id="user_01ABC")
@@ -189,7 +217,8 @@ class TestAuthCallback:
         assert existing.workos_user_id is None
 
         resp = self._do_callback(client)
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=account_conflict"
 
         existing.refresh_from_db()
         assert existing.workos_user_id is None
@@ -200,7 +229,8 @@ class TestAuthCallback:
         existing = make_user(email="alice@example.com", is_staff=True)
 
         resp = self._do_callback(client)
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=account_conflict"
 
         existing.refresh_from_db()
         assert existing.workos_user_id is None
@@ -210,7 +240,8 @@ class TestAuthCallback:
         make_user(email="alice@example.com")
         workos_user = _make_workos_user(email_verified=False)
         resp = self._do_callback(client, workos_user=workos_user)
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=email_unverified"
         # Row remains unbound.
         user = User.objects.get(email="alice@example.com")
         assert user.workos_user_id is None
@@ -221,7 +252,8 @@ class TestAuthCallback:
         make_user(email="alice@example.com", workos_user_id="user_OTHER")
         resp = self._do_callback(client)
 
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=account_conflict"
         assert User.objects.filter(email="alice@example.com").count() == 1
 
     def test_callback_reactivates_soft_deleted_user_with_verified_email(self, client):
@@ -247,7 +279,8 @@ class TestAuthCallback:
         workos_user = _make_workos_user(email_verified=False)
         resp = self._do_callback(client, workos_user=workos_user)
 
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=email_unverified"
         existing.refresh_from_db()
         assert existing.is_active is False
         assert User.objects.filter(email="alice@example.com").count() == 1
@@ -261,7 +294,8 @@ class TestAuthCallback:
         make_user(email="alice@example.com", workos_user_id="user_OTHER")
         resp = self._do_callback(client)
 
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=account_conflict"
         # Neither row mutated.
         assert User.objects.filter(
             email="old@example.com", workos_user_id="user_01ABC"
@@ -310,10 +344,12 @@ class TestAuthCallback:
         existing.refresh_from_db()
         assert existing.email_verified is False
 
-    def test_callback_preserves_next_url(self, client):
+    def test_callback_preserves_next_url_for_returning_user(self, client):
+        """Returning users follow `next_url` straight away (no onboarding)."""
+        make_user(email="alice@example.com", workos_user_id="user_01ABC")
         auth_response = _make_auth_response()
 
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
@@ -329,16 +365,41 @@ class TestAuthCallback:
         assert resp.status_code == 302
         assert resp["Location"] == "/titles/medieval-madness"
 
+    def test_callback_new_user_stashes_next_url_in_pending(self, client):
+        """For brand-new users, `next_url` rides along in pending until submit."""
+        auth_response = _make_auth_response()
+
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
+            mock_client = mock.return_value
+            mock_client.user_management.get_authorization_url.side_effect = (
+                lambda **kwargs: (
+                    f"https://auth.workos.com/authorize?state={kwargs['state']}"
+                )
+            )
+            state, _ = _start_login(client, next_url="/titles/medieval-madness")
+            mock_client.user_management.authenticate_with_code.return_value = (
+                auth_response
+            )
+            resp = client.get(f"/api/auth/callback/?code=fake&state={state}")
+
+        assert resp.status_code == 302
+        assert resp["Location"] == "/signup"
+        payload = client.session.get("auth_pending_signup")
+        assert payload is not None
+        assert payload["next_url"] == "/titles/medieval-madness"
+
     def test_callback_rejects_missing_code(self, client):
         resp = client.get("/api/auth/callback/")
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=state_invalid"
 
     def test_callback_rejects_invalid_state(self, client):
         resp = client.get("/api/auth/callback/?code=fake&state=bogus")
-        assert resp.status_code == 400
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=state_invalid"
 
     def test_callback_handles_code_exchange_failure(self, client):
-        with patch("apps.accounts.api.get_workos_client") as mock:
+        with patch("apps.accounts.api.auth.get_workos_client") as mock:
             mock_client = mock.return_value
             mock_client.user_management.get_authorization_url.side_effect = (
                 lambda **kwargs: (
@@ -351,8 +412,8 @@ class TestAuthCallback:
             )
             resp = client.get(f"/api/auth/callback/?code=expired&state={state}")
 
-        assert resp.status_code == 400
-        assert b"please try again" in resp.content.lower()
+        assert resp.status_code == 302
+        assert resp["Location"] == "/auth/error?reason=code_exchange_failed"
 
 
 @pytest.mark.django_db
@@ -379,7 +440,10 @@ class TestAuthMe:
 
     def test_me_authenticated(self, client):
         user = make_user(
-            email="alice@example.com", first_name="Alice", last_name="Anderson"
+            email="alice@example.com",
+            username="alice",
+            first_name="Alice",
+            last_name="Anderson",
         )
         client.force_login(user)
         resp = client.get("/api/auth/me/")

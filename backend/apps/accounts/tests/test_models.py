@@ -16,17 +16,22 @@ class TestUserDefaults:
         user.refresh_from_db()
         assert user.priority == 200
 
-    def test_username_derived_from_email(self):
-        user = make_user(email="Alice.Smith+tag@example.com")
-        # local-part lowercased, ./_/+ → -, collapsed
-        assert user.username == "alice-smith-tag"
+    def test_create_user_requires_username(self):
+        """The manager no longer derives a username from email."""
+        with pytest.raises(TypeError, match="username is required"):
+            User.objects.create_user(email="nouser@example.com")
 
-    def test_create_user_resolves_username_collision(self):
-        """Two users with the same local-part across different domains."""
-        u1 = make_user(email="same@example.com")
-        u2 = make_user(email="same@other.com")
-        assert u1.username == "same"
-        assert u2.username == "same-1"
+    def test_create_user_validates_username_format(self):
+        """Manager runs the format validator on every write path.
+
+        Pins the `code` so the API layer (which maps codes to UI status
+        copy) can rely on this contract.
+        """
+        from django.core.exceptions import ValidationError
+
+        with pytest.raises(ValidationError) as exc_info:
+            User.objects.create_user(email="bad@example.com", username="UPPERCASE")
+        assert exc_info.value.code == "bad_charset"
 
 
 @pytest.mark.django_db

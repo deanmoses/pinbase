@@ -95,6 +95,26 @@ type X = components["schemas"]["ValidationErrorBodySchema"];
 
 `schema.d.ts` re-exports every component as a named alias precisely so consumers don't have to walk `components['schemas'][...]`. If a needed type isn't exported by name, that's a codegen-config bug to fix — not a license to use the indexed form.
 
+#### Derive wire-shape unions from the schema; don't redeclare them
+
+When you need a subset of a generated type's field — most commonly a Literal union like an error `reason` or `kind` — derive it from the schema with indexed access on the _imported_ name (not the `components` traversal above):
+
+```ts
+// Right — derives from the generated source of truth
+import type { SignupCheckResponseSchema } from "$lib/api/schema";
+type CheckReason = NonNullable<SignupCheckResponseSchema["reason"]>;
+
+// Wrong — silently drifts from the backend after the next api-gen
+type CheckReason =
+  | "too_short"
+  | "too_long"
+  | "bad_charset"
+  | "reserved"
+  | "taken";
+```
+
+A locally-redeclared Literal stays right until the backend adds a value, at which point it silently narrows the wire shape and the frontend stops handling the new case. The derived form catches it at type-check time.
+
 ### Frontend URLs and `resolve()`
 
 Use SvelteKit's `resolve()` from `$app/paths` for internal routes by default. `resolve()` is strongly typed against the project's route tree and accepts dynamic params, so prefer it even when the URL has runtime values — it catches typos and route renames at compile time:
@@ -142,6 +162,12 @@ The frontend uses **Svelte 5 runes mode** (`runes: true` in compiler options). D
 ### No `:global` in Svelte styles
 
 NEVER use `:global` in Svelte component styles without explicit approval from the user. Scoped styles are the default and preferred approach. We rearchitect components rather than use `:global`.
+
+### Don't restyle basic form elements
+
+`frontend/src/app.css` owns global styles for `input[type='text']` (and the other text-like input types listed there), `textarea`, and `select` — width, padding, border, background, border-radius, font. Components consuming these elements should NOT re-declare those properties. Override only when you need a state-specific tweak (e.g. `input[aria-invalid='true'] { border-color: ... }`).
+
+The same applies to layout primitives served by `Page.svelte`, `Button.svelte`, `FieldGroup.svelte`, etc. — check the component first, only roll your own when no existing primitive fits.
 
 ### Authorization goes through activities
 

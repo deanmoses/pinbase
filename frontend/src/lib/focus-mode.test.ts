@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isFocusModePath } from './focus-mode';
+import { isFocusModePath, isMinimalShellPath } from './focus-mode';
 
 describe('isFocusModePath', () => {
   describe('focus-mode routes', () => {
@@ -34,6 +34,10 @@ describe('isFocusModePath', () => {
 
     it('matches sources', () => {
       expect(isFocusModePath('/titles/medieval-madness/sources')).toBe(true);
+    });
+
+    it('does not match /signup (minimal shell, not focus)', () => {
+      expect(isFocusModePath('/signup')).toBe(false);
     });
   });
 
@@ -87,5 +91,23 @@ describe('isFocusModePath', () => {
     it('does not match "edit-history" with trailing extra segments', () => {
       expect(isFocusModePath('/titles/medieval-madness/edit-history/something')).toBe(false);
     });
+  });
+});
+
+describe('isMinimalShellPath', () => {
+  it('matches /signup', () => {
+    expect(isMinimalShellPath('/signup')).toBe(true);
+  });
+
+  it('does not match the home page', () => {
+    expect(isMinimalShellPath('/')).toBe(false);
+  });
+
+  it('does not match a focus-mode route', () => {
+    expect(isMinimalShellPath('/titles/new')).toBe(false);
+  });
+
+  it('does not match a record whose slug is "signup"', () => {
+    expect(isMinimalShellPath('/titles/signup')).toBe(false);
   });
 });

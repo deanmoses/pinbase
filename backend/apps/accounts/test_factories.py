@@ -20,15 +20,18 @@ from .models import User
 def make_user(
     *,
     email: str | None = None,
+    username: str | None = None,
     **overrides: Any,  # noqa: ANN401 - matches UserManager.create_user signature.
 ) -> User:
     """Create a ``User`` for tests with sensible defaults.
 
-    The default email is unique per call (UUID suffix) so a test that
-    needs two distinct users can call ``make_user()`` twice without
-    collision. Tests that care about the exact email pass it explicitly.
+    Default email and username are unique per call (UUID suffix), so
+    ``make_user()`` is safe to call twice without collision. Tests that
+    care about a specific value pass it explicitly.
     """
     if email is None:
         email = f"editor-{uuid.uuid4().hex[:8]}@example.com"
+    if username is None:
+        username = f"editor-{uuid.uuid4().hex[:8]}"
     overrides.setdefault("email_verified", True)
-    return User.objects.create_user(email=email, **overrides)
+    return User.objects.create_user(email=email, username=username, **overrides)

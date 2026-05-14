@@ -1,58 +1,29 @@
 from __future__ import annotations
 
-import re
 from typing import Any, ClassVar
 
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as BaseUserManager
 from django.db import models
-from django.db.models.functions import Lower
+from django.db.models.functions import Length, Lower
 
 from apps.core.models import field_not_blank
 
+from .usernames import USERNAME_MAX_LEN, USERNAME_MIN_LEN, validate_username_format
 
-def derive_username(email: str) -> str:
-    """Derive a clean URL-safe username slug from an email address.
-
-    Lowercase the local part, replace `.`/`_`/`+` with `-`, drop anything
-    outside `[a-z0-9-]`, collapse repeated hyphens, trim leading/trailing
-    hyphens. Narrower than UnicodeUsernameValidator allows but well within it.
-    Caller is responsible for resolving collisions.
-    """
-    base = email.split("@", 1)[0].lower()
-    base = re.sub(r"[._+]", "-", base)
-    base = re.sub(r"[^a-z0-9-]", "", base)
-    base = re.sub(r"-+", "-", base).strip("-")
-    # Cap to the field's max_length, leaving headroom for the "-N" suffix
-    # that the unique-username resolver may append.
-    base = base[:140].rstrip("-")
-    return base or "user"
+# Register the `__length` transform so the `username__length__{gte,lte}`
+# lookups in the CheckConstraints below resolve. Django ships Length but
+# does NOT auto-register it (since it adds a query-time DB call by default).
+# Registering at module load is the documented pattern for using it as a
+# lookup transform.
+models.CharField.register_lookup(Length)
 
 
 class UserManager(BaseUserManager["User"]):
-    """Custom manager: login is by email; username is derived, not supplied."""
+    """Custom manager: login is by email; the caller supplies username."""
 
     use_in_migrations = True
-
-    def derive_unique_username(self, email: str) -> str:
-        """Pick an unused username slug for *email*.
-
-        Best-effort under contention: two concurrent callers may both pick the
-        same slug; the second hits the unique-index IntegrityError, and the
-        caller is responsible for retrying. Single source of truth — admin,
-        manager, and the WorkOS callback all route through here.
-        """
-        base = derive_username(email)
-        candidate = base
-        n = 1
-        while self.filter(username=candidate).exists():
-            suffix = f"-{n}"
-            # Respect username max_length=150 even when *base* was length-capped
-            # to 140; long suffixes still fit.
-            candidate = f"{base[: 150 - len(suffix)]}{suffix}"
-            n += 1
-        return candidate
 
     def get_by_natural_key(self, username: str | None) -> User:
         """Look up a user for password authentication.
@@ -72,16 +43,27 @@ class UserManager(BaseUserManager["User"]):
     ) -> User:
         if not email:
             raise ValueError("Email is required.")
+        username = extra_fields.get("username")
+        if not username:
+            # Required at the type level: every write path through the
+            # manager (admin add-form, make_user factory, createsuperuser,
+            # WorkOS signup-submit) must supply a username. There is no
+            # derivation fallback — usernames are user-chosen.
+            raise TypeError(
+                "username is required; the manager no longer derives it from email."
+            )
+        # Charset/hyphen rules can't be expressed as a portable CHECK
+        # constraint (SQLite has no native REGEXP), so the manager is the
+        # chokepoint that enforces them across every write path.
+        validate_username_format(username)
         email = self.normalize_email(email)
-        if "username" not in extra_fields:
-            extra_fields["username"] = self.derive_unique_username(email)
         user = self.model(email=email, **extra_fields)
         user.password = make_password(password)
         user.save(using=self._db)
         return user
 
     # Signature override is intentional: USERNAME_FIELD = "email", so the
-    # first positional is the email, not the username (username is derived).
+    # first positional is the email (username is supplied via kwargs).
     def create_user(  # type: ignore[override]
         self,
         email: str,
@@ -112,8 +94,17 @@ class User(AbstractUser):
     #   username, first_name, last_name, email,
     #   is_active, is_staff, is_superuser, last_login, date_joined, password
     #
-    # `username` is the public URL slug (/users/<username>), defaulted from
-    # the email prefix at first login and editable on the settings page.
+    # `username` is the public URL slug (/users/<username>) and is chosen by
+    # the user at signup. See docs/plans/auth/Usernames.md.
+
+    # Redeclared to tighten max_length from AbstractUser's 150 to our 20,
+    # and to wire the format validator into every Django-form-based path
+    # (ModelForm/admin, createsuperuser prompts, full_clean callers).
+    username = models.CharField(
+        max_length=USERNAME_MAX_LEN,
+        unique=True,
+        validators=[validate_username_format],
+    )
 
     # Redeclared to flip AbstractUser's blank=True to blank=False. Uniqueness
     # is enforced case-insensitively by the Lower("email") UniqueConstraint
@@ -139,7 +130,10 @@ class User(AbstractUser):
     objects: ClassVar[UserManager] = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []  # createsuperuser will prompt for email + password only.
+    # createsuperuser prompts for REQUIRED_FIELDS, and runs each value
+    # through the field's validators — that's where `validate_username_format`
+    # earns its keep on the CLI path.
+    REQUIRED_FIELDS = ["username"]
 
     class Meta:
         constraints = [
@@ -149,6 +143,19 @@ class User(AbstractUser):
             ),
             field_not_blank("email"),
             field_not_blank("workos_user_id"),
+            # Length CHECK only — charset/hyphen rules are app-layer
+            # because Django's __regex lookup isn't portable to SQLite
+            # CHECK DDL. The format validator on the field covers every
+            # write path; this constraint is the cross-backend belt for
+            # the bound that VARCHAR(20) already enforces on Postgres.
+            models.CheckConstraint(
+                condition=models.Q(username__length__gte=USERNAME_MIN_LEN),
+                name="accounts_user_username_min_length",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(username__length__lte=USERNAME_MAX_LEN),
+                name="accounts_user_username_max_length",
+            ),
         ]
 
     def __str__(self) -> str:

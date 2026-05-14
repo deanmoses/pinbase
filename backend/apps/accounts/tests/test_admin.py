@@ -18,38 +18,35 @@ def admin_client(superuser: User) -> Client:
 
 @pytest.mark.django_db
 class TestUserAdminAdd:
-    def test_admin_add_derives_username(self, admin_client):
-        """The admin add view bypasses UserManager, so save_model must derive."""
+    def test_admin_add_requires_username(self, admin_client):
+        """Operator must supply the username; no derivation."""
         url = reverse("admin:accounts_user_add")
         resp = admin_client.post(
             url,
             {
                 "email": "newuser@example.com",
+                "username": "newuser",
                 "password1": "complexpass123",  # pragma: allowlist secret
                 "password2": "complexpass123",  # pragma: allowlist secret
             },
         )
-        # Django admin redirects on success; a 200 means form errors.
         assert resp.status_code == 302, getattr(resp, "context", None)
 
         user = User.objects.get(email="newuser@example.com")
         assert user.username == "newuser"
 
-    def test_admin_add_two_users_same_local_part(self, admin_client):
-        """Sequential admin adds with the same local-part don't collide."""
+    def test_admin_add_allows_reserved_handle(self, admin_client):
+        """Reserved-list is operator-skipped; pin this so it can't silently
+        regress (e.g. if someone wires reserved-check into a base form)."""
         url = reverse("admin:accounts_user_add")
-        for email in ("alice@example.com", "alice@other.com"):
-            resp = admin_client.post(
-                url,
-                {
-                    "email": email,
-                    "password1": "complexpass123",  # pragma: allowlist secret
-                    "password2": "complexpass123",  # pragma: allowlist secret
-                },
-            )
-            assert resp.status_code == 302
-
-        usernames = set(User.objects.values_list("username", flat=True))
-        # admin + alice + alice-1
-        assert "alice" in usernames
-        assert "alice-1" in usernames
+        resp = admin_client.post(
+            url,
+            {
+                "email": "ops@example.com",
+                "username": "admin",
+                "password1": "complexpass123",  # pragma: allowlist secret
+                "password2": "complexpass123",  # pragma: allowlist secret
+            },
+        )
+        assert resp.status_code == 302, getattr(resp, "context", None)
+        assert User.objects.filter(username="admin").exists()

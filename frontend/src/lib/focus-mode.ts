@@ -24,6 +24,18 @@ const FOCUS_SUBROUTES_NESTED = new Set(['edit']);
 const FOCUS_SUBROUTES_TERMINAL = new Set(['delete', 'edit-history', 'sources']);
 const FOCUS_EXACT_PATHS = new Set(['/kiosk']);
 
+const MINIMAL_SHELL_EXACT_PATHS = new Set(['/signup', '/auth/error']);
+
+/**
+ * Minimal-shell routes render the brand header (site name only, no nav) and
+ * the site footer, but skip the primary nav and account menu. Used for
+ * single-task flows where the user is mid-commit (e.g. signup) and reaching
+ * for the nav would lose their pending state.
+ */
+export function isMinimalShellPath(pathname: string): boolean {
+  return MINIMAL_SHELL_EXACT_PATHS.has(pathname);
+}
+
 export function isFocusModePath(pathname: string): boolean {
   if (FOCUS_EXACT_PATHS.has(pathname)) return true;
 

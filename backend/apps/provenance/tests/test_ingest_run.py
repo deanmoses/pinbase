@@ -124,9 +124,9 @@ class TestChangeSetIngestRunFK:
         assert ChangeSet.objects.filter(ingest_run=run).count() == 1
 
     def test_changeset_without_ingest_run(self):
-        from django.contrib.auth import get_user_model
+        from apps.accounts.test_factories import make_user
 
-        user = get_user_model().objects.create_user(email="editor@example.com")
+        user = make_user(email="editor@example.com")
         cs = user_changeset(user)
         assert cs.ingest_run is None
 

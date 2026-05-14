@@ -51,7 +51,10 @@ NO_4XX_ALLOWLIST = frozenset(
 # The test fails if any app's count grows beyond its baseline; lowering a
 # baseline (i.e. migrating inline schemas into schemas.py) is welcome.
 INLINE_SCHEMA_BASELINES = {
-    "apps.accounts.api": 4,
+    "apps.accounts.api": 0,
+    "apps.accounts.api.auth": 0,
+    "apps.accounts.api.profile": 0,
+    "apps.accounts.api.signup": 0,
     "apps.citation.api": 0,
     "apps.media.api": 0,
     "apps.provenance.api": 0,

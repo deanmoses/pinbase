@@ -14,6 +14,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 
+from apps.accounts.test_factories import make_user
 from apps.core.authz.predicates import (
     email_verified,
     is_active,
@@ -82,9 +83,7 @@ def test_anonymous_user_email_verified_attr_is_false():
 
 @pytest.mark.django_db
 def test_authenticated_active_verified_user_passes_all():
-    user = get_user_model().objects.create_user(
-        email="alice@example.com", password="x", email_verified=True
-    )
+    user = make_user(email="alice@example.com", password="x", email_verified=True)
     assert isinstance(is_authenticated(user, None, None), Allow)
     assert isinstance(is_active(user, None, None), Allow)
     assert isinstance(email_verified(user, None, None), Allow)
@@ -92,9 +91,7 @@ def test_authenticated_active_verified_user_passes_all():
 
 @pytest.mark.django_db
 def test_inactive_user_denied_by_is_active():
-    user = get_user_model().objects.create_user(
-        email="dormant@example.com", password="x", is_active=False
-    )
+    user = make_user(email="dormant@example.com", password="x", is_active=False)
     decision = is_active(user, None, None)
     assert isinstance(decision, Deny)
     assert decision.code is DenialCode.ACCOUNT_DEACTIVATED
@@ -102,9 +99,7 @@ def test_inactive_user_denied_by_is_active():
 
 @pytest.mark.django_db
 def test_unverified_user_denied_by_email_verified():
-    user = get_user_model().objects.create_user(
-        email="unverified@example.com", password="x", email_verified=False
-    )
+    user = make_user(email="unverified@example.com", password="x", email_verified=False)
     decision = email_verified(user, None, None)
     assert isinstance(decision, Deny)
     assert decision.code is DenialCode.VERIFICATION_REQUIRED
@@ -126,9 +121,7 @@ def test_anonymous_user_denied_by_is_superuser():
 
 @pytest.mark.django_db
 def test_non_staff_user_denied_by_is_staff():
-    user = get_user_model().objects.create_user(
-        email="regular@example.com", password="x"
-    )
+    user = make_user(email="regular@example.com", password="x")
     decision = is_staff(user, None, None)
     assert isinstance(decision, Deny)
     assert decision.code is DenialCode.ROLE_REQUIRED
@@ -137,17 +130,13 @@ def test_non_staff_user_denied_by_is_staff():
 
 @pytest.mark.django_db
 def test_staff_user_passes_is_staff():
-    user = get_user_model().objects.create_user(
-        email="staff@example.com", password="x", is_staff=True
-    )
+    user = make_user(email="staff@example.com", password="x", is_staff=True)
     assert isinstance(is_staff(user, None, None), Allow)
 
 
 @pytest.mark.django_db
 def test_non_superuser_user_denied_by_is_superuser():
-    user = get_user_model().objects.create_user(
-        email="staffonly@example.com", password="x", is_staff=True
-    )
+    user = make_user(email="staffonly@example.com", password="x", is_staff=True)
     decision = is_superuser(user, None, None)
     assert isinstance(decision, Deny)
     assert decision.code is DenialCode.ROLE_REQUIRED
@@ -156,8 +145,8 @@ def test_non_superuser_user_denied_by_is_superuser():
 
 @pytest.mark.django_db
 def test_superuser_passes_is_superuser():
-    user = get_user_model().objects.create_superuser(
-        email="root@example.com", password="x"
+    user = make_user(
+        email="root@example.com", password="x", is_staff=True, is_superuser=True
     )
     assert isinstance(is_superuser(user, None, None), Allow)
 
@@ -191,6 +180,6 @@ def test_anonymous_user_satisfies_policy_user_protocol():
 
 @pytest.mark.django_db
 def test_real_user_satisfies_policy_user_protocol():
-    user = get_user_model().objects.create_user(email="bob@example.com", password="x")
+    user = make_user(email="bob@example.com", password="x")
     for attr in _POLICY_USER_ATTRS:
         assert hasattr(user, attr), f"User missing {attr!r}"

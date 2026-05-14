@@ -3,13 +3,13 @@
   import { resolve } from '$app/paths';
   import { faBars, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
   import FaIcon from './FaIcon.svelte';
-  import CoffeeStain from './effects/CoffeeStain.svelte';
+  import SiteHeader from './SiteHeader.svelte';
   import ActionMenu from './ActionMenu.svelte';
   import MenuItem from './MenuItem.svelte';
   import MenuSectionHeader from './MenuSectionHeader.svelte';
   import MenuDivider from './MenuDivider.svelte';
   import Avatar from './Avatar.svelte';
-  import { SITE_NAME, NARROW_BREAKPOINT } from '$lib/constants';
+  import { NARROW_BREAKPOINT } from '$lib/constants';
   import { auth } from '$lib/auth.svelte';
   import { createBelowBreakpointFlag } from '$lib/use-below-breakpoint.svelte';
   import { toast } from '$lib/toast/toast.svelte';
@@ -46,251 +46,109 @@
 
   const myContributionsHref = $derived(resolve(`/users/${auth.username}`));
   const myContributionsActive = $derived(isActive(`/users/${auth.username}`));
-
-  const randInt = (max: number) => Math.floor(Math.random() * max);
-
-  // Stain seeds (one per stain strip)
-  const stainSeed1 = randInt(1000);
-  const stainSeed2 = randInt(1000);
-  const stainSeed3 = randInt(1000);
-
-  // Torn bottom edge
-  const tornId = `tear-${crypto.randomUUID()}`;
-  const tornSeed = randInt(1000);
 </script>
 
-<!-- Torn edge filter definition -->
-<svg class="svg-filters" aria-hidden="true">
-  <defs>
-    <filter id={tornId} x="-2%" y="-2%" width="104%" height="120%">
-      <feTurbulence
-        type="turbulence"
-        baseFrequency="0.06 0.02"
-        numOctaves="4"
-        seed={tornSeed}
-        result="warp"
-      />
-      <feDisplacementMap in="SourceGraphic" in2="warp" scale="6" yChannelSelector="R" />
-    </filter>
-  </defs>
-</svg>
+{#snippet adminSection()}
+  <MenuSectionHeader>admin</MenuSectionHeader>
+  {#if auth.can('kiosk.edit')}
+    <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
+    <MenuItem href={resolve('/style-lab')} current={isActive('/style-lab')}>Style Lab</MenuItem>
+  {/if}
+  {#if auth.can('django_admin.access')}
+    <MenuItem href="/admin/" reload>Django Admin</MenuItem>
+  {/if}
+{/snippet}
 
-<header class="site-header">
-  <div class="header-inner">
-    <a href={resolve('/')} class="site-title">{SITE_NAME}</a>
+{#snippet userSection()}
+  <MenuSectionHeader>{auth.username}</MenuSectionHeader>
+  <MenuItem href={myContributionsHref} current={myContributionsActive}>My Contributions</MenuItem>
+  <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
+{/snippet}
 
-    {#snippet adminSection()}
-      <MenuSectionHeader>admin</MenuSectionHeader>
-      {#if auth.can('kiosk.edit')}
-        <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
-        <MenuItem href={resolve('/style-lab')} current={isActive('/style-lab')}>Style Lab</MenuItem>
-      {/if}
-      {#if auth.can('django_admin.access')}
-        <MenuItem href="/admin/" reload>Django Admin</MenuItem>
-      {/if}
-    {/snippet}
-
-    {#snippet userSection()}
-      <MenuSectionHeader>{auth.username}</MenuSectionHeader>
-      <MenuItem href={myContributionsHref} current={myContributionsActive}>
-        My Contributions
-      </MenuItem>
-      <MenuItem onclick={handleLogout}>Sign Out</MenuItem>
-    {/snippet}
-
-    <nav class="primary-nav" aria-label="Primary">
-      {#each navItems as { href, label } (href)}
-        <a href={resolve(href)} class="nav-link" class:active={isActive(href)}>
-          {label}
-        </a>
-      {/each}
-      <a
-        href={resolve(changelogHref)}
-        class="nav-link changelog-link"
-        class:active={isActive(changelogHref)}
-      >
-        Changelog
+<SiteHeader>
+  <nav class="primary-nav" aria-label="Primary">
+    {#each navItems as { href, label } (href)}
+      <a href={resolve(href)} class="nav-link" class:active={isActive(href)}>
+        {label}
       </a>
-    </nav>
+    {/each}
+    <a
+      href={resolve(changelogHref)}
+      class="nav-link changelog-link"
+      class:active={isActive(changelogHref)}
+    >
+      Changelog
+    </a>
+  </nav>
 
-    <div class="header-actions">
-      <a
-        href={resolve('/search')}
-        class="search-link"
-        class:active={isActive('/search')}
-        aria-label="Search"
-      >
-        <FaIcon icon={faMagnifyingGlass} size="1.1rem" />
-      </a>
-      {#if auth.loaded}
-        <div class="desktop-account">
-          {#if auth.isAuthenticated}
-            <ActionMenu label="Account" variant="bare" ariaLabel="Account menu">
-              {#snippet trigger()}
-                <Avatar
-                  firstName={auth.firstName}
-                  lastName={auth.lastName}
-                  username={auth.username ?? ''}
-                />
-              {/snippet}
-              {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
-                {@render adminSection()}
-                <MenuDivider />
-              {/if}
-              {@render userSection()}
-            </ActionMenu>
-          {:else}
-            <a href={loginHref()} class="auth-link" data-sveltekit-reload>Sign In</a>
-          {/if}
-        </div>
-      {/if}
-
-      <!-- Hamburger renders unconditionally so mobile users always have a way
-           to reach Titles / Manufacturers / People, even before auth resolves.
-           Auth-dependent sections inside skip rendering until auth.loaded. -->
-      <div class="hamburger">
-        <ActionMenu label="Menu" variant="bare" ariaLabel="Menu">
-          {#snippet trigger()}
-            <FaIcon icon={faBars} size="1.25rem" />
-          {/snippet}
-          {#if isMobile}
-            {#each navItems as { href, label } (href)}
-              <MenuItem href={resolve(href)} current={isActive(href)}>{label}</MenuItem>
-            {/each}
-            <MenuDivider />
-          {/if}
-          <MenuSectionHeader>activity</MenuSectionHeader>
-          <MenuItem href={resolve(changelogHref)} current={isActive(changelogHref)}>
-            Changelog
-          </MenuItem>
-          {#if auth.loaded}
+  <div class="header-actions">
+    <a
+      href={resolve('/search')}
+      class="search-link"
+      class:active={isActive('/search')}
+      aria-label="Search"
+    >
+      <FaIcon icon={faMagnifyingGlass} size="1.1rem" />
+    </a>
+    {#if auth.loaded}
+      <div class="desktop-account">
+        {#if auth.isAuthenticated}
+          <ActionMenu label="Account" variant="bare" ariaLabel="Account menu">
+            {#snippet trigger()}
+              <Avatar
+                firstName={auth.firstName}
+                lastName={auth.lastName}
+                username={auth.username ?? ''}
+              />
+            {/snippet}
             {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
-              <MenuDivider />
               {@render adminSection()}
+              <MenuDivider />
             {/if}
-            <MenuDivider />
-            {#if auth.isAuthenticated}
-              {@render userSection()}
-            {:else}
-              <MenuItem href={loginHref()} reload>Sign In</MenuItem>
-            {/if}
-          {/if}
-        </ActionMenu>
+            {@render userSection()}
+          </ActionMenu>
+        {:else}
+          <a href={loginHref()} class="auth-link" data-sveltekit-reload>Sign In</a>
+        {/if}
       </div>
+    {/if}
+
+    <!-- Hamburger renders unconditionally so mobile users always have a way
+         to reach Titles / Manufacturers / People, even before auth resolves.
+         Auth-dependent sections inside skip rendering until auth.loaded. -->
+    <div class="hamburger">
+      <ActionMenu label="Menu" variant="bare" ariaLabel="Menu">
+        {#snippet trigger()}
+          <FaIcon icon={faBars} size="1.25rem" />
+        {/snippet}
+        {#if isMobile}
+          {#each navItems as { href, label } (href)}
+            <MenuItem href={resolve(href)} current={isActive(href)}>{label}</MenuItem>
+          {/each}
+          <MenuDivider />
+        {/if}
+        <MenuSectionHeader>activity</MenuSectionHeader>
+        <MenuItem href={resolve(changelogHref)} current={isActive(changelogHref)}>
+          Changelog
+        </MenuItem>
+        {#if auth.loaded}
+          {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
+            <MenuDivider />
+            {@render adminSection()}
+          {/if}
+          <MenuDivider />
+          {#if auth.isAuthenticated}
+            {@render userSection()}
+          {:else}
+            <MenuItem href={loginHref()} reload>Sign In</MenuItem>
+          {/if}
+        {/if}
+      </ActionMenu>
     </div>
   </div>
-
-  <!-- Coffee stain overlays — three strips covering full width -->
-  <div class="header-stains">
-    <CoffeeStain
-      seed={stainSeed1}
-      frequency={0.03}
-      opacity={0.12}
-      blur={4}
-      threshold="0 0 0 0 0 0 0.5 0.7"
-      x="0%"
-      width="40%"
-    />
-    <CoffeeStain
-      seed={stainSeed2}
-      frequency={0.04}
-      octaves={4}
-      opacity={0.08}
-      blur={5}
-      threshold="0 0 0 0 0 0 0 0.4"
-      color="rgb(100, 65, 20)"
-      x="30%"
-      width="40%"
-    />
-    <CoffeeStain
-      seed={stainSeed3}
-      frequency={0.025}
-      opacity={0.1}
-      blur={3}
-      threshold="0 0 0 0 0 0.4 0.6 0.8"
-      color="rgb(130, 90, 35)"
-      x="60%"
-      width="40%"
-    />
-  </div>
-
-  <!-- Torn bottom edge -->
-  <div class="torn-edge" style:filter="url(#{tornId})"></div>
-</header>
+</SiteHeader>
 
 <style>
-  .svg-filters {
-    position: absolute;
-    width: 0;
-    height: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .site-header {
-    position: sticky;
-    top: 0;
-    z-index: var(--z-header);
-    background-color: var(--color-header-bg);
-    border-bottom: none;
-  }
-
-  /* Subtle paper grain via repeating gradient */
-  .site-header::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    /* Paper-grain texture: stops are intentionally near-transparent black,
-       not themed colors. Promoting these to tokens would add indirection
-       without enabling any real retheming. */
-    /* stylelint-disable function-disallowed-list */
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 0, 0, 0.01) 2px,
-      rgba(0, 0, 0, 0.01) 4px
-    );
-    /* stylelint-enable function-disallowed-list */
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  /* Torn paper bottom edge — shares background color via token */
-  .torn-edge {
-    position: absolute;
-    bottom: -4px;
-    left: 0;
-    right: 0;
-    height: 8px;
-    background: var(--color-header-bg);
-    pointer-events: none;
-    z-index: 3;
-  }
-
-  .header-inner {
-    position: relative;
-    max-width: 72rem;
-    margin: 0 auto;
-    padding: var(--size-3) var(--size-5);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--size-4);
-    z-index: 4;
-  }
-
-  .site-title {
-    font-size: var(--font-size-4);
-    font-weight: 700;
-    color: var(--color-header-text);
-    text-decoration: none;
-  }
-
-  .site-title:hover {
-    color: var(--color-link);
-  }
-
   .primary-nav {
     display: flex;
     gap: var(--size-5);
@@ -402,28 +260,6 @@
     }
     .hamburger {
       display: flex;
-    }
-  }
-
-  .header-stains {
-    display: var(--header-stains-display, none);
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  @media (prefers-color-scheme: light) {
-    .header-stains {
-      display: var(--header-stains-display, block);
-    }
-  }
-
-  /* ---- Dark mode ---- */
-  @media (prefers-color-scheme: dark) {
-    /* Paper grain is a light-mode-only flourish; in dark mode the
-       low-contrast stops vanish into the bg anyway, so skip the layer. */
-    .site-header::before {
-      background: none;
     }
   }
 </style>

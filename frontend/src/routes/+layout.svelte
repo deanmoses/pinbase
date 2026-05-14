@@ -4,8 +4,9 @@
   import { beforeNavigate } from '$app/navigation';
   import SiteShell from '$lib/components/SiteShell.svelte';
   import FocusSiteShell from '$lib/components/FocusSiteShell.svelte';
+  import MinimalSiteShell from '$lib/components/MinimalSiteShell.svelte';
   import ToastHost from '$lib/toast/ToastHost.svelte';
-  import { isFocusModePath } from '$lib/focus-mode';
+  import { isFocusModePath, isMinimalShellPath } from '$lib/focus-mode';
   import { isKioskCookieSet } from '$lib/kiosk/config';
   import { bootstrapTheme } from '$lib/themes';
   import { onMount } from 'svelte';
@@ -22,6 +23,7 @@
   let { children } = $props();
 
   let isFocusMode = $derived(isFocusModePath(page.url.pathname));
+  let isMinimalShell = $derived(isMinimalShellPath(page.url.pathname));
 
   // Cookie is checked client-side so the kiosk path doesn't pollute every
   // page's load type. KioskMode itself is client-only (window event listeners).
@@ -33,7 +35,11 @@
 </script>
 
 <div class="app-root">
-  {#if isFocusMode}
+  {#if isMinimalShell}
+    <MinimalSiteShell>
+      {@render children()}
+    </MinimalSiteShell>
+  {:else if isFocusMode}
     <FocusSiteShell>
       {@render children()}
     </FocusSiteShell>

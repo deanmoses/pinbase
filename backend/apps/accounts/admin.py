@@ -1,7 +1,5 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.forms import ModelForm
-from django.http import HttpRequest
 
 from .models import User
 
@@ -38,12 +36,17 @@ class UserAdmin(BaseUserAdmin[User]):
         ),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
+    # Operators type the username explicitly. Reserved-list enforcement
+    # will live in the user-facing signup endpoint, not on this admin form
+    # — admin is operator-run and reserved handles like `admin` are
+    # legitimate there (e.g. for a system service account). Format and
+    # uniqueness apply via the field's validators and unique constraint.
     add_fieldsets = (
         (
             None,
             {
                 "classes": ("wide",),
-                "fields": ("email", "password1", "password2"),
+                "fields": ("email", "username", "password1", "password2"),
             },
         ),
     )
@@ -53,18 +56,3 @@ class UserAdmin(BaseUserAdmin[User]):
     # legitimately needs to change, that's a dedicated admin action, not a
     # form field.
     readonly_fields = ("workos_user_id", "last_seen_at")
-
-    def save_model(
-        self,
-        request: HttpRequest,
-        obj: User,
-        form: ModelForm[User],
-        change: bool,
-    ) -> None:
-        # The default add form (UserCreationForm) builds the instance and
-        # saves it directly, bypassing UserManager._create_user — so an
-        # admin-added user lands with username="" and the next add hits the
-        # unique-username constraint. Derive here on first save.
-        if not change and not obj.username:
-            obj.username = User.objects.derive_unique_username(obj.email)
-        super().save_model(request, obj, form, change)
