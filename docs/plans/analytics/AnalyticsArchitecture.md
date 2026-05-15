@@ -89,7 +89,7 @@ Every authenticated user has an `analytics_pseudonym` (UUIDv4) stored on a separ
 - Rotatable: if a user opts out and back in, a new pseudonym is issued; old PostHog events are stranded under the old ID
 - Logout calls `analytics.reset()` on the frontend, clearing PostHog's in-memory state
 
-Anonymous visitors are not assigned a pseudonym. PostHog runs with `persistence: "sessionStorage"`: the distinct_id is scoped to the browser tab, persists across page reloads and CSR navigations within that tab, and is cleared when the tab closes. This gives meaningful within-visit metrics (pages-per-session, entry/exit pages, bounce rate) without persisting any identifier across visits — closing the tab severs the link, which is what "not linked across sessions" means in [Analytics.md](Analytics.md#identifiability). `sessionStorage` is not a cookie, so the "Analytics sets no cookies" constraint still holds.
+Anonymous visitors are not assigned a pseudonym. PostHog runs with `persistence: "memory"`: the distinct_id lives only in the JS heap. Because SvelteKit handles in-app navigation client-side, that heap survives every link click within a visit, so pages-per-session, entry/exit pages, and bounce rate all work for normal SPA browsing. A hard refresh or a new tab starts a fresh id — we don't try to link those — which is what "not linked across sessions" means in [Analytics.md](Analytics.md#identifiability). Nothing is written to cookies or storage.
 
 The split between the `User` table and `AnalyticsIdentity` is what satisfies the "decouples analytics data from the authoritative user table" requirement: dropping `AnalyticsIdentity` severs the link, leaving PostHog data with orphan UUIDs.
 
@@ -100,7 +100,7 @@ The PostHog adapter pins the following init options. Reviewers reject any change
 ```ts
 posthog.init(PUBLIC_POSTHOG_KEY, {
   api_host: "https://eu.posthog.com",
-  persistence: "sessionStorage", // tab-scoped, no cookies, gone when the tab closes
+  persistence: "memory", // no cookies, no storage; SPA navigations stay linked via the JS heap
   autocapture: false, // no implicit click/form tracking
   capture_pageview: false, // we call pageview() explicitly
   capture_pageleave: false,
@@ -121,13 +121,13 @@ posthog.disable_geoip = True
 
 Mapping to the [non-goals](Analytics.md#non-goals):
 
-| Non-goal                  | Enforcement                                                   |
-| ------------------------- | ------------------------------------------------------------- |
-| Cookies                   | `persistence: "sessionStorage"` (no cookies; tab-scoped only) |
-| Behavioral fingerprinting | `autocapture: false`, `disable_session_recording: true`       |
-| Cross-site tracking       | EU host, no third-party cookies, no advertising integrations  |
-| IP-based profiling        | `ip: false`, `disable_geoip = True`                           |
-| Engagement-addiction      | `disable_surveys: true`, no feature-flag SDK use              |
+| Non-goal                  | Enforcement                                                  |
+| ------------------------- | ------------------------------------------------------------ |
+| Cookies                   | `persistence: "memory"` (no cookies, no storage)             |
+| Behavioral fingerprinting | `autocapture: false`, `disable_session_recording: true`      |
+| Cross-site tracking       | EU host, no third-party cookies, no advertising integrations |
+| IP-based profiling        | `ip: false`, `disable_geoip = True`                          |
+| Engagement-addiction      | `disable_surveys: true`, no feature-flag SDK use             |
 
 ## Where Events Originate
 
