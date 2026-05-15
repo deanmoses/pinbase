@@ -22,6 +22,33 @@ Within one SPA instance, every event is linked under a single id:
 
 What we explicitly do **not** do: link anonymous journeys across SPA instances, fingerprint, set cookies, or persist any identifier to storage.
 
+See [Pageviews](#pageviews) for the mechanism that turns CSR route changes into recorded events.
+
+## Pageviews
+
+PostHog's auto-pageview is off. Pageviews fire from a SvelteKit [`afterNavigate`](https://svelte.dev/docs/kit/$app-navigation#afterNavigate) hook in the root layout, so every client-side route change is captured — not just the initial SSR load:
+
+```svelte
+<!-- frontend/src/routes/+layout.svelte -->
+<script lang="ts">
+  import { afterNavigate } from "$app/navigation";
+  import { analytics } from "$lib/analytics";
+
+  afterNavigate(({ from, to }) => {
+    if (!to) return;
+    analytics.pageview(to.url.pathname, {
+      referrer: from?.url.pathname ?? null,
+    });
+  });
+</script>
+```
+
+`afterNavigate` fires after the initial load **and** after every subsequent CSR navigation, so a single hook covers the whole SPA. Without this, the SPA would look like a one-page-per-visit site to PostHog — pages-per-session would always be 1 and bounce rate would be 100%. These are per-instance aggregate counts that need no persistent identity, consistent with [Analytics.md's reach-as-volume stance](Analytics.md#visitor-traffic-analytics).
+
+External referrer (`document.referrer`) is captured by PostHog at session start as `$referrer` and `$referring_domain`. The internal `referrer` property in the hook above is the previous in-SPA pathname, used for journey reconstruction.
+
+No pageview is fired from `+layout.server.ts`: server-rendered HTML doesn't imply the user actually saw the page (bots, prefetches, etc.).
+
 ## Decouple from Provider
 
 Call our own abstraction throughout the codebase, not the PostHog SDK directly:
@@ -109,6 +136,15 @@ Anonymous visitors are not assigned a pseudonym. PostHog runs with `persistence:
 
 The split between the `User` table and `AnalyticsIdentity` is what satisfies the "decouples analytics data from the authoritative user table" requirement: dropping `AnalyticsIdentity` severs the link, leaving PostHog data with orphan UUIDs.
 
+### When `identify()` is called
+
+- **Frontend** — the root layout calls `analytics.identify(pseudonym)` once auth state hydrates and confirms the user is logged in. On logout, the layout calls `analytics.reset()`.
+- **Backend** — the signup view calls `analytics.identify(pseudonym)` inside the same transaction that creates the `User` and `AnalyticsIdentity` rows, so `account_registered` is the first event linked to the new pseudonym.
+
+### Anonymous-to-logged-in linking
+
+When `identify(pseudonym)` runs after login within the same SPA instance, PostHog's default behavior is to alias the in-heap anonymous `distinct_id` to the pseudonym — so the minutes of pre-login browsing in that instance get retroactively attributed to the user's account. We accept this: the user has just consented to authenticated use, and the linkage is bounded to one SPA instance (anonymous history from previous instances is unreachable, because anonymous ids are heap-only). If we ever need to suppress aliasing, pass `$anon_distinct_id: null` to `posthog.identify()`.
+
 ## Privacy Enforcement
 
 The PostHog adapter pins the following init options. Reviewers reject any change that loosens them:
@@ -123,8 +159,14 @@ posthog.init(PUBLIC_POSTHOG_KEY, {
   disable_session_recording: true,
   disable_surveys: true,
   disable_external_dependencies: true,
-  ip: false, // strip client IP at ingest
-  property_denylist: ["$ip", "$geoip_*"],
+  ip: false, // strip client IP at ingest (also disables server-side geoip)
+  property_denylist: [
+    "$ip", // belt-and-suspenders alongside ip: false
+    "$screen_height", // entropy-bearing, used in fingerprinting
+    "$screen_width",
+    "$viewport_height",
+    "$viewport_width",
+  ],
 });
 ```
 
@@ -137,56 +179,34 @@ posthog.disable_geoip = True
 
 Mapping to the [non-goals](Analytics.md#non-goals):
 
-| Non-goal                  | Enforcement                                                  |
-| ------------------------- | ------------------------------------------------------------ |
-| Cookies                   | `persistence: "memory"` (no cookies, no storage)             |
-| Behavioral fingerprinting | `autocapture: false`, `disable_session_recording: true`      |
-| Cross-site tracking       | EU host, no third-party cookies, no advertising integrations |
-| IP-based profiling        | `ip: false`, `disable_geoip = True`                          |
-| Engagement-addiction      | `disable_surveys: true`, no feature-flag SDK use             |
-
-## Pageviews
-
-PostHog's auto-pageview is off. Pageviews fire from a SvelteKit [`afterNavigate`](https://svelte.dev/docs/kit/$app-navigation#afterNavigate) hook in the root layout, so every client-side route change is captured — not just the initial SSR load:
-
-```svelte
-<!-- frontend/src/routes/+layout.svelte -->
-<script lang="ts">
-  import { afterNavigate } from "$app/navigation";
-  import { analytics } from "$lib/analytics";
-
-  afterNavigate(({ from, to }) => {
-    if (!to) return;
-    analytics.pageview(to.url.pathname, {
-      referrer: from?.url.pathname ?? null,
-    });
-  });
-</script>
-```
-
-`afterNavigate` fires after the initial load **and** after every subsequent CSR navigation, so a single hook covers the whole SPA. Without this, the SPA would look like a one-page-per-visit site to PostHog — pages-per-session would always be 1 and bounce rate would be 100%.
-
-No pageview is fired from `+layout.server.ts`: server-rendered HTML doesn't imply the user actually saw the page (bots, prefetches, etc.).
+| Non-goal                  | Enforcement                                                                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Cookies                   | `persistence: "memory"` (no cookies, no storage)                                                                                    |
+| Behavioral fingerprinting | `autocapture: false`, `disable_session_recording: true`, screen and viewport properties denylisted                                  |
+| Cross-site tracking       | PostHog is a first-party analytics tool, not a cross-property tracking network; no third-party cookies, no advertising integrations |
+| IP-based profiling        | `ip: false`, `disable_geoip = True`, `$ip` denylisted as belt-and-suspenders                                                        |
+| Engagement-addiction      | `disable_surveys: true`, no feature-flag SDK use                                                                                    |
 
 ## Where Events Originate
 
 | Event                                     | Origin | Why                                                   |
 | ----------------------------------------- | ------ | ----------------------------------------------------- |
-| pageviews                                 | client | needs real navigation, including SvelteKit CSR        |
-| `search_performed`, `search_zero_results` | client | fires from the search UI                              |
+| pageviews                                 | client | CSR navigations don't reach the server                |
+| `search_performed`, `search_zero_results` | client | search executes client-side                           |
 | `machine_page_viewed`                     | client | server can't distinguish CSR routes from anchor jumps |
-| `edit_started`, `edit_abandoned`          | client | UI lifecycle signals; never reach the server          |
-| `edit_saved`, `photo_uploaded`            | server | post-write, must reflect the actual mutation          |
+| `edit_started`, `edit_abandoned`          | client | UI lifecycle signals never reach the server           |
+| `edit_saved`, `photo_uploaded`            | server | post-write — must reflect the actual mutation         |
 | `account_registered`                      | server | fires inside the signup transaction                   |
-| `moderation_action`                       | server | server-only action                                    |
+| `moderation_action`                       | server | moderation runs server-side                           |
 
-Server-side events flow through the Python adapter using the pseudonym attached to the request by middleware. Anonymous server-side events (rare) use a fresh random distinct_id and are not linked across requests.
+Server-side events flow through the Python adapter using the pseudonym attached to the request by middleware. All server-side events in the registry require an authenticated user; there are no anonymous server-side events.
 
 ## Typed Events
 
 The event registry is the single source of truth for event names and property shapes. Adding an event means adding a row to both `events.ts` and `events.py`; a contract test asserts the two registries agree.
 
 ```ts
+// events.ts
 type EventRegistry = {
   search_performed: {
     query_length: number;
@@ -201,6 +221,28 @@ type EventRegistry = {
   };
   // ...
 };
+```
+
+```python
+# events.py
+class SearchPerformed(TypedDict):
+    query_length: int
+    results_count: int
+    logged_in: bool
+
+
+class SearchZeroResults(TypedDict):
+    normalized_query: str
+    logged_in: bool
+
+
+class EditSaved(TypedDict):
+    page_type: PageType
+    duration_seconds: int
+    is_first_edit: bool
+
+
+# ...
 ```
 
 Per the project's [strong-typing rule](../../Python.md), backend properties are TypedDicts, not `dict[str, Any]`. Adding a property to an event without updating the registry is a type error on both sides.
