@@ -1,4 +1,4 @@
-# Flipcommons Public Dashboard Ideas
+# Public Dashboard Ideas
 
 ## Philosophy
 
@@ -98,9 +98,9 @@ than startup KPI dashboards.
 
 ## Long-Term Opportunity
 
-Public analytics can become part of the identity of Flipcommons itself.
+Public analytics can become part of the identity of the project itself.
 
-Rather than treating analytics as hidden internal business intelligence, Flipcommons can use analytics to:
+Rather than treating analytics as hidden internal business intelligence, we can use analytics to:
 
 - coordinate preservation work
 - celebrate contributors

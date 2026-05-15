@@ -1,4 +1,4 @@
-# Flipcommons Analytics Architecture
+# Analytics Architecture
 
 ## Goals
 
@@ -68,7 +68,7 @@ Recommended configuration:
 
 ## Architectural Pattern
 
-Flipcommons should use an internal analytics abstraction layer.
+We should use an internal analytics abstraction layer.
 
 Preferred:
 
@@ -123,7 +123,7 @@ Retention policies and access controls may differ between systems.
 
 ## Public Dashboards
 
-Public dashboards should eventually be built directly into Flipcommons rather than embedding vendor dashboards.
+Public dashboards should eventually be built directly into the product rather than embedding vendor dashboards.
 
 Potential public dashboard areas:
 

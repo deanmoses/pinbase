@@ -1,4 +1,4 @@
-# Flipcommons Event Taxonomy
+# Event Taxonomy
 
 ## Philosophy
 
@@ -159,7 +159,7 @@ The following aggregate metrics may eventually be public:
 
 ## Explicit Non-Goals
 
-Flipcommons intentionally avoids:
+We intentionally avoid:
 
 - behavioral fingerprinting
 - advertising profiles

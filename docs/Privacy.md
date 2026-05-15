@@ -1,6 +1,8 @@
 # Privacy Principles
 
-This is the internal principles doc. The user-facing privacy policy that implements these principles lives at [frontend/src/routes/(legal)/privacy/+page.svelte](<../frontend/src/routes/(legal)/privacy/+page.svelte>) (served at `/privacy`).
+This is an internal privacy principles doc.
+
+The user-facing privacy policy lives at [frontend/src/routes/(legal)/privacy/+page.svelte](<../frontend/src/routes/(legal)/privacy/+page.svelte>) (served at `/privacy`).
 
 ## Core Philosophy
 
@@ -78,7 +80,66 @@ Analytics must reinforce Flipcommons as:
 
 rather than a growth-optimization platform.
 
-## Things Flipcommons Intentionally Avoids
+## Analytics
+
+The principles above govern all data collection. This section applies them specifically to analytics — what we want analytics _for_, how to decide what to instrument, and the cultural frame we use when making those calls.
+
+### Purpose
+
+We use analytics to improve the preservation, discovery, and contribution experience around pinball history and culture.
+
+Analytics exist to support stewardship of a public knowledge commons — not advertising, manipulation, or behavioral extraction.
+
+We view analytics as a tool for:
+
+- reducing contributor friction
+- improving discoverability
+- understanding preservation gaps
+- measuring community health
+- improving reliability and usability
+- supporting transparent public-interest infrastructure
+
+We do not use analytics to maximize addiction, compulsion, or engagement for its own sake.
+
+### Instrument Behavior, Not People
+
+We are interested in workflows and system behavior, not invasive user profiling.
+
+Examples of healthy analytics:
+
+- abandoned edit flows
+- searches with zero results
+- upload failures
+- article discovery paths
+- contribution success rates
+
+Examples of unhealthy analytics:
+
+- behavioral fingerprinting
+- engagement addiction metrics
+- manipulative notification optimization
+- cross-site identity tracking
+- predictive behavioral scoring
+
+### Retention
+
+Analytics data should be kept only as long as it remains useful for the question it was collected to answer. Prefer short retention windows; prefer aggregation over keeping raw events indefinitely.
+
+### Cultural Positioning
+
+We are philosophically closer to:
+
+- Wikipedia
+- Archive.org
+- OpenStreetMap
+- Discogs
+- public-interest digital infrastructure
+
+than to advertising-driven social platforms.
+
+When deciding whether to ship a given analytics event or vendor integration, ask: would a project in the list above ship this? If not, that's a strong signal not to.
+
+## Things We Intentionally Avoid
 
 - engagement addiction metrics
 - manipulative notification funnels
