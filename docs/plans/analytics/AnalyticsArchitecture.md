@@ -80,14 +80,14 @@ The abstraction buys us:
 ```text
 frontend/src/lib/analytics/
   index.ts            Public API: capture(), pageview(), identify(), reset()
-  events.ts           Typed event registry (mirrors backend)
+  events.ts           Typed event registry (frontend-emitted events)
   posthog.ts          PostHog adapter — the only file that imports posthog-js
   noop.ts             No-op adapter (dev, tests, opt-out)
   config.ts           PostHog init options (the privacy lockdown lives here)
 
 backend/apps/analytics/
   __init__.py         Public API: analytics.capture(), identify()
-  events.py           Typed event registry (TypedDicts, mirrors frontend)
+  events.py           Typed event registry (server-emitted events, as TypedDicts)
   posthog_adapter.py  The only module that imports the posthog package
   noop.py
   middleware.py       Binds the current user's pseudonym to the request
@@ -203,10 +203,10 @@ Server-side events flow through the Python adapter using the pseudonym attached 
 
 ## Typed Events
 
-The event registry is the single source of truth for event names and property shapes. Adding an event means adding a row to both `events.ts` and `events.py`; a contract test asserts the two registries agree.
+The event registry is the single source of truth for event names and property shapes. Each side has its own registry covering only the events it emits — the frontend and backend taxonomies are disjoint (see [Where Events Originate](#where-events-originate)). Both registries exist so `analytics.capture()` calls are type-checked and properties never devolve to `dict[str, Any]`.
 
 ```ts
-// events.ts
+// events.ts — frontend-emitted events
 type EventRegistry = {
   search_performed: {
     query_length: number;
@@ -214,35 +214,39 @@ type EventRegistry = {
     logged_in: boolean;
   };
   search_zero_results: { normalized_query: string; logged_in: boolean };
-  edit_saved: {
-    page_type: PageType;
-    duration_seconds: number;
-    is_first_edit: boolean;
+  machine_page_viewed: {
+    machine_id: string;
+    manufacturer: string;
+    era: Era;
+    has_media: boolean;
   };
-  // ...
+  edit_started: { page_type: PageType; logged_in: boolean };
+  edit_abandoned: { page_type: PageType; duration_seconds: number };
 };
 ```
 
 ```python
-# events.py
-class SearchPerformed(TypedDict):
-    query_length: int
-    results_count: int
-    logged_in: bool
-
-
-class SearchZeroResults(TypedDict):
-    normalized_query: str
-    logged_in: bool
-
-
+# events.py — server-emitted events
 class EditSaved(TypedDict):
     page_type: PageType
     duration_seconds: int
     is_first_edit: bool
 
 
-# ...
+class PhotoUploaded(TypedDict):
+    machine_id: str
+    image_type: ImageType
+    upload_size_bucket: SizeBucket
+
+
+class AccountRegistered(TypedDict):
+    referral_source: str | None
+    invite_source: str | None
+
+
+class ModerationAction(TypedDict):
+    action_type: ModerationActionType
+    content_type: ContentType
 ```
 
 Per the project's [strong-typing rule](../../Python.md), backend properties are TypedDicts, not `dict[str, Any]`. Adding a property to an event without updating the registry is a type error on both sides.
