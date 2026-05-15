@@ -1,12 +1,14 @@
 # Privacy Principles
 
+This is the internal principles doc. The user-facing privacy policy that implements these principles lives at [frontend/src/routes/(legal)/privacy/+page.svelte](<../frontend/src/routes/(legal)/privacy/+page.svelte>) (served at `/privacy`).
+
 ## Core Philosophy
 
 We exist to preserve and share knowledge about pinball history and culture.
 
 User trust is more important than maximizing data collection.
 
-Analytics and operational data collection should always support:
+Analytics and operational data collection must always support:
 
 - stewardship
 - usability
@@ -23,6 +25,12 @@ not extraction or manipulation.
 Collect the smallest amount of data necessary to answer legitimate product and operational questions.
 
 Avoid speculative collection.
+
+### Minimal Public Disclosure
+
+Display the minimum amount of personal information needed for community participation.
+
+Users participate under a chosen username. Real names and other PII are NEVER to be shown publicly without explicit approval by the user. It should go without saying, but email addresses will NEVER be made public.
 
 ### No Advertising Ecosystem Participation
 
@@ -53,25 +61,15 @@ Avoid:
 
 If session replay is used:
 
-- it should be scoped and limited
-- sensitive fields should be masked
-- replay should support debugging and usability improvements only
+- it must be scoped and limited
+- sensitive fields must be masked
+- replay must support debugging and usability improvements only
 
-Session replay should never become generalized behavioral surveillance.
-
-### Human-Readable Transparency
-
-Flipcommons should explain analytics practices in plain language.
-
-Users should understand:
-
-- what is collected
-- why it is collected
-- how it helps the project
+Session replay must never become generalized behavioral surveillance.
 
 ### Public Interest Orientation
 
-Analytics should reinforce Flipcommons as:
+Analytics must reinforce Flipcommons as:
 
 - a public knowledge resource
 - a preservation project

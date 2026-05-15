@@ -9,13 +9,20 @@
 <h1>Privacy Policy</h1>
 <p class="last-updated">Last updated: March 2026</p>
 
+<h2>How We Operate</h2>
+<p>
+  {SITE_NAME} is a public knowledge project, not an advertising or growth-optimization platform. We do
+  not design for engagement addiction, infinite-scroll optimization, or manipulative notification funnels.
+</p>
+
 <h2>Information We Collect</h2>
 <p>
-  {SITE_NAME} collects minimal information needed to operate the service:
+  {SITE_NAME} collects only the minimal information needed to operate and improve the service:
 </p>
 <ul>
   <li>
-    <strong>Account information</strong> — email address and display name, if you create an account.
+    <strong>Account information</strong> — if you create an account: your email address, your chosen username,
+    and your first and last name (provided by your sign-in provider).
   </li>
   <li>
     <strong>Usage data</strong> — standard web server logs including IP addresses, browser type, and pages
@@ -23,11 +30,19 @@
   </li>
 </ul>
 
-<h2>How We Use Information</h2>
+<h2>Information We Publish</h2>
 <p>
-  We use collected information to operate and improve the service. We do not sell personal
-  information to third parties.
+  Only your username is shown publicly — for example, on contributions you make and on your profile
+  page. Your email address and real name are never displayed to other users.
 </p>
+
+<h2>How We Don't Use Information</h2>
+<p>We do not sell personal information to third parties. We do not:</p>
+<ul>
+  <li>share analytics with ad networks or participate in behavioral advertising</li>
+  <li>perform cross-site tracking</li>
+  <li>fingerprint visitors, build shadow profiles, or perform behavioral profiling</li>
+</ul>
 
 <h2>Cookies</h2>
 <p>
@@ -48,10 +63,30 @@
 <!-- TODO: Add account deletion process details -->
 
 <h2>Third-Party Services</h2>
+<p>{SITE_NAME} relies on a number of third-party services to operate:</p>
+<ul>
+  <li>
+    <strong><a href="https://workos.com" target="_blank" rel="noopener">WorkOS</a></strong> — handles
+    sign-in and authentication.
+  </li>
+  <li>
+    <strong><a href="https://railway.com" target="_blank" rel="noopener">Railway</a></strong> — hosts
+    the application.
+  </li>
+  <li>
+    <strong><a href="https://bunny.net" target="_blank" rel="noopener">Bunny CDN</a></strong> — serves
+    images and other media.
+  </li>
+  <li>
+    <strong
+      ><a href="https://www.idrive.com/e2/" target="_blank" rel="noopener">iDrive e2</a></strong
+    >
+    — stores uploaded files.
+  </li>
+</ul>
 <p>
-  {SITE_NAME} is hosted on <a href="https://railway.com" target="_blank" rel="noopener">Railway</a>.
-  Your interactions with the service are subject to Railway's infrastructure and data handling
-  practices.
+  Your interactions with the service are subject to these providers' infrastructure and data
+  handling practices.
 </p>
 <!-- TODO: Add any analytics services if applicable -->
 
