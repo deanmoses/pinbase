@@ -38,9 +38,11 @@ Potential metrics:
 Potential metrics:
 
 - most-viewed machines
+- trending machines
 - trending manufacturers
 - trending eras
 - most-linked articles
+- recently uploaded media
 - searches with zero results
 - emerging areas of interest
 
@@ -64,6 +66,7 @@ Potential metrics:
 - manufacturers with sparse coverage
 - eras needing preservation work
 - missing manuals or documentation
+- active restoration areas
 
 This dashboard could become one of the most valuable community coordination tools.
 
