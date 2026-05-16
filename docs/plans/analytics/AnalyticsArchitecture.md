@@ -6,13 +6,12 @@ Also see:
 - [AnalyticsVendors.md](AnalyticsVendors.md) — vendor comparison
 - [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md) — event names and property shapes
 - [AnalyticsPlan.md](AnalyticsPlan.md) — phased rollout
-- [PublicDashboards.md](PublicDashboards.md)
 
 This doc is the contract: what is true regardless of which events we ship. Implementation phasing lives in [AnalyticsPlan.md](AnalyticsPlan.md) and its child plans.
 
 ## Provider
 
-[PostHog Cloud](https://posthog.com/) is the chosen analytics provider.
+[PostHog Cloud](https://posthog.com/) is the chosen analytics provider. See [AnalyticsVendors.md](AnalyticsVendors.md) for the vendor comparison.
 
 PostHog ships several features that appear in our [non-goals](Analytics.md#non-goals): autocapture, session replay, heatmaps, surveys, behavioral cohorts. These are disabled at the integration boundary (see [Privacy Enforcement](#privacy-enforcement)). The abstraction layer below is what keeps that discipline enforceable in code review.
 

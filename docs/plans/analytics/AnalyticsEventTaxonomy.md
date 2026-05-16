@@ -4,9 +4,7 @@ Also see:
 
 - [Analytics.md](Analytics.md)
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
-- [AnalyticsVendors.md](AnalyticsVendors.md)
 - [AnalyticsPlan.md](AnalyticsPlan.md) — phased rollout
-- [PublicDashboards.md](PublicDashboards.md)
 
 This was AI-generated and has NOT yet been reviewed by a human. It's probably wrong.
 

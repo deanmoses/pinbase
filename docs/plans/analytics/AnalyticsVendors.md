@@ -3,13 +3,10 @@
 Also see:
 
 - [Analytics.md](Analytics.md)
-- [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
-- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
-- [PublicDashboards.md](PublicDashboards.md)
 
 ## Status
 
-**No vendor selected yet.** This document records the candidates and the evaluation against the requirements in [Analytics.md](Analytics.md).
+**Selected: [PostHog Cloud](#posthog-cloud).** See [Recommendation: PostHog over Umami](#recommendation-posthog-over-umami) for the reasoning. This document records the candidates and the evaluation against the requirements in [Analytics.md](Analytics.md).
 
 ## Open Questions
 

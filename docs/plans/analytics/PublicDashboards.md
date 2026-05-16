@@ -6,52 +6,24 @@ Also see:
 
 ## The Idea
 
-Expose analytics data to the public, to build trust and a sense of community.
+Most analytics is hidden internal BI. Exposing it builds trust, coordinates community effort, and could become part of the project's identity.
 
-Public analytics could become part of the identity of the project itself.
+Public dashboards could:
 
-Rather than treating analytics as hidden internal business intelligence, we can use analytics to:
+- coordinate preservation work — surface what's missing, who's working on it
+- celebrate contributors and the activity around them
+- reveal cultural history and forgotten machines
+- support transparency about how the project is actually used
 
-- coordinate preservation work
-- celebrate contributors
-- reveal cultural history
-- surface forgotten machines
-- support collaborative stewardship
+## Tone
 
-Public dashboards should:
+The aesthetic reference is library, archive, museum — not startup KPI dashboard:
 
-- celebrate preservation
-- encourage contribution
-- reveal knowledge gaps
-- support transparency
-- reinforce community stewardship
+- calm and readable, not optimization theater
+- public-interest framing, not growth-hack framing
+- exploratory and archival, not surveillance-flavored
 
-Dashboards should feel:
-
-- institutional
-- archival
-- exploratory
-- public-serving
-
-not growth-hacker-oriented.
-
-## Design Guidance
-
-Dashboards should:
-
-- avoid corporate BI aesthetics
-- remain readable and calm
-- emphasize public-interest goals
-- prioritize clarity over optimization theater
-
-Visual tone should feel closer to:
-
-- libraries
-- archives
-- museums
-- public knowledge institutions
-
-than startup KPI dashboards.
+Avoid corporate BI visuals. Prioritize clarity over density.
 
 ## Dashboard Categories
 
