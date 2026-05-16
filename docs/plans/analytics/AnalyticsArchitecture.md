@@ -2,59 +2,19 @@
 
 Also see:
 
-- [Analytics.md](Analytics.md)
-- [AnalyticsVendors.md](AnalyticsVendors.md)
-- [EventTaxonomy.md](EventTaxonomy.md)
-- [PublicDashboardIdeas.md](PublicDashboardIdeas.md)
+- [Analytics.md](Analytics.md) — product motivation, goals, non-goals
+- [AnalyticsVendors.md](AnalyticsVendors.md) — vendor comparison
+- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md) — event names and property shapes
+- [AnalyticsPlan.md](AnalyticsPlan.md) — phased rollout
+- [PublicDashboards.md](PublicDashboards.md)
+
+This doc is the contract: what is true regardless of which events we ship. Implementation phasing lives in [AnalyticsPlan.md](AnalyticsPlan.md) and its child plans.
 
 ## Provider
 
 [PostHog Cloud](https://posthog.com/) is the chosen analytics provider.
 
 PostHog ships several features that appear in our [non-goals](Analytics.md#non-goals): autocapture, session replay, heatmaps, surveys, behavioral cohorts. These are disabled at the integration boundary (see [Privacy Enforcement](#privacy-enforcement)). The abstraction layer below is what keeps that discipline enforceable in code review.
-
-## Tracking Scope
-
-**We track a user's journey across one HTTP instance of the SPA.** From the initial page load through every client-side route change, search, and contribution event, until the tab is closed or the document is replaced (hard refresh, external navigation). This is the product goal of analytics, not an incidental side-effect — we want to answer questions like:
-
-- What do visitors read after the homepage?
-- Which entry pages lead to a search? To a contribution?
-- Where do contributors drop off in the edit flow?
-- Which referrers bring people who actually explore vs. bounce?
-
-Within one SPA instance, every event is linked under a single id:
-
-- **Anonymous visitors** — a heap-bound `distinct_id`, regenerated for each new SPA instance. Not linked across instances (a hard refresh or new tab starts fresh).
-- **Logged-in users** — the per-user pseudonym (see [Identity & Pseudonymization](#identity--pseudonymization)). A contributor's journeys stitch together across instances via the pseudonym.
-
-We do **not** link anonymous journeys across SPA instances, fingerprint, set cookies, or persist any identifier to storage.
-
-See [Pageviews](#pageviews) for the mechanism that turns CSR route changes into recorded events.
-
-## Pageviews
-
-PostHog's auto-pageview is off. Pageviews fire from a SvelteKit [`afterNavigate`](https://svelte.dev/docs/kit/$app-navigation#afterNavigate) hook in the root layout, so every client-side route change is captured — not just the initial SSR load:
-
-```svelte
-<!-- frontend/src/routes/+layout.svelte -->
-<script lang="ts">
-  import { afterNavigate } from "$app/navigation";
-  import { analytics } from "$lib/analytics";
-
-  afterNavigate(({ from, to }) => {
-    if (!to) return;
-    analytics.pageview(to.url.pathname, {
-      referrer: from?.url.pathname ?? null,
-    });
-  });
-</script>
-```
-
-`afterNavigate` fires after the initial load **and** after every subsequent CSR navigation, so a single hook covers the whole SPA. Without this, the SPA would look like a one-page-per-visit site to PostHog — pages-per-session would always be 1 and bounce rate would be 100%. These are per-instance aggregate counts that need no persistent identity, consistent with [Analytics.md's reach-as-volume stance](Analytics.md#visitor-traffic-analytics).
-
-External referrer (`document.referrer`) is captured by PostHog at session start as `$referrer` and `$referring_domain`. The internal `referrer` property in the hook above is the previous in-SPA pathname, used for journey reconstruction.
-
-No pageview is fired from `+layout.server.ts`: server-rendered HTML doesn't imply the user actually saw the page (bots, prefetches, etc.).
 
 ## Decouple from Provider
 
@@ -76,9 +36,9 @@ posthog.capture("search_performed", { ... });
 
 The abstraction buys us:
 
-- **vendor independence** — switching providers is one file
+- **vendor independence** — switching providers is one file (see [Migration Path](#migration-path))
 - **centralized privacy enforcement** — non-goal features can't slip in via ad-hoc SDK use
-- **typed event surface** — properties are checked against [EventTaxonomy.md](EventTaxonomy.md)
+- **typed event surface** — properties are checked against [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
 - **testable** — the test harness swaps in a recording implementation
 - **consistent naming** — events live in one registry, so no string typos
 
@@ -133,7 +93,12 @@ No `track()`, no `page()`, no provider-specific verbs. No raw properties dict th
 
 ## Identity & Pseudonymization
 
-PostHog only ever sees a per-user pseudonym, never `user.id` or any other identity field. The pseudonym is **derived, not stored**:
+Every event is attributed under a single id within one SPA instance — from initial page load through every CSR navigation until the tab is closed or the document is replaced:
+
+- **Anonymous visitors** — a heap-bound `distinct_id`, regenerated each new SPA instance. Not linked across instances (a hard refresh or new tab starts fresh).
+- **Logged-in users** — a per-user pseudonym, derived from `user.id`. A contributor's journeys stitch together across instances via the pseudonym.
+
+PostHog only ever sees the pseudonym, never `user.id` or any other identity field. The pseudonym is **derived, not stored**:
 
 ```python
 def pseudonym_for(user_id: int) -> str:
@@ -158,12 +123,14 @@ A user opting out triggers a PostHog delete API call for their current pseudonym
 
 ### Anonymous visitors
 
-Not assigned a pseudonym. PostHog runs with `persistence: "memory"`: the `distinct_id` lives only in the JS heap, with no cookie or storage. That heap-bound id is what links anonymous events within one SPA instance (see [Tracking Scope](#tracking-scope)); when the document is replaced, the id is gone.
+Not assigned a pseudonym. PostHog runs with `persistence: "memory"` (see [Privacy Enforcement](#privacy-enforcement)): the `distinct_id` lives only in the JS heap, with no cookie or storage. When the document is replaced, the id is gone.
 
-### When `identify()` is called
+### Where identify() runs
 
-- **Frontend** — the root layout calls `analytics.identify(pseudonym)` once auth state hydrates and confirms the user is logged in. The pseudonym arrives in the page payload alongside the user object. On logout, the layout calls `analytics.reset()`, clearing PostHog's in-memory state.
-- **Backend** — `analytics.capture()` derives the pseudonym from `request.user.id` via `pseudonym_for()`; middleware caches it per-request so the signup view's `account_registered` event uses the same value as every subsequent event.
+The contract is symmetric across the two sides; implementation detail lives in the plan docs.
+
+- **Frontend** — the root layout calls `analytics.identify(pseudonym)` once auth state hydrates. The pseudonym arrives in the page payload alongside the user object. Logout calls `analytics.reset()`. Details in [AnalyticsFrontendPlan.md § Phase 3](AnalyticsFrontendPlan.md#phase-3-identify-and-reset).
+- **Backend** — `analytics.capture()` takes the pseudonym as a keyword argument. Middleware derives it once per request via `pseudonym_for(request.user.id)` and caches it on the request object so every view sees the same value. Details in [AnalyticsBackendPlan.md § Phase 1](AnalyticsBackendPlan.md#phase-1-skeleton).
 
 ### Anonymous-to-logged-in linking
 
@@ -171,14 +138,14 @@ When `identify(pseudonym)` runs after login within the same SPA instance, PostHo
 
 ## Privacy Enforcement
 
-The PostHog adapter pins the following init options. Reviewers reject any change that loosens them:
+We do not link anonymous journeys across SPA instances, fingerprint, set cookies, or persist any identifier to storage. The PostHog adapter pins the following init options to enforce that. Reviewers reject any change that loosens them:
 
 ```ts
 posthog.init(PUBLIC_POSTHOG_KEY, {
   api_host: "https://eu.posthog.com",
   persistence: "memory", // no cookies, no storage; SPA navigations stay linked via the JS heap
   autocapture: false, // no implicit click/form tracking
-  capture_pageview: false, // we call pageview() explicitly
+  capture_pageview: false, // we call pageview() explicitly from afterNavigate
   capture_pageleave: false,
   disable_session_recording: true,
   disable_surveys: true,
@@ -201,6 +168,8 @@ posthog.host = "https://eu.posthog.com"
 posthog.disable_geoip = True
 ```
 
+An integration test on each side asserts these options are wired up; weakening any of them fails the test (see [AnalyticsBackendPlan.md](AnalyticsBackendPlan.md#phase-1-skeleton) and [AnalyticsFrontendPlan.md](AnalyticsFrontendPlan.md#phase-1-skeleton)).
+
 Mapping to the [non-goals](Analytics.md#non-goals):
 
 | Non-goal                  | Enforcement                                                                                                                         |
@@ -213,6 +182,8 @@ Mapping to the [non-goals](Analytics.md#non-goals):
 
 ## Where Events Originate
 
+Events are emitted from the side that has the truth. Client-side captures UI lifecycle and CSR navigation; server-side captures post-write confirmation and transactional moments.
+
 | Event                                     | Origin | Why                                                   |
 | ----------------------------------------- | ------ | ----------------------------------------------------- |
 | pageviews                                 | client | CSR navigations don't reach the server                |
@@ -222,6 +193,8 @@ Mapping to the [non-goals](Analytics.md#non-goals):
 | `edit_saved`, `photo_uploaded`            | server | post-write — must reflect the actual mutation         |
 | `account_registered`                      | server | fires inside the signup transaction                   |
 | `moderation_action`                       | server | moderation runs server-side                           |
+
+Pageviews fire from a SvelteKit `afterNavigate` hook, not auto-capture, so every CSR route change is recorded — not just the initial SSR load. Without explicit firing, the SPA would look like a one-page-per-visit site to PostHog. Implementation in [AnalyticsFrontendPlan.md § Phase 2](AnalyticsFrontendPlan.md#phase-2-pageviews).
 
 Server-side events flow through the Python adapter using the pseudonym attached to the request by middleware. All server-side events in the registry require an authenticated user; there are no anonymous server-side events.
 
@@ -237,15 +210,7 @@ type EventRegistry = {
     results_count: number;
     logged_in: boolean;
   };
-  search_zero_results: { normalized_query: string; logged_in: boolean };
-  machine_page_viewed: {
-    machine_id: string;
-    manufacturer: string;
-    era: Era;
-    has_media: boolean;
-  };
-  edit_started: { page_type: PageType; logged_in: boolean };
-  edit_abandoned: { page_type: PageType; duration_seconds: number };
+  // ... see AnalyticsEventTaxonomy.md for the full list
 };
 ```
 
@@ -257,42 +222,18 @@ class EditSaved(TypedDict):
     is_first_edit: bool
 
 
-class PhotoUploaded(TypedDict):
-    machine_id: str
-    image_type: ImageType
-    upload_size_bucket: SizeBucket
-
-
-class AccountRegistered(TypedDict):
-    referral_source: str | None
-    invite_source: str | None
-
-
-class ModerationAction(TypedDict):
-    action_type: ModerationActionType
-    content_type: ContentType
+# ... see AnalyticsEventTaxonomy.md for the full list
 ```
 
 Per the project's [strong-typing rule](../../Python.md), backend properties are TypedDicts, not `dict[str, Any]`. Adding a property to an event without updating the registry is a type error on both sides.
 
+Full event list and property semantics live in [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md).
+
 ## Testing
 
-The default adapter in tests is `RecordingAnalytics`, which captures calls into an array and exposes them to assertions:
+Both sides use a `RecordingAnalytics` adapter as the default test fixture, capturing calls into an array for assertions. The PostHog adapter is never exercised in unit tests — one integration test per side asserts the locked-down init config and nothing else.
 
-```ts
-test("search records search_performed", () => {
-  const a = new RecordingAnalytics();
-  doSearch(a, "medieval madness");
-  expect(a.events).toEqual([
-    {
-      event: "search_performed",
-      properties: { query_length: 16, results_count: 1, logged_in: false },
-    },
-  ]);
-});
-```
-
-The PostHog adapter is never exercised in unit tests. One integration test asserts that `init()` is called with the locked-down config above; if anyone weakens an option, that test fails.
+Concrete test patterns live in [AnalyticsBackendPlan.md § Test patterns](AnalyticsBackendPlan.md#test-patterns) and [AnalyticsFrontendPlan.md § Test patterns](AnalyticsFrontendPlan.md#test-patterns).
 
 ## Migration Path
 

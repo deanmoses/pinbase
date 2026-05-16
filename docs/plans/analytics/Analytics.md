@@ -4,8 +4,9 @@ Also see:
 
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
 - [AnalyticsVendors.md](AnalyticsVendors.md)
-- [EventTaxonomy.md](EventTaxonomy.md)
-- [PublicDashboardIdeas.md](PublicDashboardIdeas.md)
+- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
+- [AnalyticsPlan.md](AnalyticsPlan.md) — phased rollout
+- [PublicDashboards.md](PublicDashboards.md)
 
 ## Purpose
 
@@ -14,14 +15,12 @@ Analytics in this project should support two narrow jobs:
 1. Understanding **who visits the site and how they got here**, so we can grow reach and improve discovery.
 2. Understanding **how contributors use the product**, so we can fix friction and prioritize improvements.
 
-A third downstream surface — [public dashboards](PublicDashboardIdeas.md) — reuses the same data to celebrate preservation work and coordinate community effort.
-
-Analytics is **not** observability. See [Operational Telemetry](#operational-telemetry) below.
+A third downstream surface — [public dashboards](PublicDashboards.md) — reuses the same data to celebrate preservation work and coordinate community effort.
 
 ## Audiences
 
 - **Maintainers** — the [small team](../../SmallTeam.md) running the project. Primary consumers of all analytics.
-- **Contributors** — community members, via [public dashboards](PublicDashboardIdeas.md). Consumers of curated aggregates only, never raw events.
+- **Contributors** — community members, via [public dashboards](PublicDashboards.md). Consumers of curated aggregates only, never raw events.
 - **Visitors** — the public, via the same dashboards.
 
 No internal access tier above "maintainer"; no third-party data sharing.
@@ -41,17 +40,17 @@ Aggregate, mostly-anonymous web traffic data.
 
 ### Product Analytics
 
-Event-based data about how authenticated and anonymous users interact with product surfaces. Grouped to match the [event taxonomy](EventTaxonomy.md):
+Event-based data about how authenticated and anonymous users interact with product surfaces. Grouped to match the [event taxonomy](AnalyticsEventTaxonomy.md):
 
 - **Discovery** — search success and failure, what content gets found, what doesn't.
 - **Contribution** — edit and upload flows, where contributors drop off, time-to-first-contribution.
 - **Community** — onboarding paths, retention of contributors over time.
 
-Event scope is deliberately narrow; see [EventTaxonomy.md](EventTaxonomy.md) for the "intentional, not just-in-case" philosophy.
+Event scope is deliberately narrow; see [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md) for the "intentional, not just-in-case" philosophy.
 
 ### Public Dashboards
 
-Curated, aggregate-only views built on top of the above. See [PublicDashboardIdeas.md](PublicDashboardIdeas.md).
+Curated, aggregate-only views built on top of the above. See [PublicDashboards.md](PublicDashboards.md).
 
 ## Constraints
 
@@ -90,14 +89,14 @@ We intentionally avoid:
 - engagement-addiction metrics, manipulative retention analytics, predictive behavioral scoring
 - operational telemetry (see below) — different system, different retention, different access
 
-## Operational Telemetry
+### Non-goal: Observability / Operational Telemetry
 
-Operational telemetry is a separate concern with different purposes, retention policies, and access controls. It is **not** part of this analytics system.
-
-Examples of operational telemetry:
+Operational telemetry is a separate concern with different purposes, retention policies, and access controls. It is **not** part of analytics. Examples of operational telemetry:
 
 - server logs
 - performance metrics
 - error tracking
 - abuse detection
 - security auditing
+
+See [Observability.md](../observability/Observability.md).

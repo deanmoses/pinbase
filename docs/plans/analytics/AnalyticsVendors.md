@@ -4,8 +4,8 @@ Also see:
 
 - [Analytics.md](Analytics.md)
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
-- [EventTaxonomy.md](EventTaxonomy.md)
-- [PublicDashboardIdeas.md](PublicDashboardIdeas.md)
+- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
+- [PublicDashboards.md](PublicDashboards.md)
 
 ## Status
 

@@ -3,11 +3,20 @@
 Also see:
 
 - [Analytics.md](Analytics.md)
-- [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
-- [AnalyticsVendors.md](AnalyticsVendors.md)
-- [EventTaxonomy.md](EventTaxonomy.md)
 
-## Philosophy
+## The Idea
+
+Expose analytics data to the public, to build trust and a sense of community.
+
+Public analytics could become part of the identity of the project itself.
+
+Rather than treating analytics as hidden internal business intelligence, we can use analytics to:
+
+- coordinate preservation work
+- celebrate contributors
+- reveal cultural history
+- surface forgotten machines
+- support collaborative stewardship
 
 Public dashboards should:
 
@@ -25,6 +34,24 @@ Dashboards should feel:
 - public-serving
 
 not growth-hacker-oriented.
+
+## Design Guidance
+
+Dashboards should:
+
+- avoid corporate BI aesthetics
+- remain readable and calm
+- emphasize public-interest goals
+- prioritize clarity over optimization theater
+
+Visual tone should feel closer to:
+
+- libraries
+- archives
+- museums
+- public knowledge institutions
+
+than startup KPI dashboards.
 
 ## Dashboard Categories
 
@@ -87,33 +114,3 @@ Examples:
 - “Fastest Growing Areas”
 - “Manufacturers Needing Photos”
 - “Community Preservation Progress”
-
-## Design Guidance
-
-Dashboards should:
-
-- avoid corporate BI aesthetics
-- remain readable and calm
-- emphasize public-interest goals
-- prioritize clarity over optimization theater
-
-Visual tone should feel closer to:
-
-- libraries
-- archives
-- museums
-- public knowledge institutions
-
-than startup KPI dashboards.
-
-## Long-Term Opportunity
-
-Public analytics can become part of the identity of the project itself.
-
-Rather than treating analytics as hidden internal business intelligence, we can use analytics to:
-
-- coordinate preservation work
-- celebrate contributors
-- reveal cultural history
-- surface forgotten machines
-- support collaborative stewardship

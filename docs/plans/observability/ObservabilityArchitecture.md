@@ -5,22 +5,30 @@ Also see:
 - [Observability.md](Observability.md)
 - [ObservabilityVendors.md](ObservabilityVendors.md)
 
-## Provider
+## Provider: Sentry
 
 We chose [Sentry](https://sentry.io) as the observability provider. Uptime monitoring also lives in Sentry; see [Uptime](#uptime) below.
 
+### Disabled features
+
 Sentry ships several features that appear in our [non-goals](Observability.md#non-goals): session replay, profiling, full-request performance tracing, and the user-feedback widget. These are disabled at the SDK init boundary, not "left at defaults and trusted." Privacy and noise discipline are configured in code, not assumed from the vendor.
+
+### Sentry projects
 
 The Sentry org will host two projects, one per runtime:
 
 - `flipcommons-backend` (platform: Python/Django)
 - `flipcommons-frontend` (platform: JavaScript/SvelteKit)
 
-Two projects instead of one, because Python and JS stack traces group cleanly when separated and per-project alert routing lets us tune signal independently.
+Two projects because Python and JS stack traces group cleanly when separated and per-project alert routing lets us tune signal independently.
 
-**Free-tier quota.** Sentry's free tier covers ~5k errors/month and retains events for 30 days. The vendor doc's [year-one projection](ObservabilityVendors.md#sentry) is comfortable inside that, but a runaway loop on a single endpoint could burn it. If quota is exceeded, Sentry drops events rather than billing — the failure mode is "we go blind," not "surprise charge." Watch the org-level usage page monthly; cross the cliff only with a deliberate upgrade to the $26/mo Team plan, not by accident.
+### Free-tier quota
 
-**Secrets.** `SENTRY_DSN` is the ingestion endpoint and Sentry treats it as a public key — it ends up in the frontend bundle and is not a secret. `SENTRY_AUTH_TOKEN`, used at build time to upload sourcemaps and tag releases, **is** a secret and belongs in Railway's secret store.
+Sentry's free tier covers ~5k errors/month and retains events for 30 days. The [year-one projection](ObservabilityVendors.md#sentry) is comfortably inside that, but a runaway loop on a single endpoint could burn it. If quota is exceeded, Sentry drops events rather than billing — the failure mode is "we go blind," not "surprise charge." Watch the org-level usage page monthly; cross the cliff only with a deliberate upgrade to the $26/mo Team plan, not by accident.
+
+### Secrets
+
+`SENTRY_DSN` is the ingestion endpoint and Sentry treats it as a public key — it ends up in the frontend bundle and is not a secret. `SENTRY_AUTH_TOKEN`, used at build time to upload sourcemaps and tag releases, **is** a secret and belongs in Railway's secret store.
 
 ## Scope
 
