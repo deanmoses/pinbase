@@ -109,6 +109,7 @@ Drawn from [Analytics.md](Analytics.md); not restated in full here.
 - **Raw queries**: custom event data supported as typed properties (strings/numbers/booleans)
 - **Funnels / retention**: both yes; cohort breakdowns advertised as core features. Tier gating for these features on the Hobby plan not yet verified
 - **Session replay**: yes since v3.1.0, but as a _separately-loaded_ `recorder.js` script — must be deliberately added to the page (see [docs](https://docs.umami.is/docs/replays)). Not in the main tracker, not toggled by an SDK flag
+- **Auto-collection on by default**: the main tracker auto-collects pageviews (including screen dimensions — a fingerprinting concern flagged in [AnalyticsArchitecture.md](AnalyticsArchitecture.md#privacy-enforcement)). Disabled with `data-auto-track="false"` on the script tag (see [tracker functions](https://docs.umami.is/docs/tracker-functions)). Real but smaller surface than PostHog's autocapture
 - **Cost**: Hobby tier $0/mo (100K events/mo, 3 websites, 6-month retention, community support); Pro $20/mo (1M events/mo) → free covers launch; Pro is over the $10 ceiling but bounded
 - **Hosting**: managed (US)
 - **Retention**: 6 months on Hobby, longer on Pro
@@ -156,7 +157,7 @@ This is a closer call than the headline implies. The honest tradeoff:
 
 ### Where Umami wins for this project
 
-- **Narrower main-SDK surface.** PostHog's main SDK ships autocapture, pageview capture, session replay, surveys, heatmaps, and feature flags — most default-on or one project-setting away. Umami's main tracker ships explicit events only; session replay is a separate `recorder.js` script that has to be deliberately added (surveys, heatmaps, feature flags, autocapture aren't features at all). Both vendors require _some_ lock-down, but Umami's surface is smaller and harder to enable accidentally.
+- **Narrower main-SDK surface.** Both vendors auto-collect on default config and require explicit lock-down — Umami's main tracker auto-collects pageviews (including screen dimensions, a fingerprinting concern); PostHog autocaptures every click, form submit, and input change with element selectors on top of pageviews. The asymmetry that survives the lock-down: surveys, heatmaps, and feature flags are PostHog features that Umami simply doesn't have. Session replay is in both, but Umami's lives in a separately-loaded `recorder.js` (opt-in by script inclusion) while PostHog's is in the main SDK gated by an opt-out flag.
 - **Cultural fit.** PostHog is built for growth/marketing/product teams that want funnels, replays, and experimentation. Umami is built for developers and small operators who want privacy-first analytics without the surveillance machinery. The latter matches what this project actually is.
 - **Simpler mental model.** Smaller product, smaller docs, smaller SDK surface.
 
