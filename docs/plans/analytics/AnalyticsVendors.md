@@ -36,8 +36,8 @@ Drawn from [Analytics.md](Analytics.md); not restated in full here.
 | Vendor                        | Covers traffic | Covers events | Cookieless | Funnels        | Retention / cohorts | Cost at 2.5k pv | Cost at 400k pv           | Maintenance |
 | ----------------------------- | -------------- | ------------- | ---------- | -------------- | ------------------- | --------------- | ------------------------- | ----------- |
 | [PostHog](#posthog-cloud)     | ✅             | ✅            | ✅         | ✅             | ✅                  | free            | free (under 1M events/mo) | medium      |
-| [Plausible](#plausible-cloud) | ✅             | ✅            | ✅         | ✅ (2–8 steps) | ❌                  | ~$9/mo          | ~$29/mo                   | low         |
-| [Pirsch](#pirsch)             | ✅             | ✅            | ✅         | ✅ (Plus tier) | ❌                  | ~$6/mo          | ~$19/mo                   | low         |
+| [Plausible](#plausible-cloud) | ✅             | ✅            | ✅         | ✅ (Business)  | ❌                  | ~$19/mo         | above ceiling             | low         |
+| [Pirsch](#pirsch)             | ✅             | ✅            | ✅         | ✅ (Plus tier) | ❌                  | ~$12/mo         | above ceiling             | low         |
 | [Umami Cloud](#umami-cloud)   | ✅             | ✅            | ✅         | ✅             | ✅                  | free            | $20/mo (Pro)              | low         |
 | [GoatCounter](#goatcounter)   | ✅             | ❌            | ✅         | ❌             | ❌                  | free            | free                      | trivial     |
 
@@ -66,38 +66,38 @@ Drawn from [Analytics.md](Analytics.md); not restated in full here.
 - **Coverage**: visitor traffic + custom events with funnel analysis (2–8 linear steps)
 - **Cookieless**: yes, by design
 - **Ad-tech lineage**: none
-- **Pseudonymous linkage**: yes via custom event properties — attach a pseudonym field to each event and filter/group by it
+- **Pseudonymous linkage**: no for this project. Custom properties can segment events, but Plausible explicitly treats pseudonymous end-user identifiers as PII that must not be sent
 - **Anonymous events**: yes
 - **Raw queries**: custom event properties are supported but the UI is geared toward low-cardinality dimensions; raw search-query storage works as event payload
-- **Funnels / retention**: funnels yes; retention and cohorts not on the roadmap (per [GH discussion #364](https://github.com/plausible/analytics/discussions/364))
-- **Cost**: ~$9/mo for 10k pv, ~$19/mo for 100k pv, ~$59/mo for 1M pv → **breaks the $10 ceiling well before Year 1**
+- **Funnels / retention**: funnels yes on Business; retention and cohorts not on the roadmap (per [GH discussion #364](https://github.com/plausible/analytics/discussions/364))
+- **Cost**: Starter is ~$9/mo for 10k pv, but funnels and custom properties require Business starting at ~$19/mo → **breaks the $10 ceiling on day one if product analytics features are required**
 - **Hosting**: managed (EU)
-- **Retention**: 5+ years
+- **Retention**: 3 years on Starter/Growth, 5 years on Business, 5+ years on Enterprise
 - **Geography**: EU only
 - **Maintenance**: minimal; tiny script, simple dashboard
 
-**Case for**: the reference privacy-first traffic tool; now covers the product-analytics middle ground (custom events, funnels, per-user properties); near-zero maintenance.
+**Case for**: the reference privacy-first traffic tool; now covers part of the product-analytics middle ground (custom events, funnels, custom properties); near-zero maintenance.
 
-**Case against**: price scales past the ceiling; no retention/cohort analysis means questions like "what % of last month's first-time editors came back" can't be answered in-tool.
+**Case against**: price starts past the ceiling once required product-analytics features are included; no pseudonymous user linkage under Plausible's PII rules; no retention/cohort analysis means questions like "what % of last month's first-time editors came back" can't be answered in-tool.
 
 ### Pirsch
 
 - **Coverage**: visitor traffic + custom events; funnel analysis on the Plus tier
 - **Cookieless**: yes
 - **Ad-tech lineage**: none
-- **Pseudonymous linkage**: custom event metadata supported as key/value pairs; the docs are ambiguous about arbitrary string properties vs numeric metrics — would need to verify before committing
+- **Pseudonymous linkage**: custom event metadata supports key/value pairs. Values are strings in the JavaScript API, with documented limits
 - **Anonymous events**: yes
 - **Raw queries**: custom event properties supported
 - **Funnels / retention**: funnels yes (Plus only); retention not advertised
-- **Cost**: Standard $6/mo (no funnels) for 100k pv; Plus $12/mo (with funnels) — **Plus exceeds the $10 ceiling on day one**, Standard fits but doesn't cover product analytics
+- **Cost**: Standard starts at $6/mo for 10k pv; Plus starts at $12/mo with funnels — **Plus exceeds the $10 ceiling on day one**. Exact 400k pv pricing should be checked in the live pricing slider before committing
 - **Hosting**: managed (EU/Germany)
 - **Retention**: indefinite on paid plans
 - **Geography**: EU only
 - **Maintenance**: minimal
 
-**Case for**: cheaper than Plausible on the traffic-only Standard tier; same privacy posture.
+**Case for**: cheaper than Plausible on the Standard tier; same privacy posture.
 
-**Case against**: the tier with funnels ($12/mo) is over the ceiling from day one; ambiguity about whether custom string properties are first-class makes pseudonym-keyed analysis a verify-before-committing risk; no retention/cohorts.
+**Case against**: the tier with funnels ($12/mo) is over the ceiling from day one; metadata is string-only in the JavaScript API; no retention/cohorts.
 
 ### Umami Cloud
 
@@ -128,7 +128,7 @@ Drawn from [Analytics.md](Analytics.md); not restated in full here.
 - **Pseudonymous linkage**: no
 - **Anonymous events**: limited
 - **Raw queries**: not really — designed for pageview counts
-- **Cost**: **free for non-commercial use**; donations welcomed
+- **Cost**: **free for reasonable public usage**, including personal websites and small-to-medium businesses; donations welcomed
 - **Hosting**: managed (EU); also open-source if we ever wanted to self-host
 - **Retention**: indefinite
 - **Geography**: EU only
@@ -149,17 +149,24 @@ Drawn from [Analytics.md](Analytics.md); not restated in full here.
 - **Self-hosted Plausible / Umami / PostHog / Matomo** — fails the [managed-service constraint](Analytics.md#operational); operational burden falls on a volunteer team.
 - **DIY: events table in Postgres + dashboards in Django admin or Metabase** — we are not writing our own analytics system. On paper it has real attractions: maximum privacy (product event payloads never leave our infrastructure), values alignment (no third-party SDK to lock down across upgrades), and an events table that's queryable with the SQL and Django ORM skills the team already uses daily. In practice the mental model isn't simpler than a hosted vendor, it's strictly larger: design the events schema, build a capture endpoint with auth and rate limiting, derive pseudonyms, write middleware, pick and stand up a dashboarding tool (Metabase Cloud, Django admin views, or custom), build each chart from scratch, manage retention, watch table growth and indexes. PostHog's mental model is "call `capture()`, look at charts." DIY's is everything above, forever. For a small volunteer team that contradiction with the [low-maintenance constraint](Analytics.md#operational) is decisive.
 
-## Recommendation: narrowly Umami over PostHog
+## Recommendation: Umami over PostHog
 
 PostHog and Umami are the only two real contenders — both cover traffic and product events, both have funnels and retention, both are cookieless, both have US-hosted options, both have free tiers that fit at launch. The others are dominated: Plausible and Pirsch lack retention and break the cost ceiling; GoatCounter is traffic-only.
 
-This is a closer call than the headline implies. The honest tradeoff:
-
 ### Where Umami wins for this project
 
+- **Vendor self-conception.** Umami positions itself as privacy-first analytics for developers and small operators. PostHog positions itself as an all-in-one product OS — funnels, replays, experimentation, feature flags, surveys, growth loops. The latter is powerful but carries goals this project explicitly does not share. The difference isn't what each tool can do; it's what each tool nudges you toward.
+- **Cleaner privacy story to explain publicly.** "We use privacy-focused analytics with auto-tracking off and explicit events only" is a one-sentence story. "We use a growth analytics suite but have disabled most of it" is a paragraph that invites scrutiny.
 - **Narrower main-SDK surface.** Both vendors auto-collect on default config and require explicit lock-down — Umami's main tracker auto-collects pageviews (including screen dimensions, a fingerprinting concern); PostHog autocaptures every click, form submit, and input change with element selectors on top of pageviews. The asymmetry that survives the lock-down: surveys, heatmaps, and feature flags are PostHog features that Umami simply doesn't have. Session replay is in both, but Umami's lives in a separately-loaded `recorder.js` (opt-in by script inclusion) while PostHog's is in the main SDK gated by an opt-out flag.
-- **Cultural fit.** PostHog is built for growth/marketing/product teams that want funnels, replays, and experimentation. Umami is built for developers and small operators who want privacy-first analytics without the surveillance machinery. The latter matches what this project actually is.
-- **Simpler mental model.** Smaller product, smaller docs, smaller SDK surface.
+- **Smaller blast radius for future maintainers.** A future contributor poking around Umami won't _discover_ a "turn on all the insights" path because surveys, heatmaps, feature flags, and experimentation aren't features. PostHog's dashboard actively invites that exploration. This is the durability argument: it survives any single maintainer's discipline.
+- **Simpler to work with day-to-day.**
+  - **Smaller API surface to learn.** Umami's tracker API is essentially `track()` and `identify()`. PostHog's JS SDK has dozens of methods and init options. Less to learn before a contributor can safely add an event.
+  - **Smaller config-drift risk.** Both vendors require one-time hardening. PostHog's init has ~7 options whose defaults could shift across major SDK versions; Umami's has ~2. Fewer places a bad upgrade could re-enable something.
+  - **Lower review burden.** A PR touching analytics in PostHog requires reviewers to know which of 12+ vendor capabilities are safe; the Umami equivalent is ~3. Reviewers build that intuition faster.
+  - **UI shapes the questions asked.** PostHog's Lifecycle, Stickiness, and Paths tabs invite engagement-style questions; Umami's narrower UI limits drift toward metrics this project rejected. The dashboard isn't just a viewer; it's a prompt.
+  - **Faster contributor onboarding.** A volunteer joining the project has much less to learn before safely adding an event in Umami than in PostHog. Matters for the small-team constraint.
+
+_Caveat on all of the above: cultural fit is not a substitute for technical controls. With either vendor, the lock-down work in [Architecture.md](AnalyticsArchitecture.md#privacy-enforcement) is what actually enforces the privacy posture. The cultural arguments are about which vendor makes that work easier to defend over time, not which one is private by default._
 
 ### Where PostHog wins
 
@@ -168,9 +175,9 @@ This is a closer call than the headline implies. The honest tradeoff:
 - **Maturity.** Bigger ecosystem, more documentation, more battle-tested SDKs.
 - **Richer UI.** Funnel-builder, retention curves, session paths are more polished.
 
-### Why Umami narrowly wins
+### Why Umami wins overall
 
-The two durable Umami arguments — narrower SDK surface and cultural fit — are about _what the vendor is for_, which doesn't change with configuration. PostHog's cost advantage is real but bounded: Umami Pro at $20/mo is a $10/mo overrun, not an existential cost. The retention gap (6 months free vs 1 year free) matters less because [Analytics.md](Analytics.md#retention) calls for indefinite retention anyway — both require a paid tier for that.
+The durable Umami arguments — vendor self-conception, public-story simplicity, narrower SDK surface, blast radius — are about _what the vendor is for_, which doesn't change with configuration. PostHog's cost advantage is real but bounded: Umami Pro at $20/mo is a $10/mo overrun, not an existential cost. The retention gap (6 months free vs 1 year free) matters less because [Analytics.md](Analytics.md#retention) calls for indefinite retention anyway — both require a paid tier for that.
 
 If the $20/mo Umami Pro tier is unacceptable, the right response is to amend the ceiling in [Analytics.md](Analytics.md#operational), not to pick PostHog to defend a $10 number. That said, PostHog with the lock-down init config is a perfectly defensible alternative — not one we'd be embarrassed by.
 

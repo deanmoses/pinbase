@@ -6,9 +6,7 @@ The user-facing privacy policy lives at [frontend/src/routes/(legal)/privacy/+pa
 
 ## Core Philosophy
 
-We exist to preserve and share knowledge about pinball history and culture.
-
-User trust is more important than maximizing data collection.
+User trust is paramount — it is the foundation of this community. We exist to preserve and share knowledge about pinball history and culture.
 
 Analytics and operational data collection must always support:
 
@@ -18,15 +16,11 @@ Analytics and operational data collection must always support:
 - reliability
 - community health
 
-not extraction or manipulation.
-
 ## Principles
 
 ### Data Minimization
 
-Collect the smallest amount of data necessary to answer legitimate product and operational questions.
-
-Avoid speculative collection.
+Collect the smallest amount of data necessary to answer legitimate product and operational questions. Avoid speculative collection.
 
 ### Minimal Public Disclosure
 
