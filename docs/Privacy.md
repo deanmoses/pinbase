@@ -123,7 +123,7 @@ Examples of unhealthy analytics:
 
 ### Retention
 
-Analytics data should be kept only as long as it remains useful for the question it was collected to answer. Prefer short retention windows; prefer aggregation over keeping raw events indefinitely.
+Retention is proportional to identifiability, not measured by clock time. Anonymous, aggregate-shaped data (pageview counts, referrer rollups, search-term frequencies) can be kept indefinitely — the same shape Wikipedia's pageview history takes. Pseudonymous event data is only as long-lived as the user→pseudonym link is unrecoverable; periodic key rotation caps that lifetime even when raw events themselves are retained. Anything directly joinable to a user account should expire quickly.
 
 ### Cultural Positioning
 

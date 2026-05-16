@@ -1,5 +1,12 @@
 # Event Taxonomy
 
+Also see:
+
+- [Analytics.md](Analytics.md)
+- [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
+- [AnalyticsVendors.md](AnalyticsVendors.md)
+- [PublicDashboardIdeas.md](PublicDashboardIdeas.md)
+
 This was AI-generated and has NOT yet been reviewed by a human. It's probably wrong.
 
 ## Philosophy

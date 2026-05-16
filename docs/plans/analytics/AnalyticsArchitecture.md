@@ -1,8 +1,15 @@
 # Analytics Architecture
 
+Also see:
+
+- [Analytics.md](Analytics.md)
+- [AnalyticsVendors.md](AnalyticsVendors.md)
+- [EventTaxonomy.md](EventTaxonomy.md)
+- [PublicDashboardIdeas.md](PublicDashboardIdeas.md)
+
 ## Provider
 
-[PostHog Cloud (EU region)](https://posthog.com/) is the chosen provider. See [Analytics.md](Analytics.md) for the requirements it satisfies and [AnalyticsVendors.md](AnalyticsVendors.md) for the alternatives considered.
+[PostHog Cloud](https://posthog.com/) is the chosen analytics provider.
 
 PostHog ships several features that appear in our [non-goals](Analytics.md#non-goals) — autocapture, session replay, heatmaps, surveys, behavioral cohorts. These are disabled at the integration boundary (see [Privacy Enforcement](#privacy-enforcement)). The abstraction layer below is what keeps that discipline enforceable in code review.
 
@@ -90,8 +97,8 @@ backend/apps/analytics/
   events.py           Typed event registry (server-emitted events, as TypedDicts)
   posthog_adapter.py  The only module that imports the posthog package
   noop.py
-  middleware.py       Binds the current user's pseudonym to the request
-  models.py           AnalyticsIdentity (the pseudonym table)
+  pseudonym.py        HMAC-based pseudonym derivation
+  middleware.py       Derives the request user's pseudonym and caches it per-request
 ```
 
 Only the adapter modules import the vendor SDK. Everywhere else imports from `$lib/analytics` or `apps.analytics`. A lint rule pins this — ESLint's `no-restricted-imports` forbids `posthog-js` outside the adapter; ruff's `flake8-tidy-imports` does the same on the backend.
@@ -126,20 +133,37 @@ No `track()`, no `page()`, no provider-specific verbs. No raw properties dict th
 
 ## Identity & Pseudonymization
 
-Every authenticated user has an `analytics_pseudonym` (UUIDv4) stored on a separate `AnalyticsIdentity` row joined to `User` by FK. PostHog only ever sees the pseudonym. Backend code that calls `analytics.capture()` reads the pseudonym from the request context, not from `request.user.id`.
+PostHog only ever sees a per-user pseudonym, never `user.id` or any other identity field. The pseudonym is **derived, not stored**:
 
-- Created lazily on first identify call (idempotent)
-- Rotatable: if a user opts out and back in, a new pseudonym is issued; old PostHog events are stranded under the old ID
-- Logout calls `analytics.reset()` on the frontend, clearing PostHog's in-memory state
+```python
+def pseudonym_for(user_id: int) -> str:
+    return hmac.new(
+        settings.ANALYTICS_PSEUDONYM_KEY.encode(),
+        str(user_id).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+```
 
-Anonymous visitors are not assigned a pseudonym. PostHog runs with `persistence: "memory"`: the `distinct_id` lives only in the JS heap, with no cookie or storage. That heap-bound id is what links anonymous events within one SPA instance (see [Tracking Scope](#tracking-scope)); when the document is replaced, the id is gone.
+`ANALYTICS_PSEUDONYM_KEY` lives in environment configuration, never in the database. There is no `AnalyticsIdentity` table and no FK keyed on the pseudonym — PostHog data cannot be joined to the `User` table by any SQL query against our application database. Recovering the link requires both a database copy **and** the secret key.
 
-The split between the `User` table and `AnalyticsIdentity` is what satisfies the "decouples analytics data from the authoritative user table" requirement: dropping `AnalyticsIdentity` severs the link, leaving PostHog data with orphan UUIDs.
+This is what makes the "decouples analytics data from the authoritative user table" requirement in [Analytics.md](Analytics.md#identifiability) true: the decoupling is absence of a join, not indirection through another table.
+
+### Salt rotation
+
+Rotating `ANALYTICS_PSEUDONYM_KEY` orphans every previously-attributed event under its old pseudonym. Aggregate counts inside PostHog survive rotation; the user→pseudonym link does not. This is the mechanism behind the "retention proportional to identifiability" principle in [Privacy.md](../../Privacy.md#retention) — raw events can be retained indefinitely because the link to a user account is bounded by the rotation cadence.
+
+### Opt-out
+
+A user opting out triggers a PostHog delete API call for their current pseudonym; nothing in our database needs to change. If they later opt back in, the same `user.id` and key produce the same pseudonym, but the prior history is gone.
+
+### Anonymous visitors
+
+Not assigned a pseudonym. PostHog runs with `persistence: "memory"`: the `distinct_id` lives only in the JS heap, with no cookie or storage. That heap-bound id is what links anonymous events within one SPA instance (see [Tracking Scope](#tracking-scope)); when the document is replaced, the id is gone.
 
 ### When `identify()` is called
 
-- **Frontend** — the root layout calls `analytics.identify(pseudonym)` once auth state hydrates and confirms the user is logged in. On logout, the layout calls `analytics.reset()`.
-- **Backend** — the signup view calls `analytics.identify(pseudonym)` inside the same transaction that creates the `User` and `AnalyticsIdentity` rows, so `account_registered` is the first event linked to the new pseudonym.
+- **Frontend** — the root layout calls `analytics.identify(pseudonym)` once auth state hydrates and confirms the user is logged in. The pseudonym arrives in the page payload alongside the user object. On logout, the layout calls `analytics.reset()`, clearing PostHog's in-memory state.
+- **Backend** — `analytics.capture()` derives the pseudonym from `request.user.id` via `pseudonym_for()`; middleware caches it per-request so the signup view's `account_registered` event uses the same value as every subsequent event.
 
 ### Anonymous-to-logged-in linking
 
@@ -158,7 +182,7 @@ posthog.init(PUBLIC_POSTHOG_KEY, {
   capture_pageleave: false,
   disable_session_recording: true,
   disable_surveys: true,
-  disable_external_dependencies: true,
+  disable_external_dependency_loading: true,
   ip: false, // strip client IP at ingest (also disables server-side geoip)
   property_denylist: [
     "$ip", // belt-and-suspenders alongside ip: false
@@ -278,4 +302,4 @@ The provider boundary is one file per side (`posthog.ts`, `posthog_adapter.py`) 
 2. Swap the export in `index.ts` / `__init__.py`.
 3. Update the event registry only if the new provider has naming constraints.
 
-No call sites change. The pseudonym table is portable because it's our column, not a PostHog-issued ID.
+No call sites change. Pseudonyms are portable because they're derived from `user.id` and a key we own, not a PostHog-issued ID.

@@ -1,5 +1,12 @@
 # Public Dashboard Ideas
 
+Also see:
+
+- [Analytics.md](Analytics.md)
+- [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
+- [AnalyticsVendors.md](AnalyticsVendors.md)
+- [EventTaxonomy.md](EventTaxonomy.md)
+
 ## Philosophy
 
 Public dashboards should:

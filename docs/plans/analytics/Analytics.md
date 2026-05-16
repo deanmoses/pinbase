@@ -1,5 +1,12 @@
 # Analytics
 
+Also see:
+
+- [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
+- [AnalyticsVendors.md](AnalyticsVendors.md)
+- [EventTaxonomy.md](EventTaxonomy.md)
+- [PublicDashboardIdeas.md](PublicDashboardIdeas.md)
+
 ## Purpose
 
 Analytics in this project should support two narrow jobs:
