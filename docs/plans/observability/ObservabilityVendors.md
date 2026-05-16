@@ -23,7 +23,7 @@ Error monitoring is the primary decision. Uptime is a secondary axis: it only ca
 3. **Maximally boring and well-documented.** Per [SmallTeam.md](../../SmallTeam.md), the criterion is "what a part-time volunteer can keep running a year from now." Sentry is the closest thing to a default in the industry — any new maintainer has either used it or can find a tutorial in 60 seconds.
 4. **Privacy posture is configurable to match the doc.** Sourcemap pipeline, scrubbing rules, sample rates, session replay off — all standard SDK options.
 5. **Shared ownership works out of the box.** Org-level accounts, per-recipient alert routing, role-based access, no single-person dependency.
-6. **The bolted-on uptime is workable as a tiebreaker.** If it isn't, a free UptimeRobot check slots in next to it — no decision pressure.
+6. **Uptime can ride along.** Sentry Uptime is good enough for the charter's [intentionally shallow](Observability.md#uptime-monitoring) bar; see [Uptime](#uptime-also-sentry) below.
 
 The realistic alternatives and why they lose:
 
@@ -33,6 +33,19 @@ The realistic alternatives and why they lose:
 - **[Rollbar](#rollbar) / [Bugsnag](#bugsnag)** — fine, but Sentry strictly dominates on SDK quality and community.
 
 Confidence is high. The only reason to revisit is if Sentry's frontend SDK conflicts with [Privacy.md](../../Privacy.md) in some specific way during architecture — and even then, the more likely outcome is "configure it off" rather than "switch vendors."
+
+## Uptime: also Sentry
+
+Use Sentry Uptime. A single monitor against the public homepage on a 5-minute interval clears the charter's [intentionally shallow](Observability.md#uptime-monitoring) bar: the site answers, the app isn't returning a persistent 5xx, failures notify maintainers.
+
+Reusing the error vendor rather than adding a second one wins on operational simplicity:
+
+- one org account, one login, one offboarding step when a maintainer leaves
+- per-recipient alert routing configured for errors works unchanged for uptime
+- release correlation comes for free — an outage right after a deploy is already tagged with the SHA that shipped
+- uptime failures land in the same issue stream as exceptions, so there's one place to look during an incident
+
+The one real argument against this — a Sentry outage masking a simultaneous site outage — is a third-order risk at this project's traffic level. If it ever bites, or if we exceed Sentry's free uptime quota by needing a second monitor (e.g. a backend healthcheck), slot in a free [UptimeRobot](#uptimerobot) check next to Sentry. It's a 10-minute change and nothing else depends on which vendor answers the ping.
 
 ## Vendor Table
 
