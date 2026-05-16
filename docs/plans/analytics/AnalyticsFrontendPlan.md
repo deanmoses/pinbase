@@ -5,11 +5,10 @@ Also see:
 - [AnalyticsPlan.md](AnalyticsPlan.md) — orchestration and phase ordering
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md) — contracts (abstraction interface, privacy lockdown)
 - [AnalyticsBackendPlan.md](AnalyticsBackendPlan.md)
-- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
 
-This doc covers frontend implementation phase by phase. Contracts live in the architecture doc; event names and properties live in the taxonomy. This doc is _how_ to land them.
+This doc covers frontend implementation phase by phase. Contracts live in the architecture doc. Specific events have not yet been designed; the candidate event names below are illustrative until the taxonomy review pass happens.
 
-**Prerequisite:** Backend phase 2 ([AnalyticsBackendPlan.md § account_registered](AnalyticsBackendPlan.md#phase-2-account_registered)) must ship before frontend phase 3, because `identify()` consumes a pseudonym the backend puts in the page payload. Phases 1–2 of the frontend can proceed in parallel with backend work.
+**Prerequisite:** Backend phase 2 ([AnalyticsBackendPlan.md § Phase 2](AnalyticsBackendPlan.md#phase-2-first-server-side-event)) must ship before frontend phase 3, because `identify()` consumes a pseudonym the backend puts in the page payload. Phases 1–2 of the frontend can proceed in parallel with backend work.
 
 ## Phase 1: Skeleton
 
@@ -63,7 +62,7 @@ PostHog's auto-pageview is off (`capture_pageview: false`); pageviews fire from 
 
 ## Phase 3: identify() and reset()
 
-Connects authenticated journeys to the backend-derived pseudonym. Depends on the backend exposing pseudonym in the page payload — see [AnalyticsBackendPlan.md § account_registered](AnalyticsBackendPlan.md#phase-2-account_registered).
+Connects authenticated journeys to the backend-derived pseudonym. Depends on the backend exposing pseudonym in the page payload — see [AnalyticsBackendPlan.md § Phase 2](AnalyticsBackendPlan.md#phase-2-first-server-side-event).
 
 **Deliverables:**
 
@@ -79,33 +78,31 @@ Connects authenticated journeys to the backend-derived pseudonym. Depends on the
 
 ## Phase 4: Client events
 
-Land the rest of the client-side taxonomy. Each event ships with the feature it instruments.
+Land client-side events as the features that emit them get built. Illustrative candidates (pending taxonomy review):
 
-**Deliverables:**
+- Reading: information-need search, optionally a separate zero-result event (see the search-event discussion in the taxonomy review notes).
+- Contribution lifecycle: edit-start, edit-abandon. Abandonment is the easiest to forget instrumenting because it has no obvious "user clicked submit" moment — likely fires on navigate-away or tab-close.
+- Page-level: machine-page view (only if the pageview event doesn't already cover the question).
 
-- `search_performed`, `search_zero_results` — search results component. Properties per [AnalyticsEventTaxonomy.md § Discovery Events](AnalyticsEventTaxonomy.md#discovery-events).
-- `machine_page_viewed` — machine detail route. Fires on view, not on hover/prefetch. Properties per [AnalyticsEventTaxonomy.md § machine_page_viewed](AnalyticsEventTaxonomy.md#machine_page_viewed).
-- `edit_started`, `edit_abandoned` — edit-flow lifecycle hooks. Properties per [AnalyticsEventTaxonomy.md § Contribution Events](AnalyticsEventTaxonomy.md#contribution-events).
-- All call sites go through `analytics.capture()`. No direct `posthog.capture()` — the lint rule forbids it.
+**Deliverables (per event):**
+
+- A `TypedDict`-equivalent shape in `events.ts`.
+- A call through `analytics.capture()` — never `posthog.capture()` directly. The lint rule forbids it.
 
 **Verification:**
 
 - A vitest per event using `RecordingAnalytics`. Drive the UI to the state that should fire the event, assert exactly one event with the expected properties.
-- For `edit_abandoned`: a vitest that simulates the abandon path (navigate away, close tab) and asserts the event fires. This is the easiest one to forget instrumenting because it has no obvious "user clicked submit" moment.
 
 ## Test patterns
 
-The default adapter under vitest is `RecordingAnalytics`, which captures calls into an array and exposes them to assertions:
+The default adapter under vitest is `RecordingAnalytics`, which captures calls into an array and exposes them to assertions. Test shape (illustrative):
 
 ```ts
-test("search records search_performed", () => {
+test("the action records the expected event", () => {
   const a = new RecordingAnalytics();
-  doSearch(a, "medieval madness");
+  // ... drive the UI through the action ...
   expect(a.events).toEqual([
-    {
-      event: "search_performed",
-      properties: { query_length: 16, results_count: 1, logged_in: false },
-    },
+    { event: "...", properties: { ... } },
   ]);
 });
 ```
@@ -114,7 +111,6 @@ The PostHog adapter is never exercised in unit tests. The phase 1 integration te
 
 ## What this doc does NOT cover
 
-- The abstraction contract, privacy lockdown spec, pseudonymization model — those are architecture, see [AnalyticsArchitecture.md](AnalyticsArchitecture.md).
-- Event names and property schemas — see [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md).
+- The abstraction contract, privacy lockdown spec, pseudonymization model, naming conventions — those are architecture, see [AnalyticsArchitecture.md](AnalyticsArchitecture.md).
 - Backend work — see [AnalyticsBackendPlan.md](AnalyticsBackendPlan.md).
 - Cross-cutting sequencing and handoffs — see [AnalyticsPlan.md](AnalyticsPlan.md).

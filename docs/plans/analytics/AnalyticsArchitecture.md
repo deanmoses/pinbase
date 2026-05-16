@@ -4,7 +4,6 @@ Also see:
 
 - [Analytics.md](Analytics.md) — product motivation, goals, non-goals
 - [AnalyticsVendors.md](AnalyticsVendors.md) — vendor comparison
-- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md) — event names and property shapes
 - [AnalyticsPlan.md](AnalyticsPlan.md) — phased rollout
   - [AnalyticsBackendPlan.md](AnalyticsBackendPlan.md) — backend implementation plan
   - [AnalyticsFrontendPlan.md](AnalyticsFrontendPlan.md) — frontend implementation plan
@@ -20,7 +19,7 @@ Each fenced code block is tagged as one of:
 
 Call our own abstraction throughout the codebase, never the vendor SDK directly:
 
-**Pseudocode (illustrates the call pattern; `someVendor` is a placeholder, real events live in [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)):**
+**Pseudocode (illustrates the call pattern; `someVendor` is a placeholder, and `search_performed` is an illustrative candidate event name pending design):**
 
 ```ts
 // Right
@@ -40,7 +39,7 @@ The abstraction buys us:
 
 - **vendor independence** — switching providers is one file (see [Migration](#migration) below)
 - **centralized privacy enforcement** — non-goal features can't slip in via ad-hoc SDK use
-- **typed event surface** — properties are checked against [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
+- **typed event surface** — properties are checked against the typed event registry in code (`events.ts` / `events.py`)
 - **testable** — the harness swaps in a recording implementation (see [Testing](#testing) below)
 - **consistent naming** — events live in one registry, so no string typos
 
@@ -198,27 +197,38 @@ Mapping to the [non-goals](Analytics.md#non-goals):
 
 ## Events
 
+Specific events have not yet been designed. This section specifies the _patterns_ events must follow once they exist; the canonical list is the typed registry in code (`events.ts` / `events.py`), not a separate doc.
+
 ### Where Events Originate
 
-Events are emitted from the side that has the truth. Client-side captures UI lifecycle and CSR navigation; server-side captures post-write confirmation and transactional moments.
+Events are emitted from the side that has the truth. The origin is determined by where the signal is observable, not by where it's most convenient to fire it from:
 
-| Event                                     | Origin | Why                                                   |
-| ----------------------------------------- | ------ | ----------------------------------------------------- |
-| pageviews                                 | client | CSR navigations don't reach the server                |
-| `search_performed`, `search_zero_results` | client | search executes client-side                           |
-| `machine_page_viewed`                     | client | server can't distinguish CSR routes from anchor jumps |
-| `edit_started`, `edit_abandoned`          | client | UI lifecycle signals never reach the server           |
-| `edit_saved`, `photo_uploaded`            | server | post-write — must reflect the actual mutation         |
-| `account_registered`                      | server | fires inside the signup transaction                   |
-| `moderation_action`                       | server | moderation runs server-side                           |
+- **Client-side** when the signal lives only in the browser: CSR navigation (pageviews), UI lifecycle moments (edit-flow start/abandon), and actions that execute client-side (search if performed in the browser).
+- **Server-side** when the signal is the outcome of a mutation or a transactional moment: post-write confirmations (edit saved, upload completed) and signup-time events. These must fire from inside the transaction to reflect the actual mutation, not from the UI hoping it succeeded.
 
-Server-side events flow through the Python adapter using the pseudonym attached to the request by middleware. All server-side events in the registry require an authenticated user; there are no anonymous server-side events.
+Server-side events flow through the Python adapter using the pseudonym attached to the request by middleware. Server-side events require an authenticated user; there are no anonymous server-side events.
 
-### Typed Events
+### Naming
 
-The event registry is the single source of truth for event names and property shapes. Each side has its own registry covering only the events it emits — the frontend and backend taxonomies are disjoint (see [Where Events Originate](#where-events-originate)). Both registries exist so `analytics.capture()` calls are type-checked and properties never devolve to `dict[str, Any]`.
+- Format: `noun_past-tense-verb`, lowercase. Examples: `edit_saved`, `photo_uploaded`, `search_performed`.
+- Object-first so related events group alphabetically.
+- Past tense because events are facts about something that has happened.
 
-**Pseudocode (shows the registry shape; full event list lives in [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)):**
+Avoid:
+
+- **vague names**: `user_event`, `signal_emitted`, `transaction_committed` — say nothing useful about what the user did.
+- **vendor-specific naming**: `posthog_capture`, `mp_track` — couples the taxonomy to the current provider.
+- **internal implementation details**: `useEffect_fired` — describes code mechanics, not user behavior.
+
+### Each event must earn its keep
+
+Each event must answer a specific product question. If you can't name the question, don't add the event. The intentional-not-just-in-case philosophy ([Analytics.md § Product Analytics](Analytics.md#product-analytics)) is the bulwark against engagement-addiction drift.
+
+### Typed registry
+
+The event registry is the single source of truth for event names and property shapes. Each side has its own registry covering only the events it emits — the frontend and backend registries are disjoint (see [Where Events Originate](#where-events-originate)). Both exist so `analytics.capture()` calls are type-checked and properties never devolve to `dict[str, Any]`.
+
+**Pseudocode (shows the registry shape; specific events are illustrative candidates pending design):**
 
 ```ts
 // events.ts — frontend-emitted events
@@ -228,11 +238,11 @@ type EventRegistry = {
     results_count: number;
     logged_in: boolean;
   };
-  // ... see AnalyticsEventTaxonomy.md for the full list
+  // ... grows as events are added
 };
 ```
 
-**Pseudocode (shows the TypedDict shape; full event list lives in [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)):**
+**Pseudocode (shows the TypedDict shape; specific events are illustrative candidates pending design):**
 
 ```python
 # events.py — server-emitted events
@@ -242,12 +252,10 @@ class EditSaved(TypedDict):
     is_first_edit: bool
 
 
-# ... see AnalyticsEventTaxonomy.md for the full list
+# ... grows as events are added
 ```
 
 Per the project's [strong-typing rule](../../Python.md), backend properties are TypedDicts, not `dict[str, Any]`. Adding a property to an event without updating the registry is a type error on both sides.
-
-Full event list and property semantics live in [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md).
 
 ## Provider Binding: PostHog
 

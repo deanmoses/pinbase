@@ -39,7 +39,7 @@ Potential metrics:
 - restoration media uploads
 - preservation growth over time
 
-### Discovery Dashboard
+### Reading Dashboard
 
 Potential metrics:
 

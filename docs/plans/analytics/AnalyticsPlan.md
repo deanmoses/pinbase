@@ -6,7 +6,6 @@ Also see:
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
 - [AnalyticsBackendPlan.md](AnalyticsBackendPlan.md)
 - [AnalyticsFrontendPlan.md](AnalyticsFrontendPlan.md)
-- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
 
 ## Phases
 
@@ -19,7 +18,7 @@ Backend before frontend because the pseudonym is the keystone. It's derived serv
 
 Rollout is complete when:
 
-- Every event in [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md) is emitted from the side specified in [AnalyticsArchitecture.md § Where Events Originate](AnalyticsArchitecture.md#where-events-originate).
+- Every event in the typed registry (`events.ts` / `events.py`) is emitted from the side specified in [AnalyticsArchitecture.md § Where Events Originate](AnalyticsArchitecture.md#where-events-originate).
 - PostHog receives no PII, no IP, no fingerprinting-grade properties (verified by inspecting a real event payload, not just by reading the init config).
 - Joining the PostHog dataset to the `User` table requires both the database and `ANALYTICS_PSEUDONYM_KEY` — there is no FK or table that bridges them.
 - Lint pins prevent `posthog-js` / `posthog` imports outside the adapter modules.

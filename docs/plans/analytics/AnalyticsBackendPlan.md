@@ -5,9 +5,8 @@ Also see:
 - [AnalyticsPlan.md](AnalyticsPlan.md) — orchestration and phase ordering
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md) — contracts (pseudonymization, privacy lockdown, abstraction interface)
 - [AnalyticsFrontendPlan.md](AnalyticsFrontendPlan.md)
-- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
 
-This doc covers backend implementation phase by phase. Contracts live in the architecture doc; event names and properties live in the taxonomy. This doc is _how_ to land them.
+This doc covers backend implementation phase by phase. Contracts live in the architecture doc. Specific events have not yet been designed; the candidate event names below are illustrative until the taxonomy review pass happens.
 
 ## Phase 1: Skeleton
 
@@ -31,47 +30,39 @@ Stand up the `apps/analytics/` app with the module structure from [AnalyticsArch
 - A unit test for middleware: authenticated request gets `request.analytics_pseudonym` set; anonymous gets `None`; middleware does not query the DB on anonymous requests.
 - One integration test asserts the backend SDK's `posthog.host` and `posthog.disable_geoip` are set as specified. Weakening either fails this test.
 
-## Phase 2: account_registered
+## Phase 2: First server-side event
 
-First end-to-end event. Server-only by necessity — fires inside the signup transaction.
+The first event to land is a server-side transactional event. Signup conversion is the obvious candidate (must fire from inside the signup transaction, low volume, easy to verify the pseudonym round-trips cleanly without volume noise) — illustrative name: `account_registered`. The specific event, name, and properties get decided during taxonomy review.
 
 **Deliverables:**
 
-- `AccountRegistered` `TypedDict` in `events.py`. Properties per [AnalyticsEventTaxonomy.md § account_registered](AnalyticsEventTaxonomy.md#account_registered).
-- Signup view calls `analytics.capture("account_registered", AccountRegistered(referral_source=..., invite_source=...), pseudonym=pseudonym_for(user.id))`.
-- The new user's pseudonym is added to the page payload that the SPA hydrates from. This is the field the frontend will eventually consume from `analytics.identify()`. (See [AnalyticsPlan.md § Handoff](AnalyticsPlan.md#handoff-backend--frontend).)
+- A `TypedDict` for the event in `events.py`.
+- A `capture()` call from the relevant view, using `pseudonym=pseudonym_for(user.id)` for events that fire before middleware has run (e.g. the signup view, which creates the user).
+- The new user's pseudonym added to the page payload that the SPA hydrates from. This is the field the frontend will eventually consume from `analytics.identify()` (see [AnalyticsPlan.md § Handoff](AnalyticsPlan.md#handoff-backend--frontend)).
 
 **Verification:**
 
-- A test that signs up a user via the real signup flow and asserts (with `RecordingAnalytics`) that exactly one `account_registered` event was captured, with the expected properties and the pseudonym for the newly-created user.
-- A staging/PostHog spot-check: sign up, find the event in PostHog, inspect it. Confirm no `$ip`, no geoip-derived city/country, no `User.email` or `User.id`, only the pseudonym.
+- A test that runs the real flow and asserts (with `RecordingAnalytics`) that exactly one event was captured, with the expected properties and the pseudonym for the newly-created user.
+- A staging/PostHog spot-check: trigger the flow, find the event in PostHog, inspect it. Confirm no `$ip`, no geoip-derived city/country, no `User.email` or `User.id`, only the pseudonym.
 - A SQL check on production-like data: `SELECT * FROM auth_user JOIN <anything> ON pseudonym` returns no rows because no such table or FK exists.
 
-## Phase 3: edit_saved
+## Phase 3: Second server-side event
 
-Second event. Validates the middleware-cached pseudonym story across multiple events in the same authenticated session.
+A second post-write event that fires inside a normal request cycle (not at signup). Purpose: prove the middleware-cached pseudonym is reused across multiple events in the same authenticated session, not re-derived. Illustrative candidate: `edit_saved`.
 
 **Deliverables:**
 
-- `EditSaved` `TypedDict` in `events.py`. Properties per [AnalyticsEventTaxonomy.md § edit_saved](AnalyticsEventTaxonomy.md#edit_saved).
-- The edit-save view path calls `analytics.capture("edit_saved", EditSaved(...), pseudonym=request.analytics_pseudonym)`.
-- All call sites use the middleware-attached pseudonym, not `pseudonym_for(request.user.id)` re-derived inline.
+- A `TypedDict` for the event in `events.py`.
+- A `capture()` call from the relevant view, using `pseudonym=request.analytics_pseudonym` (the middleware-attached value, not re-derived inline).
 
 **Verification:**
 
-- A test that performs a save and asserts the event is captured with the expected properties.
-- A test that performs two saves in the same authenticated session and asserts both events use the same pseudonym (proves the middleware cache is doing its job, not just luck of two HMACs agreeing).
+- A test that performs the action and asserts the event is captured with the expected properties.
+- A test that performs two of the action in the same authenticated session and asserts both events use the same pseudonym — proves the middleware cache is doing its job, not just luck of two HMACs agreeing.
 
 ## Phase 4: Remaining server events
 
-Land the rest of the server-side taxonomy as the relevant feature code is touched.
-
-**Deliverables:**
-
-- `PhotoUploaded` `TypedDict` + capture call in the upload completion path. Properties per [AnalyticsEventTaxonomy.md § photo_uploaded](AnalyticsEventTaxonomy.md#photo_uploaded).
-- `ModerationAction` `TypedDict` + capture call in moderation action handlers. Properties per [AnalyticsEventTaxonomy.md § moderation_action](AnalyticsEventTaxonomy.md#moderation_action).
-
-These aren't urgent — they ship as those code paths get touched. No hurry to backfill before the frontend lands.
+Land additional server-side events as the relevant feature code is touched. Illustrative candidates include upload-completion and moderation events, but the actual list comes from the taxonomy review.
 
 **Verification:**
 
@@ -94,7 +85,6 @@ The PostHog adapter itself is never exercised in unit tests. The one integration
 
 ## What this doc does NOT cover
 
-- The pseudonym mechanism, privacy lockdown, abstraction contract — those are architecture, see [AnalyticsArchitecture.md](AnalyticsArchitecture.md).
-- Event names and property schemas — see [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md).
+- The pseudonym mechanism, privacy lockdown, abstraction contract, naming conventions — those are architecture, see [AnalyticsArchitecture.md](AnalyticsArchitecture.md).
 - Frontend work — see [AnalyticsFrontendPlan.md](AnalyticsFrontendPlan.md).
 - Cross-cutting sequencing and handoffs — see [AnalyticsPlan.md](AnalyticsPlan.md).

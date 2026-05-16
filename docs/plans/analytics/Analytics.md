@@ -4,7 +4,6 @@ Also see:
 
 - [AnalyticsArchitecture.md](AnalyticsArchitecture.md)
 - [AnalyticsVendors.md](AnalyticsVendors.md)
-- [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md)
 - [AnalyticsPlan.md](AnalyticsPlan.md) — phased rollout
 - [PublicDashboards.md](PublicDashboards.md)
 
@@ -40,13 +39,13 @@ Aggregate, mostly-anonymous web traffic data.
 
 ### Product Analytics
 
-Event-based data about how authenticated and anonymous users interact with product surfaces. Grouped to match the [event taxonomy](AnalyticsEventTaxonomy.md):
+Event-based data about how authenticated and anonymous users interact with product surfaces. Three rough groupings:
 
-- **Discovery** — search success and failure, what content gets found, what doesn't.
+- **Reading** — search success and failure, what content gets found, what doesn't.
 - **Contribution** — edit and upload flows, where contributors drop off, time-to-first-contribution.
 - **Community** — onboarding paths, retention of contributors over time.
 
-Event scope is deliberately narrow; see [AnalyticsEventTaxonomy.md](AnalyticsEventTaxonomy.md) for the "intentional, not just-in-case" philosophy.
+**Event scope is deliberately narrow.** Each event must answer a specific product question; if you can't name the question, don't add the event. The intentional-not-just-in-case philosophy is the bulwark against engagement-addiction analytics drift.
 
 ### Public Dashboards
 
