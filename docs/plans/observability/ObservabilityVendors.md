@@ -34,6 +34,18 @@ The realistic alternatives and why they lose:
 
 Confidence is high. The only reason to revisit is if Sentry's frontend SDK conflicts with [Privacy.md](../../Privacy.md) in some specific way during architecture — and even then, the more likely outcome is "configure it off" rather than "switch vendors."
 
+## Free-tier quota
+
+Sentry's free tier covers ~5k errors/month and retains events for 30 days. The [year-one projection](#sentry) is comfortably inside that, but a runaway loop on a single endpoint could burn it. If quota is exceeded, Sentry drops events rather than billing — the failure mode is "we go blind," not "surprise charge." Watch the org-level usage page monthly; cross the cliff only with a deliberate upgrade to the $26/mo Team plan, not by accident.
+
+## Access & offboarding
+
+- The Sentry org is owned at the project level, not by a personal account.
+- Both founders are org members with admin-equivalent permissions.
+- A new maintainer is added by inviting their email to the org and granting whatever role lets them resolve issues and configure their own notification destination.
+- An outgoing maintainer is removed by revoking org membership. Their per-recipient routing destination vanishes with them; no separate cleanup needed.
+- Org-enforced SSO is a paid-tier Sentry feature. Until we're on a tier that supports it, offboarding means a manual membership revoke — there's no GitHub-access shortcut.
+
 ## Uptime: also Sentry
 
 Use Sentry Uptime. A single monitor against the public homepage on a 5-minute interval clears the charter's [intentionally shallow](Observability.md#uptime-monitoring) bar: the site answers, the app isn't returning a persistent 5xx, failures notify maintainers.

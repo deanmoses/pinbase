@@ -13,7 +13,7 @@ Stand up `@sentry/sveltekit` in both SSR and browser, with sourcemap upload at b
 **Deliverables:**
 
 - `@sentry/sveltekit` added to frontend dependencies.
-- `frontend/src/hooks.server.ts` — `Sentry.init({...})` exactly per [ObservabilityArchitecture.md § Frontend integration](ObservabilityArchitecture.md#frontend-integration), gated on a non-empty DSN. `handleErrorWithSentry` exported as `handleError`.
+- `frontend/src/hooks.server.ts` — `Sentry.init({...})` exactly per [ObservabilityArchitecture.md § Frontend init contract](ObservabilityArchitecture.md#frontend-init-contract), gated on a non-empty DSN. `handleErrorWithSentry` exported as `handleError`.
 - `frontend/src/hooks.client.ts` — same pair, with the `ignoreErrors` noise floor (`ResizeObserver loop limit exceeded`, extension network errors, `Non-Error promise rejection captured`) inline next to init so future maintainers can find it.
 - Both inits use `release: env.PUBLIC_RAILWAY_GIT_COMMIT_SHA`, `environment: "production"`, `tracesSampleRate: 0`, replay disabled, feedback widget disabled.
 - `beforeSend` in each init mirrors the backend scrubber. Sync is kept by code review, not a shared module (the two SDKs have different event shapes).

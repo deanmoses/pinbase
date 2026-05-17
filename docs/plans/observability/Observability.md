@@ -4,10 +4,11 @@ Also see:
 
 - [ObservabilityVendors.md](ObservabilityVendors.md)
 - [ObservabilityArchitecture.md](ObservabilityArchitecture.md)
+- [ObservabilityPlan.md](ObservabilityPlan.md)
 
 ## Purpose
 
-Observability in this project should support one narrow job initially:
+Observability in this project will initially support one narrow job:
 
 1. Knowing when **production is broken** before a user has to explain it to us.
 

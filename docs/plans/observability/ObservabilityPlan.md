@@ -7,11 +7,13 @@ Also see:
 
 ## Phases
 
-- [Prerequisites](#prerequisites)
-- [ObservabilityBackendPlan.md](ObservabilityBackendPlan.md) — notify about server exceptions.
+- [Prerequisites](#prerequisites) — Sentry & Railway config, no PRs
+- [ObservabilityBackendPlan.md](ObservabilityBackendPlan.md) — notify about server exceptions
 - [ObservabilityFrontendPlan.md](ObservabilityFrontendPlan.md) — notify about browser & SSR exceptions
-
-Backend ships before frontend because frontend debug route depends on `Activity.OBSERVABILITY_DEBUG` being registered on the backend.
+- [Alert rules](#alert-rules) — actually send alerts to us
+- ─────────── minimum viable product ───────────
+- [Uptime monitor](#uptime-monitor) - periodically ping a health check endpoint
+- [Browser `ignoreErrors`](#browser-ignoreerrors) — pulled in the first time noise appears
 
 ## Prerequisites
 
@@ -22,22 +24,25 @@ Done in Sentry and Railway dashboards before either the backend or frontend depl
 - Railway production env vars set: `SENTRY_DSN` (backend project DSN), `PUBLIC_SENTRY_DSN` (frontend project DSN), `SENTRY_AUTH_TOKEN` (org-scoped, secret), `SENTRY_ORG`, `SENTRY_PROJECT=flipcommons-frontend`.
 - Local, CI, and test environments leave all of the above unset — the empty-DSN guard in [ObservabilityArchitecture.md § Environment separation](ObservabilityArchitecture.md#environment-separation) is the master switch.
 
-## Post-deploy (one-time, out-of-band)
+## Alert rules
 
 Done in the Sentry dashboard after both code PRs are deployed.
 
-- Uptime monitor attached to `flipcommons-frontend`, hitting `/__health` on a 5-minute interval. The endpoint already exists; the architecture rationale is in [ObservabilityArchitecture.md § Uptime](ObservabilityArchitecture.md#uptime).
-- Alert rules created in both projects: new issue, regression of resolved issue, uptime check failure. The spike-in-existing-issue rule is deferred until there's production data to tune the threshold against (per [ObservabilityArchitecture.md § Alerting](ObservabilityArchitecture.md#alerting)).
+- Alert rules created in both projects: new issue, regression of resolved issue. Spike-in-existing-issue is deferred until there's production data to tune the threshold against (per [ObservabilityArchitecture.md § Alerting](ObservabilityArchitecture.md#alerting)).
 - Default issue assignment left as **unassigned** in both projects.
 
-## Definition of Done
+## Uptime monitor
 
-Rollout is complete when:
+- Sentry uptime monitor attached to `flipcommons-frontend`, hitting `/__health` on a 5-minute interval. The endpoint already exists; the architecture rationale is in [ObservabilityArchitecture.md § Uptime](ObservabilityArchitecture.md#uptime).
+- Uptime-check-failure alert routed to both founders.
 
-- Production backend exceptions appear in `flipcommons-backend` with the deployed `RAILWAY_GIT_COMMIT_SHA` as the release tag.
-- Production frontend exceptions appear in `flipcommons-frontend` from both SSR and browser paths, with stack traces resolving to TypeScript source (not minified JS).
-- A real event payload inspected in the Sentry UI confirms no cookies, no `Authorization` header, no CSRF token, no IP address, no email address. Authenticated events carry `{id, username}`; anonymous events carry no user.
-- Uptime monitor reports green and pages both founders on a forced failure.
-- New-issue and regression alerts route to both founders' configured destinations.
-- Both `/api/sentry_test` and `/_sentry_test` return 403 to non-staff and trigger a Sentry event for staff.
-- Local dev and CI runs produce zero Sentry events (verified by absence in the dashboard and by the `SENTRY_DSN`-unset guard test).
+## Debug routes
+
+Pull in the first time we need to re-verify capture end-to-end (suspected SDK regression, suspected scrubber drift, new founder onboarding wants to see a real event).
+
+- Backend: [ObservabilityBackendPlan.md § Debug route](ObservabilityBackendPlan.md#phase-debug-route).
+- Frontend: [ObservabilityFrontendPlan.md § Debug route](ObservabilityFrontendPlan.md#phase-debug-route).
+
+## Browser ignoreErrors
+
+Pull in the first time noise appears in `flipcommons-frontend` — extension errors, `ResizeObserver loop limit exceeded`, `Non-Error promise rejection captured`, etc. Tune the list against the actual noise observed, not against a generic recipe.
