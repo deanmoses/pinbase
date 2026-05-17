@@ -55,7 +55,7 @@ No changes to the wider resolver logic. `.get("location")` stays `.get()` — th
 
 - The new test passes.
 - `uv run --directory backend pytest apps/catalog/tests/test_bulk_resolve*.py apps/catalog/tests/test_resolve*.py` — all green.
-- `./scripts/mypy` — baseline unchanged (no typing impact).
+- `make mypy` — clean (no typing impact).
 
 ## Non-goals
 

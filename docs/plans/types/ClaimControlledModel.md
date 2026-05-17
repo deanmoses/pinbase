@@ -130,7 +130,7 @@ Keep this PR purely structural — see "Reuse" below for tempting additions to d
 
 ## Verification
 
-- `./scripts/mypy` — baseline `new: 0`. Several `attr-defined` / `arg-type` entries in `catalog/resolve/*.py` and any downstream caller that narrowed around the CatalogModel/Location split should drop.
+- `make mypy` — clean. Several `attr-defined` / `arg-type` entries in `catalog/resolve/*.py` and any downstream caller that narrowed around the CatalogModel/Location split should drop.
 - `uv run --directory backend pytest apps/catalog/tests/ apps/core/tests/ apps/provenance/tests/` — behavior-preserving; the migration should be a no-op and all resolver tests should pass. Includes the new structural invariant test at `apps/provenance/tests/test_claim_controlled_entity.py` (or similar).
 - `uv run --directory backend python manage.py makemigrations --dry-run` — verify no surprise migrations after the GenericRelation pull-up.
 

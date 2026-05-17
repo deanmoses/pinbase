@@ -65,7 +65,6 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
         exclude: '(pnpm-lock\.yaml|uv\.lock)$'
 
   - repo: local

@@ -32,6 +32,11 @@ class Activity(StrEnum):
     # on `is_staff`; this activity exists so the SPA can decide whether to
     # render the nav link without the schema exposing the underlying flag.
     DJANGO_ADMIN_ACCESS = "django_admin.access"
+    # Operator-surface activity gating the on-demand exception-trigger
+    # route used to verify the Sentry pipeline end-to-end. Staff-only;
+    # see docs/plans/observability/ObservabilityArchitecture.md §
+    # First-event verification.
+    OBSERVABILITY_DEBUG = "observability.debug"
 
 
 class DenialCode(StrEnum):

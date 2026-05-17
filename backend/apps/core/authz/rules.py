@@ -46,3 +46,4 @@ from .types import Activity
 
 register(Activity.RATE_LIMIT_EXEMPT, is_authenticated, email_verified, is_staff)
 register(Activity.DJANGO_ADMIN_ACCESS, is_authenticated, is_staff)
+register(Activity.OBSERVABILITY_DEBUG, is_authenticated, email_verified, is_staff)

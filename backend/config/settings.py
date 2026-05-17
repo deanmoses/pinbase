@@ -61,6 +61,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "apps.core.middleware.NinjaCsrfMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.core.middleware.SentryScopeMiddleware",
     "apps.accounts.middleware.LastSeenAtMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -329,3 +330,72 @@ CONSTANCE_CONFIG["CONTENT_DISPLAY_POLICY"] = ConstanceSpec(
 )
 
 CONSTANCE_CONFIG_FIELDSETS = (("Content Display", ("CONTENT_DISPLAY_POLICY",)),)
+
+# ---------------------------------------------------------------------------
+# Sentry (error tracking)
+# ---------------------------------------------------------------------------
+# DSN presence is the master switch — see ObservabilityArchitecture.md §
+# Environment separation. Local, CI, and test environments leave SENTRY_DSN
+# unset; production sets it via Railway. There is no per-environment matrix
+# and no runtime kill switch.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    # Imports gated on the DSN so local dev, CI, and tests pay no
+    # import cost (sentry-sdk is non-trivial). The empty-DSN guard
+    # is the master switch — keeping imports on the same side of
+    # it makes "no DSN, no Sentry" hold at module load too, not
+    # just at init time.
+    import logging
+
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    from sentry_sdk.scrubber import EventScrubber
+
+    from config.sentry_options import IGNORE_ERRORS
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment="production",
+        release=os.environ.get("RAILWAY_GIT_COMMIT_SHA", "").strip(),
+        send_default_pii=False,
+        # Drop request bodies entirely. With ``"never"`` the SDK does
+        # not extract POST/PATCH payloads at all, replacing them with
+        # an over-size-limit marker.
+        max_request_body_size="never",
+        traces_sample_rate=0.0,
+        profiles_sample_rate=0.0,
+        # Implements ObservabilityArchitecture.md § Capture scope's
+        # "don't capture" list. ``DjangoIntegration`` hooks
+        # ``got_request_exception``, which fires for these classes
+        # before Django's resolve_exception_handler maps them to 4xx
+        # responses — without this filter they'd flood the issue
+        # stream. ``StructuredApiError`` covers rate-limit denials
+        # and other structured 4xx errors raised through Ninja.
+        ignore_errors=IGNORE_ERRORS,
+        # Crash-free request rate per release. Cheap signal; works
+        # without tracing. ``True`` is the SDK default in 2.x; set
+        # explicitly to pin the behavior in case Sentry ever changes it.
+        auto_session_tracking=True,
+        # Default flush window is 2s; 5s gives the SDK enough time
+        # to drain queued events on a SIGTERM (Railway deploys,
+        # rolling restarts) without delaying graceful shutdown.
+        shutdown_timeout=5,
+        integrations=[
+            DjangoIntegration(),
+            # Log records become breadcrumbs but never standalone events;
+            # see ObservabilityArchitecture.md § Logging.
+            LoggingIntegration(level=logging.INFO, event_level=None),
+        ],
+        # Override the auto-instantiated EventScrubber to enable
+        # recursive descent into nested dicts and lists. The default
+        # is shallow, which would miss sensitive keys buried in
+        # nested ``extra`` / ``contexts`` / breadcrumb-data payloads.
+        # ``send_default_pii=False`` flows through so the PII denylist
+        # (REMOTE_ADDR, X-Forwarded-For, etc.) is merged in.
+        #
+        # Email / IP pattern masking and ``request.query_string`` drop
+        # are handled by server-side Advanced Data Scrubbing rules
+        # (see ObservabilityArchitecture.md § Privacy enforcement).
+        event_scrubber=EventScrubber(recursive=True, send_default_pii=False),
+    )
