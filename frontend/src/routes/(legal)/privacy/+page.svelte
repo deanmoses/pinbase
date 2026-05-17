@@ -63,7 +63,9 @@
 <!-- TODO: Add account deletion process details -->
 
 <h2>Third-Party Services</h2>
-<p>{SITE_NAME} relies on a number of third-party services to operate:</p>
+<p>
+  {SITE_NAME} relies on a number of third-party services to operate:
+</p>
 <ul>
   <li>
     <strong><a href="https://workos.com" target="_blank" rel="noopener">WorkOS</a></strong> — handles
@@ -84,10 +86,6 @@
     — stores uploaded files.
   </li>
 </ul>
-<p>
-  Your interactions with the service are subject to these providers' infrastructure and data
-  handling practices.
-</p>
 <!-- TODO: Add any analytics services if applicable -->
 
 <h2>Your Rights</h2>

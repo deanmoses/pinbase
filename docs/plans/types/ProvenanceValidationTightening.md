@@ -347,7 +347,7 @@ Assumes the "Commit sequence" above: Commit A (registry) → Commit B (classifie
 ## Verification
 
 - `uv run --directory backend pytest apps/provenance/tests/test_validation.py apps/catalog/tests/test_claims.py apps/catalog/tests/test_bulk_assert_claims.py apps/catalog/tests/test_resolve_bulk.py apps/catalog/tests/test_resolve.py apps/catalog/tests/test_resolve_aliases.py apps/catalog/tests/test_resolve_credits.py apps/catalog/tests/test_resolve_parents.py apps/catalog/tests/test_resolve_dispatch.py apps/media/tests/test_media_claims.py` — all tests pass. (Broader `make test` also, but this is the focused set.)
-- `./scripts/mypy` — baseline unchanged (this step has no mypy impact).
+- `make mypy` — clean (this step has no mypy impact).
 - **Pre-merge dry-run:** wipe localhost DB, reset migrations to 0001, `make pull-ingest`, `make ingest`. No rejections on clean data. If rejections appear, they're real malformed payloads upstream ingest is producing and must be fixed at the source before merging.
 - **Post-merge:** same wipe + re-ingest against the shared environment.
 - After landing (and after the post-merge wipe + re-ingest), [Step 5 of ResolveHardening.md](ResolveHardening.md) (resolver subscript flip) is unblocked.

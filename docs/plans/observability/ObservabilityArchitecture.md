@@ -81,33 +81,43 @@ What we don't capture:
 - WorkOS callback states that resolve to a user-facing error page
 - `IntegrityError`s used as control flow (e.g. unique-constraint races)
 
-The "don't capture" list is enforced by the pre-send hook for the unhandled-exception path; see [§ Privacy enforcement](#privacy-enforcement).
+The "don't capture" list is enforced by `ignore_errors` on `sentry_sdk.init()` — `DjangoIntegration` hooks `got_request_exception`, which fires for `ValidationError`, `Http404`, `PermissionDenied`, etc. _before_ Django maps them to a 4xx response. The concrete class list lives in [`backend/config/sentry_options.py`](../../../backend/config/sentry_options.py) so tests can import the same list rather than redeclare it. `IntegrityError`s used as control flow are not on the list — we can't blanket-ignore them without also dropping real DB errors; those sites are expected to swallow the exception locally.
 
 ## Privacy enforcement
 
-Scrubbing runs in the SDK's pre-send hook on every runtime. The Python implementation lives in a dedicated scrubber module; the JS implementations live next to each init call. (Exact files in [§ Vendor binding](#vendor-binding).)
+Privacy enforcement is layered. From innermost (in our process) to outermost (Sentry's servers):
 
-Stripped before send:
+1. **SDK options** in `sentry_sdk.init()` — `send_default_pii=False`, `max_request_body_size="never"`. The SDK never extracts the request body, cookies, the user's IP, or the user's email.
+2. **`EventScrubber(recursive=True)`** — Sentry's built-in key-based scrubber. Redacts ~30 default-denylist names (`password`, `secret`, `token`, `csrf*`, `cookie`, `authorization`, session keys, etc.) across headers, body keys, extras, contexts, breadcrumb `data`, stack frame locals, and span data. Recurses into nested dicts and lists.
+3. **Server-side Advanced Data Scrubbing** — Sentry dashboard rules applied at ingest, before storage. Cover the cases the in-process layers can't reach: pattern-shaped PII inside free-form string values, and unconditionally-extracted fields like `request.query_string`. Configured per project, listed in [§ Server-side scrubbing rules](#server-side-scrubbing-rules-sentry-dashboard) below and tracked in [ObservabilityPlan.md § Prerequisites](ObservabilityPlan.md#prerequisites).
 
-- `Cookie` and `Set-Cookie` headers
-- `Authorization` header
-- `X-CSRFToken` header and `csrfmiddlewaretoken` form field
-- `password`, `password_confirm`, and any field whose name contains `token`, `secret`, or `key`
-- request body by default (drop unless the request has been explicitly safe-listed)
-- email addresses appearing in `extra` or `contexts`
-- IP addresses (`request.env.REMOTE_ADDR`, `user.ip_address`)
+There is no application-code `before_send` hook. Everything Sentry can express via init options or dashboard rules is delegated to Sentry; we don't reimplement.
 
-Kept (per [Observability.md §Privacy](Observability.md#privacy)):
+The scrubber prefers strictness: when in doubt, drop. Anything not on the "kept" list below should not reach the vendor (layers 1–2) or its storage (layer 3).
+
+### Server-side scrubbing rules (Sentry dashboard)
+
+Configured on **each project** (`flipcommons-backend`, `flipcommons-frontend`) at Project Settings → Security & Privacy → Advanced Data Scrubbing. Required rules:
+
+- `[Mask] [@email] from [$string]` — masks every RFC-shaped email anywhere in any string field of any event.
+- `[Mask] [@ip] from [$string]` — masks every IPv4 and IPv6 address anywhere in any string field of any event.
+- `[Remove] [$request.query_string]` — drops the query string entirely. `DjangoIntegration` extracts it unconditionally and no SDK option suppresses it; this rule is the only way.
+
+The placeholder Sentry substitutes for `[Mask]` rules is `[Filtered]`, matching the SDK's `EventScrubber` token.
+
+These rules are part of the deploy prerequisites — without them, an email or IP interpolated into a log message, or a query string carrying user input, would be stored.
+
+### Kept fields
+
+Per [Observability.md §Privacy](Observability.md#privacy):
 
 - route or endpoint name
 - HTTP method and status code
 - exception type, message, stack trace
 - release SHA, environment, deploy timestamp
 - user id and username, for authenticated requests
-- anonymous/authenticated state
-- coarse User-Agent family (browser, OS, bot/not-bot)
-
-The scrubber prefers strictness: when in doubt, drop. The "kept" list is the intent; the implementation is a deny list applied to the SDK's default event shape rather than a literal allow-list rebuild, because reconstructing every nested context dict ourselves is more code than the privacy gain justifies.
+- anonymous/authenticated state (also surfaced as the `auth_state` tag — `"auth"` / `"anon"`)
+- User-Agent header (full value, plus a coarse `ua_family` tag — `chrome`/`firefox`/`safari`/`edge`/`bot`/`other`/`unknown` — for filtering). The full UA ships unredacted; the tag is an additional filter aid, not a privacy measure. The contract is "no email, no IP," not "no UA."
 
 ## Environment separation
 
@@ -147,7 +157,7 @@ The monitor is hosted alongside the [observability vendor](#observability-vendor
 
 ## First-event verification
 
-Two staff-gated routes, one per side, that exist to trigger an event on demand. Both gate on a new `Activity.OBSERVABILITY_DEBUG`, registered with predicates `is_authenticated, is_staff` — operator-area activities are an established pattern in [rules.py](../../../backend/apps/core/authz/rules.py) (`DJANGO_ADMIN_ACCESS`, `RATE_LIMIT_EXEMPT`), and using a dedicated Activity for this gate keeps the route inventory complete and the frontend gate consistent with the rest of the SPA.
+Two staff-gated routes, one per side, that exist to trigger an event on demand. Both gate on a new `Activity.OBSERVABILITY_DEBUG`, registered with predicates `is_authenticated, email_verified, is_staff` — operator-area activities are an established pattern in [rules.py](../../../backend/apps/core/authz/rules.py) (`DJANGO_ADMIN_ACCESS`, `RATE_LIMIT_EXEMPT`), and using a dedicated Activity for this gate keeps the route inventory complete and the frontend gate consistent with the rest of the SPA. `email_verified` is included per the [rules.py](../../../backend/apps/core/authz/rules.py) "default to email verification" convention; `DJANGO_ADMIN_ACCESS` is exempt only because Django's own `/admin/` gate doesn't check verification, so requiring it on the activity would hide an SPA link to a still-reachable page. No such constraint applies here.
 
 - **Backend** — `/api/sentry_test` (Django Ninja, `tags=["private"]`), decorated `@requires(Activity.OBSERVABILITY_DEBUG)`. Raises an exception when hit.
 - **Frontend** — `/_sentry_test` (SvelteKit route). The `+page.ts` load function calls `requireCapability({ fetch, url, activity: Activity.OBSERVABILITY_DEBUG })`, matching the existing pattern in [require-capability.ts](../../../frontend/src/lib/require-capability.ts) — non-staff visitors are redirected to `/login` or `/verify-email` like any other gated route. The page contains two buttons: one that calls the backend route, one that `throw`s in a client-side handler. Covers both SSR-load-time and browser-side capture paths.
@@ -184,6 +194,9 @@ Package: `sentry-sdk[django]`. Init in `config/settings.py`, gated on `SENTRY_DS
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.scrubber import EventScrubber
+
+from config.sentry_options import IGNORE_ERRORS
 
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 if SENTRY_DSN:
@@ -192,17 +205,27 @@ if SENTRY_DSN:
         environment="production",
         release=os.environ.get("RAILWAY_GIT_COMMIT_SHA", "").strip(),
         send_default_pii=False,
+        max_request_body_size="never",
         traces_sample_rate=0.0,
         profiles_sample_rate=0.0,
+        ignore_errors=IGNORE_ERRORS,
+        auto_session_tracking=True,
+        shutdown_timeout=5,
         integrations=[
             DjangoIntegration(),
             LoggingIntegration(level=logging.INFO, event_level=None),
         ],
-        before_send=scrub_event,  # implemented in config/sentry_scrubber.py
+        event_scrubber=EventScrubber(recursive=True, send_default_pii=False),
     )
 ```
 
-User identification is set in a middleware that runs after `AuthenticationMiddleware`. Authenticated requests attach `{id, username}` to the Sentry scope; anonymous requests attach nothing.
+Three options carry context worth calling out:
+
+- `ignore_errors=IGNORE_ERRORS` — drops the [§ Capture scope](#capture-scope) "don't capture" list at the SDK boundary. List lives in [`backend/config/sentry_options.py`](../../../backend/config/sentry_options.py).
+- `auto_session_tracking=True` — emits release-health sessions so the dashboard surfaces crash-free request rate per release. Works without tracing enabled.
+- `shutdown_timeout=5` — Railway sends SIGTERM and waits ~10s for exit. The default 2s flush window risks losing the exception that _caused_ a crash.
+
+`SentryScopeMiddleware` runs after `AuthenticationMiddleware` and attaches per-request scope data: `{id, username}` for authenticated requests (no user for anonymous), plus `auth_state` and `ua_family` tags on every request so the issue stream is filterable for anonymous traffic too.
 
 ### Logging
 

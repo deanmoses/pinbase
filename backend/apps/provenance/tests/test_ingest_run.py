@@ -25,7 +25,7 @@ class TestIngestRunModel:
         run = IngestRun.objects.create(
             source=source,
             finished_at=now,
-            input_fingerprint="abc123def456",
+            input_fingerprint="test-fingerprint",
             status=IngestRun.Status.SUCCESS,
             records_parsed=100,
             records_matched=95,
@@ -46,7 +46,7 @@ class TestIngestRunModel:
         assert run.claims_asserted == 200
         assert run.claims_retracted == 3
         assert run.claims_rejected == 2
-        assert run.input_fingerprint == "abc123def456"
+        assert run.input_fingerprint == "test-fingerprint"
         assert run.warnings == ["minor issue"]
         assert run.errors == []
 

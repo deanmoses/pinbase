@@ -1,8 +1,17 @@
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
+
 import pytest
+import sentry_sdk
+from sentry_sdk.envelope import Envelope
+from sentry_sdk.transport import Transport
 
 from apps.accounts.models import User
 from apps.accounts.test_factories import make_user
 from apps.catalog.models import CreditRole, Person
+
+if TYPE_CHECKING:
+    from sentry_sdk._types import Event
 
 
 @pytest.fixture
@@ -79,6 +88,83 @@ def _use_locmem_cache(settings):
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         }
     }
+
+
+# ---------------------------------------------------------------------------
+# Sentry test helpers
+# ---------------------------------------------------------------------------
+# Sentry's scope is process-global and survives SDK re-init, so any test
+# that touches the SDK has to reset state at the boundary or earlier tests
+# leak. These fixtures centralize the init / cleanup dance so individual
+# test files don't reinvent it.
+
+
+class SentryRecordingTransport(Transport):
+    """In-memory transport for tests asserting "what got captured."
+
+    Pair with the ``sentry_recording`` fixture below to verify event
+    payloads without exercising the real HTTPS transport.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.events: list[Event] = []
+
+    def capture_envelope(self, envelope: Envelope) -> None:
+        for item in envelope.items:
+            event = item.payload.json
+            if event is not None:
+                self.events.append(event)
+
+
+def _reset_sentry_scope_state() -> None:
+    """Clear process-global Sentry scope state (user + tags + everything).
+
+    ``set_user`` / ``set_tag`` writes survive SDK re-init because they
+    live on the isolation scope, not the client. Without this reset,
+    state set by one test would leak into the next test's
+    ``isolation_scope()`` (which forks from the parent). ``clear()``
+    wipes user, tags, contexts, breadcrumbs, extras, and fingerprint
+    — exactly the right granularity.
+    """
+    sentry_sdk.get_global_scope().clear()
+    sentry_sdk.get_isolation_scope().clear()
+
+
+@pytest.fixture
+def sentry_active() -> Iterator[None]:
+    """Boot Sentry with an active (no-op) client for the test.
+
+    Use when code-under-test gates on ``get_client().is_active()`` and
+    needs that to return True. Scope state is cleared on both setup
+    and teardown so tests don't bleed into each other.
+    """
+    _reset_sentry_scope_state()
+    sentry_sdk.init(dsn="https://public@example.test/1")
+    try:
+        yield
+    finally:
+        sentry_sdk.get_client().close()
+        sentry_sdk.Scope.get_global_scope().set_client(None)
+        _reset_sentry_scope_state()
+
+
+@pytest.fixture
+def sentry_recording() -> Iterator[SentryRecordingTransport]:
+    """Boot Sentry with a ``SentryRecordingTransport`` for the test.
+
+    Captures every envelope the SDK would have sent; assert on
+    ``transport.events`` to verify the captured shape.
+    """
+    _reset_sentry_scope_state()
+    transport = SentryRecordingTransport()
+    sentry_sdk.init(dsn="https://public@example.test/1", transport=transport)
+    try:
+        yield transport
+    finally:
+        sentry_sdk.get_client().close()
+        sentry_sdk.Scope.get_global_scope().set_client(None)
+        _reset_sentry_scope_state()
 
 
 @pytest.fixture(autouse=True)

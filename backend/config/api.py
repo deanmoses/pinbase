@@ -1,15 +1,19 @@
 import importlib
+from typing import Never
 
 from django.apps import apps
 from django.db import connection
 from django.http import HttpRequest, JsonResponse
 from ninja import NinjaAPI, Schema
 from ninja.errors import HttpError, ValidationError
+from ninja.security import django_auth
 
 from apps.catalog.api.edit_claims import (
     FieldConstraintSchema,
     StructuredValidationError,
 )
+from apps.core.authz.markers import requires
+from apps.core.authz.types import Activity
 from apps.core.exceptions import StructuredApiError
 
 api = NinjaAPI(
@@ -58,6 +62,27 @@ def health(request: HttpRequest) -> dict[str, str]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
     return {"status": "ok"}
+
+
+class _SentryTestError(RuntimeError):
+    """Raised by ``/api/sentry_test`` to verify the Sentry pipeline.
+
+    Distinct type so events from this route group together in Sentry
+    and are trivially filterable in the issue stream.
+    """
+
+
+@api.get("/sentry_test", tags=["private"], auth=django_auth)
+@requires(Activity.OBSERVABILITY_DEBUG)
+def sentry_test(request: HttpRequest) -> Never:
+    """Deliberately raise so the Sentry pipeline can be verified.
+
+    Gated by ``Activity.OBSERVABILITY_DEBUG`` (staff-only). See
+    docs/plans/observability/ObservabilityArchitecture.md §
+    First-event verification for the post-deploy checklist this
+    route exists to support.
+    """
+    raise _SentryTestError("Deliberate exception from /api/sentry_test")
 
 
 # ---------------------------------------------------------------------------

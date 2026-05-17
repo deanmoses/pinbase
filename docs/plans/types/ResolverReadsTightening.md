@@ -59,7 +59,7 @@ Judgment call whether to make that swap as part of this step or leave it. Defaul
 
 ## Verification
 
-- `./scripts/mypy` — baseline unchanged (subscript access on a TypedDict's Required key type-checks the same as `.get()` did).
+- `make mypy` — clean (subscript access on a TypedDict's Required key type-checks the same as `.get()` did).
 - `uv run --directory backend pytest apps/catalog/tests/test_resolve*.py apps/catalog/tests/test_bulk_resolve*.py` — all pass.
 - `make ingest` end-to-end — exercises real bulk-resolution paths. Any KeyError here means a namespace slipped through ProvenanceValidationTightening's coverage; the fix is to add the registration there, not to revert this PR.
 
