@@ -6,7 +6,7 @@ This doc covers frontend implementation of [ObservabilityPlan.md](ObservabilityP
 
 - ✅ DONE: [Prerequisites](#prerequisites) — implement backend, configure scrubbing rules in Sentry
 - ✅ DONE: [SDK](#phase-sdk) — install Sentry SDK, init SSR + browser, upload sourcemaps
-- [User attribution](#phase-user-attribution) — attach id + username to events
+- ✅ DONE: [User attribution](#phase-user-attribution) — attach id + username to events
 - [Debug route](#phase-debug-route) — staff-gated on-demand exception triggers
 
 Each phase is its own commit. 🛑 STOP before committing each phase for user review.

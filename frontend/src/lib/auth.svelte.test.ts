@@ -4,15 +4,24 @@
 // the behavior the first two tests pin.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { GET, POST, registerOnPolicyDenied } = vi.hoisted(() => ({
+const { GET, POST, registerOnPolicyDenied, setUser, setTag, isInitialized } = vi.hoisted(() => ({
   GET: vi.fn(),
   POST: vi.fn(),
   registerOnPolicyDenied: vi.fn(),
+  setUser: vi.fn(),
+  setTag: vi.fn(),
+  isInitialized: vi.fn(() => true),
 }));
 
 vi.mock('$lib/api/client', () => ({
   default: { GET, POST },
   registerOnPolicyDenied,
+}));
+
+vi.mock('@sentry/sveltekit', () => ({
+  setUser,
+  setTag,
+  isInitialized,
 }));
 
 import { auth } from './auth.svelte';
@@ -21,6 +30,10 @@ describe('auth store', () => {
   beforeEach(() => {
     GET.mockReset();
     POST.mockReset();
+    setUser.mockReset();
+    setTag.mockReset();
+    isInitialized.mockReset();
+    isInitialized.mockReturnValue(true);
     auth._resetForTest();
   });
 
@@ -91,6 +104,26 @@ describe('auth store', () => {
       expect(auth.can('catalog.edit')).toBe(false);
     });
 
+    it('attributes authenticated users to Sentry with exactly {id, username}', async () => {
+      // Pins the privacy chokepoint: the keep-list must stay {id, username}.
+      // A refactor that adds `email` (or any other field) fails this test.
+      GET.mockResolvedValueOnce({
+        data: {
+          is_authenticated: true,
+          id: 42,
+          username: 'pinwizard',
+          first_name: 'Pin',
+          last_name: 'Wizard',
+          capabilities: {},
+        },
+      });
+      await auth.refresh();
+
+      expect(setUser).toHaveBeenCalledTimes(1);
+      expect(setUser).toHaveBeenCalledWith({ id: 42, username: 'pinwizard' });
+      expect(setTag).toHaveBeenCalledWith('auth_state', 'auth');
+    });
+
     it('de-dupes concurrent calls', async () => {
       let resolveGet: (v: { data: unknown }) => void = () => {};
       const pending = new Promise<{ data: unknown }>((r) => {
@@ -111,6 +144,41 @@ describe('auth store', () => {
       await Promise.all([a, b, c]);
 
       expect(GET).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('logout()', () => {
+    it('clears the Sentry user and tags the scope anonymous', async () => {
+      // Seed the scope as authenticated first so the logout transition
+      // is observable.
+      GET.mockResolvedValueOnce({
+        data: { is_authenticated: true, id: 1, username: 'me', capabilities: {} },
+      });
+      await auth.refresh();
+      setUser.mockClear();
+      setTag.mockClear();
+
+      POST.mockResolvedValueOnce({
+        data: { is_authenticated: false, capabilities: {} },
+      });
+      await auth.logout();
+
+      expect(setUser).toHaveBeenCalledTimes(1);
+      expect(setUser).toHaveBeenCalledWith(null);
+      expect(setTag).toHaveBeenCalledWith('auth_state', 'anon');
+    });
+  });
+
+  describe('Sentry guards', () => {
+    it('does not touch the Sentry scope when the SDK is not initialized', async () => {
+      isInitialized.mockReturnValue(false);
+      GET.mockResolvedValueOnce({
+        data: { is_authenticated: true, id: 1, username: 'me', capabilities: {} },
+      });
+      await auth.refresh();
+
+      expect(setUser).not.toHaveBeenCalled();
+      expect(setTag).not.toHaveBeenCalled();
     });
   });
 });

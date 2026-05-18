@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/sveltekit';
 import client, { registerOnPolicyDenied } from '$lib/api/client';
 import type { Activity } from '$lib/api/schema';
 
@@ -47,6 +48,31 @@ function createAuthStore() {
       capabilities: (data.capabilities ?? {}) as Partial<Record<Activity, boolean>>,
     };
     loaded = true;
+    syncSentryUser(state);
+  }
+
+  /**
+   * Mirror auth state into Sentry's browser scope.
+   *
+   * **Privacy chokepoint**: we send `{id, username}` and nothing else.
+   * There is no `beforeSend`, so a refactor that adds `email` here ships
+   * PII to Sentry. Pinned by tests.
+   */
+  function syncSentryUser(s: AuthState): void {
+    // `set()` is browser-only today, but auth.svelte.ts is a module
+    // singleton and SSR Sentry is also initialized — without this guard a
+    // future SSR caller would attach user data to a per-request scope that
+    // survives across requests. Mirrors the registerOnPolicyDenied guard.
+    if (typeof window === 'undefined') return;
+    // Skip in dev/CI/tests where the SDK was never init'd.
+    if (!Sentry.isInitialized()) return;
+    if (s.isAuthenticated && s.id !== null && s.username !== null) {
+      Sentry.setUser({ id: s.id, username: s.username });
+      Sentry.setTag('auth_state', 'auth');
+    } else {
+      Sentry.setUser(null);
+      Sentry.setTag('auth_state', 'anon');
+    }
   }
 
   async function load() {
