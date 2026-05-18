@@ -46,10 +46,20 @@
 
   const myContributionsHref = $derived(resolve(`/users/${auth.username}`));
   const myContributionsActive = $derived(isActive(`/users/${auth.username}`));
+
+  // Single source of truth for "should the ADMIN menu section render at all?"
+  // Both the desktop avatar menu and the mobile hamburger gate on this; a new
+  // admin activity is added here once, not in two `||` chains.
+  const hasAnyAdminSurface = $derived(
+    auth.can('admin_area.view') || auth.can('kiosk.edit') || auth.can('django_admin.access'),
+  );
 </script>
 
 {#snippet adminSection()}
   <MenuSectionHeader>admin</MenuSectionHeader>
+  {#if auth.can('admin_area.view')}
+    <MenuItem href={resolve('/a/dashboard')} current={isActive('/a')}>Stats</MenuItem>
+  {/if}
   {#if auth.can('kiosk.edit')}
     <MenuItem href={resolve('/kiosk/edit')} current={isActive('/kiosk/edit')}>Kiosks</MenuItem>
     <MenuItem href={resolve('/style-lab')} current={isActive('/style-lab')}>Style Lab</MenuItem>
@@ -101,7 +111,7 @@
                 username={auth.username ?? ''}
               />
             {/snippet}
-            {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
+            {#if hasAnyAdminSurface}
               {@render adminSection()}
               <MenuDivider />
             {/if}
@@ -132,7 +142,7 @@
           Changelog
         </MenuItem>
         {#if auth.loaded}
-          {#if auth.can('kiosk.edit') || auth.can('django_admin.access')}
+          {#if hasAnyAdminSurface}
             <MenuDivider />
             {@render adminSection()}
           {/if}

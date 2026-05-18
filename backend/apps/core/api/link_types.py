@@ -1,8 +1,4 @@
-"""API endpoints for the core app.
-
-Router: link_types — wikilink autocomplete support.
-Auto-discovered via the ``routers`` list convention in config/api.py.
-"""
+"""Wikilink picker / autocomplete endpoints."""
 
 from __future__ import annotations
 
@@ -77,8 +73,3 @@ def search_link_targets(
 
     results = [pt.autocomplete_serialize(obj) for obj in qs[:AUTOCOMPLETE_RESULT_LIMIT]]
     return LinkTargetListSchema(results=results)
-
-
-routers = [
-    ("/link-types/", link_types_router),
-]
