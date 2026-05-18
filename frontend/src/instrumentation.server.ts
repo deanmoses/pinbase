@@ -4,22 +4,31 @@
 // server SDK in @sentry/sveltekit >= 10.8.0.
 //
 // Do NOT move Sentry.init() into hooks.server.ts — it's no longer load-order-safe.
+//
+// Read DSN/release from process.env DIRECTLY, not via `$env/dynamic/*`.
+// SvelteKit's env shim is not yet initialized at this point in the load
+// order — `publicEnv.PUBLIC_SENTRY_DSN` and `privateEnv.RAILWAY_GIT_COMMIT_SHA`
+// both resolve to `undefined` here, even when the underlying env vars are
+// set on the process. We confirmed this empirically: the same code reading
+// from `$env/dynamic/*` skipped Sentry.init silently in production (SSR
+// errors never reached Sentry); switching to process.env fixed it. Browser
+// init (hooks.client.ts) is exempt because it runs after the SvelteKit
+// runtime is fully bootstrapped and the shim works there.
+//
+// SSR is part of the frontend, so its events go to the `flipcommons-frontend`
+// Sentry project — NOT the backend project the Django process uses. PUBLIC_
+// vars are readable server-side via process.env just like private ones.
 import * as Sentry from '@sentry/sveltekit';
-import { env as publicEnv } from '$env/dynamic/public';
-import { env as privateEnv } from '$env/dynamic/private';
 import { IGNORE_ERRORS } from '$lib/sentry/ignore-errors';
 
-// SSR is part of the frontend, so its events go to the `flipcommons-frontend`
-// Sentry project (same as the browser) — NOT the backend project that the
-// Django process uses. We deliberately read PUBLIC_SENTRY_DSN here even
-// though we're on the server; `PUBLIC_` vars are readable server-side, and
-// using the same DSN as the browser is what keeps SSR and browser events
-// in the same project.
-if (publicEnv.PUBLIC_SENTRY_DSN) {
+const dsn = process.env.PUBLIC_SENTRY_DSN;
+const release = process.env.RAILWAY_GIT_COMMIT_SHA;
+
+if (dsn) {
   Sentry.init({
-    dsn: publicEnv.PUBLIC_SENTRY_DSN,
+    dsn,
     environment: 'production',
-    release: privateEnv.RAILWAY_GIT_COMMIT_SHA,
+    release,
     tracesSampleRate: 0,
     sendDefaultPii: false,
     // JS-server SDK extracts up to 10KB of request body by default. The
