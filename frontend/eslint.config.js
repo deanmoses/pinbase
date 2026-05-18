@@ -57,10 +57,22 @@ export default ts.config(
     },
   },
   {
-    // The createApiClient factory is an implementation detail of the api/
-    // folder. App code uses the default `client` export from $lib/api/client
-    // (browser) or `createServerClient` from $lib/api/server (SSR). Reaching
-    // into $lib/api/internal/ from outside the api/ folder is a layering bug.
+    // `no-restricted-imports` policies. Both restrictions are colocated in a
+    // single config block because ESLint flat config merges rule options by
+    // override (last block wins) rather than by union — splitting them would
+    // silently drop one of the two restrictions on overlapping files.
+    //
+    // - api/internal: the createApiClient factory is an implementation detail
+    //   of the api/ folder. App code uses the default `client` export from
+    //   $lib/api/client (browser) or `createServerClient` from $lib/api/server
+    //   (SSR). Reaching into $lib/api/internal/ from outside api/ is a
+    //   layering bug — the rule is suppressed inside src/lib/api/** via the
+    //   per-file override below.
+    // - posthog-js: the analytics vendor SDK. Only src/lib/analytics/posthog.ts
+    //   may touch it; everywhere else routes through the abstraction in
+    //   $lib/analytics. This keeps the vendor boundary one-file-wide so a
+    //   future swap is mechanical (see
+    //   docs/plans/analytics/AnalyticsArchitecture.md § Migration).
     files: [
       'src/**/*.ts',
       'src/**/*.js',
@@ -68,7 +80,51 @@ export default ts.config(
       'src/**/*.svelte.ts',
       'src/**/*.svelte.js',
     ],
-    ignores: ['src/lib/api/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'posthog-js',
+              message:
+                "Don't import posthog-js directly — use the `analytics` export from $lib/analytics. Only src/lib/analytics/posthog.ts may touch the SDK.",
+              allowTypeImports: true,
+            },
+          ],
+          patterns: [
+            {
+              group: ['$lib/api/internal/*', '**/api/internal/*'],
+              message:
+                "Don't import from $lib/api/internal/ — use the default `client` from $lib/api/client or `createServerClient` from $lib/api/server.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The api/ folder is allowed to import from its own internals.
+    files: ['src/lib/api/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'posthog-js',
+              message:
+                "Don't import posthog-js directly — use the `analytics` export from $lib/analytics. Only src/lib/analytics/posthog.ts may touch the SDK.",
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The PostHog adapter is the one file that's allowed to import the SDK.
+    files: ['src/lib/analytics/posthog.ts'],
     rules: {
       'no-restricted-imports': [
         'error',

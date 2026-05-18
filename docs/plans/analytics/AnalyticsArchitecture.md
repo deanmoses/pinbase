@@ -189,7 +189,7 @@ The vendor integration must satisfy these constraints. The concrete knobs that i
 - Client IP stripped at ingest
 - Server-side geoip disabled
 
-**Pageviews are explicit, not auto-captured.** The vendor's auto-pageview is off; pageviews fire from a SvelteKit `afterNavigate` hook so every CSR route change is recorded — not just the initial SSR load. Implementation in [AnalyticsUntypedEventsPlan.md § Pageviews](AnalyticsUntypedEventsPlan.md#phase-pageviews).
+**Pageviews use PostHog's built-in SPA tracking, with query strings stripped.** `capture_pageview: 'history_change'` fires `$pageview` on every SvelteKit CSR navigation (pushState/replaceState/popstate) as well as the initial load. A `before_send` hook scrubs the query string off `$current_url` and `$pathname` so URL cardinality stays bounded and search terms / query-encoded state don't leak into the firehose. Implementation in [AnalyticsUntypedEventsPlan.md § Pageviews](AnalyticsUntypedEventsPlan.md#phase-pageviews).
 
 Mapping to the [non-goals](Analytics.md#non-goals):
 
@@ -269,6 +269,14 @@ Per the project's [strong-typing rule](../../Python.md), backend properties are 
 
 PostHog ships several features that appear in our [non-goals](Analytics.md#non-goals): autocapture, session replay, heatmaps, surveys, behavioral cohorts. The init config below disables them at the integration boundary.
 
+### Bundle cost
+
+We use `posthog-js` (the full SDK, ~70 KB gzipped), not `posthog-js-lite`. Rationale:
+
+- Once any call site imports `$lib/analytics`, `posthog-js` ships in every production bundle. The runtime key check (see [AnalyticsUntypedEventsPlan.md § Skeleton](AnalyticsUntypedEventsPlan.md#phase-skeleton)) gates whether events _fire_, not whether the SDK _ships_ — Rollup can't see through a runtime guard, and `posthog-js` doesn't declare `sideEffects: false`.
+- `posthog-js-lite` (~4 KB gzipped) was a tempting fit for our locked-down posture, but PostHog archived its standalone repo in 2025 and its README states `posthog-js` is the only officially supported feature-complete web SDK. The adapter abstraction keeps a future swap mechanical if PostHog changes that stance.
+- `posthog-js` and `@sentry/sveltekit` are vendor-split into their own Rollup chunks via `manualChunks` in `vite.config.ts`. Both load eagerly from the root layout, so without splitting they'd live in the layout chunk whose hash rolls on every app deploy. The split keeps SDK bytes cached across deploys; HTTP/2/3 multiplexing makes the two-extra-requests cost negligible. Vendor-splitting (not dynamic import) is the right lever here because instrumentation SDKs need their `pushState`/`popstate` listeners attached early — dynamic import would race init against the user's first interaction.
+
 ### Adapter files
 
 - Frontend: `frontend/src/lib/analytics/posthog.ts` + `config.ts`
@@ -278,18 +286,20 @@ These are the only files that import `posthog-js` or the `posthog` Python packag
 
 ### Frontend init lockdown
 
-**Literal (locked-down init; the integration test asserts every option):**
+**Literal (locked-down init; the integration test asserts every option). The `key` argument is the PostHog project key, read at call time from `$env/dynamic/public` and passed in by `index.ts` — see [AnalyticsUntypedEventsPlan.md § Skeleton](AnalyticsUntypedEventsPlan.md#phase-skeleton):**
 
 ```ts
-posthog.init(PUBLIC_POSTHOG_KEY, {
+posthog.init(key, {
   api_host: "https://eu.posthog.com",
   persistence: "memory", // satisfies "no persistent client-side identity"
   autocapture: false, // satisfies "no autocapture / implicit tracking"
-  capture_pageview: false, // we call pageview() explicitly from afterNavigate
-  capture_pageleave: false,
+  capture_pageview: "history_change", // SPA-aware: initial load + every CSR navigation
+  capture_pageleave: "if_capture_pageview",
   disable_session_recording: true,
   disable_surveys: true,
-  disable_external_dependency_loading: true, // no runtime fetch of feature-flag/survey configs — reduces fingerprinting surface
+  disable_external_dependency_loading: true, // blocks runtime <script> loads (session-recording.js, surveys.js, …)
+  advanced_disable_flags: true, // blocks the separate /flags HTTP request (the flag/decide endpoint isn't gated by disable_external_dependency_loading)
+  save_campaign_params: false, // don't extract utm_*, gclid, fbclid, msclkid, gbraid, wbraid, li_fat_id, … as top-level props
 
   ip: false, // satisfies "no IP-based attribution"
   property_denylist: [
@@ -298,7 +308,35 @@ posthog.init(PUBLIC_POSTHOG_KEY, {
     "$screen_width",
     "$viewport_height",
     "$viewport_width",
+    "ph_keyword", // search-engine-referrer query, auto-extracted with no config toggle
+    "$search_engine",
   ],
+
+  // Strip query strings from URLs before send — bounds cardinality and keeps
+  // query-encoded search terms / state out of the firehose. `$pathname` and
+  // `$current_url` are PostHog-set; `$prev_pageview_pathname` is populated
+  // automatically when capture_pageview is on; `$referrer` carries the
+  // external referring document's full URL (search-engine referrers in
+  // particular ship their query string).
+  before_send: (event) => {
+    if (!event || !event.properties) return event;
+    const props = event.properties;
+    for (const key of ["$current_url", "$referrer"]) {
+      const v = props[key];
+      if (typeof v === "string" && URL.canParse(v)) {
+        const u = new URL(v);
+        props[key] = u.origin + u.pathname;
+      }
+    }
+    for (const key of ["$pathname", "$prev_pageview_pathname"]) {
+      const v = props[key];
+      if (typeof v === "string") {
+        const q = v.indexOf("?");
+        if (q !== -1) props[key] = v.slice(0, q);
+      }
+    }
+    return event;
+  },
 });
 ```
 
