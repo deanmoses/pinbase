@@ -23,6 +23,13 @@ const config = {
   preprocess: [injectCustomMedia, vitePreprocess()],
   kit: {
     adapter: adapter(),
+    experimental: {
+      // Required by @sentry/sveltekit >= 10.8.0: SvelteKit loads
+      // src/instrumentation.server.ts before any other server import,
+      // which is the only load-order-safe init site for the OpenTelemetry-
+      // powered server SDK. Without this flag, Sentry.init runs too late.
+      instrumentation: { server: true },
+    },
     version: {
       name: process.env.RAILWAY_GIT_COMMIT_SHA || 'dev',
       // Only poll when a real SHA is stamped (production builds). In dev the

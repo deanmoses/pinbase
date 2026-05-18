@@ -52,6 +52,7 @@
     "@floating-ui/dom": "^1.7.6",
     "@fortawesome/fontawesome-svg-core": "^7.2.0",
     "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@sentry/sveltekit": "^10.53.1",
     "diff": "^9.0.0",
     "open-props": "^1.7.23",
     "openapi-fetch": "^0.17.0",
