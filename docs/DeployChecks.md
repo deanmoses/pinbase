@@ -1,10 +1,22 @@
 # Deployment Preflight Checks
 
-This documents how to add production preflight checks via Django's system check framework. For the operator-facing view (what `preDeployCommand` does, how failures surface in Railway), see [Hosting.md](Hosting.md).
+This documents how to build pre-flight deployment checks. These checks run once at deploy time, in-process, before the new container takes traffic.
 
-These checks are not to be confused with a runtime liveness/readiness endpoint (e.g. `/healthz`). These checks run once at deploy time, in-process, before the new container takes traffic — they do not probe a running service.
+It uses preDeploy refusal gate, implemented via Django's system check framework.
 
-## Design philosophy
+## We automate aggressively
+
+These checks are important; we automate agressively. See [DeployAutomation.md](DeployAutomation.md).
+
+## We also have build-phase checks
+
+Before this deploy phase, while building the build, we also gate aggressively. See [BuildChecks.md](BuildChecks.md).
+
+## How to use these checks when managing the service
+
+For the operator-facing view (what `preDeployCommand` does, how failures surface in Railway), see [Hosting.md](Hosting.md).
+
+## Scoping conventions
 
 ### One service, one env
 
@@ -12,40 +24,22 @@ Backend and frontend ship in the same Railway container, with the same env-var s
 
 ### Frontend checks belong in Python
 
-Because the backend and frontend share an env, every env var the frontend needs is readable from `os.environ` in Django. There is no separate frontend preflight.
+Because backend and frontend share an env, every env var the frontend needs is readable from `os.environ` in Django. There is no separate frontend preflight.
 
 When a new `PUBLIC_*` var becomes required in production, the assertion goes in `apps/<name>/checks.py`, not in `vite.config.ts`, `instrumentation.server.ts`, or `hooks.client.ts`.
-
-### Checks gate promotion; there is no rollback
-
-The checks run via `preDeployCommand` (`manage.py check --deploy && manage.py migrate`).
-
-These checks run **before** the new container takes traffic. If it fails, Railway does not promote the new deploy; the old container keeps serving. There is no "deploy rolled back" state to worry about — there is only "the new version never went live."
-
-Migrations are part of the same gate: a failing `migrate` step blocks promotion exactly like a failing check. Treat schema changes with the same care — there is no in-place rollback path.
-
-### These checks are our automation frontline
-
-We are a [small team of volunteers](SmallTeam.md); there's no professional IT, nobody looking at logs. Everything must be automated. Prefer failing a check to logging a potential problem.
-
-We deploy automatically on merges to `main`; nobody's looking at log warnings or checking the site thoroughly after deploy.
-
-### Check aggressively
-
-Deploy checks should be aggressive. A failed check means "stay on the old version," not "page someone at 2am.". Prefer raising the bar (Error) over hoping someone reads the logs (Warning).
 
 ### Error vs Warning
 
 - **Error** — the deploy is broken without this. Block promotion. Examples: missing `SENTRY_DSN` in production, misconfigured storage credentials.
 - **Warning** — operator should notice, but the service still works. Surface in logs without blocking. Example: `core.W001` (`RATE_LIMIT_TRUST_PROXY_HEADERS` off in non-DEBUG — IP rate limiters degrade silently but the site still runs).
 
-When in doubt, prefer Error.
+Default to Error per [DeployAutomation.md](DeployAutomation.md). Warnings exist only for cases where the site genuinely still works and a human will see the message soon (we have no such humans for unattended deploys — use Warning sparingly).
 
 ### Assert env-var shape, don't probe services
 
 Deploy checks run in-process during `preDeployCommand`. They can read `settings` and `os.environ` cheaply, but they are the wrong place to open sockets, hit S3/R2, or query the DB. Network probes are slow, flaky, and turn a deploy gate into a dependency-availability gate — a transient blip in an upstream service blocks promotion of an unrelated change.
 
-Assert that env vars are **present and well-formed** (correct prefix, parseable URL, expected length). "Can we actually reach the bucket" is a runtime-readiness concern, not a deploy-gate concern. We don't have a runtime readiness endpoint yet; if we add one, that's where connectivity probes would go.
+Assert that env vars are **present and well-formed** (correct prefix, parseable URL, expected length). "Can we actually reach the bucket" is a runtime-readiness concern, not a deploy-gate concern.
 
 ## Adding a check
 

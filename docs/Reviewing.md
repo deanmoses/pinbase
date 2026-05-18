@@ -99,7 +99,7 @@ In particular:
 - same-origin assumptions must remain coherent
 - Caddy, Django, and SvelteKit routing must agree
 - health checks should reflect real readiness, not only partial readiness
-- features that require new production env vars or configuration should have a deployment pre-flight check per [DeployChecks.md](DeployChecks.md) so a missing var fails the deploy instead of degrading silently
+- features that introduce new production env vars or configuration should be gated by a refusal check per [DeployAutomation.md](DeployAutomation.md) — typically a [BuildChecks.md](BuildChecks.md) ARG declaration for build-time secrets, a [DeployChecks.md](DeployChecks.md) preflight for runtime vars, or both — so a missing or malformed value fails the deploy instead of degrading silently
 
 ## Generated And Derived Artifacts
 
