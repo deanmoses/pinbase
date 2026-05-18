@@ -37,6 +37,12 @@ class Activity(StrEnum):
     # see docs/plans/observability/ObservabilityArchitecture.md §
     # First-event verification.
     OBSERVABILITY_DEBUG = "observability.debug"
+    # Operator-surface activity gating the admin SPA area (`/a/*`) and
+    # its supporting page-API endpoints. Verb-led `VIEW_` makes the
+    # read-only scope explicit; any future mutating admin action gets
+    # its own activity rather than riding on this one. See
+    # docs/plans/AdminDashboard.md.
+    VIEW_ADMIN_AREA = "admin_area.view"
 
 
 class DenialCode(StrEnum):
