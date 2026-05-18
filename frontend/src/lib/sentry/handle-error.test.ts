@@ -3,13 +3,16 @@ import { handleClientError, handleServerError } from './handle-error';
 
 describe('handleServerError', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
   });
 
   afterEach(() => {
     errorSpy.mockRestore();
+    infoSpy.mockRestore();
   });
 
   function fakeEvent(method: string, pathname: string) {
@@ -21,7 +24,7 @@ describe('handleServerError', () => {
     } as unknown as Parameters<typeof handleServerError>[0]['event'];
   }
 
-  it('logs a single line for 4xx with no stack trace', () => {
+  it('logs a single line for 4xx at info level with no stack trace', () => {
     const err = new Error('Not found: /api/foo');
     err.stack = 'Error: Not found: /api/foo\n    at frame1\n    at frame2';
 
@@ -32,11 +35,13 @@ describe('handleServerError', () => {
       event: fakeEvent('GET', '/api/foo'),
     });
 
-    expect(errorSpy).toHaveBeenCalledTimes(1);
-    const logged = errorSpy.mock.calls[0][0] as string;
+    // 4xx is an expected outcome, not a server fault — it must go to
+    // console.info, not console.error, so log aggregators don't tag it
+    // as severity=error.
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    const logged = infoSpy.mock.calls[0][0] as string;
     expect(logged).toContain('[404] GET /api/foo');
-    // Pins the no-stack invariant — the whole reason this handler exists
-    // is to keep build/runtime logs clean of prerender 404 stacks.
     expect(logged).not.toContain('at frame1');
     expect(logged).not.toContain('at frame2');
   });
@@ -73,16 +78,19 @@ describe('handleServerError', () => {
 
 describe('handleClientError', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
   });
 
   afterEach(() => {
     errorSpy.mockRestore();
+    infoSpy.mockRestore();
   });
 
-  it('logs a single line for 4xx with no stack trace', () => {
+  it('logs a single line for 4xx at info level with no stack trace', () => {
     const err = new Error('not found');
     err.stack = 'Error: not found\n    at frame1';
 
@@ -93,7 +101,8 @@ describe('handleClientError', () => {
       event: {} as Parameters<typeof handleClientError>[0]['event'],
     });
 
-    const logged = errorSpy.mock.calls[0][0] as string;
+    expect(errorSpy).not.toHaveBeenCalled();
+    const logged = infoSpy.mock.calls[0][0] as string;
     expect(logged).toContain('[404] Not Found');
     expect(logged).not.toContain('at frame1');
   });

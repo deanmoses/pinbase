@@ -6,39 +6,33 @@ import type { HandleClientError, HandleServerError } from '@sveltejs/kit';
 // to Sentry.handleErrorWithSentry(...) so Sentry's defaultErrorHandler
 // (which dumps a full stack for every error, 4xx included) is never used.
 //
-// 4xx: log a single line. Stacks are pure noise — these are expected paths
-//      (prerender link probes, browser 404s, etc.) that Sentry already
-//      filters out of captureException.
-// 5xx: log the line plus the stack. Sentry has the structured event; the
-//      stack in stderr/console gives operators immediate context to grep
-//      Sentry by.
-//
-// Stylistically tracks SvelteKit's own format_server_error
-// (kit/src/runtime/server/utils.js) so the build log feels unchanged
-// from the no-Sentry baseline.
-
-function formatLine(status: number | undefined, method: string, pathname: string): string {
-  const code = status ?? 500;
-  return `\x1b[1;31m[${code}] ${method} ${pathname}\x1b[0m`;
-}
+// 4xx: log a single line at info level. A 4xx is an expected request
+//      outcome (the server correctly said "not here" / "not allowed"),
+//      not a server fault, so it should not surface as severity=error in
+//      log aggregators. Stacks are pure noise — Sentry already filters
+//      these out of captureException.
+// 5xx: log the line plus the stack at error level. Sentry has the
+//      structured event; the stack in stderr gives operators immediate
+//      context to grep Sentry by.
 
 export const handleServerError: HandleServerError = ({ error, status, event }) => {
   const code = status ?? 500;
-  const line = formatLine(code, event.request.method, event.url.pathname);
+  const line = `[${code}] ${event.request.method} ${event.url.pathname}`;
   if (code >= 400 && code < 500) {
-    console.error(line);
+    console.info(line);
     return;
   }
   const stack = error instanceof Error ? error.stack : String(error);
-  console.error(`${line}\n${stack}`);
+  console.error(`\x1b[1;31m${line}\x1b[0m\n${stack}`);
 };
 
 export const handleClientError: HandleClientError = ({ error, status, message }) => {
   const code = status ?? 500;
+  const line = `[${code}] ${message}`;
   if (code >= 400 && code < 500) {
-    console.error(`[${code}] ${message}`);
+    console.info(line);
     return;
   }
   const stack = error instanceof Error ? error.stack : String(error);
-  console.error(`[${code}] ${message}\n${stack}`);
+  console.error(`${line}\n${stack}`);
 };
