@@ -290,7 +290,7 @@ These are the only files that import `posthog-js` or the `posthog` Python packag
 
 ```ts
 posthog.init(key, {
-  api_host: "https://eu.posthog.com",
+  api_host: "https://us.posthog.com",
   persistence: "memory", // satisfies "no persistent client-side identity"
   autocapture: false, // satisfies "no autocapture / implicit tracking"
   capture_pageview: "history_change", // SPA-aware: initial load + every CSR navigation
@@ -345,7 +345,7 @@ posthog.init(key, {
 **Literal (locked-down init; the integration test asserts every line):**
 
 ```python
-posthog.host = "https://eu.posthog.com"
+posthog.host = "https://us.posthog.com"
 posthog.disable_geoip = True  # satisfies "no IP-based attribution"
 ```
 
