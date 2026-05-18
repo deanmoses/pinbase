@@ -2,7 +2,13 @@
 
 This doc covers the untyped-events track of [AnalyticsPlan.md](AnalyticsPlan.md). Contracts live in [AnalyticsArchitecture.md](AnalyticsArchitecture.md).
 
-This is the launch path. It stands up the SDK with the locked-down privacy config and starts firing anonymous pageviews. No typed events, no backend involvement, no pseudonym, no identify. The PostHog firehose alone answers most of the high-level questions in [AnalyticsQuestions.md § Root questions](AnalyticsQuestions.md#root-questions) — see [AnalyticsPlan.md § Which phase answers which question](AnalyticsPlan.md#which-phase-answers-which-question) for the mapping.
+## Status: ✅ Implementd
+
+This plan has been implemented
+
+## Overview
+
+Stands up the PostHog SDK with the locked-down privacy config and starts firing anonymous pageviews. No typed events, no backend involvement, no pseudonym, no identify. The PostHog firehose alone answers most of the high-level questions in [AnalyticsQuestions.md § Root questions](AnalyticsQuestions.md#root-questions) — see [AnalyticsPlan.md § Which phase answers which question](AnalyticsPlan.md#which-phase-answers-which-question) for the mapping.
 
 ## Phase: Skeleton
 
