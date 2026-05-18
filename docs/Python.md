@@ -1,5 +1,17 @@
 # Python Development
 
+## Type Checking
+
+The backend uses **mypy** with the **django-stubs** plugin. Pre-commit runs mypy in daemon mode (`dmypy`) so full-project analysis stays fast on every commit. `strict = true` is global; pre-commit and CI fail on any error.
+
+**If local mypy disagrees with CI,** the daemon is likely out of sync (common after branch switches or rebases). Run:
+
+```sh
+make mypy-restart
+```
+
+Other daemon commands: `make mypy-warm` (pays cold-start up front), `make mypy-status` (is the daemon alive?).
+
 ## Typing
 
 Code MUST be as strongly typed as possible.

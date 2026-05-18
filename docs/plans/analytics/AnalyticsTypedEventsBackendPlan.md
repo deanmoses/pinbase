@@ -12,7 +12,7 @@ Stand up the `apps/analytics/` app with the module structure from [AnalyticsArch
 
 - `apps/analytics/__init__.py` — public API re-exporting `analytics.capture()` and `analytics.identify()`.
 - `apps/analytics/pseudonym.py` — `pseudonym_for(user_id)` per the spec in [AnalyticsArchitecture.md § Identity & Pseudonymization](AnalyticsArchitecture.md#identity--pseudonymization).
-- `apps/analytics/posthog_adapter.py` — implements the `Analytics` Protocol, applies the locked-down init (`posthog.host = "https://eu.posthog.com"`, `posthog.disable_geoip = True`).
+- `apps/analytics/posthog_adapter.py` — implements the `Analytics` Protocol, applies the locked-down init (`posthog.host = "https://us.posthog.com"`, `posthog.disable_geoip = True`).
 - `apps/analytics/noop.py` — no-op adapter for tests and dev.
 - `apps/analytics/middleware.py` — derives the request user's pseudonym once and caches it on the request object. Anonymous requests get `None`.
 - `apps/analytics/events.py` — empty `TypedDict` registry, ready to grow.

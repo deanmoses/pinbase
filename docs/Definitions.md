@@ -2,7 +2,7 @@
 
 Here are precise definitions for terms used by enthusiasts, collectors and the pinball industry.
 
-These should map exactly to how those constituents use the terms; these aren't "our" terms.
+These should map exactly to how those constituents use the terms; these aren't "our" terms, which are in [DomainModel.md](DomainModel.md)
 
 ## Model
 

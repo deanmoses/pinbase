@@ -2,12 +2,12 @@ import type { PostHogConfig } from 'posthog-js';
 // Type-only import — the lint rule allows this via `allowTypeImports`.
 // `config.ts` ships no runtime reference to the SDK.
 
-// Locked-down PostHog init options. The integration test asserts every option
-// here matches docs/plans/analytics/AnalyticsArchitecture.md § Frontend init
-// lockdown — weakening any of them fails the test. Reviewers should reject
-// any change here that isn't accompanied by an architecture-doc update.
+// Locked-down PostHog init options. Each option here is a contract — the
+// integration test asserts the value, and weakening any of them fails the
+// test. See docs/Analytics.md § Privacy posture for the contract this
+// enforces.
 export const config: Partial<PostHogConfig> = {
-  api_host: 'https://eu.posthog.com',
+  api_host: 'https://us.posthog.com',
   persistence: 'memory', // satisfies "no persistent client-side identity"
   autocapture: false, // satisfies "no autocapture / implicit tracking"
   capture_pageview: 'history_change', // SPA-aware: initial load + every CSR navigation

@@ -1,6 +1,5 @@
 // Public analytics API. Call sites import `analytics` from here and never
-// touch the vendor SDK directly — see docs/plans/analytics/AnalyticsArchitecture.md
-// for the abstraction contract and privacy-lockdown spec.
+// touch the vendor SDK directly — see docs/Analytics.md.
 //
 // Adapter selection:
 //   - dev builds                              → noop
@@ -12,10 +11,8 @@
 // The key check is a runtime guard, matching the established PUBLIC_SENTRY_DSN
 // pattern in hooks.client.ts. The runtime guard is the master switch — note that
 // posthog-js itself ships in every production bundle once any call site imports
-// `$lib/analytics`, regardless of whether a key is set. See
-// docs/plans/analytics/AnalyticsArchitecture.md § Bundle cost for the rationale
-// (locked-down config still uses the full SDK; lite SDK is officially
-// de-emphasized).
+// `$lib/analytics`, regardless of whether a key is set (locked-down config still
+// uses the full SDK; lite SDK is officially de-emphasized).
 
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';

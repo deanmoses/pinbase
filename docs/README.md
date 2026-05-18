@@ -6,22 +6,21 @@ For setup and common commands, start with the repository [README](../README.md).
 
 ## Start Here
 
-- [Overview.md](Overview.md) explains what Flipcommons is, who it serves, and why the product is shaped the way it is.
-- [Development.md](Development.md) contributor-facing hub for working in this codebase.
-- [Architecture.md](Architecture.md) gives the top-level system map.
-- [DomainModel.md](DomainModel.md) explains the catalog's pinball domain model.
+- [Overview.md](Overview.md) what Flipcommons is, who it serves, and why the product is shaped the way it is.
+- [Architecture.md](Architecture.md) top-level system map.
+- [DomainModel.md](DomainModel.md) the pinball catalog domain model.
 
 ## Product And Domain
 
+- [Personas.md](Personas.md) the main user groups the product serves.
 - [Definitions.md](Definitions.md) defines pinball terminology used by the product and data model.
-- [Personas.md](Personas.md) describes the main user groups the product serves.
-- [DomainModel.md](DomainModel.md) documents titles, models, variants, series, and related catalog concepts.
-- [SingleModelTitles.md](SingleModelTitles.md) explains how the product handles titles with exactly one model.
-- [RecordLifecycle.md](RecordLifecycle.md) covers creation, deletion, restore, and duplicate-prevention semantics.
-- [Privacy.md](Privacy.md) captures privacy principles and analytics expectations.
-- [SmallTeam.md](SmallTeam.md) records operating principles for a small team.
+- [DomainModel.md](DomainModel.md) pinball catalog concepts like titles, models, variants, series
+- [SingleModelTitles.md](SingleModelTitles.md) how the product handles titles with exactly one model.
+- [RecordLifecycle.md](RecordLifecycle.md) creation, deletion, restore, and duplicate-prevention semantics.
+- [Privacy.md](Privacy.md) privacy principles and analytics expectations.
+- [SmallTeam.md](SmallTeam.md) operating principles for a small team.
 
-## System Architecture
+## Architecture
 
 - [Architecture.md](Architecture.md) overall Django + SvelteKit system.
 - [WebArchitecture.md](WebArchitecture.md) the web split, same-origin model, API layer, development proxy.
@@ -33,23 +32,24 @@ For setup and common commands, start with the repository [README](../README.md).
 - [Ingest.md](Ingest.md) external data sources and the ingest pipeline.
 - [Hosting.md](Hosting.md) Railway deployment topology.
 - [Observability.md](Observability.md) Error monitoring and alerting.
-- [DeployAutomation.md](DeployAutomation.md) philosophy behind the deploy safeguards (refuse-don't-warn, two refusal phases).
-- [BuildChecks.md](BuildChecks.md) build-phase refusal gate (Dockerfile, sourcemap upload, build-time secrets).
-- [DeployChecks.md](DeployChecks.md) preDeploy refusal gate (Django system checks).
+- [Analytics.md](Analytics.md) Analytics setup and privacy posture.
+- [DeployAutomation.md](DeployAutomation.md) philosophy behind the deploy safeguards.
+  - [BuildChecks.md](BuildChecks.md) build-phase refusal gate (Dockerfile, sourcemap upload, build-time secrets).
+  - [DeployChecks.md](DeployChecks.md) pre-deploy refusal gate (Django system checks).
 
-## Frontend
-
-- [Svelte.md](Svelte.md) Svelte 5 authoring conventions and rendering strategy.
-- [SSRConversion.md](SSRConversion.md) workflow for converting routes from CSR to SSR.
-- [DetailLayoutPatterns.md](DetailLayoutPatterns.md) detail-page layout patterns.
-- [TestingFrontend.md](TestingFrontend.md) frontend test tiers and DOM test patterns.
-
-## Backend
+## Backend Development
 
 - [Python.md](Python.md) backend typing and Python style decisions.
 - [DataModeling.md](DataModeling.md) database modeling principles and constraint patterns.
 - [EntityNaming.md](EntityNaming.md) entity naming rules and where canonical names live.
 - [TestingBackend.md](TestingBackend.md) backend test strategy and constraint testing.
+
+## Frontend Development
+
+- [Svelte.md](Svelte.md) Svelte 5 authoring conventions and rendering strategy.
+- [SSRConversion.md](SSRConversion.md) workflow for converting routes from CSR to SSR.
+- [DetailLayoutPatterns.md](DetailLayoutPatterns.md) detail-page layout patterns.
+- [TestingFrontend.md](TestingFrontend.md) frontend test tiers and DOM test patterns.
 
 ## Testing And Review
 

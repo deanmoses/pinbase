@@ -4,6 +4,10 @@ This doc covers DB-derived stats for [AnalyticsPlan.md](AnalyticsPlan.md). The q
 
 Whereas the other plans use PostHog to instrument visitor and contributor _behavior_, this plan derives counts and trends directly from the production database — `User`, `ChangeSet`, `Media`, and friends. It's the source of truth for anything about "what's in the system right now": signups, edits, contributors active in a period, retention cohorts, the 80/20 editor curve.
 
+## Admin dashboard answers some of this
+
+The [admin dashboard](AdminDashboard.md) ships the windowed-counts slice of this plan: signups, user-attributed edits, and successful uploads over rolling 24h / 7d / total windows, each with a `last_at` timestamp. It does not cover first-edit conversion, repeat contributors, monthly distinct-editor counts, retention cohorts, period-over-period deltas, or the 80/20 curve — those remain open below.
+
 ## What Questions It Answers
 
 | Question                                                                               | What data answers it                                                                     |

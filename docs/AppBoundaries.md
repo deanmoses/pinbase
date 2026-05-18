@@ -31,6 +31,17 @@ ____________________________
 - `media.api` depends on `catalog` and `provenance`: upload handlers write `media_attachment` claims through catalog's relationship-claim registry and persist `Claim` rows directly. This is a structural consequence of `media_attachment` being a catalog-registered relationship type whose target happens to live in media; splitting it out would require extracting the whole relationship-claim machinery into a neutral app
 - `kiosk` depends on `catalog` (FK to `Title`); audit FKs reference `AUTH_USER_MODEL` via Django core, not `accounts.UserProfile`. Kiosk configs are operational settings, not claims-controlled — the app deliberately stays out of `provenance`
 
+## Preferred patterns over widening imports
+
+When strict app boundaries make integration awkward, prefer these patterns over widening imports:
+
+- generic foreign keys and content types for cross-domain references where appropriate
+- registration hooks, where a generic subsystem lets another app register behavior without becoming coupled to it
+- serialized or value-level contracts rather than direct model imports
+- orchestration in higher-level entrypoints, such as API composition or management commands, rather than deep lateral imports
+
+The important rule is: solve integration by designing a boundary, not by punching through one.
+
 ## Exception: Page API endpoints
 
 Page API endpoints (see [ApiDesign.md § Two API types](ApiDesign.md#two-api-types)) are expected to cross app layers. A page endpoint's job is to return one route's full rendering payload, which routinely means reading from several apps and returning a composed page model.

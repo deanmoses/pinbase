@@ -77,10 +77,8 @@ class _SentryTestError(RuntimeError):
 def sentry_test(request: HttpRequest) -> Never:
     """Deliberately raise so the Sentry pipeline can be verified.
 
-    Gated by ``Activity.OBSERVABILITY_DEBUG`` (staff-only). See
-    docs/plans/observability/ObservabilityArchitecture.md §
-    First-event verification for the post-deploy checklist this
-    route exists to support.
+    Gated by ``Activity.OBSERVABILITY_DEBUG`` (staff-only). Supports the
+    post-deploy Sentry pipeline verification. See docs/Observability.md.
     """
     raise _SentryTestError("Deliberate exception from /api/sentry_test")
 

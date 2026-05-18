@@ -38,12 +38,13 @@ cd backend && uv run python manage.py createsuperuser
 | ------------------ | ---------------------------------------------------------- |
 | `make bootstrap`   | Install all deps, run migrations, generate API types       |
 | `make dev`         | Start Django + SvelteKit dev servers                       |
-| `make test`        | Run backend (pytest) + frontend (vitest) tests             |
+| `make test`        | Run pytest (backend) + vitest (frontend)                   |
 | `make lint`        | Run ruff (backend) + eslint/prettier (frontend)            |
-| `make quality`     | Lint + type check (svelte-check)                           |
-| `make api-gen`     | Export OpenAPI schema and regenerate TypeScript types      |
-| `make pull-ingest` | Download ingest source data                                |
-| `make ingest`      | Run the ingest pipeline                                    |
+| `make mypy`        | Run backend type checks                                    |
+| `make quality`     | Lint + regenerate API types + svelte-check                 |
+| `make api-gen`     | Regenerate frontend API types from the backend schema      |
+| `make pull-ingest` | Download catalog data from R2                              |
+| `make ingest`      | Run full ingestion pipeline                                |
 | `make agent-docs`  | Regenerate CLAUDE.md and AGENTS.md from docs/AGENTS.src.md |
 
 ## Project Structure
@@ -56,17 +57,10 @@ docs/             Product, architecture, development, and operations docs
 Makefile          Thin wrappers around scripts/
 ```
 
-## Further Reading
+## Full Documentation
 
-- [docs/README.md](docs/README.md) for the full documentation index
-- [docs/Overview.md](docs/Overview.md) for the product overview and rationale
-- [docs/Development.md](docs/Development.md) for contributor guidance
-- [docs/Architecture.md](docs/Architecture.md) for the top-level system map
+See [docs/README.md](docs/README.md) for the full documentation index
 
-## Contributing
+## Pull Requests
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the PR workflow.
-
-## AI Agent Docs
-
-`CLAUDE.md` and `AGENTS.md` are **generated** from `docs/AGENTS.src.md`. Never edit them directly — edit the source and run `make agent-docs`.

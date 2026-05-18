@@ -33,10 +33,13 @@ class Activity(StrEnum):
     # render the nav link without the schema exposing the underlying flag.
     DJANGO_ADMIN_ACCESS = "django_admin.access"
     # Operator-surface activity gating the on-demand exception-trigger
-    # route used to verify the Sentry pipeline end-to-end. Staff-only;
-    # see docs/plans/observability/ObservabilityArchitecture.md §
-    # First-event verification.
+    # route used to verify the Sentry pipeline end-to-end. Staff-only.
     OBSERVABILITY_DEBUG = "observability.debug"
+    # Operator-surface activity gating the admin SPA area (`/a/*`) and
+    # its supporting page-API endpoints. Verb-led `VIEW_` makes the
+    # read-only scope explicit; any future mutating admin action gets
+    # its own activity rather than riding on this one.
+    VIEW_ADMIN_AREA = "admin_area.view"
 
 
 class DenialCode(StrEnum):

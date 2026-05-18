@@ -3,8 +3,6 @@
 Kept separate from `models.py` so callers can import the validator without
 dragging the User model (and its migration state) along.
 
-Policy (from [docs/plans/auth/Usernames.md](../../../docs/plans/auth/Usernames.md)):
-
 - lowercase ASCII letters and digits, single hyphens between segments
 - 3-20 characters
 - no leading/trailing hyphen, no consecutive hyphens

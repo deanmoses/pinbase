@@ -257,7 +257,7 @@ AUTHENTICATION_BACKENDS = [
 # ``apps.core.rate_limits._client_ip``. Default False so dev, tests, and
 # any unsanitized container key off REMOTE_ADDR. Production sets this to
 # True, asserting that Caddy has stripped Forwarded and that X-Real-IP
-# was populated by Railway's edge (see docs/plans/ClientIpTrust.md).
+# was populated by Railway's edge.
 RATE_LIMIT_TRUST_PROXY_HEADERS = os.environ.get(
     "RATE_LIMIT_TRUST_PROXY_HEADERS", "false"
 ).lower() in ("true", "1", "yes")

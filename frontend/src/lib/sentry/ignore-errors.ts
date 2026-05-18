@@ -1,9 +1,8 @@
 // Shared "don't capture" list for SSR + browser Sentry inits.
 //
-// See docs/plans/observability/ObservabilityArchitecture.md § Capture scope
-// for the policy. Strings match Sentry's `ignoreErrors` semantics: each entry
-// is matched against the error message and type — strings are substring
-// matches, regexes are tested directly.
+// See docs/Observability.md for the capture policy. Strings match Sentry's
+// `ignoreErrors` semantics: each entry is matched against the error message
+// and type — strings are substring matches, regexes are tested directly.
 //
 // Generic network-failure strings (`Failed to fetch`, `Load failed`,
 // `NetworkError when attempting to fetch resource`) are deliberately NOT

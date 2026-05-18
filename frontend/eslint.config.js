@@ -71,8 +71,7 @@ export default ts.config(
     // - posthog-js: the analytics vendor SDK. Only src/lib/analytics/posthog.ts
     //   may touch it; everywhere else routes through the abstraction in
     //   $lib/analytics. This keeps the vendor boundary one-file-wide so a
-    //   future swap is mechanical (see
-    //   docs/plans/analytics/AnalyticsArchitecture.md § Migration).
+    //   future swap is mechanical.
     files: [
       'src/**/*.ts',
       'src/**/*.js',

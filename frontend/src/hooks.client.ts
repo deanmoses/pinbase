@@ -14,7 +14,7 @@ if (env.PUBLIC_SENTRY_DSN) {
     tracesSampleRate: 0,
     sendDefaultPii: false,
     // replayIntegration and feedbackIntegration are deliberately NOT added —
-    // see docs/plans/observability/ObservabilityArchitecture.md § Privacy.
+    // see docs/Observability.md § Privacy.
     ignoreErrors: IGNORE_ERRORS,
   });
 }

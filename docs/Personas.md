@@ -26,12 +26,6 @@ See [below](#contributor-profile) for their motivational picture.
 
 A member of the [small team](SmallTeam.md) running the project. They operate the site, respond to incidents, review activity, and shape the data and the product.
 
-## Future Personas
-
-Anticipated but not implemented:
-
-- **Moderator** — a Contributor with elevated privileges and responsibilities, that might police less-privileged contributors.
-
 ## Aliases
 
 Other docs predate this one and use varying terms:
@@ -41,6 +35,13 @@ Other docs predate this one and use varying terms:
 | Reader      | Visitor, "casual fan", "the public" |
 | Contributor | Editor, Writer, "logged-in user"    |
 | Maintainer  | Admin, Staff, Superuser             |
+
+## Future Personas
+
+Potential personas in the future:
+
+- **Moderator** — a Contributor with elevated privileges and responsibilities, that might police less-privileged contributors.
+- **Admin** - some sort of more-trusted person, something close to a staff member. Probably would get Django Admin access. Different than a maintainer because I think of that as the people who maintain the source code, who currently also happen to be the co-founders / principals. The correct relationships will become clearer over time. Maybe Admin will always === Maintainer.
 
 ## Reader Profile
 
@@ -65,7 +66,7 @@ The reading experience is not designed for:
 
 - Tournament players who care about rules, competition data.
 - Collectors wanting to value what they own.
-- Operators managing routes and tracking machine performance.
+- Arcade/machine operators managing routes and tracking machine performance.
 
 ## Contributor Profile
 

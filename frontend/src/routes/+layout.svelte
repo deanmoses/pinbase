@@ -1,8 +1,7 @@
 <script lang="ts">
   import '../app.css';
   // Side-effect import: triggers the analytics module's adapter selection and
-  // (when a real PUBLIC_POSTHOG_KEY is set in the browser) PostHog init. See
-  // docs/plans/analytics/AnalyticsUntypedEventsPlan.md § Skeleton.
+  // (when a real PUBLIC_POSTHOG_KEY is set in the browser) PostHog init.
   import '$lib/analytics';
   import { page, updated } from '$app/state';
   import { beforeNavigate } from '$app/navigation';

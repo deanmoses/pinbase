@@ -95,7 +95,7 @@ class User(AbstractUser):
     #   is_active, is_staff, is_superuser, last_login, date_joined, password
     #
     # `username` is the public URL slug (/users/<username>) and is chosen by
-    # the user at signup. See docs/plans/auth/Usernames.md.
+    # the user at signup.
 
     # Redeclared to tighten max_length from AbstractUser's 150 to our 20,
     # and to wire the format validator into every Django-form-based path

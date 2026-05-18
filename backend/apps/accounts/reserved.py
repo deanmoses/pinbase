@@ -4,9 +4,6 @@ Source-of-truth lists for stems and affixes that convey authority. Matching
 is equality (not substring) on a normalized form, so `flipperjones` is not
 blocked by stem `flip`, but `flip2024` is — digits strip out and the residue
 equals the stem.
-
-See [docs/plans/auth/Usernames.md](../../../docs/plans/auth/Usernames.md)
-"Reserved usernames that connote authority" for policy rationale.
 """
 
 from __future__ import annotations
