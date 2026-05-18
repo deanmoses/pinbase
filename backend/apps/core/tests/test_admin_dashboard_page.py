@@ -2,8 +2,6 @@
 
 Pins the auth matrix (anon / non-staff / unverified-staff / verified-staff)
 and the metric arithmetic across rolling 24h/7d/total windows.
-
-See docs/plans/AdminDashboard.md.
 """
 
 from __future__ import annotations

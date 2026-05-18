@@ -65,7 +65,7 @@ The reading experience is not designed for:
 
 - Tournament players who care about rules, competition data.
 - Collectors wanting to value what they own.
-- Operators managing routes and tracking machine performance.
+- Arcade/machine operators managing routes and tracking machine performance.
 
 ## Contributor Profile
 

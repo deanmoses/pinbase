@@ -40,8 +40,7 @@ class Activity(StrEnum):
     # Operator-surface activity gating the admin SPA area (`/a/*`) and
     # its supporting page-API endpoints. Verb-led `VIEW_` makes the
     # read-only scope explicit; any future mutating admin action gets
-    # its own activity rather than riding on this one. See
-    # docs/plans/AdminDashboard.md.
+    # its own activity rather than riding on this one.
     VIEW_ADMIN_AREA = "admin_area.view"
 
 

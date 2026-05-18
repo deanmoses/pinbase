@@ -1,6 +1,10 @@
 # Admin Dashboard
 
+## Status: ✅ Implemented
+
 Resolves [#415](https://github.com/The-Flip/flipcommons/issues/415).
+
+## Overview
 
 A mobile-first page for admins showing how the system is doing at a glance: signups, edits, uploads.
 

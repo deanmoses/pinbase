@@ -3,8 +3,6 @@
 `GET /api/pages/admin/dashboard/` — at-a-glance counts (signups, edits,
 uploads) over rolling 24h / 7d / total windows, plus the most recent
 event time for each. Gated by ``Activity.VIEW_ADMIN_AREA``.
-
-See docs/plans/AdminDashboard.md.
 """
 
 from __future__ import annotations
