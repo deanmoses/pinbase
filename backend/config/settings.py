@@ -384,7 +384,7 @@ if SENTRY_DSN:
         integrations=[
             DjangoIntegration(),
             # Log records become breadcrumbs but never standalone events;
-            # see ObservabilityArchitecture.md § Logging.
+            # Logs and error events are decoupled.
             LoggingIntegration(level=logging.INFO, event_level=None),
         ],
         # Override the auto-instantiated EventScrubber to enable

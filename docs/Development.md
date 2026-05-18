@@ -54,6 +54,9 @@ When working in these areas, use the focused reference docs:
 - [Ingest.md](Ingest.md) for ingest architecture and source flow
 - [ApiDesign.md](ApiDesign.md) for page-oriented API design and SSR-friendly endpoint shaping
 - [Hosting.md](Hosting.md) for deployment and runtime operations
+- [DeployAutomation.md](DeployAutomation.md) for the philosophy behind our deploy safeguards
+  - [BuildChecks.md](BuildChecks.md) for build-phase refusal patterns (Dockerfile, sourcemap upload)
+  - [DeployChecks.md](DeployChecks.md) for preDeploy refusal patterns (Django system checks)
 
 When a stable media reference doc exists, add it here as well.
 

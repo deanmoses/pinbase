@@ -4,6 +4,16 @@
 # ── Stage 1: Build SvelteKit frontend ──────────────────────────────
 FROM node:24-slim AS frontend-build
 
+# node:*-slim variants ship without ca-certificates. Node's own HTTPS uses
+# its bundled CA roots and works fine, but tools that shell out to the OS
+# trust store (notably sentry-cli, invoked by sentrySvelteKit during
+# sourcemap upload) fail TLS verification with "unable to get local issuer
+# certificate" against ingest endpoints. Install ca-certificates so any
+# such tool can reach the public internet over HTTPS.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN corepack enable
 
 WORKDIR /frontend
@@ -18,6 +28,23 @@ RUN pnpm install --frozen-lockfile
 # Railway the ARG falls back to "dev" and polling is disabled.
 ARG RAILWAY_GIT_COMMIT_SHA=dev
 ENV RAILWAY_GIT_COMMIT_SHA=$RAILWAY_GIT_COMMIT_SHA
+
+# Sentry sourcemap upload happens during `pnpm build` (sentrySvelteKit
+# plugin). The plugin's autoUploadSourceMaps gate in vite.config.ts is
+# truthy only when all three of these are non-empty, so without them the
+# build silently skips the upload and browser stack traces stay
+# minified in production. Multi-stage Docker doesn't inherit host env
+# vars into build stages; Railway passes service-scoped vars as build
+# args, but only for ARGs the Dockerfile declares — hence the explicit
+# declarations here. Defaults are empty so local/CI Docker builds without
+# Sentry secrets still succeed (the upload just no-ops).
+ARG SENTRY_AUTH_TOKEN=""
+ARG SENTRY_ORG=""
+ARG SENTRY_PROJECT=""
+ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN \
+    SENTRY_ORG=$SENTRY_ORG \
+    SENTRY_PROJECT=$SENTRY_PROJECT
+
 COPY frontend/ .
 RUN pnpm build
 # Keep only runtime dependencies for the Node SSR server we copy below.

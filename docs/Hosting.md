@@ -47,6 +47,13 @@ Browser ──→ media.flipcommons.org       → Bunny CDN → iDrive e2 privat
    If anything in the pre-deploy command fails, the old container keeps
    serving.
 
+   For the philosophy behind our deploy safeguards (refuse-don't-warn,
+   two refusal phases), see [DeployAutomation.md](DeployAutomation.md).
+   For adding new checks: [BuildChecks.md](BuildChecks.md) for the
+   build phase (Dockerfile, sourcemap upload, build-time secrets),
+   [DeployChecks.md](DeployChecks.md) for the preDeploy phase (Django
+   system checks).
+
 ## Geography
 
 The Flip pinball museum and many editors and end users are in Chicago. Hosting reflects that:

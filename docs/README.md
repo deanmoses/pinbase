@@ -7,7 +7,7 @@ For setup and common commands, start with the repository [README](../README.md).
 ## Start Here
 
 - [Overview.md](Overview.md) explains what Flipcommons is, who it serves, and why the product is shaped the way it is.
-- [Development.md](Development.md) is the contributor-facing hub for working in this codebase.
+- [Development.md](Development.md) contributor-facing hub for working in this codebase.
 - [Architecture.md](Architecture.md) gives the top-level system map.
 - [DomainModel.md](DomainModel.md) explains the catalog's pinball domain model.
 
@@ -23,34 +23,37 @@ For setup and common commands, start with the repository [README](../README.md).
 
 ## System Architecture
 
-- [Architecture.md](Architecture.md) describes the overall Django + SvelteKit system.
-- [WebArchitecture.md](WebArchitecture.md) covers the web split, same-origin model, API layer, and development proxy.
-- [AppBoundaries.md](AppBoundaries.md) defines Django app responsibilities and dependency rules.
-- [ApiDesign.md](ApiDesign.md) documents endpoint design and schema design heuristics.
-- [Authz.md](Authz.md) explains authorization activities, policy gates, and capability surfaces.
-- [Provenance.md](Provenance.md) documents claims, resolution, audit history, and provenance invariants.
-- [Media.md](Media.md) explains media storage, uploads, claims, and attachment resolution.
-- [Ingest.md](Ingest.md) describes external data sources and the ingest pipeline.
-- [Hosting.md](Hosting.md) documents the Railway deployment topology.
+- [Architecture.md](Architecture.md) overall Django + SvelteKit system.
+- [WebArchitecture.md](WebArchitecture.md) the web split, same-origin model, API layer, development proxy.
+- [AppBoundaries.md](AppBoundaries.md) Django app responsibilities and dependency rules.
+- [ApiDesign.md](ApiDesign.md) endpoint design and schema design heuristics.
+- [Authz.md](Authz.md) authorization activities, policy gates, and capability surfaces.
+- [Provenance.md](Provenance.md) claims, resolution, audit history, provenance invariants.
+- [Media.md](Media.md) media storage, uploads, claims, attachment resolution.
+- [Ingest.md](Ingest.md) external data sources and the ingest pipeline.
+- [Hosting.md](Hosting.md) Railway deployment topology.
+- [DeployAutomation.md](DeployAutomation.md) philosophy behind the deploy safeguards (refuse-don't-warn, two refusal phases).
+- [BuildChecks.md](BuildChecks.md) build-phase refusal gate (Dockerfile, sourcemap upload, build-time secrets).
+- [DeployChecks.md](DeployChecks.md) preDeploy refusal gate (Django system checks).
 
 ## Frontend
 
-- [Svelte.md](Svelte.md) covers Svelte 5 authoring conventions and rendering strategy.
-- [SSRConversion.md](SSRConversion.md) gives the workflow for converting routes from CSR to SSR.
-- [DetailLayoutPatterns.md](DetailLayoutPatterns.md) documents detail-page layout patterns.
-- [TestingFrontend.md](TestingFrontend.md) covers frontend test tiers and DOM test patterns.
+- [Svelte.md](Svelte.md) Svelte 5 authoring conventions and rendering strategy.
+- [SSRConversion.md](SSRConversion.md) workflow for converting routes from CSR to SSR.
+- [DetailLayoutPatterns.md](DetailLayoutPatterns.md) detail-page layout patterns.
+- [TestingFrontend.md](TestingFrontend.md) frontend test tiers and DOM test patterns.
 
 ## Backend
 
-- [Python.md](Python.md) documents backend typing and Python style decisions.
-- [DataModeling.md](DataModeling.md) covers database modeling principles and constraint patterns.
-- [EntityNaming.md](EntityNaming.md) defines entity naming rules and where canonical names live.
-- [TestingBackend.md](TestingBackend.md) covers backend test strategy and constraint testing.
+- [Python.md](Python.md) backend typing and Python style decisions.
+- [DataModeling.md](DataModeling.md) database modeling principles and constraint patterns.
+- [EntityNaming.md](EntityNaming.md) entity naming rules and where canonical names live.
+- [TestingBackend.md](TestingBackend.md) backend test strategy and constraint testing.
 
 ## Testing And Review
 
-- [Testing.md](Testing.md) covers the overall testing strategy.
-- [Reviewing.md](Reviewing.md) gives repo-specific review priorities and checks.
+- [Testing.md](Testing.md) overall testing strategy.
+- [Reviewing.md](Reviewing.md) repo-specific review priorities and checks.
 
 ## Agent Docs
 
@@ -58,4 +61,4 @@ For setup and common commands, start with the repository [README](../README.md).
 
 ## Historical Plans
 
-- [plans/README.md](plans/README.md) explains how to use historical planning documents. Plan docs are useful for context and rationale, but they are not canonical current documentation.
+- [plans/README.md](plans/README.md) how to use historical planning documents. Plan docs are useful for context and rationale, but they are not canonical current documentation.

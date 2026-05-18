@@ -28,6 +28,10 @@
     <strong>Usage data</strong> — standard web server logs including IP addresses, browser type, and pages
     visited.
   </li>
+  <li>
+    <strong>Uploaded images</strong> — files you upload. All metadata (including GPS, camera info, and
+    timestamps) is stripped before storage.
+  </li>
 </ul>
 
 <h2>Information We Publish</h2>
@@ -84,6 +88,13 @@
       ><a href="https://www.idrive.com/e2/" target="_blank" rel="noopener">iDrive e2</a></strong
     >
     — stores uploaded files.
+  </li>
+  <li>
+    <strong><a href="https://sentry.io" target="_blank" rel="noopener">Sentry</a></strong> — receives
+    error reports when something breaks in your browser or on our servers, so we can fix it. Reports include
+    your account ID and username if you're signed in; personally identifying information like IP addresses,
+    email addresses, request bodies, and query strings are stripped before delivery. Does not use cookie
+    tracking or record browser sessions.
   </li>
 </ul>
 <!-- TODO: Add any analytics services if applicable -->

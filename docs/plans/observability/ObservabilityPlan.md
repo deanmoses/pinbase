@@ -9,11 +9,11 @@ Also see:
 
 - ✅ DONE: [Prerequisites](#prerequisites) — Sentry & Railway config
 - ✅ DONE: [ObservabilityBackendPlan.md](ObservabilityBackendPlan.md) — notify about server exceptions
-- [ObservabilityFrontendPlan.md](ObservabilityFrontendPlan.md) — notify about browser & SSR exceptions
+- ✅ DONE: [ObservabilityFrontendPlan.md](ObservabilityFrontendPlan.md) — notify about browser & SSR exceptions
 - [Alert rules](#alert-rules) — actually send alerts to us
 - ─────────── minimum viable product ───────────
 - [Uptime monitor](#uptime-monitor) - periodically ping a health check endpoint
-- [Browser `ignoreErrors`](#browser-ignoreerrors) — pulled in the first time noise appears
+- [Tune browser `ignoreErrors`](#tune-browser-ignoreerrors) — pulled in the first time noise appears
 
 ## Prerequisites
 
@@ -42,13 +42,8 @@ Done in the Sentry dashboard after both code PRs are deployed.
 - Sentry uptime monitor attached to `flipcommons-frontend`, hitting `/__health` on a 5-minute interval. The endpoint already exists; the architecture rationale is in [ObservabilityArchitecture.md § Uptime](ObservabilityArchitecture.md#uptime).
 - Uptime-check-failure alert routed to both founders.
 
-## Debug routes
+## Tune browser ignoreErrors
 
-Pull in the first time we need to re-verify capture end-to-end (suspected SDK regression, suspected scrubber drift, new founder onboarding wants to see a real event).
+Tune the browser ignoreErrors list against the actual noise observed, not against a generic recipe.
 
-- Backend: [ObservabilityBackendPlan.md § Debug route](ObservabilityBackendPlan.md#phase-debug-route).
-- Frontend: [ObservabilityFrontendPlan.md § Debug route](ObservabilityFrontendPlan.md#phase-debug-route).
-
-## Browser ignoreErrors
-
-Pull in the first time noise appears in `flipcommons-frontend` — extension errors, `ResizeObserver loop limit exceeded`, `Non-Error promise rejection captured`, etc. Tune the list against the actual noise observed, not against a generic recipe.
+Pull this in the first time noise appears in `flipcommons-frontend` — extension errors, `ResizeObserver loop limit exceeded`, `Non-Error promise rejection captured`, etc.

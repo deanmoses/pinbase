@@ -6,6 +6,24 @@ PORT="${PORT:-8080}"
 NODE_PORT="${NODE_PORT:-3000}"
 DJANGO_PORT="${DJANGO_PORT:-8000}"
 
+# Mirror Railway's commit SHA into the PUBLIC_ namespace at runtime so
+# `$env/dynamic/public` in hooks.client.ts resolves to a real release tag
+# in the browser. vite.config.ts does the same mirror at build time for
+# sourcemap upload, but that only affects the build container's process —
+# the Node SSR process launched below is a separate invocation that needs
+# its own mirror. Without this, browser events ship with no release tag
+# and Sentry can't match them to uploaded sourcemaps.
+#
+# Only mirror if there's a real value to mirror. Falling through to an
+# empty string would stamp Sentry events with release="" instead of
+# letting the SDK omit the field — same silent sourcemap-mismatch
+# failure mode this mirror exists to prevent. In production the
+# core.E207 preflight blocks the deploy if RAILWAY_GIT_COMMIT_SHA is
+# unset, so this guard only matters when the script runs outside Railway.
+if [ -n "${PUBLIC_RAILWAY_GIT_COMMIT_SHA:-${RAILWAY_GIT_COMMIT_SHA:-}}" ]; then
+	export PUBLIC_RAILWAY_GIT_COMMIT_SHA="${PUBLIC_RAILWAY_GIT_COMMIT_SHA:-${RAILWAY_GIT_COMMIT_SHA}}"
+fi
+
 cleanup() {
 	kill "${CADDY_PID:-0}" "${NODE_PID:-0}" "${DJANGO_PID:-0}" 2>/dev/null || true
 }
