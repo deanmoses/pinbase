@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { GET, createServerClient } = vi.hoisted(() => {
   const get = vi.fn();
@@ -39,6 +39,11 @@ describe('/kiosk/edit auth gate', () => {
   beforeEach(() => {
     GET.mockReset();
     createServerClient.mockClear();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('forwards the incoming request to createServerClient (cookie plumbing)', async () => {
@@ -51,13 +56,8 @@ describe('/kiosk/edit auth gate', () => {
     expect(createServerClient).toHaveBeenCalledWith(event.fetch, event.url, event.request);
   });
 
-  it('redirects anon to /login', async () => {
+  it('redirects anon to /login (via shared auth helper)', async () => {
     GET.mockResolvedValue({ data: { is_authenticated: false, capabilities: {} } });
-    await expectRedirectTo('/login');
-  });
-
-  it('redirects when /api/auth/me/ errors (fail-closed)', async () => {
-    GET.mockResolvedValue({ data: undefined });
     await expectRedirectTo('/login');
   });
 

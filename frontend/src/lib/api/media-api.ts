@@ -7,7 +7,8 @@
  */
 
 import type { UploadSchema } from './schema';
-import client, { getCsrfToken } from './client';
+import client from './client';
+import { getCsrfToken } from './csrf';
 import { parseApiError } from './parse-api-error';
 
 export type UploadResult = UploadSchema;

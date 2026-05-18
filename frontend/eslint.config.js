@@ -57,9 +57,31 @@ export default ts.config(
     },
   },
   {
-    files: ['src/lib/api/client.ts'],
+    // The createApiClient factory is an implementation detail of the api/
+    // folder. App code uses the default `client` export from $lib/api/client
+    // (browser) or `createServerClient` from $lib/api/server (SSR). Reaching
+    // into $lib/api/internal/ from outside the api/ folder is a layering bug.
+    files: [
+      'src/**/*.ts',
+      'src/**/*.js',
+      'src/**/*.svelte',
+      'src/**/*.svelte.ts',
+      'src/**/*.svelte.js',
+    ],
+    ignores: ['src/lib/api/**'],
     rules: {
-      'no-restricted-syntax': 'off',
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['$lib/api/internal/*', '**/api/internal/*'],
+              message:
+                "Don't import from $lib/api/internal/ — use the default `client` from $lib/api/client or `createServerClient` from $lib/api/server.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

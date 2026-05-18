@@ -4,7 +4,7 @@ import type {
   CitationExtractDraftSchema,
   CitationRecognitionSchema,
 } from '$lib/api/schema';
-import type { createApiClient } from '$lib/api/client';
+import type { ApiClient } from '$lib/api/client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,7 +98,7 @@ export type CreateByIdentifierResult =
 /** Create a child source under a parent using a structured identifier.
  *  The backend validates the identifier, auto-builds the name and canonical URL. */
 export async function createChildByIdentifier(
-  apiClient: ReturnType<typeof createApiClient>,
+  apiClient: ApiClient,
   parentId: number,
   parentName: string,
   sourceType: string,

@@ -1,11 +1,9 @@
-import { env } from '$env/dynamic/private';
 import { json } from '@sveltejs/kit';
-import { createApiClient } from '$lib/api/client';
+import { createServerClient } from '$lib/api/server';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ fetch, url }) => {
-  const apiBaseUrl = env.INTERNAL_API_BASE_URL?.trim() || url.origin;
-  const client = createApiClient(fetch, apiBaseUrl);
+export const GET: RequestHandler = async ({ fetch, url, request }) => {
+  const client = createServerClient(fetch, url, request);
   const { data, response } = await client.GET('/api/health');
 
   if (!data || response.status !== 200) {

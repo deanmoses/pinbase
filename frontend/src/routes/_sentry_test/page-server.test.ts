@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireCapability = vi.fn();
 
-vi.mock('$lib/require-capability', () => ({
+vi.mock('$lib/require-capability.server', () => ({
   requireCapability: (...args: unknown[]) => requireCapability(...args),
 }));
 
@@ -10,7 +10,8 @@ const { load } = await import('./+page.server');
 
 function makeEvent(url: URL) {
   const fetchStub = (() => undefined) as unknown as typeof globalThis.fetch;
-  return { fetch: fetchStub, url };
+  const request = new Request(url);
+  return { fetch: fetchStub, url, request };
 }
 
 describe('_sentry_test +page.server.ts load', () => {
@@ -27,6 +28,7 @@ describe('_sentry_test +page.server.ts load', () => {
     expect(requireCapability).toHaveBeenCalledWith({
       fetch: event.fetch,
       url: event.url,
+      request: event.request,
       activity: 'observability.debug',
     });
   });
