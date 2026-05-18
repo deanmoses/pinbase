@@ -11,8 +11,10 @@ contract.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NamedTuple
+from urllib.parse import urlparse
 
 from django.apps.config import AppConfig
 from django.conf import settings
@@ -221,3 +223,141 @@ def check_rate_limit_proxy_trust(
             id="core.W001",
         )
     ]
+
+
+def _is_valid_dsn(value: str) -> bool:
+    """Shape check for a Sentry DSN: https://<key>@<host>/<project_id>.
+
+    Stricter than a ``startswith("https://")`` prefix check — catches
+    ``"https://"``-alone, host-only values, and missing project paths.
+    Still a shape assertion, not a probe: we never resolve the host.
+    """
+    parsed = urlparse(value)
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and parsed.path.strip("/") != ""
+    )
+
+
+class _SentryEnvVar(NamedTuple):
+    """One row of the observability env-var contract.
+
+    ``check_id`` is the operator-facing contract — it lands in deploy
+    logs verbatim and is what operators grep for. ``consequence`` is
+    appended to the human-readable Error message so the deploy log
+    explains what breaks if the var is unset.
+    """
+
+    name: str
+    check_id: str
+    consequence: str
+    # Opt-in for the ``https://`` shape check. Set per-row instead of
+    # inferred from the var name so a confusingly-named future var can't
+    # be silently misclassified.
+    is_dsn: bool = False
+
+
+# Which env vars must be present for Sentry to actually report errors.
+_REQUIRED_SENTRY_ENV: tuple[_SentryEnvVar, ...] = (
+    _SentryEnvVar(
+        name="SENTRY_DSN",
+        check_id="core.E201",
+        consequence="Backend errors will not be reported to the flipcommons-backend Sentry project.",
+        is_dsn=True,
+    ),
+    _SentryEnvVar(
+        name="PUBLIC_SENTRY_DSN",
+        check_id="core.E202",
+        consequence="SSR and browser errors will not be reported to the flipcommons-frontend Sentry project.",
+        is_dsn=True,
+    ),
+    _SentryEnvVar(
+        name="SENTRY_AUTH_TOKEN",
+        check_id="core.E203",
+        consequence="Frontend sourcemaps will not be uploaded; browser stack traces in Sentry will be minified.",
+    ),
+    _SentryEnvVar(
+        name="SENTRY_ORG",
+        check_id="core.E204",
+        consequence="Frontend sourcemap upload cannot resolve the Sentry org; uploads will be skipped.",
+    ),
+    _SentryEnvVar(
+        name="SENTRY_PROJECT",
+        check_id="core.E205",
+        consequence="Frontend sourcemap upload cannot resolve the Sentry project; uploads will be skipped.",
+    ),
+)
+
+
+@register(Tags.security, deploy=True)
+def check_observability_env(
+    app_configs: Sequence[AppConfig] | None,
+    **kwargs: Any,  # noqa: ANN401
+) -> list[CheckMessage]:
+    """Block deploy when required Sentry env vars are missing in production.
+
+    Backend and frontend share a Railway env, so every env var the
+    frontend needs (including ``PUBLIC_SENTRY_DSN``, baked into the
+    browser bundle at build time) is also readable here.
+    """
+    _ = app_configs, kwargs
+    if settings.DEBUG:
+        return []
+    messages: list[CheckMessage] = []
+    for spec in _REQUIRED_SENTRY_ENV:
+        value = os.environ.get(spec.name, "").strip()
+        if not value:
+            messages.append(
+                Error(
+                    f"{spec.name} is empty in a non-DEBUG environment. {spec.consequence}",
+                    hint=f"Set {spec.name} on the Railway service.",
+                    id=spec.check_id,
+                )
+            )
+            continue
+        if spec.is_dsn and not _is_valid_dsn(value):
+            messages.append(
+                Error(
+                    f"{spec.name} is set but is not a valid Sentry DSN "
+                    "(expected https://<key>@<host>/<project_id>).",
+                    hint=f"Confirm {spec.name} on Railway matches the DSN shown in Sentry → Settings → Client Keys (DSN).",
+                    id=spec.check_id,
+                )
+            )
+    # Architectural invariant: backend errors go to flipcommons-backend,
+    # frontend (SSR + browser) errors go to flipcommons-frontend. The two
+    # DSNs must point at different projects. Equal values silently route
+    # one half's errors into the other project — the exact silent
+    # degradation this check exists to prevent.
+    backend_dsn = os.environ.get("SENTRY_DSN", "").strip()
+    frontend_dsn = os.environ.get("PUBLIC_SENTRY_DSN", "").strip()
+    if backend_dsn and frontend_dsn and backend_dsn == frontend_dsn:
+        messages.append(
+            Error(
+                "SENTRY_DSN and PUBLIC_SENTRY_DSN are set to the same value. "
+                "They must point at different Sentry projects "
+                "(flipcommons-backend vs flipcommons-frontend); equal values "
+                "route one half's errors into the wrong project.",
+                hint="Confirm each DSN on Railway against Sentry → Settings → Client Keys for its respective project.",
+                id="core.E206",
+            )
+        )
+    if not os.environ.get("RAILWAY_GIT_COMMIT_SHA", "").strip():
+        # Sourcemaps are uploaded against this SHA as the release tag.
+        # If runtime events don't carry the same release, Sentry can't
+        # match them to the uploaded sourcemaps and stack traces show
+        # as minified — the same failure mode as a missing
+        # SENTRY_AUTH_TOKEN. Railway normally injects this; if it's
+        # missing, refuse to promote rather than silently degrade.
+        messages.append(
+            Error(
+                "RAILWAY_GIT_COMMIT_SHA is empty in a non-DEBUG environment. "
+                "Sentry events will have no release tag, so uploaded "
+                "sourcemaps will not resolve and browser stack traces will "
+                "show as minified.",
+                hint="Railway normally injects this automatically — investigate why it is missing.",
+                id="core.E207",
+            )
+        )
+    return messages
