@@ -182,12 +182,10 @@ class TestRenderMarkdownFields:
         assert "<em>italic</em>" in result["description_html"]
 
     def test_no_markdown_fields(self):
-        from apps.catalog.models import Location
+        from apps.catalog.models import LocationAlias
 
-        loc = Location(
-            location_path="usa", slug="usa", name="USA", location_type="country"
-        )
-        result = render_markdown_fields(loc)
+        alias = LocationAlias(value="USA")
+        result = render_markdown_fields(alias)
         assert result == {}
 
     @pytest.mark.django_db
