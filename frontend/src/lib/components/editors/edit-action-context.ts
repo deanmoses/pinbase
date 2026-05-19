@@ -2,6 +2,7 @@ import { getContext, setContext } from 'svelte';
 import type { CombinedSectionKey } from './combined-edit-sections';
 import type { CorporateEntityEditSectionKey } from './corporate-entity-edit-sections';
 import type { HierarchicalTaxonomyEditSectionKey } from './hierarchical-taxonomy-edit-sections';
+import type { LocationEditSectionKey } from './location-edit-sections';
 import type { ManufacturerEditSectionKey } from './manufacturer-edit-sections';
 import type { ModelEditSectionKey } from './model-edit-sections';
 import type { PersonEditSectionKey } from './person-edit-sections';
@@ -54,6 +55,11 @@ export const corporateEntityEditActionContext =
 export const personEditActionContext = createEditActionContext<PersonEditSectionKey>(
   'personEditAction',
   'personEditAction context missing — must be rendered inside the person layout',
+);
+
+export const locationEditActionContext = createEditActionContext<LocationEditSectionKey>(
+  'locationEditAction',
+  'locationEditAction context missing — must be rendered inside the location layout',
 );
 
 /**

@@ -11,7 +11,8 @@
   import SidebarListItem from '$lib/components/SidebarListItem.svelte';
   import SidebarSection from '$lib/components/SidebarSection.svelte';
   import type { Crumb } from '$lib/components/Breadcrumb.svelte';
-  import type { EditSectionMenuItem } from '$lib/components/edit-section-menu';
+  import { getMenuItemAction, type EditSectionMenuItem } from '$lib/components/edit-section-menu';
+  import { locationEditActionContext } from '$lib/components/editors/edit-action-context';
   import {
     findLocationSectionByKey,
     findLocationSectionBySegment,
@@ -41,13 +42,6 @@
           })),
         ],
   );
-
-  let countText = $derived.by(() => {
-    const n = profile.manufacturer_count;
-    const noun = `manufacturer${n === 1 ? '' : 's'}`;
-    const where = isRoot ? 'the world' : profile.name;
-    return `There ${n === 1 ? 'has' : 'have'} been ${n} ${noun} in ${where}.`;
-  });
 
   const isMobileFlag = createBelowBreakpointFlag(WIDE_BREAKPOINT);
   let isMobile = $derived(isMobileFlag.current);
@@ -129,6 +123,13 @@
   $effect(() => {
     void auth.load();
   });
+
+  function editAction(sectionKey: LocationEditSectionKey): (() => void) | undefined {
+    if (!auth.isAuthenticated) return undefined;
+    return getMenuItemAction(editMenuItems, sectionKey, (href) => goto(href));
+  }
+
+  locationEditActionContext.set(editAction);
 </script>
 
 <svelte:head>
@@ -166,13 +167,7 @@
   {/if}
 {/snippet}
 
-<RecordDetailShell
-  name={displayName}
-  {breadcrumbs}
-  metaItems={[{ text: countText }]}
-  {actionBar}
-  {sidebar}
->
+<RecordDetailShell name={displayName} {breadcrumbs} {actionBar} {sidebar}>
   {#snippet main()}
     {@render children()}
   {/snippet}

@@ -2,7 +2,7 @@
 
 import pytest
 
-from apps.catalog.models import Manufacturer, System
+from apps.catalog.models import Location, Manufacturer, System
 from apps.core.models import RecordReference
 
 
@@ -78,6 +78,37 @@ class TestSystemDescriptionHtml:
         resp = client.get("/api/pages/system/wpc-95")
         data = resp.json()
         assert data["description"]["text"] == "The final WPC generation."
+
+
+@pytest.mark.django_db
+class TestLocationDescriptionHtml:
+    def test_detail_includes_description_html(self, client):
+        Location.objects.create(
+            location_path="usa",
+            slug="usa",
+            name="USA",
+            location_type="country",
+            description="A **federal** republic.",
+        )
+        resp = client.get("/api/pages/locations/usa")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "<strong>federal</strong>" in data["description"]["html"]
+
+    def test_entity_link_in_description(self, client):
+        williams = Manufacturer.objects.create(name="Williams", slug="williams")
+        Location.objects.create(
+            location_path="usa",
+            slug="usa",
+            name="USA",
+            location_type="country",
+            description=f"Home of [[manufacturer:id:{williams.pk}]].",
+        )
+        resp = client.get("/api/pages/locations/usa")
+        data = resp.json()
+        # html resolves the link; text is round-tripped to authoring format.
+        assert "/manufacturers/williams" in data["description"]["html"]
+        assert "[[manufacturer:williams]]" in data["description"]["text"]
 
 
 @pytest.mark.django_db

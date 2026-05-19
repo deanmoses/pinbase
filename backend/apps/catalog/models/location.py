@@ -7,8 +7,8 @@ from typing import ClassVar
 from django.db import models
 from django.db.models.functions import Lower
 
+from apps.core.markdown import MarkdownField
 from apps.core.models import (
-    BoundedTextField,
     TimeStampedModel,
     field_lowercase,
     field_not_blank,
@@ -24,8 +24,6 @@ __all__ = [
     "Location",
     "LocationAlias",
 ]
-
-LOCATION_DESCRIPTION_MAX_LENGTH = 10_000
 
 
 class Location(CatalogModel, TimeStampedModel):
@@ -76,11 +74,7 @@ class Location(CatalogModel, TimeStampedModel):
     short_name = models.CharField(
         max_length=100, blank=True, validators=[validate_no_mojibake]
     )  # claim-controlled; e.g. "USA", "UK"
-    description = BoundedTextField(
-        max_length=LOCATION_DESCRIPTION_MAX_LENGTH,
-        blank=True,
-        validators=[validate_no_mojibake],
-    )  # claim-controlled
+    description = MarkdownField(blank=True)  # claim-controlled
     # claim-controlled; list of level-type labels for countries only
     # e.g. ["state", "city"] or ["region", "department", "city"]
     divisions = models.JSONField(null=True, blank=True)
